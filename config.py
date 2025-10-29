@@ -34,6 +34,9 @@ class Config:
     MIN_CONFIDENCE: float = float(os.getenv('MIN_CONFIDENCE', '0.5'))
     MAX_POSITIONS: int = int(os.getenv('MAX_POSITIONS', '3'))
     
+    # Risk Level Configuration
+    RISK_LEVEL: str = os.getenv('RISK_LEVEL', 'medium').lower()
+    
     @classmethod
     def validate_config(cls) -> bool:
         """Validate that all required configuration is present."""
@@ -86,6 +89,7 @@ class Config:
         logging.info(f"  CYCLE_INTERVAL_MINUTES: {cls.CYCLE_INTERVAL_MINUTES}")
         logging.info(f"  MAX_LEVERAGE: {cls.MAX_LEVERAGE}x")
         logging.info(f"  MIN_CONFIDENCE: {cls.MIN_CONFIDENCE}")
+        logging.info(f"  RISK_LEVEL: {cls.RISK_LEVEL.upper()}")
 
 # Configure logging
 logging.basicConfig(

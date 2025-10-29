@@ -287,9 +287,28 @@ class BacktestEngine:
 class AdvancedRiskManager:
     """Advanced risk management with portfolio diversification and position sizing."""
     
-    def __init__(self, max_portfolio_risk: float = 0.02, max_position_risk: float = 0.01):
-        self.max_portfolio_risk = max_portfolio_risk  # Maximum 2% portfolio risk
-        self.max_position_risk = max_position_risk    # Maximum 1% position risk
+    def __init__(self, max_portfolio_risk: float = None, max_position_risk: float = None):
+        # Set risk parameters based on configuration
+        from config import Config
+        
+        risk_level = Config.RISK_LEVEL.lower()
+        
+        if risk_level == 'low':
+            self.max_portfolio_risk = 0.02  # 2% portfolio risk
+            self.max_position_risk = 0.01   # 1% position risk
+        elif risk_level == 'high':
+            self.max_portfolio_risk = 0.05  # 5% portfolio risk
+            self.max_position_risk = 0.03   # 3% position risk
+        else:  # medium (default)
+            self.max_portfolio_risk = 0.03  # 3% portfolio risk
+            self.max_position_risk = 0.02   # 2% position risk
+        
+        # Override with custom values if provided
+        if max_portfolio_risk is not None:
+            self.max_portfolio_risk = max_portfolio_risk
+        if max_position_risk is not None:
+            self.max_position_risk = max_position_risk
+            
         self.correlation_matrix = {}
         self.volatility_history = {}
         

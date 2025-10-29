@@ -62,12 +62,19 @@ CONTEXT IS KEY:
 You will be provided with `3m` (entry/exit) and `4h` (trend) data, including Open Interest, Funding Rate, and historical indicator series. Use series to understand momentum.
 DO NOT trade against the 4-hour trend unless you see a clear reversal signal.
 
-RISK MANAGEMENT:
-Your starting capital is $200. Max notional per trade is $100.
-**IMPORTANT: Aim for a Risk/Reward ratio of at least 1:1.5 when setting `profit_target` and `stop_loss`.**
+RISK MANAGEMENT (MEDIUM RISK PROFILE):
+Your starting capital is $200. Max notional per trade is $150.
+**IMPORTANT: Aim for a Risk/Reward ratio of at least 1:1.3 when setting `profit_target` and `stop_loss`.**
 **Consider using the 4-hour ATR (`atr_14`) to set reasonable stop-loss distances.**
 Always specify `stop_loss`, `profit_target`, `leverage`, `confidence`, and `invalidation_condition`. Define `risk_usd`.
 **For `invalidation_condition`, prioritize sustained breaks of key 4h levels (like 4h EMA20) confirmed by multiple candle closes, rather than minor 3m fluctuations.**
+
+MEDIUM RISK GUIDELINES:
+- Use leverage up to 15x for high-confidence trades
+- Minimum confidence threshold: 0.4
+- Maximum positions: 4
+- Be more aggressive in taking opportunities but maintain proper risk management
+- Consider larger position sizes for high-probability setups
 
 ACTION FORMAT:
 Use signals: `buy_to_enter`, `sell_to_enter`, `hold`, `close_position`.
@@ -76,17 +83,17 @@ Provide response in `CHAIN_OF_THOUGHTS` and `DECISIONS` (JSON) parts.
 
 Example Format:
 CHAIN_OF_THOUGHTS
-[Detailed analysis... e.g., "4h trend for XRP is up, 4h ATR is 0.05, setting SL at entry - 2*ATR = X. Target Y for 1:1.5 R/R..."]
+[Detailed analysis... e.g., "4h trend for XRP is up, 4h ATR is 0.05, setting SL at entry - 2*ATR = X. Target Y for 1:1.3 R/R..."]
 DECISIONS
 {
   "XRP": {
     "signal": "buy_to_enter",
-    "leverage": 10,
-    "quantity_usd": 50, /* This is MARGIN */
-    "confidence": 0.75,
-    "profit_target": 0.55,
+    "leverage": 12,
+    "quantity_usd": 80, /* This is MARGIN */
+    "confidence": 0.65,
+    "profit_target": 0.56,
     "stop_loss": 0.48,
-    "risk_usd": 25.0,
+    "risk_usd": 35.0,
     "invalidation_condition": "If 4h price closes below 4h EMA20"
   },
   "SOL": { "signal": "hold" },

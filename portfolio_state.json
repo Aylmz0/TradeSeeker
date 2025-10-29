@@ -7,8 +7,8 @@
             "quantity": 0.22099212189784626,
             "entry_price": 18.1,
             "entry_time": "2025-10-29T17:25:52.462860",
-            "current_price": 18.09,
-            "unrealized_pnl": -0.002209921218978808,
+            "current_price": 18.29,
+            "unrealized_pnl": 0.04198850316059029,
             "notional_usd": 3.9999574063510175,
             "margin_usd": 0.4999946757938772,
             "leverage": 8,
@@ -22,9 +22,9 @@
             "risk_usd": 18.0
         }
     },
-    "total_value": 199.99566039633189,
-    "total_return": -0.002169801834057239,
+    "total_value": 200.03985882071146,
+    "total_return": 0.01992941035572926,
     "initial_balance": 200.0,
     "trade_count": 1,
-    "last_updated": "2025-10-29T17:28:15.992628"
+    "last_updated": "2025-10-29T18:16:26.072737"
 }
