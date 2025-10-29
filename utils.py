@@ -53,7 +53,7 @@ class RetryManager:
         retry_strategy = Retry(
             total=Config.MAX_RETRY_ATTEMPTS,
             status_forcelist=[429, 500, 502, 503, 504],
-            method_whitelist=["HEAD", "GET", "POST", "PUT", "DELETE", "OPTIONS", "TRACE"],
+            allowed_methods=["HEAD", "GET", "POST", "PUT", "DELETE", "OPTIONS", "TRACE"],
             backoff_factor=1
         )
         

@@ -325,11 +325,14 @@ class PortfolioManager:
         self.trade_history = self.load_trade_history() # Load first
         self.load_state() # Loads balance, positions, trade_count
         self.cycle_history = self.load_cycle_history()
+        self.risk_manager = AdvancedRiskManager()  # Initialize risk manager
 
-        self.total_value = self.current_balance; self.update_prices({}) # Calculate initial value with loaded positions
-        self.total_return = 0.0; self.start_time = datetime.now()
+        self.total_value = self.current_balance
+        self.total_return = 0.0
+        self.start_time = datetime.now()
         self.portfolio_values_history = [self.initial_balance]  # Track portfolio values for Sharpe ratio
         self.sharpe_ratio = 0.0
+        self.update_prices({}) # Calculate initial value with loaded positions
 
     def load_state(self):
         data = safe_file_read(self.state_file, default_data={})
