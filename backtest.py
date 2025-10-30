@@ -294,14 +294,18 @@ class AdvancedRiskManager:
         risk_level = Config.RISK_LEVEL.lower()
         
         if risk_level == 'low':
-            self.max_portfolio_risk = 0.02  # 2% portfolio risk
-            self.max_position_risk = 0.01   # 1% position risk
+            # Low: Yavaş ve kararlı kazanç - muhafazakar
+            self.max_portfolio_risk = 0.015  # 1.5% portfolio risk
+            self.max_position_risk = 0.008   # 0.8% position risk
         elif risk_level == 'high':
-            self.max_portfolio_risk = 0.05  # 5% portfolio risk
-            self.max_position_risk = 0.03   # 3% position risk
+            # High: Çok riskli - agresif
+            self.max_portfolio_risk = 0.15   # 15% portfolio risk
+            self.max_position_risk = 0.10    # 10% position risk
         else:  # medium (default)
-            self.max_portfolio_risk = 0.03  # 3% portfolio risk
-            self.max_position_risk = 0.02   # 2% position risk
+            # Medium: Nof1ai mantığı - agresif ama kontrollü
+            # Blog örneklerine göre: $10k bakiye ile $12k-$68k pozisyonlar
+            self.max_portfolio_risk = 0.10   # 10% portfolio risk
+            self.max_position_risk = 0.06    # 6% position risk
         
         # Override with custom values if provided
         if max_portfolio_risk is not None:
@@ -330,8 +334,15 @@ class AdvancedRiskManager:
         # Base position size
         base_position_size = risk_per_trade / risk_per_unit
         
-        # Adjust based on confidence
-        confidence_adjusted_size = base_position_size * confidence
+        # Adjust based on confidence - use more aggressive scaling for medium/high risk
+        if confidence > 0.7:  # High confidence
+            confidence_multiplier = 1.5
+        elif confidence > 0.5:  # Medium confidence
+            confidence_multiplier = 1.2
+        else:  # Low confidence
+            confidence_multiplier = 0.8
+        
+        confidence_adjusted_size = base_position_size * confidence_multiplier
         
         # Ensure position doesn't exceed maximum portfolio risk
         max_position_value = current_balance * self.max_portfolio_risk
@@ -343,7 +354,7 @@ class AdvancedRiskManager:
         return max(0.0, confidence_adjusted_size)
     
     def check_portfolio_diversification(self, current_positions: Dict, new_symbol: str, 
-                                      max_concentration: float = 0.3) -> bool:
+                                      max_concentration: float = None) -> bool:
         """Check if adding new position maintains portfolio diversification."""
         if not current_positions:
             return True
@@ -353,12 +364,35 @@ class AdvancedRiskManager:
         if total_notional <= 0:
             return True
         
+        # Set concentration limit based on risk level
+        if max_concentration is None:
+            from config import Config
+            risk_level = Config.RISK_LEVEL.lower()
+            
+            if risk_level == 'low':
+                max_concentration = 0.30  # 30% per position - muhafazakar
+            elif risk_level == 'high':
+                max_concentration = 0.70  # 70% per position - agresif
+            else:  # medium
+                max_concentration = 0.55  # 55% per position - nof1ai mantığı
+        
         # Check if any single position is too concentrated
         for symbol, position in current_positions.items():
             position_concentration = position.get('notional_usd', 0) / total_notional
             if position_concentration > max_concentration:
-                logging.warning(f"Position {symbol} exceeds concentration limit: {position_concentration:.2%}")
+                logging.warning(f"Position {symbol} exceeds concentration limit: {position_concentration:.2%} > {max_concentration:.0%}")
                 return False
+        
+        # Allow multiple positions - only block if we're at maximum positions
+        max_positions = 4
+        if len(current_positions) >= max_positions:
+            logging.warning(f"Maximum positions limit reached: {len(current_positions)}/{max_positions}")
+            return False
+        
+        # Allow same symbol positions - don't block if symbol already exists
+        # This allows adding to existing positions or opening new positions in same symbol
+        if new_symbol in current_positions:
+            logging.info(f"Symbol {new_symbol} already in portfolio, allowing additional position")
         
         return True
     

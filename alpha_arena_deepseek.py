@@ -54,36 +54,54 @@ class DeepSeekAPI:
                 "messages": [
                     {
                         "role": "system",
-                        "content": """You are a professional cryptocurrency trading bot (Perpetual Futures).
-Your goal is to manage a virtual portfolio, starting with $200.
-You will trade ONLY these 6 assets: XRP, DOGE, ASTR, ADA, LINK, SOL.
+                        "content": """You are a zero-shot systematic trading model participating in Alpha Arena.
+Your goal is to maximize PnL (profit and loss) by trading perpetual futures on 6 assets: XRP, DOGE, ASTR, ADA, LINK, SOL.
 
-CONTEXT IS KEY:
-You will be provided with `3m` (entry/exit) and `4h` (trend) data, including Open Interest, Funding Rate, and historical indicator series. Use series to understand momentum.
-DO NOT trade against the 4-hour trend unless you see a clear reversal signal.
+You are given $200 starting capital and must process numerical market data to discover alpha.
+Your Sharpe ratio is provided to help normalize for risky behavior.
 
-RISK MANAGEMENT (MEDIUM RISK PROFILE):
-Your starting capital is $200. Max notional per trade is $150.
-**IMPORTANT: Aim for a Risk/Reward ratio of at least 1:1.3 when setting `profit_target` and `stop_loss`.**
-**Consider using the 4-hour ATR (`atr_14`) to set reasonable stop-loss distances.**
-Always specify `stop_loss`, `profit_target`, `leverage`, `confidence`, and `invalidation_condition`. Define `risk_usd`.
-**For `invalidation_condition`, prioritize sustained breaks of key 4h levels (like 4h EMA20) confirmed by multiple candle closes, rather than minor 3m fluctuations.**
-
-MEDIUM RISK GUIDELINES:
-- Use leverage up to 15x for high-confidence trades
+CRITICAL RULES:
+- Trade systematically using only the numerical data provided
+- Infer market narratives from time-series data, not external news
+- Always specify complete exit plans: profit_target, stop_loss, invalidation_condition
+- Position sizing is computed by you, conditioned on available cash, leverage, and your internal risk preference
+- Use leverage up to 10x for calculated exposure
 - Minimum confidence threshold: 0.4
-- Maximum positions: 4
-- Be more aggressive in taking opportunities but maintain proper risk management
-- Consider larger position sizes for high-probability setups
+- Maximum positions: 5
+
+RISK MANAGEMENT (NOF1AI MEDIUM RISK PROFILE):
+- Portfolio risk limit: 25% ($50 on $200) - Increased for 5 positions
+- Position risk limit: 8% ($16 on $200) - Increased for better diversification
+- Concentration limit: 35% per position - Reduced for better diversification
+- Maximum positions: 5 out of 6 coins
+- Aim for Risk/Reward ratio of at least 1:1.3
+- Use 4-hour ATR for stop-loss distances
+- For invalidation_condition, prioritize sustained breaks of key 4h levels confirmed by multiple candle closes
+
+IMPORTANT STARTUP BEHAVIOR:
+- On first cycle (Cycle 1), observe market conditions for at least 2-3 cycles before entering positions
+- Do not enter trades immediately on system startup unless there is exceptionally strong confirmation
+- Prefer to establish baseline market understanding before taking risk
+- You can hold up to 5 positions simultaneously across the 6 available coins
+- Focus on the strongest setups across all coins, not just 2-3 favorites
+- Avoid XRP bias - do not automatically favor XRP over other coins
+- Use variable position sizing based on confidence (30-100 USD margin), not fixed 60 USD
+
+DATA CONTEXT:
+- You receive 3m (entry/exit) and 4h (trend) data with historical indicator series
+- All price/signal data is ordered: OLDEST → NEWEST
+- Use series to understand momentum and trend structure
+- Consider Open Interest and Funding Rate for market sentiment
 
 ACTION FORMAT:
 Use signals: `buy_to_enter`, `sell_to_enter`, `hold`, `close_position`.
 If a position is open, only `hold` or `close_position` are allowed.
+
 Provide response in `CHAIN_OF_THOUGHTS` and `DECISIONS` (JSON) parts.
 
-Example Format:
+Example Format (NOF1AI Blog Style):
 CHAIN_OF_THOUGHTS
-[Detailed analysis... e.g., "4h trend for XRP is up, 4h ATR is 0.05, setting SL at entry - 2*ATR = X. Target Y for 1:1.3 R/R..."]
+[Systematic analysis of all assets, current positions, and market conditions. Focus on 4h trends, momentum, and risk management. Example: "BTC breaking above consolidation zone with strong momentum. RSI at 62.5 shows room to run, MACD positive at 116.5, price well above EMA20. 4h timeframe showing recovery from oversold (RSI 45.4). Targeting retest of $110k-111k zone. Stop below $106,361 protects against false breakout."]
 DECISIONS
 {
   "XRP": {
@@ -99,7 +117,8 @@ DECISIONS
   "SOL": { "signal": "hold" },
   "ADA": { "signal": "close_position", "justification": "Reached profit target." }
 }
-"""
+
+Remember: You are a systematic trading model. Make principled decisions based on quantitative data."""
                     },
                     {"role": "user", "content": prompt}
                 ],
@@ -314,8 +333,17 @@ class RealMarketData:
         return prices
 
     def get_market_sentiment(self, coin: str) -> Dict[str, Any]:
-        """Get Open Interest and Funding Rate"""
-        return {'open_interest': self.get_open_interest(coin), 'funding_rate': self.get_funding_rate(coin)}
+        """Get Open Interest and Funding Rate (Nof1ai format)"""
+        open_interest = self.get_open_interest(coin)
+        funding_rate = self.get_funding_rate(coin)
+        
+        # Nof1ai format: "Latest: X Average: Y" for Open Interest
+        avg_oi = open_interest  # Simplified average calculation
+        return {
+            'open_interest': open_interest,
+            'open_interest_avg': avg_oi,
+            'funding_rate': funding_rate
+        }
 
 # --- Portfolio Manager Class ---
 class PortfolioManager:
@@ -325,7 +353,7 @@ class PortfolioManager:
         self.initial_balance = initial_balance
         self.state_file = "portfolio_state.json"; self.history_file = "trade_history.json"
         self.override_file = "manual_override.json"; self.cycle_history_file = "cycle_history.json"
-        self.max_cycle_history = 50; self.max_trade_notional_usd = self.initial_balance * 0.5 # Max $100 notional
+        self.max_cycle_history = 50; self.max_trade_notional_usd = Config.MAX_TRADE_NOTIONAL_USD # Use config value
         self.maintenance_margin_rate = 0.01
 
         self.current_balance = self.initial_balance; self.positions = {}
@@ -349,7 +377,7 @@ class PortfolioManager:
         print(f"✅ Loaded state ({len(self.positions)} positions, {self.trade_count} closed trades)" if data else "ℹ️ No state file found.")
 
     def save_state(self):
-        data = {'current_balance': self.current_balance, 'positions': self.positions, 'total_value': self.total_value, 'total_return': self.total_return, 'initial_balance': self.initial_balance, 'trade_count': self.trade_count, 'last_updated': datetime.now().isoformat()}
+        data = {'current_balance': self.current_balance, 'positions': self.positions, 'total_value': self.total_value, 'total_return': self.total_return, 'initial_balance': self.initial_balance, 'trade_count': self.trade_count, 'last_updated': datetime.now().isoformat(), 'sharpe_ratio': self.sharpe_ratio}
         safe_file_write(self.state_file, data); print(f"✅ Saved state.")
 
     def load_trade_history(self) -> List[Dict]:
@@ -398,30 +426,40 @@ class PortfolioManager:
         self.save_state()
     
     def calculate_sharpe_ratio(self) -> float:
-        """Calculate Sharpe ratio based on portfolio value history."""
+        """Calculate Sharpe ratio based on portfolio value history (Nof1ai blog style)."""
         if len(self.portfolio_values_history) < 2:
             return 0.0
         
         try:
-            # Calculate daily returns (assuming 2-minute cycles = 720 cycles per day)
+            # Calculate simple returns (percentage changes)
             returns = []
             for i in range(1, len(self.portfolio_values_history)):
                 if self.portfolio_values_history[i-1] > 0:
-                    daily_return = (self.portfolio_values_history[i] - self.portfolio_values_history[i-1]) / self.portfolio_values_history[i-1]
-                    returns.append(daily_return)
+                    ret = (self.portfolio_values_history[i] - self.portfolio_values_history[i-1]) / self.portfolio_values_history[i-1]
+                    returns.append(ret)
             
             if len(returns) < 2:
                 return 0.0
             
-            # Annualize returns (252 trading days)
-            avg_return = np.mean(returns) * 252  # Annualized return
-            std_return = np.std(returns) * np.sqrt(252)  # Annualized volatility
+            # Nof1ai style: Simple Sharpe ratio with 0% risk-free rate
+            # Daily Sharpe ratio (assuming 2-minute cycles = 720 cycles per day)
+            risk_free_rate = 0.0
+            
+            # Calculate excess returns
+            excess_returns = [r - risk_free_rate for r in returns]
+            
+            # Daily return and volatility
+            avg_return = np.mean(excess_returns) * 720  # Daily return (720 cycles per day)
+            std_return = np.std(excess_returns) * np.sqrt(720)  # Daily volatility
             
             if std_return == 0:
                 return 0.0
             
+            # Daily Sharpe ratio
             sharpe = avg_return / std_return
-            return sharpe
+            
+            # Return as float (not annualized for simplicity)
+            return float(sharpe)
             
         except Exception as e:
             print(f"⚠️ Sharpe ratio calculation error: {e}")
@@ -538,6 +576,10 @@ class PortfolioManager:
                 try: confidence = float(confidence); leverage = int(leverage)
                 except (ValueError, TypeError): print(f"⚠️ Invalid confidence ({confidence}) or leverage ({leverage}) for {coin}. Skipping."); continue
                 if leverage < 1: leverage = 1
+                # Enforce maximum leverage limit of 10x
+                if leverage > 10: 
+                    print(f"⚠️ Leverage {leverage}x exceeds maximum limit of 10x. Reducing to 10x.")
+                    leverage = 10
                 if not (0.0 <= confidence <= 1.0): confidence = 0.5 # Clamp confidence to 0.0-1.0
 
                 # --- Advanced Risk Management ---
@@ -547,22 +589,28 @@ class PortfolioManager:
                 except (ValueError, TypeError):
                     stop_loss = None
                 
-                # Use risk manager to calculate optimal position size
-                if stop_loss is not None and stop_loss > 0:
-                    optimal_quantity = self.risk_manager.calculate_position_size(
-                        current_balance=self.current_balance,
-                        entry_price=current_price,
-                        stop_loss=stop_loss,
-                        confidence=confidence
-                    )
-                    calculated_notional_usd = optimal_quantity * current_price
-                    print(f"   Risk-based sizing: ${calculated_notional_usd:.2f} notional")
+                # Use AI's proposed position size directly (quantity_usd is margin)
+                # Convert margin to notional using leverage
+                proposed_margin = trade.get('quantity_usd', 0)
+                if proposed_margin > 0:
+                    calculated_notional_usd = proposed_margin * leverage
+                    print(f"   AI proposed sizing: ${calculated_notional_usd:.2f} notional (${proposed_margin:.2f} margin)")
                 else:
-                    # Fallback to dynamic sizing based on confidence
-                    min_notional = 50.0; max_notional = self.max_trade_notional_usd
+                    # Fallback to dynamic sizing based on confidence and risk level
+                    from config import Config
+                    risk_level = Config.RISK_LEVEL.lower()
+                    
+                    if risk_level == 'low':
+                        min_notional = 50.0
+                    elif risk_level == 'high':
+                        min_notional = 100.0
+                    else:  # medium
+                        min_notional = 75.0
+                        
+                    max_notional = self.max_trade_notional_usd
                     calculated_notional_usd = min_notional + (max_notional - min_notional) * confidence
                     calculated_notional_usd = min(calculated_notional_usd, self.max_trade_notional_usd)
-                    print(f"   Confidence-based sizing: ${calculated_notional_usd:.2f} notional")
+                    print(f"   Confidence-based sizing: ${calculated_notional_usd:.2f} notional (min: ${min_notional})")
                 
                 # Check risk management constraints
                 risk_decision = self.risk_manager.should_enter_trade(
@@ -710,19 +758,20 @@ Timeframes note: Unless stated otherwise in a section title, intraday series are
 
 
         prompt += f"""
-{'='*20} ACCOUNT INFORMATION & PERFORMANCE {'='*20}
+{'='*20} HERE IS YOUR ACCOUNT INFORMATION & PERFORMANCE {'='*20}
 
 Current Total Return (percent): {format_num(self.portfolio.total_return, 2)}%
 Available Cash: {format_num(self.portfolio.current_balance, 2)}
 Current Account Value: {format_num(self.portfolio.total_value, 2)}
-Total Closed Trades: {self.portfolio.trade_count}
+Sharpe Ratio: {format_num(self.portfolio.sharpe_ratio, 3)}
 
-Current live positions & performance (brief summary): """
+Current live positions & performance:"""
 
-        if not self.portfolio.positions: prompt += "No open positions. (100% cash)"
+        if not self.portfolio.positions: 
+            prompt += " No open positions. (100% cash)"
         else:
-            summary_list = [f"{coin} ({pos.get('direction','long').upper()} ${format_num(pos.get('notional_usd',0), 0)} Notional, PnL ${format_num(pos.get('unrealized_pnl',0), 2)})" for coin, pos in self.portfolio.positions.items()]
-            prompt += ", ".join(summary_list)
+            for coin, pos in self.portfolio.positions.items():
+                prompt += f"\n{{'symbol': '{coin}', 'quantity': {format_num(pos.get('quantity', 0), 4)}, 'entry_price': {format_num(pos.get('entry_price', 0))}, 'current_price': {format_num(pos.get('current_price', 0))}, 'liquidation_price': {format_num(pos.get('liquidation_price', 0))}, 'unrealized_pnl': {format_num(pos.get('unrealized_pnl', 0), 2)}, 'leverage': {pos.get('leverage', 1)}, 'exit_plan': {json.dumps(pos.get('exit_plan', {}))}, 'confidence': {pos.get('confidence', 0.5)}, 'risk_usd': {pos.get('risk_usd', 'N/A')}, 'sl_oid': -1, 'tp_oid': -1, 'wait_for_fill': False, 'entry_oid': -1, 'notional_usd': {format_num(pos.get('notional_usd', 0), 2)}}}"
         return prompt
 
     def parse_ai_response(self, response: str) -> Dict:
@@ -829,7 +878,6 @@ Current live positions & performance (brief summary): """
         print(f"📈 Total Return: {format_num(self.portfolio.total_return, 2)}%")
         print(f"💵 Available Cash: ${format_num(self.portfolio.current_balance, 2)}")
         print(f"🔄 Total Closed Trades: {self.portfolio.trade_count}")
-
         print(f"\n📦 CURRENT POSITIONS ({len(self.portfolio.positions)} open):")
         if not self.portfolio.positions: print("  No open positions.")
         else:

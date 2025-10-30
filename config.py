@@ -26,13 +26,13 @@ class Config:
     
     # Trading Settings
     INITIAL_BALANCE: float = float(os.getenv('INITIAL_BALANCE', '200.0'))
-    MAX_TRADE_NOTIONAL_USD: float = float(os.getenv('MAX_TRADE_NOTIONAL_USD', '100.0'))
+    MAX_TRADE_NOTIONAL_USD: float = float(os.getenv('MAX_TRADE_NOTIONAL_USD', '200.0'))  # Nof1ai blog: $12k-$68k positions
     CYCLE_INTERVAL_MINUTES: int = int(os.getenv('CYCLE_INTERVAL_MINUTES', '2'))
     
     # Risk Management
-    MAX_LEVERAGE: int = int(os.getenv('MAX_LEVERAGE', '10'))
-    MIN_CONFIDENCE: float = float(os.getenv('MIN_CONFIDENCE', '0.5'))
-    MAX_POSITIONS: int = int(os.getenv('MAX_POSITIONS', '3'))
+    MAX_LEVERAGE: int = int(os.getenv('MAX_LEVERAGE', '10'))  # Nof1ai blog: 10x leverage
+    MIN_CONFIDENCE: float = float(os.getenv('MIN_CONFIDENCE', '0.4'))  # Nof1ai blog: medium risk
+    MAX_POSITIONS: int = int(os.getenv('MAX_POSITIONS', '4'))  # Nof1ai blog: 2-3 positions
     
     # Risk Level Configuration
     RISK_LEVEL: str = os.getenv('RISK_LEVEL', 'medium').lower()

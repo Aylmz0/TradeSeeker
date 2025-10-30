@@ -21,16 +21,16 @@ Sistem artık 3 farklı risk seviyesi arasında kolayca geçiş yapabilir. Her r
 - Korunmacı trading stratejileri
 - Uzun vadeli pozisyonlar
 
-## 🟡 MEDIUM RISK (Orta Risk) - Dengeli
+## 🟡 MEDIUM RISK (Orta Risk) - Nof1ai Mantığı
 
 ### Parametre Değerleri
-- **Maksimum İşlem Büyüklüğü:** $150
-- **Maksimum Kaldıraç:** 15x
+- **Maksimum İşlem Büyüklüğü:** $200
+- **Maksimum Kaldıraç:** 20x
 - **Minimum Güven Seviyesi:** 0.4
 - **Maksimum Pozisyon Sayısı:** 4
 - **Risk/Reward Oranı:** 1:1.3
-- **Portföy Risk Limiti:** %3
-- **Pozisyon Risk Limiti:** %2
+- **Portföy Risk Limiti:** %10
+- **Pozisyon Risk Limiti:** %6
 
 ### Kullanım Senaryoları
 - Deneyimli kullanıcılar

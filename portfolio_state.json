@@ -1,30 +1,31 @@
 {
-    "current_balance": 199.497875641757,
+    "current_balance": 133.32858132051646,
     "positions": {
-        "LINK": {
-            "symbol": "LINK",
-            "direction": "long",
-            "quantity": 0.22099212189784626,
-            "entry_price": 18.1,
-            "entry_time": "2025-10-29T17:25:52.462860",
-            "current_price": 18.29,
-            "unrealized_pnl": 0.04198850316059029,
-            "notional_usd": 3.9999574063510175,
-            "margin_usd": 0.4999946757938772,
-            "leverage": 8,
-            "liquidation_price": 16.018500000000003,
+        "ADA": {
+            "symbol": "ADA",
+            "direction": "short",
+            "quantity": 1760.8586282072781,
+            "entry_price": 0.5963,
+            "entry_time": "2025-10-30T17:34:02.870564",
+            "current_price": 0.5961,
+            "unrealized_pnl": 0.3521717256416123,
+            "notional_usd": 1050,
+            "margin_usd": 70.0,
+            "leverage": 15,
+            "liquidation_price": 0.6300903333333334,
             "confidence": 0.65,
             "exit_plan": {
-                "profit_target": 18.65,
-                "stop_loss": 17.65,
-                "invalidation_condition": "If 4h price closes below 4h EMA20 (18.12) and 3m RSI remains below 40"
+                "profit_target": 0.575,
+                "stop_loss": 0.615,
+                "invalidation_condition": "If 4h price closes above 4h EMA20 (0.6412)"
             },
-            "risk_usd": 18.0
+            "risk_usd": 28.0
         }
     },
-    "total_value": 200.03985882071146,
-    "total_return": 0.01992941035572926,
+    "total_value": 203.6807530461581,
+    "total_return": 1.840376523079044,
     "initial_balance": 200.0,
     "trade_count": 1,
-    "last_updated": "2025-10-29T18:17:01.126240"
+    "last_updated": "2025-10-30T19:31:59.458126",
+    "sharpe_ratio": 4.3242146369334336
 }

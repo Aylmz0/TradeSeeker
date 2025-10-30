@@ -1,15 +1,15 @@
 [
     {
         "symbol": "XRP",
-        "direction": "long",
-        "entry_price": 2.6295,
-        "exit_price": 2.6281,
-        "quantity": 1.5212017493820116,
-        "notional_usd": 3.9999999999999996,
-        "pnl": -0.002129682449135257,
-        "entry_time": "2025-10-29T17:19:44.973944",
-        "exit_time": "2025-10-29T17:23:57.226430",
+        "direction": "short",
+        "entry_price": 2.4551,
+        "exit_price": 2.4324,
+        "quantity": 146.63353834874343,
+        "notional_usd": 360,
+        "pnl": 3.3285813205164674,
+        "entry_time": "2025-10-30T17:04:05.118702",
+        "exit_time": "2025-10-30T17:32:06.071310",
         "leverage": 8,
-        "close_reason": "AI Decision: Price is barely holding above 4h EMA20 support with declining momentum. Risk of breaking invalidation condition is high. Preserve capital in bearish environment."
+        "close_reason": "AI Decision: Approaching profit target at 2.38 with current price 2.4321. Taking profits on successful short trade amid broad market weakness."
     }
 ]
