@@ -1,0 +1,85 @@
+{
+  "analysis_period": "Last 10 cycles (Total: 50)",
+  "timestamp": "2025-11-10T00:08:54.776918",
+  "trading_activity": {
+    "total_decisions": 60,
+    "entry_signals": 2,
+    "hold_signals": 58,
+    "close_signals": 0,
+    "decision_rate": 3.3333333333333335
+  },
+  "trade_performance": {
+    "total_trades": 89,
+    "winning_trades": 70,
+    "losing_trades": 19,
+    "break_even_trades": 0,
+    "win_rate": 78.65,
+    "total_pnl": 25.82,
+    "average_pnl": 0.29,
+    "profit_factor": 1.76,
+    "largest_win": 3.01,
+    "largest_loss": -4.61
+  },
+  "portfolio_performance": {
+    "initial_balance": 200.0,
+    "current_balance": 103.25746056478904,
+    "total_value": 226.19970060161833,
+    "total_return": 13.1,
+    "sharpe_ratio": -0.037,
+    "open_positions": 4
+  },
+  "coin_performance": {
+    "DOGE": {
+      "trades": 5,
+      "total_pnl": -3.337827498935895,
+      "wins": 2,
+      "losses": 3,
+      "win_rate": 40.0,
+      "avg_pnl": -0.667565499787179
+    },
+    "ADA": {
+      "trades": 26,
+      "total_pnl": 15.405157338395783,
+      "wins": 24,
+      "losses": 2,
+      "win_rate": 92.3076923076923,
+      "avg_pnl": 0.5925060514767609
+    },
+    "LINK": {
+      "trades": 25,
+      "total_pnl": 5.8312281625745275,
+      "wins": 19,
+      "losses": 6,
+      "win_rate": 76.0,
+      "avg_pnl": 0.2332491265029811
+    },
+    "SOL": {
+      "trades": 16,
+      "total_pnl": 6.9369989144460575,
+      "wins": 12,
+      "losses": 4,
+      "win_rate": 75.0,
+      "avg_pnl": 0.4335624321528786
+    },
+    "XRP": {
+      "trades": 16,
+      "total_pnl": 3.2807151597977606,
+      "wins": 13,
+      "losses": 3,
+      "win_rate": 81.25,
+      "avg_pnl": 0.20504469748736004
+    },
+    "JASMY": {
+      "trades": 1,
+      "total_pnl": -2.296785280270733,
+      "wins": 0,
+      "losses": 1,
+      "win_rate": 0.0,
+      "avg_pnl": -2.296785280270733
+    }
+  },
+  "recommendations": [
+    "[INFO] Position count 4; exceeds reference threshold (≥3)",
+    "[INFO] Coins with cumulative negative PnL: DOGE, JASMY"
+  ]
+}

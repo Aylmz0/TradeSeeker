@@ -1,0 +1,166 @@
+{
+    "current_balance": 103.25746056478904,
+    "positions": {
+        "SOL": {
+            "symbol": "SOL",
+            "direction": "long",
+            "quantity": 1.3796515314677202,
+            "entry_price": 165.29,
+            "entry_time": "2025-11-09T22:37:58.396234",
+            "current_price": 165.15,
+            "unrealized_pnl": -0.193151214405462,
+            "notional_usd": 228.04260163629945,
+            "margin_usd": 22.804260163629944,
+            "leverage": 10,
+            "liquidation_price": 150.41389999999998,
+            "confidence": 0.8270000000000001,
+            "exit_plan": {
+                "profit_target": 170.0,
+                "stop_loss": 160.0,
+                "invalidation_condition": "If 4h price closes below 4h EMA20=160.2249"
+            },
+            "risk_usd": 22.804260163629944,
+            "loss_cycle_count": 0,
+            "trend_context": {
+                "trend_at_entry": "bullish",
+                "cycle": 126
+            },
+            "sl_oid": -1,
+            "tp_oid": -1,
+            "entry_oid": -1,
+            "wait_for_fill": false
+        },
+        "ADA": {
+            "symbol": "ADA",
+            "direction": "long",
+            "quantity": 414.2300156107322,
+            "entry_price": 0.5812,
+            "entry_time": "2025-11-09T23:09:58.429631",
+            "current_price": 0.5781,
+            "unrealized_pnl": -1.2841130483933123,
+            "notional_usd": 240.7504850729576,
+            "margin_usd": 24.075048507295758,
+            "leverage": 10,
+            "liquidation_price": 0.528892,
+            "confidence": 0.8585000000000002,
+            "exit_plan": {
+                "profit_target": 0.6,
+                "stop_loss": 0.565,
+                "invalidation_condition": "If 4h price closes below 4h EMA20=0.5644"
+            },
+            "risk_usd": 24.075048507295758,
+            "loss_cycle_count": 8,
+            "trend_context": {
+                "trend_at_entry": "bullish",
+                "cycle": 134
+            },
+            "sl_oid": -1,
+            "tp_oid": -1,
+            "entry_oid": -1,
+            "wait_for_fill": false
+        },
+        "LINK": {
+            "symbol": "LINK",
+            "direction": "long",
+            "quantity": 22.043549898110445,
+            "entry_price": 15.99,
+            "entry_time": "2025-11-09T23:13:54.627859",
+            "current_price": 15.99,
+            "unrealized_pnl": 0.0,
+            "notional_usd": 352.47636287078603,
+            "margin_usd": 35.247636287078606,
+            "leverage": 10,
+            "liquidation_price": 14.5509,
+            "confidence": 0.49245,
+            "exit_plan": {
+                "profit_target": 16.8,
+                "stop_loss": 15.7,
+                "invalidation_condition": "If 4h price closes below 4h EMA20=15.5141"
+            },
+            "risk_usd": 35.247636287078606,
+            "loss_cycle_count": 0,
+            "trend_context": {
+                "trend_at_entry": "bullish",
+                "cycle": 135
+            },
+            "sl_oid": -1,
+            "tp_oid": -1,
+            "entry_oid": -1,
+            "wait_for_fill": false
+        },
+        "XRP": {
+            "symbol": "XRP",
+            "direction": "long",
+            "quantity": 172.75519641636376,
+            "entry_price": 2.3406,
+            "entry_time": "2025-11-09T23:29:45.316016",
+            "current_price": 2.3323,
+            "unrealized_pnl": -1.4338681302557763,
+            "notional_usd": 404.350812732141,
+            "margin_usd": 40.435081273214095,
+            "leverage": 10,
+            "liquidation_price": 2.129946,
+            "confidence": 0.7035000000000001,
+            "exit_plan": {
+                "profit_target": 2.42,
+                "stop_loss": 2.3,
+                "invalidation_condition": "If 4h price closes below 4h EMA20=2.2963"
+            },
+            "risk_usd": 40.435081273214095,
+            "loss_cycle_count": 1,
+            "trend_context": {
+                "trend_at_entry": "bullish",
+                "cycle": 139
+            },
+            "sl_oid": -1,
+            "tp_oid": -1,
+            "entry_oid": -1,
+            "wait_for_fill": false
+        }
+    },
+    "total_value": 222.9083544029529,
+    "total_return": 11.454177201476455,
+    "initial_balance": 200.0,
+    "trade_count": 89,
+    "last_updated": "2025-11-10T00:11:41.676100",
+    "sharpe_ratio": -2.0805988672611195,
+    "directional_bias": {
+        "long": {
+            "rolling": [
+                0.5479598482655224,
+                0.8248804067042328,
+                0.5479598482655222,
+                0.49170560114341727,
+                2.180167189464717,
+                1.8337638799759428,
+                1.4041471111804231,
+                0.7375584017151041,
+                0.509754497823206,
+                0.6159533515363688,
+                0.6053334661650533,
+                0.10587846501182059,
+                0.6257514485988044,
+                1.254626650636546,
+                0.5631763037389406,
+                1.8303229871515279,
+                0.5973685521365623,
+                0.22783898631093807,
+                1.3133718782014205,
+                -4.608365389013661
+            ],
+            "net_pnl": 25.81948679600751,
+            "trades": 89,
+            "wins": 70,
+            "losses": 19,
+            "consecutive_losses": 1
+        },
+        "short": {
+            "rolling": [],
+            "net_pnl": 0.0,
+            "trades": 0,
+            "wins": 0,
+            "losses": 0,
+            "consecutive_losses": 0
+        }
+    }
+}
