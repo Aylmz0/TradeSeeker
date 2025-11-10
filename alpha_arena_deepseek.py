@@ -2027,7 +2027,7 @@ class PortfolioManager:
                             elif guard_cycles_since_flip == 2:
                                 partial_margin_factor = min(partial_margin_factor, 0.7)
                                 print(f"⏳ Trend flip guard (counter-trend): {coin} sizing capped at 70% two cycles after flip.")
-                        counter_confidence_floor = 0.75
+                        counter_confidence_floor = 0.70
                         if confidence < counter_confidence_floor:
                             print(f"🚫 Counter-trend confidence floor: {coin} {signal} confidence {confidence:.2f} < {counter_confidence_floor:.2f}. Skipping trade.")
                             execution_report['blocked'].append({'coin': coin, 'reason': 'counter_trend_floor', 'classification': trend_classification, 'confidence': confidence})
@@ -2084,14 +2084,8 @@ class PortfolioManager:
                                 if volume_ratio < 0.8:
                                     partial_margin_factor = 0.5
                                     print(f"🧪 Low-volume trend-following: using 50% margin for {coin} (volume ratio {volume_ratio:.2f})")
-                                boosted_confidence = min(1.0, confidence + 0.05)
-                                if boosted_confidence > confidence:
-                                    print(f"📈 Trend-following boost: volume ratio {volume_ratio:.2f} supports {coin} {signal}. Confidence {confidence:.2f} → {boosted_confidence:.2f}")
-                                    confidence = boosted_confidence
-                                    trade['confidence'] = confidence
-                            else:
-                                ratio_str = f"{volume_ratio:.2f}" if volume_ratio is not None else "n/a"
-                                print(f"✅ TREND-FOLLOWING: {coin} aligns with 4h trend direction (volume ratio {ratio_str})")
+                            ratio_str = f"{volume_ratio:.2f}" if volume_ratio is not None else "n/a"
+                            print(f"✅ TREND-FOLLOWING: {coin} aligns with 4h trend direction (volume ratio {ratio_str})")
                         else:
                             print(f"✅ TREND-FOLLOWING: {coin} aligns with 4h trend direction")
                             

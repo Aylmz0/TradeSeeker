@@ -1,0 +1,77 @@
+{
+  "analysis_period": "Last 10 cycles (Total: 33)",
+  "timestamp": "2025-11-10T07:15:09.642363",
+  "trading_activity": {
+    "total_decisions": 60,
+    "entry_signals": 6,
+    "hold_signals": 51,
+    "close_signals": 3,
+    "decision_rate": 10.0
+  },
+  "trade_performance": {
+    "total_trades": 31,
+    "winning_trades": 24,
+    "losing_trades": 5,
+    "break_even_trades": 2,
+    "win_rate": 77.42,
+    "total_pnl": 13.48,
+    "average_pnl": 0.43,
+    "profit_factor": 4.81,
+    "largest_win": 2.38,
+    "largest_loss": -1.36
+  },
+  "portfolio_performance": {
+    "initial_balance": 200.0,
+    "current_balance": 128.58075459667427,
+    "total_value": 213.96788510269198,
+    "total_return": 6.98,
+    "sharpe_ratio": 2.92,
+    "open_positions": 4
+  },
+  "coin_performance": {
+    "XRP": {
+      "trades": 16,
+      "total_pnl": 9.545641430657248,
+      "wins": 15,
+      "losses": 1,
+      "win_rate": 93.75,
+      "avg_pnl": 0.596602589416078
+    },
+    "SOL": {
+      "trades": 6,
+      "total_pnl": -0.04149714690911585,
+      "wins": 4,
+      "losses": 2,
+      "win_rate": 66.66666666666666,
+      "avg_pnl": -0.006916191151519309
+    },
+    "LINK": {
+      "trades": 6,
+      "total_pnl": 2.6238415178073127,
+      "wins": 4,
+      "losses": 1,
+      "win_rate": 66.66666666666666,
+      "avg_pnl": 0.4373069196345521
+    },
+    "ADA": {
+      "trades": 1,
+      "total_pnl": -0.45651949960802685,
+      "wins": 0,
+      "losses": 1,
+      "win_rate": 0.0,
+      "avg_pnl": -0.45651949960802685
+    },
+    "JASMY": {
+      "trades": 2,
+      "total_pnl": 1.8051584402142793,
+      "wins": 1,
+      "losses": 0,
+      "win_rate": 50.0,
+      "avg_pnl": 0.9025792201071396
+    }
+  },
+  "recommendations": [
+    "[INFO] Position count 4; exceeds reference threshold (≥3)",
+    "[INFO] Coins with cumulative negative PnL: SOL, ADA"
+  ]
+}
