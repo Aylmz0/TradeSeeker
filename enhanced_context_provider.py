@@ -4,6 +4,7 @@ from datetime import datetime, timedelta
 from typing import Dict, List, Any
 import pandas as pd
 import numpy as np
+from config import Config
 
 class EnhancedContextProvider:
     """
@@ -145,19 +146,21 @@ class EnhancedContextProvider:
         coin_count = len(market_data.available_coins) if market_data.available_coins else 0
         neutral_count = max(0, coin_count - (overall_bull + overall_bear))
         total_bias = overall_bull + overall_bear
+        strength = 0
         if coin_count == 0 or total_bias == 0:
-            current_regime = "mixed"
-            strength = 0
+            current_regime = "neutral"
         else:
-            if overall_bull > overall_bear:
+            dominant = max(overall_bull, overall_bear)
+            strength = round(dominant / coin_count, 2)
+            neutral_majority = neutral_count >= (coin_count // 2 + coin_count % 2)
+            if strength < Config.GLOBAL_NEUTRAL_STRENGTH_THRESHOLD or neutral_majority:
+                current_regime = "neutral"
+            elif overall_bull > overall_bear:
                 current_regime = "bullish"
-                strength = round(overall_bull / coin_count, 2)
             elif overall_bear > overall_bull:
                 current_regime = "bearish"
-                strength = round(overall_bear / coin_count, 2)
             else:
-                current_regime = "mixed"
-                strength = round(overall_bull / coin_count, 2)
+                current_regime = "neutral"
         
         return {
             "current_regime": current_regime,

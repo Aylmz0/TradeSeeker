@@ -44,9 +44,13 @@ class Config:
         'fair': 1.2,       # >1.2x average volume
         'poor': 0.7        # >0.7x average volume
     }
+    SAME_DIRECTION_LIMIT: int = int(os.getenv('SAME_DIRECTION_LIMIT', '4'))
     EMA_NEUTRAL_BAND_PCT: float = float(os.getenv('EMA_NEUTRAL_BAND_PCT', '0.0015'))  # ±0.15% bant
     INTRADAY_NEUTRAL_RSI_HIGH: float = float(os.getenv('INTRADAY_NEUTRAL_RSI_HIGH', '60.0'))
     INTRADAY_NEUTRAL_RSI_LOW: float = float(os.getenv('INTRADAY_NEUTRAL_RSI_LOW', '40.0'))
+    TREND_SHORT_RSI_THRESHOLD: float = float(os.getenv('TREND_SHORT_RSI_THRESHOLD', '45.0'))
+    TREND_LONG_RSI_THRESHOLD: float = float(os.getenv('TREND_LONG_RSI_THRESHOLD', '55.0'))
+    GLOBAL_NEUTRAL_STRENGTH_THRESHOLD: float = float(os.getenv('GLOBAL_NEUTRAL_STRENGTH_THRESHOLD', '0.34'))
     DIRECTIONAL_NEUTRAL_CONFIDENCE_MODIFIER: float = float(os.getenv('DIRECTIONAL_NEUTRAL_CONFIDENCE_MODIFIER', '0.97'))
     DIRECTIONAL_CONFLICT_CONFIDENCE_MODIFIER: float = float(os.getenv('DIRECTIONAL_CONFLICT_CONFIDENCE_MODIFIER', '0.95'))
     MARKET_REGIME_MULTIPLIERS: dict = {
