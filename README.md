@@ -60,6 +60,15 @@ MAX_POSITIONS=4
 RISK_LEVEL=medium  # Options: low, medium, high
 ```
 
+### 2.1 Canlı Kullanım Konfigürasyon İpuçları
+
+- **HISTORY_RESET_INTERVAL**: (Varsayılan `35`) Her bu kadar cycle'da geçmiş logları temizler, sistemin uzun süreli bias geliştirmesini engeller. Canlıda 30-50 arası değer önerilir.  
+- **SAME_DIRECTION_LIMIT**: Maksimum aynı yönde (long/short) pozisyon slotu. Futures cüzdan boyutunuza göre azaltıp artırabilirsiniz; borsanın kaldıraç limitini aşmamasına dikkat edin.  
+- **CYCLE_INTERVAL_MINUTES** & **calculate_optimal_cycle_frequency**: Varsayılan 2 dakika. Spot/USDT perpetual tarafında API sınırlarını zorlamamak için minimum 2 dk önerilir; volatilite yüksekse bot otomatik olarak 2-4 dakika aralığına geçer.  
+- **MIN_CONFIDENCE**: AI karar filtre eşiği. Gerçek bakiyede çok düşük ayarlanması gereksiz işlem sayısını artırabilir; 0.4-0.5 aralığı sağlıklı.  
+- **INITIAL_BALANCE / MIN_POSITION_MARGIN_USD**: Gerçek bakiyeniz farklıysa `.env` ve `config.py` değerlerini güncelleyip botu yeniden başlatın; margin limitleri yeni bakiyeye göre otomatik ölçeklenir.  
+- **API Limits & Failover**: Binance tarafında saniyede 10 istek limitini aşmamak için `MAX_RETRY_ATTEMPTS`, `REQUEST_TIMEOUT` gibi parametreleri aşırı düşürmeyin.  
+
 ### 3. Sistem Başlatma
 
 ```bash

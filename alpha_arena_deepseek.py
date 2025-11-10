@@ -300,6 +300,29 @@ class RealMarketData:
         self.futures_url = "https://fapi.binance.com/fapi/v1"
         self.available_coins = ['XRP', 'DOGE', 'JASMY', 'ADA', 'LINK', 'SOL'] # SHIB replaced with JASMY
         self.indicator_history_length = 10
+        self.session = RetryManager.create_session_with_retry()
+        self.preloaded_indicators: Dict[str, Dict[str, Dict[str, Any]]] = {}
+
+    def clear_preloaded_indicators(self):
+        """Clear any preloaded indicator snapshots (typically once per cycle)."""
+        self.preloaded_indicators = {}
+
+    def store_preloaded_indicator(self, coin: str, interval: str, indicators: Dict[str, Any]):
+        """Store a snapshot of indicators for reuse during the same cycle."""
+        if not isinstance(indicators, dict):
+            return
+        coin_store = self.preloaded_indicators.setdefault(coin, {})
+        coin_store[interval] = copy.deepcopy(indicators)
+
+    def set_preloaded_indicators(self, cache: Dict[str, Dict[str, Dict[str, Any]]]):
+        """Bulk load pre-computed indicator cache (deep copy)."""
+        preloaded: Dict[str, Dict[str, Dict[str, Any]]] = {}
+        for coin, intervals in (cache or {}).items():
+            preloaded[coin] = {}
+            for interval, data in (intervals or {}).items():
+                if isinstance(data, dict):
+                    preloaded[coin][interval] = copy.deepcopy(data)
+        self.preloaded_indicators = preloaded
 
     def get_real_time_data(self, symbol: str, interval: str = '3m', limit: int = 100) -> pd.DataFrame:
         """Get real OHLCV data from Binance Spot with enhanced error handling and retry logic"""
@@ -308,7 +331,7 @@ class RealMarketData:
             try:
                 fetch_limit = limit + self.indicator_history_length + 50
                 params = {'symbol': f'{symbol}USDT', 'interval': interval, 'limit': fetch_limit}
-                response = requests.get(f"{self.spot_url}/klines", params=params, timeout=10)
+                response = self.session.get(f"{self.spot_url}/klines", params=params, timeout=10)
                 response.raise_for_status()
                 data = response.json()
 
@@ -395,7 +418,7 @@ class RealMarketData:
         """Get Latest Open Interest from Binance Futures"""
         try:
             params = {'symbol': f'{symbol}USDT'}
-            response = requests.get(f"{self.futures_url}/openInterest", params=params, timeout=5)
+            response = self.session.get(f"{self.futures_url}/openInterest", params=params, timeout=5)
             response.raise_for_status()
             return float(response.json()['openInterest'])
         except Exception as e:
@@ -409,7 +432,7 @@ class RealMarketData:
         """Get Latest Funding Rate from Binance Futures"""
         try:
             params = {'symbol': f'{symbol}USDT'}
-            response = requests.get(f"{self.futures_url}/premiumIndex", params=params, timeout=5)
+            response = self.session.get(f"{self.futures_url}/premiumIndex", params=params, timeout=5)
             response.raise_for_status()
             data = response.json()
             if isinstance(data, list): data = data[0] if data else {}
@@ -417,12 +440,12 @@ class RealMarketData:
             rate = data.get('lastFundingRate')
             if rate is not None and rate != '': return float(rate)
             else:
-                 # print(f"ℹ️ Using nextFundingRate for {symbol}.") # Less verbose
-                 rate = data.get('nextFundingRate')
-                 return float(rate) if rate is not None and rate != '' else 0.0
+                # print(f"ℹ️ Using nextFundingRate for {symbol}.") # Less verbose
+                rate = data.get('nextFundingRate')
+                return float(rate) if rate is not None and rate != '' else 0.0
         except Exception as e:
             if isinstance(e, requests.exceptions.HTTPError) and (e.response.status_code in [404, 400]):
-                 print(f"ℹ️ Funding Rate not available for {symbol}USDT on Futures.")
+                print(f"ℹ️ Funding Rate not available for {symbol}USDT on Futures.")
             else:
                 print(f"❌ Funding Rate error for {symbol}: {e}")
             return 0.0
@@ -451,6 +474,10 @@ class RealMarketData:
 
     def get_technical_indicators(self, coin: str, interval: str) -> Dict[str, Any]:
         """Calculate technical indicators, returning history series"""
+        cached = self.preloaded_indicators.get(coin, {}).get(interval)
+        if isinstance(cached, dict):
+            return copy.deepcopy(cached)
+
         df = self.get_real_time_data(coin, interval=interval)
         if df.empty or len(df) < 50:
             return {'error': f'Not enough data for {coin} {interval} (got {len(df)})'}
@@ -486,6 +513,7 @@ class RealMarketData:
 
             for key, value in indicators.items():
                 if isinstance(value, float) and np.isnan(value): indicators[key] = None
+            self.store_preloaded_indicator(coin, interval, indicators)
             return indicators
         except Exception as e:
             print(f"❌ Indicator error {coin} ({interval}): {e}")
@@ -494,46 +522,67 @@ class RealMarketData:
 
     def get_all_real_prices(self) -> Dict[str, float]:
         """Get real prices for all coins from Spot with enhanced error handling"""
-        prices = {}
+        prices: Dict[str, float] = {}
+        symbols = [f"{coin}USDT" for coin in self.available_coins]
+
+        def _assign_price(symbol: str, raw_price: Any):
+            coin = symbol.replace("USDT", "")
+            try:
+                price_val = float(raw_price)
+                if price_val <= 0:
+                    raise ValueError(f"Non-positive price {price_val}")
+                prices[coin] = price_val
+            except Exception as e:
+                print(f"⚠️ Invalid bulk price for {coin}: {raw_price} ({e}). Using fallback.")
+                prices[coin] = self._get_fallback_price(coin)
+
+        # First try batched endpoint (single request, lower latency)
+        try:
+            response = self.session.get(
+                f"{self.spot_url}/ticker/price",
+                params={'symbols': json.dumps(symbols, separators=(',', ':'))},
+                timeout=3
+            )
+            response.raise_for_status()
+            data = response.json()
+            if isinstance(data, list):
+                for entry in data:
+                    symbol = entry.get('symbol')
+                    price_raw = entry.get('price')
+                    if symbol and price_raw is not None:
+                        _assign_price(symbol, price_raw)
+                # Ensure we filled everything; fall back only for missing
+                missing = [coin for coin in self.available_coins if coin not in prices]
+                if not missing:
+                    for coin, val in prices.items():
+                        print(f"✅ {coin}: ${val:.4f}")
+                    return prices
+                else:
+                    print(f"⚠️ Bulk price missing for: {', '.join(missing)}. Falling back to individual requests.")
+            else:
+                print("⚠️ Unexpected bulk ticker response format. Falling back to individual requests.")
+        except Exception as e:
+            print(f"⚠️ Bulk price fetch failed: {e}. Falling back to individual requests.")
+
+        # Fallback to individual calls (still using session, without artificial delay)
         for coin in self.available_coins:
             try:
-                # Rate limiting - add small delay between requests
-                time.sleep(0.1)
-                
-                # Special handling for SHIB - check if it exists on Binance
-                if coin == 'SHIB':
-                    # Try SHIBUSDT first, if not available try SHIB/USDT
-                    try:
-                        response = requests.get(f"{self.spot_url}/ticker/price?symbol=SHIBUSDT", timeout=5)
-                        response.raise_for_status()
-                        data = response.json()
-                        price_val = float(data['price'])
-                        if price_val <= 0:
-                            raise ValueError("SHIB price is zero")
-                    except Exception as e:
-                        print(f"⚠️ SHIB price error: {e}. SHIB may not be available on Binance Futures.")
-                        # Use a reasonable fallback price for SHIB
-                        price_val = 0.000025  # Approximate SHIB price
-                        print(f"   Using fallback SHIB price: ${price_val:.6f}")
-                else:
-                    response = requests.get(f"{self.spot_url}/ticker/price?symbol={coin}USDT", timeout=5)
-                    response.raise_for_status()
-                    data = response.json()
-                    price_val = float(data['price'])
-                
-                # Validate price data
+                response = self.session.get(
+                    f"{self.spot_url}/ticker/price",
+                    params={'symbol': f"{coin}USDT"},
+                    timeout=3
+                )
+                response.raise_for_status()
+                data = response.json()
+                price_val = float(data.get('price', 0))
                 if price_val <= 0:
-                    print(f"⚠️ Invalid price for {coin}: ${price_val:.4f}. Using fallback...")
-                    price_val = self._get_fallback_price(coin)
-                
+                    raise ValueError(f"Non-positive price {price_val}")
                 prices[coin] = price_val
-                print(f"✅ {coin}: ${prices[coin]:.4f}")
-                
+                print(f"✅ {coin}: ${price_val:.4f}")
             except Exception as e:
                 print(f"❌ {coin} price error: {e}. Using fallback...")
-                price_val = self._get_fallback_price(coin)
-                prices[coin] = price_val
-                
+                prices[coin] = self._get_fallback_price(coin)
+
         return prices
 
     def _get_fallback_price(self, coin: str) -> float:
@@ -3867,12 +3916,14 @@ Current live positions & performance:"""
         print(f"\n{'='*80}\n🔄 TRADING CYCLE {cycle_number} | ⏰ {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n{'='*80}")
         self.current_cycle_number = cycle_number
         self.portfolio.current_cycle_number = cycle_number
+        self.market_data.clear_preloaded_indicators()
         self.portfolio.cycles_since_history_reset += 1
         self.maybe_reset_history(cycle_number)
         self.latest_bias_metrics = self.portfolio.get_directional_bias_metrics()
         self.portfolio.latest_bias_metrics = self.latest_bias_metrics
         prompt, thoughts, decisions = "N/A", "N/A", {}
         self.cycle_active = True
+        cycle_timing: Dict[str, float] = {}
         try:
             # Enhanced exit strategy control - pause during cycle
             print("⏸️ Enhanced exit strategy paused during cycle")
@@ -3889,8 +3940,10 @@ Current live positions & performance:"""
                 report = monitor.analyze_performance(last_n_cycles=10)
                 monitor.print_performance_summary(report)
             print("\n📊 FETCHING MARKET DATA...")
+            md_start = time.perf_counter()
             real_prices = self.market_data.get_all_real_prices()
             valid_prices = {k: v for k, v in real_prices.items() if isinstance(v, (int, float)) and v > 0}
+            cycle_timing['market_data_ms'] = round((time.perf_counter() - md_start) * 1000, 2)
             if not valid_prices: raise ValueError("No valid market prices received.")
             self.portfolio.update_prices(valid_prices, increment_loss_counters=True) # Update PnL before checking TP/SL
 
@@ -3899,13 +3952,17 @@ Current live positions & performance:"""
             # --- End Auto TP/SL Check ---
 
             manual_override = self.portfolio.get_manual_override()
+            auto_exit_triggered = bool(positions_closed_by_tp_sl)
 
             if manual_override:
                 print("🔔 APPLYING MANUAL OVERRIDE...")
                 decisions = manual_override.get('decisions', {}); thoughts = "Manual override."; prompt = "N/A (Manual)"
                 print("\n🎯 MANUAL DECISIONS:", json.dumps(decisions, indent=2))
             # Only ask AI if no TP/SL triggered AND no manual override
-            elif not positions_closed_by_tp_sl:
+            else:
+                if auto_exit_triggered:
+                    print("ℹ️ Auto TP/SL/extended exit triggered earlier this cycle — proceeding with AI analysis.")
+                ai_timer_start = time.perf_counter()
                 print("\n🤖 GENERATING PROMPT...")
                 self.invocation_count += 1 # Increment AI call count
                 prompt = self.generate_alpha_arena_prompt()
@@ -3916,6 +3973,9 @@ Current live positions & performance:"""
                 parsed_response = self.parse_ai_response(ai_response)
                 thoughts = parsed_response.get("chain_of_thoughts", "Parse Error.")
                 decisions = parsed_response.get("decisions", {})
+                if auto_exit_triggered and isinstance(thoughts, str):
+                    thoughts += "\n[Auto Exit Note: TP/SL or extended-loss closure executed before this analysis]"
+                cycle_timing['ai_ms'] = round((time.perf_counter() - ai_timer_start) * 1000, 2)
 
                 if not isinstance(decisions, dict):
                     print(f"❌ AI decisions not dict ({type(decisions)}). Resetting."); thoughts += f"\nError: Decisions not dict."; decisions = {}
@@ -3946,19 +4006,26 @@ Current live positions & performance:"""
                 decisions, directional_filtered = self._apply_directional_capacity_filter(decisions)
                 if directional_filtered:
                     thoughts += "\n[Directional Capacity: Entry signals converted to HOLD until opposite-side exposure is reduced]"
-            else:
-                 print("ℹ️ Skipping AI analysis due to auto TP/SL closure.")
-
-
             # Execute AI decisions only if it's a valid dict and NOT empty AND no manual override was active
+            execution_elapsed = None
             if isinstance(decisions, dict) and decisions and not manual_override:
+                exec_start = time.perf_counter()
                 # AI ÖNCELİKLİ SİSTEM: "close_position" sinyali varsa tüm pozisyon kapatılır
                 has_close_position_signal = any(
-                    trade.get('signal') == 'close_position' 
-                    for trade in decisions.values() 
+                    trade.get('signal') == 'close_position'
+                    for trade in decisions.values()
                     if isinstance(trade, dict)
                 )
-                
+
+                close_execution_report = {
+                    "executed": [],
+                    "blocked": [],
+                    "skipped": [],
+                    "holds": [],
+                    "notes": [],
+                    "timestamp": datetime.now().isoformat()
+                }
+
                 if has_close_position_signal:
                     print("🚨 AI CLOSE_POSITION SİNYALİ: Sadece belirtilen pozisyonlar kapatılıyor")
                     # Sadece close_position sinyali verilen coin'leri kapat
@@ -3973,16 +4040,16 @@ Current live positions & performance:"""
                                 entry_price = position['entry_price']
                                 quantity = position['quantity']
                                 margin_used = position.get('margin_usd', 0)
-                                
-                                if direction == 'long': 
+
+                                if direction == 'long':
                                     profit = (current_price - entry_price) * quantity
-                                else: 
+                                else:
                                     profit = (entry_price - current_price) * quantity
-                                
+
                                 self.portfolio.current_balance += (margin_used + profit)
-                                
+
                                 print(f"✅ AI CLOSE: Closed {direction} {coin} @ ${format_num(current_price, 4)} (PnL: ${format_num(profit, 2)})")
-                                
+
                                 history_entry = {
                                     "symbol": coin, "direction": direction, "entry_price": entry_price, "exit_price": current_price,
                                     "quantity": quantity, "notional_usd": position.get('notional_usd', 'N/A'), "pnl": profit,
@@ -3990,8 +4057,38 @@ Current live positions & performance:"""
                                     "leverage": position.get('leverage', 'N/A'), "close_reason": "AI close_position signal"
                                 }
                                 self.portfolio.add_to_history(history_entry)
+
+                                close_execution_report["executed"].append({
+                                    "coin": coin,
+                                    "signal": "close_position",
+                                    "pnl": profit,
+                                    "direction": direction,
+                                    "price": current_price
+                                })
                                 del self.portfolio.positions[coin]
-                    
+                            else:
+                                close_execution_report["skipped"].append({
+                                    "coin": coin,
+                                    "reason": "no_price_data_for_close"
+                                })
+                        elif isinstance(trade, dict):
+                            close_execution_report["holds"].append({
+                                "coin": coin,
+                                "has_position": coin in self.portfolio.positions
+                            })
+
+                    # Combine with normal execution report for logging
+                    previous_report = getattr(self.portfolio, "last_execution_report", {})
+                    merged_report = {
+                        "executed": (previous_report.get("executed", []) + close_execution_report["executed"]),
+                        "blocked": (previous_report.get("blocked", []) + close_execution_report["blocked"]),
+                        "skipped": (previous_report.get("skipped", []) + close_execution_report["skipped"]),
+                        "holds": close_execution_report["holds"] or previous_report.get("holds", []),
+                        "notes": previous_report.get("notes", []) + close_execution_report["notes"],
+                        "timestamp": close_execution_report["timestamp"]
+                    }
+                    self.portfolio.last_execution_report = merged_report
+
                     # AI'nin diğer kararlarını işleme (sadece yeni pozisyonlar)
                     self.portfolio._execute_new_positions_only(
                         decisions,
@@ -4008,12 +4105,18 @@ Current live positions & performance:"""
                         positions_closed_by_tp_sl,
                         indicator_cache=self.latest_indicator_cache
                     )
+                execution_elapsed = time.perf_counter() - exec_start
 
             # Execute manual override decisions if present
             elif isinstance(decisions, dict) and decisions and manual_override:
+                 exec_start = time.perf_counter()
                  self.portfolio.execute_decision(decisions, valid_prices, indicator_cache=self.latest_indicator_cache)
+                 execution_elapsed = time.perf_counter() - exec_start
 
             elif isinstance(decisions, dict): print("ℹ️ No AI/Manual trading actions to execute this cycle.")
+
+            if execution_elapsed is not None:
+                cycle_timing['execution_ms'] = round(execution_elapsed * 1000, 2)
 
             # Save state and history at the end of the cycle
             self.portfolio.save_state()
@@ -4034,6 +4137,17 @@ Current live positions & performance:"""
             }
             if execution_report:
                 cycle_metadata['execution_report'] = execution_report
+            if cycle_timing:
+                cycle_metadata['performance'] = cycle_timing
+                timing_summary = []
+                if 'market_data_ms' in cycle_timing:
+                    timing_summary.append(f"market {cycle_timing['market_data_ms']:.2f}ms")
+                if 'ai_ms' in cycle_timing:
+                    timing_summary.append(f"ai {cycle_timing['ai_ms']:.2f}ms")
+                if 'execution_ms' in cycle_timing:
+                    timing_summary.append(f"exec {cycle_timing['execution_ms']:.2f}ms")
+                if timing_summary:
+                    print(f"⏱️ Cycle timers → " + " | ".join(timing_summary))
 
             self.portfolio.add_to_cycle_history(
                 cycle_number,
