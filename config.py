@@ -27,6 +27,7 @@ class Config:
     # Trading Settings
     INITIAL_BALANCE: float = float(os.getenv('INITIAL_BALANCE', '200.0'))
     CYCLE_INTERVAL_MINUTES: int = int(os.getenv('CYCLE_INTERVAL_MINUTES', '2'))
+    HISTORY_RESET_INTERVAL: int = int(os.getenv('HISTORY_RESET_INTERVAL', '35'))
     
     # Risk Management
     MAX_LEVERAGE: int = int(os.getenv('MAX_LEVERAGE', '20'))  # Nof1ai blog: 20x leverage for medium risk

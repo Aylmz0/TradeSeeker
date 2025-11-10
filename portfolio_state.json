@@ -1,43 +1,14 @@
 {
-    "current_balance": 128.58075459667427,
+    "current_balance": 146.93094638588022,
     "positions": {
-        "SOL": {
-            "symbol": "SOL",
-            "direction": "long",
-            "quantity": 1.1295206074852868,
-            "entry_price": 167.66,
-            "entry_time": "2025-11-10T06:24:18.372107",
-            "current_price": 167.14,
-            "unrealized_pnl": -0.5873507158923607,
-            "notional_usd": 189.37542505098318,
-            "margin_usd": 18.93754250509832,
-            "leverage": 10,
-            "liquidation_price": 152.5706,
-            "confidence": 0.74,
-            "exit_plan": {
-                "profit_target": 172.5,
-                "stop_loss": 164.8,
-                "invalidation_condition": "If 4h price closes below 4h EMA20=161.3451"
-            },
-            "risk_usd": 28.143364876753544,
-            "loss_cycle_count": 3,
-            "trend_context": {
-                "trend_at_entry": "bullish",
-                "cycle": 21
-            },
-            "sl_oid": -1,
-            "tp_oid": -1,
-            "entry_oid": -1,
-            "wait_for_fill": false
-        },
         "ADA": {
             "symbol": "ADA",
             "direction": "long",
             "quantity": 387.7241190952454,
             "entry_price": 0.5882,
             "entry_time": "2025-11-10T06:44:13.706578",
-            "current_price": 0.5876,
-            "unrealized_pnl": -0.2326344714571216,
+            "current_price": 0.5881,
+            "unrealized_pnl": -0.03877241190952027,
             "notional_usd": 228.0593268518233,
             "margin_usd": 22.80593268518233,
             "leverage": 10,
@@ -49,7 +20,7 @@
                 "invalidation_condition": "If 4h price closes below 4h EMA20=0.5664"
             },
             "risk_usd": 22.80593268518233,
-            "loss_cycle_count": 4,
+            "loss_cycle_count": 6,
             "trend_context": {
                 "trend_at_entry": "bullish",
                 "cycle": 26
@@ -65,8 +36,8 @@
             "quantity": 82.15483458841925,
             "entry_price": 2.4592,
             "entry_time": "2025-11-10T07:00:10.860439",
-            "current_price": 2.4632,
-            "unrealized_pnl": 0.3286193383536773,
+            "current_price": 2.4646,
+            "unrealized_pnl": 0.4436361067774516,
             "notional_usd": 202.0351692198406,
             "margin_usd": 20.20351692198406,
             "leverage": 10,
@@ -78,7 +49,7 @@
                 "invalidation_condition": "If 4h price closes below 4h EMA20=2.3143"
             },
             "risk_usd": 20.20351692198406,
-            "loss_cycle_count": 1,
+            "loss_cycle_count": 0,
             "trend_context": {
                 "trend_at_entry": "bullish",
                 "cycle": 30
@@ -94,8 +65,8 @@
             "quantity": 14.113701127443186,
             "entry_price": 16.26,
             "entry_time": "2025-11-10T07:08:15.731473",
-            "current_price": 16.21,
-            "unrealized_pnl": -0.7056850563721693,
+            "current_price": 16.19,
+            "unrealized_pnl": -0.987959078921027,
             "notional_usd": 229.4887803322262,
             "margin_usd": 22.94887803322262,
             "leverage": 10,
@@ -107,7 +78,7 @@
                 "invalidation_condition": "If 4h price closes below 4h EMA20=15.644"
             },
             "risk_usd": 22.94887803322262,
-            "loss_cycle_count": 4,
+            "loss_cycle_count": 6,
             "trend_context": {
                 "trend_at_entry": "bullish",
                 "cycle": 32
@@ -118,16 +89,15 @@
             "wait_for_fill": false
         }
     },
-    "total_value": 212.27957383679362,
-    "total_return": 6.139786918396808,
+    "total_value": 212.30617864221617,
+    "total_return": 6.153089321108084,
     "initial_balance": 200.0,
-    "trade_count": 31,
-    "last_updated": "2025-11-10T07:29:54.075805",
-    "sharpe_ratio": 12.232404578874608,
+    "trade_count": 32,
+    "last_updated": "2025-11-10T07:38:05.737852",
+    "sharpe_ratio": 7.002176960903885,
     "directional_bias": {
         "long": {
             "rolling": [
-                0.5265278810408895,
                 0.16636931068152921,
                 0.005063439956881268,
                 1.9460160568153582,
@@ -146,14 +116,15 @@
                 -1.3632582836445946,
                 0.0,
                 0.5035792355377658,
-                0.16049007688529762
+                0.16049007688529762,
+                -0.5873507158923607
             ],
-            "net_pnl": 13.476624742161693,
-            "trades": 31,
+            "net_pnl": 12.889274026269332,
+            "trades": 32,
             "wins": 24,
-            "losses": 5,
-            "consecutive_losses": 0,
-            "consecutive_wins": 2,
+            "losses": 6,
+            "consecutive_losses": 1,
+            "consecutive_wins": 0,
             "caution_active": false,
             "caution_win_progress": 0
         },

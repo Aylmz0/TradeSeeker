@@ -1,12 +1,12 @@
 {
-  "analysis_period": "Last 10 cycles (Total: 35)",
-  "timestamp": "2025-11-10T07:27:24.269445",
+  "analysis_period": "Last 10 cycles (Total: 36)",
+  "timestamp": "2025-11-10T07:31:23.891680",
   "trading_activity": {
     "total_decisions": 60,
-    "entry_signals": 5,
-    "hold_signals": 53,
+    "entry_signals": 4,
+    "hold_signals": 54,
     "close_signals": 2,
-    "decision_rate": 8.333333333333332
+    "decision_rate": 6.666666666666667
   },
   "trade_performance": {
     "total_trades": 31,
@@ -23,9 +23,9 @@
   "portfolio_performance": {
     "initial_balance": 200.0,
     "current_balance": 128.58075459667427,
-    "total_value": 212.00648067900116,
-    "total_return": 6.0,
-    "sharpe_ratio": 0.0,
+    "total_value": 212.26160210486177,
+    "total_return": 6.13,
+    "sharpe_ratio": 11.142,
     "open_positions": 4
   },
   "coin_performance": {

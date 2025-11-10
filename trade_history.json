@@ -401,5 +401,18 @@
         "exit_time": "2025-11-10T07:11:11.856599",
         "leverage": 10,
         "close_reason": "Profit taking at 0.7% gain (10%)"
+    },
+    {
+        "symbol": "SOL",
+        "direction": "long",
+        "entry_price": 167.66,
+        "exit_price": 167.14,
+        "quantity": 1.1295206074852868,
+        "notional_usd": 189.37542505098318,
+        "pnl": -0.5873507158923607,
+        "entry_time": "2025-11-10T06:24:18.372107",
+        "exit_time": "2025-11-10T07:32:22.983954",
+        "leverage": 10,
+        "close_reason": "AI close_position signal"
     }
 ]

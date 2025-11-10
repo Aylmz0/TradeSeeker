@@ -619,6 +619,9 @@ class PortfolioManager:
         # Trend flip cooldown yönetimi PortfolioManager tarafında tutulur.
         self.indicator_cache: Dict[str, Dict[str, Dict[str, Any]]] = {}
         self.last_execution_report: Dict[str, Any] = {}
+        self.history_reset_interval = getattr(Config, "HISTORY_RESET_INTERVAL", 35)
+        self.last_history_reset_cycle = 0
+        self.cycles_since_history_reset = 0
 
         self.current_cycle_number = 0
 
@@ -683,6 +686,8 @@ class PortfolioManager:
                 stats['consecutive_wins'] = stored.get('consecutive_wins', 0)
                 stats['caution_active'] = stored.get('caution_active', False)
                 stats['caution_win_progress'] = stored.get('caution_win_progress', 0)
+        self.last_history_reset_cycle = data.get('last_history_reset_cycle', self.last_history_reset_cycle)
+        self.cycles_since_history_reset = data.get('cycles_since_history_reset', self.cycles_since_history_reset)
 
     def save_state(self):
         data = {
@@ -694,9 +699,35 @@ class PortfolioManager:
             'trade_count': self.trade_count,
             'last_updated': datetime.now().isoformat(),
             'sharpe_ratio': self.sharpe_ratio,
-            'directional_bias': self._serialize_directional_bias()
+            'directional_bias': self._serialize_directional_bias(),
+            'last_history_reset_cycle': self.last_history_reset_cycle,
+            'cycles_since_history_reset': self.cycles_since_history_reset
         }
         safe_file_write(self.state_file, data); print(f"✅ Saved state.")
+
+    def reset_historical_data(self, cycle_number: int):
+        """Clear historical logs to prevent long-term bias while keeping live positions."""
+        print(f"🧹 HISTORY RESET: Clearing logs at cycle {cycle_number}")
+        self.trade_history = []
+        self.trade_count = 0
+        self.directional_bias = self._init_directional_bias()
+        self.trend_state = {}
+        self.cycle_history = []
+        safe_file_write(self.history_file, [])
+        safe_file_write(self.cycle_history_file, [])
+        safe_file_write("performance_history.json", [])
+        safe_file_write("performance_report.json", {
+            "reset_reason": "periodic_bias_control",
+            "reset_at_cycle": cycle_number,
+            "timestamp": datetime.now().isoformat()
+        })
+        self.portfolio_values_history = [self.total_value]
+        for pos in self.positions.values():
+            pos['loss_cycle_count'] = 0
+        self.last_history_reset_cycle = cycle_number
+        self.cycles_since_history_reset = 0
+        self.save_state()
+        print("✅ History reset complete.")
 
     def _serialize_directional_bias(self) -> Dict[str, Dict[str, Any]]:
         serialized = {}
@@ -2271,6 +2302,7 @@ class AlphaArenaDeepSeek:
         self.current_cycle_number = 0
         # Trend flip cooldown yönetimi PortfolioManager tarafında tutulur.
         self.latest_indicator_cache: Dict[str, Dict[str, Dict[str, Any]]] = {}
+        self.history_reset_interval = Config.HISTORY_RESET_INTERVAL
 
     def get_max_positions_for_cycle(self, cycle_number: int) -> int:
         """Cycle bazlı maximum pozisyon limiti - Kademeli artış sistemi"""
@@ -2322,6 +2354,17 @@ class AlphaArenaDeepSeek:
                 filtered[coin] = trade
 
         return filtered, changed
+
+    def maybe_reset_history(self, cycle_number: int):
+        """Reset historical logs at configured intervals to prevent long-term bias."""
+        interval = getattr(self, "history_reset_interval", 35)
+        if interval <= 0:
+            return
+        cycles_elapsed = getattr(self.portfolio, "cycles_since_history_reset", 0)
+        if cycles_elapsed >= interval:
+            print(f"🧭 Bias control: {cycles_elapsed} cycles since last reset (interval {interval}). Resetting history.")
+            self.portfolio.reset_historical_data(cycle_number)
+            self.invocation_count = 0
 
     def check_trend_alignment(self, coin: str) -> bool:
         """Check if trends are aligned across multiple timeframes"""
@@ -3824,6 +3867,8 @@ Current live positions & performance:"""
         print(f"\n{'='*80}\n🔄 TRADING CYCLE {cycle_number} | ⏰ {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n{'='*80}")
         self.current_cycle_number = cycle_number
         self.portfolio.current_cycle_number = cycle_number
+        self.portfolio.cycles_since_history_reset += 1
+        self.maybe_reset_history(cycle_number)
         self.latest_bias_metrics = self.portfolio.get_directional_bias_metrics()
         self.portfolio.latest_bias_metrics = self.latest_bias_metrics
         prompt, thoughts, decisions = "N/A", "N/A", {}
