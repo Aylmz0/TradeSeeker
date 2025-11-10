@@ -1609,59 +1609,96 @@ class PortfolioManager:
         try:
             if 'error' in indicators_3m or 'error' in indicators_4h:
                 return {"valid": False, "reason": "Indicator data error"}
-            conditions_met = []
+            conditions_met: List[str] = []
             conditions_met_count = 0
             total_conditions_available = 5
+            score = 0.0
+            score_breakdown: List[str] = []
+
+            def _register(condition: bool, description: str, weight: float) -> None:
+                nonlocal conditions_met_count, score
+                if condition:
+                    conditions_met_count += 1
+                    conditions_met.append(description)
+                    score += weight
+                    score_breakdown.append(f"{description} (+{weight:.1f})")
 
             # Condition 1: 3m momentum supportive of the counter direction
             price_3m = indicators_3m.get('current_price')
             ema20_3m = indicators_3m.get('ema_20')
             if isinstance(price_3m, (int, float)) and isinstance(ema20_3m, (int, float)):
-                if signal == 'buy_to_enter' and price_3m > ema20_3m:
-                    conditions_met_count += 1
-                    conditions_met.append("3m momentum supportive (price > EMA20)")
-                elif signal == 'sell_to_enter' and price_3m < ema20_3m:
-                    conditions_met_count += 1
-                    conditions_met.append("3m momentum supportive (price < EMA20)")
+                if signal == 'buy_to_enter':
+                    _register(price_3m > ema20_3m, "3m momentum supportive (price > EMA20)", 1.0)
+                elif signal == 'sell_to_enter':
+                    _register(price_3m < ema20_3m, "3m momentum supportive (price < EMA20)", 1.0)
 
             # Condition 2: Volume confirmation (>1.5x average)
             current_volume = indicators_3m.get('volume', 0)
             avg_volume = indicators_3m.get('avg_volume', 1)
             volume_ratio = current_volume / avg_volume if avg_volume > 0 else 0
             if volume_ratio > 1.5:
-                conditions_met_count += 1
-                conditions_met.append(f"Volume {volume_ratio:.1f}x average")
+                _register(True, f"Volume {volume_ratio:.1f}x average", 1.4)
+            elif volume_ratio > 1.0:
+                _register(True, f"Volume {volume_ratio:.1f}x average", 1.1)
+            else:
+                score_breakdown.append(f"Volume {volume_ratio:.2f}x average (no boost)")
 
             # Condition 3: Extreme RSI
             rsi_3m = indicators_3m.get('rsi_14', 50)
-            if (signal == 'buy_to_enter' and rsi_3m < 30) or (signal == 'sell_to_enter' and rsi_3m > 70):
-                conditions_met_count += 1
-                conditions_met.append(f"Extreme RSI ({rsi_3m:.1f})")
+            if signal == 'buy_to_enter':
+                _register(rsi_3m < 30, f"Extreme RSI ({rsi_3m:.1f})", 1.3)
+            elif signal == 'sell_to_enter':
+                _register(rsi_3m > 70, f"Extreme RSI ({rsi_3m:.1f})", 1.3)
 
             # Condition 4: Price close to EMA20 (< 1%)
             if isinstance(price_3m, (int, float)) and isinstance(ema20_3m, (int, float)) and price_3m:
                 price_ema_distance = abs(price_3m - ema20_3m) / price_3m * 100
-                if price_ema_distance < 1.0:
-                    conditions_met_count += 1
-                    conditions_met.append(f"Price within 1% of EMA20 ({price_ema_distance:.2f}%)")
+                _register(price_ema_distance < 1.0, f"Price within 1% of EMA20 ({price_ema_distance:.2f}%)", 0.8)
 
             # Condition 5: MACD divergence supportive
             macd_3m = indicators_3m.get('macd', 0)
             macd_signal_3m = indicators_3m.get('macd_signal', 0)
-            if (signal == 'buy_to_enter' and macd_3m > macd_signal_3m) or (signal == 'sell_to_enter' and macd_3m < macd_signal_3m):
-                conditions_met_count += 1
-                conditions_met.append("MACD divergence supportive")
+            if signal == 'buy_to_enter':
+                _register(macd_3m > macd_signal_3m, "MACD divergence supportive", 1.0)
+            elif signal == 'sell_to_enter':
+                _register(macd_3m < macd_signal_3m, "MACD divergence supportive", 1.0)
 
-            valid = conditions_met_count >= 3
+            # Volume safety rail: reject extremely illiquid environments
+            if volume_ratio is not None and volume_ratio < 0.2:
+                return {
+                    "valid": False,
+                    "conditions_met": conditions_met,
+                    "total_conditions": conditions_met_count,
+                    "conditions_required": total_conditions_available,
+                    "score": score,
+                    "score_threshold": None,
+                    "score_breakdown": score_breakdown,
+                    "reason": f"Volume ratio {volume_ratio:.2f}x is below 0.20x minimum for counter-trend entries"
+                }
+
+            # Dynamic score threshold based on liquidity context
+            score_threshold = 3.0
+            if volume_ratio is not None:
+                if volume_ratio >= 1.5:
+                    score_threshold = 2.6
+                elif volume_ratio >= 0.8:
+                    score_threshold = 3.0
+                else:
+                    score_threshold = 2.8
+
+            valid = score >= score_threshold
             return {
                 "valid": valid,
                 "conditions_met": conditions_met,
                 "total_conditions": conditions_met_count,
                 "conditions_required": total_conditions_available,
+                "score": round(score, 2),
+                "score_threshold": score_threshold,
+                "score_breakdown": score_breakdown,
                 "reason": (
-                    f"Counter-trend validation: {conditions_met_count}/{total_conditions_available} conditions met"
+                    f"Counter-trend score {score:.2f} ≥ threshold {score_threshold:.2f} ({conditions_met_count}/{total_conditions_available} signals)"
                     if valid else
-                    f"Counter-trend requires ≥3 of 5 conditions (currently {conditions_met_count}/{total_conditions_available})"
+                    f"Counter-trend score {score:.2f} < threshold {score_threshold:.2f} ({conditions_met_count}/{total_conditions_available} signals)"
                 )
             }
         except Exception as e:
