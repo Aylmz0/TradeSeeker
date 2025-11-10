@@ -643,7 +643,10 @@ class PortfolioManager:
                 'trades': 0,
                 'wins': 0,
                 'losses': 0,
-                'consecutive_losses': 0
+                'consecutive_losses': 0,
+                'consecutive_wins': 0,
+                'caution_active': False,
+                'caution_win_progress': 0
             },
             'short': {
                 'rolling': deque(maxlen=20),
@@ -651,7 +654,10 @@ class PortfolioManager:
                 'trades': 0,
                 'wins': 0,
                 'losses': 0,
-                'consecutive_losses': 0
+                'consecutive_losses': 0,
+                'consecutive_wins': 0,
+                'caution_active': False,
+                'caution_win_progress': 0
             }
         }
 
@@ -674,6 +680,9 @@ class PortfolioManager:
                 stats['wins'] = stored.get('wins', 0)
                 stats['losses'] = stored.get('losses', 0)
                 stats['consecutive_losses'] = stored.get('consecutive_losses', 0)
+                stats['consecutive_wins'] = stored.get('consecutive_wins', 0)
+                stats['caution_active'] = stored.get('caution_active', False)
+                stats['caution_win_progress'] = stored.get('caution_win_progress', 0)
 
     def save_state(self):
         data = {
@@ -698,7 +707,10 @@ class PortfolioManager:
                 'trades': stats['trades'],
                 'wins': stats['wins'],
                 'losses': stats['losses'],
-                'consecutive_losses': stats['consecutive_losses']
+                'consecutive_losses': stats['consecutive_losses'],
+                'consecutive_wins': stats.get('consecutive_wins', 0),
+                'caution_active': stats.get('caution_active', False),
+                'caution_win_progress': stats.get('caution_win_progress', 0)
             }
         return serialized
 
@@ -725,11 +737,24 @@ class PortfolioManager:
         if pnl > 0:
             stats['wins'] += 1
             stats['consecutive_losses'] = 0
+            stats['consecutive_wins'] = stats.get('consecutive_wins', 0) + 1
+            if stats.get('caution_active'):
+                stats['caution_win_progress'] = stats.get('caution_win_progress', 0) + 1
+                if stats['caution_win_progress'] >= 3:
+                    stats['caution_active'] = False
+                    stats['caution_win_progress'] = 0
         elif pnl < 0:
             stats['losses'] += 1
             stats['consecutive_losses'] += 1
+            stats['consecutive_wins'] = 0
+            stats['caution_win_progress'] = 0
+            if stats['consecutive_losses'] >= 3:
+                stats['caution_active'] = True
+                stats['caution_win_progress'] = 0
         else:
             stats['consecutive_losses'] = 0
+            stats['consecutive_wins'] = 0
+            stats['caution_win_progress'] = 0
 
     def count_positions_by_direction(self) -> Dict[str, int]:
         counts = {'long': 0, 'short': 0}
@@ -746,21 +771,26 @@ class PortfolioManager:
             return confidence
 
         adjusted_confidence = confidence
-        rolling_avg = stats.get('rolling_avg', 0.0)
-        consecutive_losses = stats.get('consecutive_losses', 0)
 
-        if consecutive_losses >= 3:
-            adjusted_confidence *= 0.9
+        if stats.get('caution_active'):
+            adjusted_confidence *= 0.8
 
         trend_lower = current_trend.lower() if isinstance(current_trend, str) else 'unknown'
 
         if trend_lower == 'neutral':
-            adjusted_confidence *= Config.DIRECTIONAL_NEUTRAL_CONFIDENCE_MODIFIER
-        else:
-            is_aligned = (trend_lower == 'bullish' and side == 'long') or (trend_lower == 'bearish' and side == 'short')
-            if not is_aligned and trend_lower in ('bullish', 'bearish'):
-                adjusted_confidence *= Config.DIRECTIONAL_CONFLICT_CONFIDENCE_MODIFIER
+            adjusted_confidence *= Config.DIRECTIONAL_NEUTRAL_MULTIPLIER
+        elif trend_lower == 'bullish':
+            if side == 'long':
+                adjusted_confidence *= Config.DIRECTIONAL_BULLISH_LONG_MULTIPLIER
+            elif side == 'short':
+                adjusted_confidence *= Config.DIRECTIONAL_BULLISH_SHORT_MULTIPLIER
+        elif trend_lower == 'bearish':
+            if side == 'long':
+                adjusted_confidence *= Config.DIRECTIONAL_BEARISH_LONG_MULTIPLIER
+            elif side == 'short':
+                adjusted_confidence *= Config.DIRECTIONAL_BEARISH_SHORT_MULTIPLIER
 
+        rolling_avg = stats.get('rolling_avg', 0.0)
         if rolling_avg < 0:
             adjusted_confidence *= 0.93
 
@@ -779,7 +809,10 @@ class PortfolioManager:
                 'losses': stats['losses'],
                 'rolling_sum': rolling_sum,
                 'rolling_avg': rolling_avg,
-                'consecutive_losses': stats['consecutive_losses']
+                'consecutive_losses': stats['consecutive_losses'],
+                'consecutive_wins': stats.get('consecutive_wins', 0),
+                'caution_active': stats.get('caution_active', False),
+                'caution_win_progress': stats.get('caution_win_progress', 0)
             }
         return metrics
 
@@ -817,7 +850,7 @@ class PortfolioManager:
                     elif price_4h >= ema20_4h and price_3m >= ema20_3m and rsi_3m >= Config.TREND_LONG_RSI_THRESHOLD:
                         current_trend = 'bullish'
 
-        record = self.trend_state.get(coin, {'trend': current_trend, 'last_flip_cycle': self.current_cycle_number})
+        record = self.trend_state.get(coin, {'trend': current_trend, 'last_flip_cycle': self.current_cycle_number, 'last_flip_direction': current_trend})
         previous_trend = record.get('trend', current_trend)
         recent_flip = False
 
@@ -825,6 +858,7 @@ class PortfolioManager:
             record['trend'] = current_trend
             if current_trend != 'neutral':
                 record['last_flip_cycle'] = self.current_cycle_number
+                record['last_flip_direction'] = current_trend
                 recent_flip = True
         else:
             last_flip_cycle = record.get('last_flip_cycle', self.current_cycle_number)
@@ -836,7 +870,8 @@ class PortfolioManager:
         return {
             'trend': current_trend,
             'recent_flip': recent_flip,
-            'last_flip_cycle': record.get('last_flip_cycle')
+            'last_flip_cycle': record.get('last_flip_cycle'),
+            'last_flip_direction': record.get('last_flip_direction')
         }
 
     def get_recent_trend_flip_summary(self) -> List[str]:
@@ -862,7 +897,8 @@ class PortfolioManager:
                 cycles_text = "1 cycle ago"
             else:
                 cycles_text = f"{cycles_ago} cycles ago"
-            entries.append((cycles_ago, f"{coin}: {trend_label} since cycle {last_flip_cycle} ({status}, {cycles_text})"))
+            direction_note = record.get('last_flip_direction', trend_label)
+            entries.append((cycles_ago, f"{coin}: {direction_note} since cycle {last_flip_cycle} ({status}, {cycles_text})"))
         entries.sort(key=lambda x: x[0])
         summaries = [text for _, text in entries]
         return summaries
@@ -1188,9 +1224,9 @@ class PortfolioManager:
         elif notional_usd < 500:
             # xLarge positions: conservative profit taking
             return {
-                'level1': 0.005,  # %0.5
-                'level2': 0.007,  # %0.7
-                'level3': 0.009,  # %0.9
+                'level1': 0.004,  # %0.5
+                'level2': 0.005,  # %0.7
+                'level3': 0.006,  # %0.9
                 'take1': 0.25,    # %25 profit al
                 'take2': 0.50,    # %50 profit al
                 'take3': 0.75     # %75 profit al
@@ -1598,7 +1634,7 @@ class PortfolioManager:
 
             # Condition 3: Extreme RSI
             rsi_3m = indicators_3m.get('rsi_14', 50)
-            if (signal == 'buy_to_enter' and rsi_3m < 25) or (signal == 'sell_to_enter' and rsi_3m > 75):
+            if (signal == 'buy_to_enter' and rsi_3m < 30) or (signal == 'sell_to_enter' and rsi_3m > 70):
                 conditions_met_count += 1
                 conditions_met.append(f"Extreme RSI ({rsi_3m:.1f})")
 
@@ -1938,6 +1974,12 @@ class PortfolioManager:
                         trade['confidence'] = confidence
                     trend_info = self.update_trend_state(coin, indicators_4h, indicators_3m)
                     current_trend = trend_info.get('trend', 'unknown')
+                    flip_cycle = trend_info.get('last_flip_cycle')
+                    last_flip_direction = trend_info.get('last_flip_direction')
+                    guard_cycles_since_flip = None
+                    guard_window = self.trend_flip_cooldown
+                    if isinstance(flip_cycle, int):
+                        guard_cycles_since_flip = max(0, self.current_cycle_number - flip_cycle)
                     trade['trend_runtime'] = current_trend
 
                     pre_bias_confidence = confidence
@@ -1964,34 +2006,33 @@ class PortfolioManager:
                     snapshot_parts.append(f"trend_state={current_trend.upper()}")
                     print(f"🧾 EXECUTION SNAPSHOT {coin}: " + " | ".join(snapshot_parts))
 
+                    direction = 'long' if signal == 'buy_to_enter' else 'short'
+
                     if is_counter_trend:
+                        guard_active = guard_cycles_since_flip is not None and guard_cycles_since_flip <= guard_window
+                        if guard_active:
+                            if guard_cycles_since_flip == 0:
+                                print(f"⏳ Trend flip guard: {coin} counter-trend {direction.upper()} blocked in same-cycle flip (cycle {flip_cycle}).")
+                                execution_report['blocked'].append({'coin': coin, 'reason': 'trend_flip_guard_same_cycle', 'classification': trend_classification})
+                                trade['runtime_decision'] = 'blocked_trend_flip_same_cycle'
+                                continue
+                            elif guard_cycles_since_flip == 1:
+                                if confidence < 0.85:
+                                    print(f"🚫 Flip guard confidence floor: {coin} {signal} confidence {confidence:.2f} < 0.85 one cycle after flip.")
+                                    execution_report['blocked'].append({'coin': coin, 'reason': 'trend_flip_guard_confidence', 'classification': trend_classification})
+                                    trade['runtime_decision'] = 'blocked_trend_flip_confidence'
+                                    continue
+                                partial_margin_factor = min(partial_margin_factor, 0.5)
+                                print(f"⏳ Trend flip guard (counter-trend): {coin} sizing capped at 50% one cycle after flip.")
+                            elif guard_cycles_since_flip == 2:
+                                partial_margin_factor = min(partial_margin_factor, 0.7)
+                                print(f"⏳ Trend flip guard (counter-trend): {coin} sizing capped at 70% two cycles after flip.")
                         counter_confidence_floor = 0.75
                         if confidence < counter_confidence_floor:
                             print(f"🚫 Counter-trend confidence floor: {coin} {signal} confidence {confidence:.2f} < {counter_confidence_floor:.2f}. Skipping trade.")
                             execution_report['blocked'].append({'coin': coin, 'reason': 'counter_trend_floor', 'classification': trend_classification, 'confidence': confidence})
                             trade['runtime_decision'] = 'blocked_counter_trend_floor'
                             continue
-                        flip_cycle = trend_info.get('last_flip_cycle')
-                        cycles_since_flip = None
-                        if flip_cycle is not None:
-                            cycles_since_flip = max(0, self.current_cycle_number - flip_cycle)
-                        if trend_info.get('recent_flip'):
-                            if cycles_since_flip == 0:
-                                print(f"⏳ Trend flip guard: {coin} counter-trend {direction.upper()} blocked in same-cycle flip (cycle {flip_cycle}).")
-                                execution_report['blocked'].append({'coin': coin, 'reason': 'trend_flip_guard_same_cycle', 'classification': trend_classification})
-                                trade['runtime_decision'] = 'blocked_trend_flip_same_cycle'
-                                continue
-                            elif cycles_since_flip == 1:
-                                print(f"⏳ Trend flip guard (soft): {coin} counter-trend {direction.upper()} allowed with high confidence and reduced sizing (cycle {flip_cycle}).")
-                                if confidence < 0.85:
-                                    print(f"🚫 Flip guard confidence floor: {coin} {signal} confidence {confidence:.2f} < 0.85 one-cycle after flip.")
-                                    execution_report['blocked'].append({'coin': coin, 'reason': 'trend_flip_guard_confidence', 'classification': trend_classification})
-                                    trade['runtime_decision'] = 'blocked_trend_flip_confidence'
-                                    continue
-                                partial_margin_factor = min(partial_margin_factor, 0.5)
-                            else:
-                                print(f"⏳ Trend flip guard (tapered): {coin} counter-trend {direction.upper()} sizing reduced (cycles since flip: {cycles_since_flip}).")
-                                partial_margin_factor = min(partial_margin_factor, 0.7)
                         print(f"⚠️ COUNTER-TREND DETECTED: {coin} - respecting AI decision with additional validation")
                         
                         # Perform validation for counter-trend trades only
@@ -2009,6 +2050,23 @@ class PortfolioManager:
                                 trade['runtime_decision'] = 'blocked_counter_trend_validation'
                                 continue
                     else:
+                        guard_active = guard_cycles_since_flip is not None and guard_cycles_since_flip <= guard_window
+                        if guard_active and last_flip_direction:
+                            is_trend_direction = ((last_flip_direction == 'bullish' and direction == 'long') or (last_flip_direction == 'bearish' and direction == 'short'))
+                            if is_trend_direction:
+                                if guard_cycles_since_flip == 0:
+                                    confidence *= 0.90
+                                    partial_margin_factor = min(partial_margin_factor, 0.5)
+                                    print(f"⏳ Trend flip guard (trend-following): {coin} confidence tempered & sizing 50% immediately after flip.")
+                                elif guard_cycles_since_flip == 1:
+                                    confidence *= 0.95
+                                    partial_margin_factor = min(partial_margin_factor, 0.7)
+                                    print(f"⏳ Trend flip guard (trend-following): {coin} confidence tempered & sizing 70% one cycle after flip.")
+                                elif guard_cycles_since_flip == 2:
+                                    confidence *= 0.98
+                                    partial_margin_factor = min(partial_margin_factor, 0.85)
+                                    print(f"⏳ Trend flip guard (trend-following): {coin} sizing 85% two cycles after flip.")
+                                trade['confidence'] = confidence
                         # Trend-following trade path
                         price_4h = indicators_4h.get('current_price')
                         ema20_4h = indicators_4h.get('ema_20')
@@ -2195,6 +2253,44 @@ class AlphaArenaDeepSeek:
             return 4  # Cycle 4: max 4 pozisyon
         else:
             return 5  # Cycle 5+: max 5 pozisyon
+    def _apply_directional_capacity_filter(self, decisions: Dict[str, Dict]) -> Tuple[Dict[str, Dict], bool]:
+        """Convert entry signals to hold when directional capacity is full."""
+        if not isinstance(decisions, dict):
+            return decisions, False
+
+        directional_counts = self.portfolio.count_positions_by_direction()
+        limit = Config.SAME_DIRECTION_LIMIT
+        blocked = {
+            'long': directional_counts.get('long', 0) >= limit,
+            'short': directional_counts.get('short', 0) >= limit
+        }
+        if not blocked['long'] and not blocked['short']:
+            return decisions, False
+
+        filtered: Dict[str, Dict] = {}
+        changed = False
+        for coin, trade in decisions.items():
+            if not isinstance(trade, dict):
+                filtered[coin] = trade
+                continue
+
+            signal = trade.get('signal')
+            direction = None
+            if signal == 'buy_to_enter':
+                direction = 'long'
+            elif signal == 'sell_to_enter':
+                direction = 'short'
+
+            if direction and blocked.get(direction):
+                changed = True
+                filtered[coin] = {
+                    'signal': 'hold',
+                    'justification': f"{direction.upper()} capacity full ({directional_counts.get(direction, 0)}/{limit}); evaluate exits or opposite-side setups."
+                }
+            else:
+                filtered[coin] = trade
+
+        return filtered, changed
 
     def check_trend_alignment(self, coin: str) -> bool:
         """Check if trends are aligned across multiple timeframes"""
@@ -3771,6 +3867,9 @@ Current live positions & performance:"""
                             filtered_decisions[coin] = trade
                     decisions = filtered_decisions
                     thoughts += f"\n[Position Limit: Cycle {cycle_number} - Max {max_positions_for_cycle} positions allowed]"
+                decisions, directional_filtered = self._apply_directional_capacity_filter(decisions)
+                if directional_filtered:
+                    thoughts += "\n[Directional Capacity: Entry signals converted to HOLD until opposite-side exposure is reduced]"
             else:
                  print("ℹ️ Skipping AI analysis due to auto TP/SL closure.")
 
