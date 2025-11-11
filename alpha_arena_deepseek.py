@@ -2658,7 +2658,7 @@ class PortfolioManager:
                 quantity_coin = notional_usd / current_price
                 
                 if live_trading:
-                    live_result = self.portfolio.execute_live_entry(
+                    live_result = self.execute_live_entry(
                         coin=coin,
                         direction=direction,
                         quantity=quantity_coin,
@@ -2729,7 +2729,7 @@ class PortfolioManager:
                     continue
 
                 if live_trading:
-                    live_result = self.portfolio.execute_live_close(
+                    live_result = self.execute_live_close(
                         coin=coin,
                         position=position,
                         current_price=current_price,
@@ -2747,7 +2747,7 @@ class PortfolioManager:
                     else:
                         history_entry = live_result.get('history_entry')
                         if history_entry:
-                            self.portfolio.add_to_history(history_entry)
+                            self.add_to_history(history_entry)
                         execution_report['executed'].append({
                             'coin': coin,
                             'signal': 'close_position',

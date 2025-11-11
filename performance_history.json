@@ -18,5 +18,15 @@
         "open_positions": 0,
         "available_cash": 200.0,
         "total_trades": 0
+    },
+    {
+        "cycle": 2,
+        "timestamp": "2025-11-11T05:55:39.668825",
+        "total_value": 200.0,
+        "total_return": 0.0,
+        "sharpe_ratio": 0.0,
+        "open_positions": 0,
+        "available_cash": 200.0,
+        "total_trades": 0
     }
 ]

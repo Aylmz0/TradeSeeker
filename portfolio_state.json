@@ -5,7 +5,7 @@
     "total_return": 0.0,
     "initial_balance": 200.0,
     "trade_count": 0,
-    "last_updated": "2025-11-11T05:51:56.549258",
+    "last_updated": "2025-11-11T05:58:23.624236",
     "sharpe_ratio": 0.0,
     "directional_bias": {
         "long": {
@@ -34,7 +34,7 @@
         }
     },
     "last_history_reset_cycle": 0,
-    "cycles_since_history_reset": 2,
+    "cycles_since_history_reset": 3,
     "directional_cooldowns": {
         "long": 0,
         "short": 0
