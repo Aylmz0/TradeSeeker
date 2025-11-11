@@ -89,6 +89,11 @@ class Config:
     
     # Partial Profit Taking Configuration (Margin-based)
     MIN_PARTIAL_PROFIT_MARGIN_REMAINING_USD: float = float(os.getenv('MIN_PARTIAL_PROFIT_MARGIN_REMAINING_USD', '15.0'))  # Minimum $15 margin kalacak şekilde satış
+
+    # Exit Plan Defaults
+    DEFAULT_STOP_LOSS_PCT: float = float(os.getenv('DEFAULT_STOP_LOSS_PCT', '0.01'))  # 1% default SL buffer
+    DEFAULT_PROFIT_TARGET_PCT: float = float(os.getenv('DEFAULT_PROFIT_TARGET_PCT', '0.015'))  # 1.5% default TP buffer
+    MIN_EXIT_PLAN_OFFSET: float = float(os.getenv('MIN_EXIT_PLAN_OFFSET', '0.0001'))  # Minimum absolute offset for tiny-priced coins
     
     @classmethod
     def validate_config(cls) -> bool:

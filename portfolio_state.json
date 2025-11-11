@@ -1,12 +1,57 @@
 {
-    "current_balance": 200.0,
-    "positions": {},
-    "total_value": 200.0,
-    "total_return": 0.0,
+    "current_balance": 9670.56455107,
+    "positions": {
+        "ADA": {
+            "symbol": "ADA",
+            "direction": "long",
+            "quantity": 16627.0,
+            "entry_price": 0.599,
+            "current_price": 0.5992,
+            "unrealized_pnl": 3.3253999999996338,
+            "notional_usd": 9954.5849,
+            "margin_usd": 0.0,
+            "leverage": 10,
+            "entry_time": 1762833490327,
+            "liquidation_price": 0.0,
+            "confidence": 0.4662,
+            "exit_plan": {
+                "stop_loss": 0.585,
+                "profit_target": 0.615,
+                "invalidation_condition": "If 4h price closes below 4h EMA20 (0.5780)"
+            },
+            "loss_cycle_count": 0,
+            "risk_usd": 0.0,
+            "exchange_metadata": {
+                "symbol": "ADAUSDT",
+                "raw": {
+                    "symbol": "ADAUSDT",
+                    "positionAmt": "16627",
+                    "entryPrice": "0.599",
+                    "breakEvenPrice": "0.5992396",
+                    "markPrice": "0.59870000",
+                    "unRealizedProfit": "-4.98810000",
+                    "liquidationPrice": "0",
+                    "leverage": "10",
+                    "maxNotionalValue": "1000000",
+                    "marginType": "cross",
+                    "isolatedMargin": "0.00000000",
+                    "isAutoAddMargin": "false",
+                    "positionSide": "BOTH",
+                    "notional": "9954.58490000",
+                    "isolatedWallet": "0",
+                    "updateTime": 1762833490327,
+                    "isolated": false,
+                    "adlQuantile": 0
+                }
+            }
+        }
+    },
+    "total_value": 9673.88995107,
+    "total_return": 4736.944975535,
     "initial_balance": 200.0,
     "trade_count": 0,
-    "last_updated": "2025-11-11T05:58:23.624236",
-    "sharpe_ratio": 0.0,
+    "last_updated": "2025-11-11T06:58:13.022222",
+    "sharpe_ratio": 15.454917636788268,
     "directional_bias": {
         "long": {
             "rolling": [],
@@ -34,7 +79,7 @@
         }
     },
     "last_history_reset_cycle": 0,
-    "cycles_since_history_reset": 3,
+    "cycles_since_history_reset": 1,
     "directional_cooldowns": {
         "long": 0,
         "short": 0

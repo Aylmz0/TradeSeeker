@@ -809,6 +809,80 @@ class PortfolioManager:
             self.is_live_trading = False
             self.order_executor = None
 
+    def _build_default_exit_plan(self, direction: str, entry_price: float) -> Dict[str, float]:
+        """Generate a sensible default exit plan when AI data is unavailable."""
+        try:
+            entry = float(entry_price or 0.0)
+        except (TypeError, ValueError):
+            entry = 0.0
+        if entry <= 0:
+            entry = max(Config.MIN_EXIT_PLAN_OFFSET, 1.0)
+        stop_pct = max(Config.DEFAULT_STOP_LOSS_PCT, 1e-4)
+        tp_pct = max(Config.DEFAULT_PROFIT_TARGET_PCT, stop_pct * 1.5)
+        min_offset = max(Config.MIN_EXIT_PLAN_OFFSET, 1e-6)
+        stop_offset = max(entry * stop_pct, min_offset)
+        tp_offset = max(entry * tp_pct, min_offset)
+        if direction == 'short':
+            stop_loss = entry + stop_offset
+            profit_target = max(entry - tp_offset, 0.0)
+        else:
+            stop_loss = max(entry - stop_offset, 0.0)
+            profit_target = entry + tp_offset
+        return {
+            'stop_loss': stop_loss,
+            'profit_target': profit_target
+        }
+
+    def _ensure_exit_plan(self, position: Dict[str, Any], *candidate_plans: Optional[Dict[str, Any]]) -> Dict[str, Any]:
+        """Ensure a position carries a valid exit plan, supplementing with defaults if needed."""
+        direction = position.get('direction', 'long')
+        entry_price = position.get('entry_price') or position.get('current_price')
+        default_plan = self._build_default_exit_plan(direction, entry_price)
+        final_plan = default_plan.copy()
+        provided_keys = set()
+        for plan in candidate_plans:
+            if not plan:
+                continue
+            for key, value in plan.items():
+                if value is None:
+                    continue
+                final_plan[key] = value
+                if key in ('stop_loss', 'profit_target') and isinstance(value, (int, float)) and value > 0:
+                    provided_keys.add(key)
+        missing_required = [key for key in ('stop_loss', 'profit_target') if key not in provided_keys]
+        if missing_required:
+            symbol = position.get('symbol', 'UNKNOWN')
+            print(f"⚠️ Missing {', '.join(missing_required)} for {symbol} - using default exit plan offsets.")
+        position['exit_plan'] = final_plan
+        return final_plan
+
+    def _merge_live_positions(self, snapshot: Dict[str, Dict[str, Any]]) -> Dict[str, Dict[str, Any]]:
+        """Merge Binance snapshot with local runtime metadata (exit plans, confidence, etc.)."""
+        merged: Dict[str, Dict[str, Any]] = {}
+        existing_positions = self.positions if isinstance(self.positions, dict) else {}
+        for coin, snap_pos in snapshot.items():
+            previous = existing_positions.get(coin, {})
+            merged_pos: Dict[str, Any] = {}
+            merged_pos.update(previous)
+            merged_pos.update(snap_pos)
+            merged_pos['symbol'] = coin
+
+            # Carry forward runtime metadata that Binance snapshot doesn't include
+            for key in ('confidence', 'loss_cycle_count', 'trend_context', 'entry_oid', 'tp_oid', 'sl_oid', 'wait_for_fill'):
+                if key in previous and key not in merged_pos:
+                    merged_pos[key] = previous[key]
+
+            # Risk USD should reflect current margin if available
+            margin_usd = merged_pos.get('margin_usd')
+            if isinstance(margin_usd, (int, float)):
+                merged_pos['risk_usd'] = margin_usd
+
+            existing_plan = previous.get('exit_plan')
+            snapshot_plan = snap_pos.get('exit_plan')
+            self._ensure_exit_plan(merged_pos, snapshot_plan, existing_plan)
+            merged[coin] = merged_pos
+        return merged
+
     def sync_live_account(self):
         """Refresh balances and open positions from Binance when in live mode."""
         if not self.is_live_trading or not self.order_executor or not self.order_executor.is_live():
@@ -830,7 +904,9 @@ class PortfolioManager:
         try:
             snapshot = self.order_executor.get_positions_snapshot()
             if isinstance(snapshot, dict):
-                self.positions = snapshot
+                self.positions = self._merge_live_positions(snapshot)
+            else:
+                self.positions = {}
         except BinanceAPIError as exc:
             print(f"⚠️ Binance position sync failed: {exc}")
         except Exception as exc:
@@ -884,6 +960,7 @@ class PortfolioManager:
                 if invalidation is not None:
                     exit_plan['invalidation_condition'] = invalidation
                 position['risk_usd'] = position.get('margin_usd', margin_usd)
+                self._ensure_exit_plan(position, exit_plan)
             return {
                 "success": True,
                 "order": order,
@@ -1715,10 +1792,14 @@ class PortfolioManager:
 
     def enhanced_exit_strategy(self, position: Dict, current_price: float) -> Dict[str, Any]:
         """Enhanced exit strategy with dynamic profit taking and KADEMELİ loss cutting"""
-        entry_price = position['entry_price']
-        direction = position['direction']
-        stop_loss = position['exit_plan']['stop_loss']
-        profit_target = position['exit_plan']['profit_target']
+        entry_price = position.get('entry_price')
+        if entry_price is None:
+            entry_price = position.get('current_price', 0)
+            position['entry_price'] = entry_price
+        direction = position.get('direction', 'long')
+        exit_plan = self._ensure_exit_plan(position, position.get('exit_plan'))
+        stop_loss = exit_plan.get('stop_loss')
+        profit_target = exit_plan.get('profit_target')
         notional_usd = position.get('notional_usd', 0)
         
         exit_decision = {"action": "hold", "reason": "No exit trigger"}
