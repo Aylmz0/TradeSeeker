@@ -1,0 +1,31 @@
+# DeepSeek API Configuration
+DEEPSEEK_API_KEY=your_deepseek_api_key_here
+
+# Binance API Configuration (Optional for simulation, required for live)
+BINANCE_API_KEY=
+BINANCE_SECRET_KEY=
+TRADING_MODE=simulation   # simulation | live
+BINANCE_TESTNET=true      # live modunda testnet denemesi için true
+BINANCE_MARGIN_TYPE=ISOLATED
+BINANCE_DEFAULT_LEVERAGE=10
+BINANCE_RECV_WINDOW=5000
+
+# Application Configuration
+DEBUG=false
+LOG_LEVEL=INFO
+MAX_RETRY_ATTEMPTS=3
+REQUEST_TIMEOUT=30
+
+# Trading Configuration
+INITIAL_BALANCE=200.0
+MAX_TRADE_NOTIONAL_USD=800
+CYCLE_INTERVAL_MINUTES=2
+HISTORY_RESET_INTERVAL=35
+
+# Risk Management Configuration
+MAX_LEVERAGE=20
+MIN_CONFIDENCE=0.4
+MAX_POSITIONS=4
+RISK_LEVEL=medium
+SAME_DIRECTION_LIMIT=4
+MIN_POSITION_MARGIN_USD=15.0

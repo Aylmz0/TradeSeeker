@@ -47,6 +47,11 @@ DEEPSEEK_API_KEY=sk-xxxxxxxxxxxxxxxx...
 # Binance API Configuration (Opsiyonel)
 BINANCE_API_KEY=your_binance_api_key
 BINANCE_SECRET_KEY=your_binance_secret_key
+     TRADING_MODE=simulation   # simulation | live
+     BINANCE_TESTNET=true      # live modunda testnet için true
+     BINANCE_MARGIN_TYPE=ISOLATED
+     BINANCE_DEFAULT_LEVERAGE=10
+     BINANCE_RECV_WINDOW=5000
 
 # Trading Configuration
 INITIAL_BALANCE=200.0
@@ -68,6 +73,69 @@ RISK_LEVEL=medium  # Options: low, medium, high
 - **MIN_CONFIDENCE**: AI karar filtre eşiği. Gerçek bakiyede çok düşük ayarlanması gereksiz işlem sayısını artırabilir; 0.4-0.5 aralığı sağlıklı.  
 - **INITIAL_BALANCE / MIN_POSITION_MARGIN_USD**: Gerçek bakiyeniz farklıysa `.env` ve `config.py` değerlerini güncelleyip botu yeniden başlatın; margin limitleri yeni bakiyeye göre otomatik ölçeklenir.  
 - **API Limits & Failover**: Binance tarafında saniyede 10 istek limitini aşmamak için `MAX_RETRY_ATTEMPTS`, `REQUEST_TIMEOUT` gibi parametreleri aşırı düşürmeyin.  
+
+### 2.2 Yeni Cihazda Kurulum Kontrol Listesi
+
+Projeyi farklı bir makinede ilk kez ayağa kaldırırken aşağıdaki adımlar en yaygın kurulum hatalarını engeller:
+
+1. **Sistem paketlerini hazırlayın**
+   ```bash
+   sudo apt-get update
+   sudo apt-get install -y python3 python3-venv python3-dev build-essential libssl-dev libffi-dev
+   ```
+   > macOS için `xcode-select --install` komutu ile geliştirici araçlarını kurun; Windows için [python.org](https://www.python.org/downloads/) üzerinden Python 3.10+ kurulumunda "Add Python to PATH" seçeneğini işaretleyin.
+
+2. **Depoyu klonlayın ve dizine girin**
+   ```bash
+   git clone https://github.com/<kullanici>/AlphaArena.git
+   cd AlphaArena
+   ```
+
+3. **Sanal ortam oluşturup etkinleştirin**
+   ```bash
+   python3 -m venv .venv
+   source .venv/bin/activate  # Windows: .venv\Scripts\activate
+   ```
+
+4. **pip araçlarını güncelleyin ve bağımlılıkları yükleyin**
+   ```bash
+   python -m pip install --upgrade pip setuptools wheel
+   pip install -r requirements.txt
+   ```
+   Eğer `pandas` veya `numpy` derleme hatası alırsanız, 1. adımda listelenen geliştirici paketlerinin yüklü olduğundan emin olun.
+
+5. **.env dosyasını hazırlayın**
+   - `.env` henüz yoksa örnek olarak aşağıdaki içeriği kullanın ve kendi API anahtarlarınızı ekleyin:
+     ```
+     DEEPSEEK_API_KEY=sk-xxxxxxxxxxxxxxxxxxxxxxxx
+     BINANCE_API_KEY=
+     BINANCE_SECRET_KEY=
+     INITIAL_BALANCE=200.0
+     MAX_TRADE_NOTIONAL_USD=150.0
+     CYCLE_INTERVAL_MINUTES=2
+     MIN_CONFIDENCE=0.4
+     HISTORY_RESET_INTERVAL=35
+     ```
+   - `.env` dosyasını oluşturduktan sonra `source .venv/bin/activate` komutu ile tekrar sanal ortamı aktifleştirip `python -m dotenv list` (opsiyonel) komutuyla değişkenlerin okunduğunu doğrulayabilirsiniz.
+
+6. **Kurulumu doğrulayın**
+   ```bash
+   python -m py_compile alpha_arena_deepseek.py
+   python short_scenario_tests.py  # opsiyonel doğrulama
+   ```
+
+7. **Servisleri başlatın** — README'deki "Sistem Başlatma" adımlarını izleyin. tmux kullanmıyorsanız tek terminalde botu, ikinci terminalde web arayüzünü çalıştırabilirsiniz.
+
+### 2.3 Gerçek Hesap / Simülasyon Modu
+
+- `TRADING_MODE=simulation` (varsayılan) → Bot tüm işlemleri portföy yöneticisi üzerinden simüle eder, gerçek emir göndermez.
+- `TRADING_MODE=live` → `binance.py` aracılığıyla Binance USDT-M Futures’a piyasa (`MARKET`) emri gönderilir.  
+  - **Gerekenler:** Futures API anahtarları (`BINANCE_API_KEY`, `BINANCE_SECRET_KEY`), margin tipi (`BINANCE_MARGIN_TYPE=ISOLATED` önerilir) ve varsayılan kaldıraç (`BINANCE_DEFAULT_LEVERAGE`).  
+  - **Testnet:** Gerçek fon kullanmadan önce `BINANCE_TESTNET=true` ayarıyla [testnet](https://testnet.binancefuture.com/) üzerinde dry-run yapın.  
+  - **Güvenlik:** API anahtarına sadece gerekli izinleri verin (Futures/Trade + Read), mümkünse IP kısıtlaması tanımlayın.
+- Canlı moda geçtikten sonra bot, her cycle’da ve her emirden sonra hesabı senkronize eder; açık pozisyonlar ve bakiyeler `portfolio_state.json` ile uyumlu tutulur.
+- Geçmiş log temizleme çalıştırıldığında `history_backups/` klasöründe zaman damgalı yedekler oluşur; olası hata durumunda buradan geri yükleme yapabilirsiniz.
+- `.env` güncellemelerinden sonra botu yeniden başlatın ve `python -m py_compile alpha_arena_deepseek.py` ile hızlı bir sözdizimi kontrolü yapın.
 
 ### 3. Sistem Başlatma
 
@@ -158,6 +226,7 @@ Değişiklikten sonra botu yeniden başlatın.
 ```
 .
 ├── alpha_arena_deepseek.py    # Ana trading botu
+├── binance.py                 # Binance Futures emir yürütücüsü (live mode)
 ├── admin_server.py            # Web sunucusu
 ├── config.py                  # Konfigürasyon yönetimi
 ├── backtest.py                # Backtesting modülü
@@ -167,6 +236,7 @@ Değişiklikten sonra botu yeniden başlatın.
 ├── portfolio_state.json       # Portföy durumu
 ├── trade_history.json         # İşlem geçmişi
 ├── cycle_history.json         # Cycle geçmişi
+├── history_backups/           # Periyodik log yedekleri
 └── manual_override.json       # Manuel müdahale dosyası
 ```
 
@@ -220,6 +290,7 @@ result = engine.run_backtest(strategy_func, symbols, start_date, end_date)
 **ModuleNotFoundError**
 - Sanal ortamı aktifleştirin: `source .venv/bin/activate`
 - Gerekli kütüphaneleri yükleyin: `pip install -r requirements.txt`
+- `pip: command not found` hatası alırsanız Python kurulumunun PATH üzerinde olduğundan emin olun veya `python -m ensurepip --upgrade` komutunu çalıştırın.
 
 **Port Çakışması**
 - `admin_server.py` dosyasında port numarasını değiştirin

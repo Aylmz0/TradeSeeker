@@ -36,6 +36,11 @@ class Config:
     
     # Risk Level Configuration
     RISK_LEVEL: str = os.getenv('RISK_LEVEL', 'medium').lower()
+    TRADING_MODE: str = os.getenv('TRADING_MODE', 'simulation').lower()  # simulation | live
+    BINANCE_TESTNET: bool = os.getenv('BINANCE_TESTNET', 'false').lower() == 'true'
+    BINANCE_MARGIN_TYPE: str = os.getenv('BINANCE_MARGIN_TYPE', 'ISOLATED').upper()
+    BINANCE_DEFAULT_LEVERAGE: int = int(os.getenv('BINANCE_DEFAULT_LEVERAGE', '10'))
+    BINANCE_RECV_WINDOW: int = int(os.getenv('BINANCE_RECV_WINDOW', '5000'))
     
     # Enhanced Trading Settings
     SHORT_ENHANCEMENT_MULTIPLIER: float = float(os.getenv('SHORT_ENHANCEMENT_MULTIPLIER', '1.15'))  # %15 daha büyük short
@@ -93,6 +98,19 @@ class Config:
         # Check required API keys
         if not cls.DEEPSEEK_API_KEY:
             errors.append("DEEPSEEK_API_KEY is required")
+        if cls.TRADING_MODE not in ('simulation', 'live'):
+            errors.append("TRADING_MODE must be either 'simulation' or 'live'")
+        if cls.TRADING_MODE == 'live':
+            if not cls.BINANCE_API_KEY or not cls.BINANCE_SECRET_KEY:
+                errors.append("BINANCE_API_KEY and BINANCE_SECRET_KEY are required in live trading mode")
+            if cls.BINANCE_DEFAULT_LEVERAGE < 1:
+                errors.append("BINANCE_DEFAULT_LEVERAGE must be >= 1")
+            if cls.BINANCE_MARGIN_TYPE not in ('ISOLATED', 'CROSSED'):
+                errors.append("BINANCE_MARGIN_TYPE must be either 'ISOLATED' or 'CROSSED'")
+            if cls.BINANCE_RECV_WINDOW < 1000:
+                errors.append("BINANCE_RECV_WINDOW must be at least 1000 ms")
+            if cls.BINANCE_DEFAULT_LEVERAGE > cls.MAX_LEVERAGE:
+                errors.append("BINANCE_DEFAULT_LEVERAGE cannot exceed MAX_LEVERAGE")
         
         # Validate numeric values
         if cls.INITIAL_BALANCE <= 0:
@@ -134,6 +152,11 @@ class Config:
         logging.info(f"  MAX_LEVERAGE: {cls.MAX_LEVERAGE}x")
         logging.info(f"  MIN_CONFIDENCE: {cls.MIN_CONFIDENCE}")
         logging.info(f"  RISK_LEVEL: {cls.RISK_LEVEL.upper()}")
+        logging.info(f"  TRADING_MODE: {cls.TRADING_MODE.upper()}")
+        logging.info(f"  BINANCE_TESTNET: {cls.BINANCE_TESTNET}")
+        if cls.TRADING_MODE == 'live':
+            logging.info(f"  BINANCE_MARGIN_TYPE: {cls.BINANCE_MARGIN_TYPE}")
+            logging.info(f"  BINANCE_DEFAULT_LEVERAGE: {cls.BINANCE_DEFAULT_LEVERAGE}x")
 
 # Configure logging
 logging.basicConfig(
