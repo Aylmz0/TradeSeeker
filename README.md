@@ -7,6 +7,7 @@ Profesyonel kripto para ticaret botu - DeepSeek AI entegrasyonu ile otomatik tra
 - **AI-Powered Trading**: DeepSeek API ile akıllı ticaret kararları
 - **Multi-Asset Support**: XRP, DOGE, ASTR, ADA, LINK, SOL
 - **Advanced Risk Management**: Dinamik risk yönetimi ve pozisyon boyutlandırma
+- **Configurable Trend Detection**: Varsayılan 1h EMA20 trend analizi (HTF_INTERVAL ile değiştirilebilir)
 - **Auto TP/SL**: Otomatik kar al ve stop-loss yönetimi
 - **Real-time Data**: Binance API ile gerçek zamanlı piyasa verileri
 - **Web Dashboard**: Gerçek zamanlı izleme ve kontrol paneli
@@ -47,11 +48,11 @@ DEEPSEEK_API_KEY=sk-xxxxxxxxxxxxxxxx...
 # Binance API Configuration (Opsiyonel)
 BINANCE_API_KEY=your_binance_api_key
 BINANCE_SECRET_KEY=your_binance_secret_key
-     TRADING_MODE=simulation   # simulation | live
-     BINANCE_TESTNET=true      # live modunda testnet için true
-     BINANCE_MARGIN_TYPE=ISOLATED
-     BINANCE_DEFAULT_LEVERAGE=10
-     BINANCE_RECV_WINDOW=5000
+TRADING_MODE=simulation   # simulation | live
+BINANCE_TESTNET=true      # live modunda testnet için true
+BINANCE_MARGIN_TYPE=ISOLATED
+BINANCE_DEFAULT_LEVERAGE=10
+BINANCE_RECV_WINDOW=5000
 
 # Trading Configuration
 INITIAL_BALANCE=200.0
@@ -61,6 +62,14 @@ MAX_LEVERAGE=15
 MIN_CONFIDENCE=0.4
 MAX_POSITIONS=4
 
+# Exit Plan Defaults
+DEFAULT_STOP_LOSS_PCT=0.01
+DEFAULT_PROFIT_TARGET_PCT=0.015
+MIN_EXIT_PLAN_OFFSET=0.0001
+
+# Trend Detection
+HTF_INTERVAL=1h  # Options: 30m, 1h, 2h, 4h
+
 # Risk Level Configuration
 RISK_LEVEL=medium  # Options: low, medium, high
 ```
@@ -68,6 +77,7 @@ RISK_LEVEL=medium  # Options: low, medium, high
 ### 2.1 Canlı Kullanım Konfigürasyon İpuçları
 
 - **HISTORY_RESET_INTERVAL**: (Varsayılan `35`) Her bu kadar cycle'da geçmiş logları temizler, sistemin uzun süreli bias geliştirmesini engeller. Canlıda 30-50 arası değer önerilir.  
+- **HTF_INTERVAL**: (Varsayılan `1h`) Trend tespiti için kullanılan üst zaman dilimi. Kısa vadeli stratejiler için `30m`, daha geniş perspektif için `2h` veya `4h` deneyebilirsiniz; bot otomatik olarak EMA20 referanslarını yeni interval üzerinden hesaplar.  
 - **SAME_DIRECTION_LIMIT**: Maksimum aynı yönde (long/short) pozisyon slotu. Futures cüzdan boyutunuza göre azaltıp artırabilirsiniz; borsanın kaldıraç limitini aşmamasına dikkat edin.  
 - **CYCLE_INTERVAL_MINUTES** & **calculate_optimal_cycle_frequency**: Varsayılan 2 dakika. Spot/USDT perpetual tarafında API sınırlarını zorlamamak için minimum 2 dk önerilir; volatilite yüksekse bot otomatik olarak 2-4 dakika aralığına geçer.  
 - **MIN_CONFIDENCE**: AI karar filtre eşiği. Gerçek bakiyede çok düşük ayarlanması gereksiz işlem sayısını artırabilir; 0.4-0.5 aralığı sağlıklı.  

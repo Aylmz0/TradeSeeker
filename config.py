@@ -94,6 +94,9 @@ class Config:
     DEFAULT_STOP_LOSS_PCT: float = float(os.getenv('DEFAULT_STOP_LOSS_PCT', '0.01'))  # 1% default SL buffer
     DEFAULT_PROFIT_TARGET_PCT: float = float(os.getenv('DEFAULT_PROFIT_TARGET_PCT', '0.015'))  # 1.5% default TP buffer
     MIN_EXIT_PLAN_OFFSET: float = float(os.getenv('MIN_EXIT_PLAN_OFFSET', '0.0001'))  # Minimum absolute offset for tiny-priced coins
+
+    # Higher Timeframe Configuration
+    HTF_INTERVAL: str = os.getenv('HTF_INTERVAL', '1h').lower()
     
     @classmethod
     def validate_config(cls) -> bool:
@@ -126,6 +129,9 @@ class Config:
         
         if cls.MAX_LEVERAGE < 1:
             errors.append("MAX_LEVERAGE must be at least 1")
+
+        if cls.HTF_INTERVAL.lower() not in ('1h', '4h', '2h', '30m'):
+            errors.append("HTF_INTERVAL must be one of ['30m', '1h', '2h', '4h']")
         
         if errors:
             logging.error("Configuration validation failed:")
@@ -159,6 +165,7 @@ class Config:
         logging.info(f"  RISK_LEVEL: {cls.RISK_LEVEL.upper()}")
         logging.info(f"  TRADING_MODE: {cls.TRADING_MODE.upper()}")
         logging.info(f"  BINANCE_TESTNET: {cls.BINANCE_TESTNET}")
+        logging.info(f"  HTF_INTERVAL: {cls.HTF_INTERVAL}")
         if cls.TRADING_MODE == 'live':
             logging.info(f"  BINANCE_MARGIN_TYPE: {cls.BINANCE_MARGIN_TYPE}")
             logging.info(f"  BINANCE_DEFAULT_LEVERAGE: {cls.BINANCE_DEFAULT_LEVERAGE}x")

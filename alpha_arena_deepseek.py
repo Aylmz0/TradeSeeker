@@ -44,6 +44,9 @@ if not Config.validate_config():
 
 Config.log_config_summary()
 
+HTF_INTERVAL = getattr(Config, 'HTF_INTERVAL', '1h') or '1h'  # Higher timeframe interval used for structural trend analysis
+HTF_LABEL = HTF_INTERVAL
+
 # --- API Class ---
 class DeepSeekAPI:
     """DeepSeek API integration with enhanced error handling and rate limiting"""
@@ -70,7 +73,7 @@ class DeepSeekAPI:
                 "messages": [
                     {
                         "role": "system",
-                        "content": """You are a zero-shot systematic trading model participating in Alpha Arena.
+                        "content": f"""You are a zero-shot systematic trading model participating in Alpha Arena.
 Your goal is to maximize PnL (profit and loss) by trading perpetual futures on 6 assets: XRP, DOGE, JASMY, ADA, LINK, SOL.
 
 You are given $200 starting capital and must process numerical market data to discover alpha.
@@ -86,20 +89,20 @@ CORE RULES:
 RISK MANAGEMENT:
 - Portfolio- and position-level risk caps are enforced automatically; focus on selecting high-quality opportunities.
 - Maintain at least 1:1.3 risk/reward.
-- Use objective volatility references (e.g., 4h ATR) when setting stops.
-- Express invalidation clearly (e.g., "If 4h close is below EMA20").
+- Use objective volatility references (e.g., {HTF_LABEL} ATR) when setting stops.
+- Express invalidation clearly (e.g., "If {HTF_LABEL} close is below EMA20").
 
 SYMMETRIC STRATEGY GUIDANCE:
 - Evaluate both LONG and SHORT paths for every asset. Bullish regimes support longs; bearish regimes support shorts.
 - Counter-trend trades are direction-agnostic and optional; use them only when the pre-computed checklist (in the prompt) shows ≥3/5 conditions and you can rationalize the edge.
 - Counter-trend trades require higher confidence (>0.75). If you override the checklist, add a short justification.
-- Only label a setup as counter-trend when your proposed trade direction is opposite the 4h trend. If 4h trend and trade direction align but 3m is temporarily opposing, treat it as trend-following.
+- Only label a setup as counter-trend when your proposed trade direction is opposite the {HTF_LABEL} trend. If {HTF_LABEL} trend and trade direction align but 3m is temporarily opposing, treat it as trend-following.
 - Prioritize trades with quantified momentum, participation, and risk/reward advantages.
 - When regime, momentum, and participation align in your favor, favor committing capital decisively instead of waiting for perfect confirmation.
-- Execute trend-following setups promptly when 4h + 3m structures point the same way and volume/liquidity is supportive.
+- Execute trend-following setups promptly when {HTF_LABEL} + 3m structures point the same way and volume/liquidity is supportive.
 
 DATA CONTEXT:
-- You receive 3m (entry/exit) and 4h (trend) series plus historical indicators.
+- You receive 3m (entry/exit) and {HTF_LABEL} (trend) series plus historical indicators.
 - All numerical sequences are ordered OLDEST → NEWEST; interpret momentum through time.
 - Volume, Open Interest, and Funding Rate are provided for sentiment context—combine them with price action.
 - Treat the supplied data as the authoritative source for every decision.
@@ -108,7 +111,7 @@ DATA CONTEXT:
 
 ADVANCED ANALYSIS PLAYBOOK:
 - Apply long and short strategies across all coins; choose the direction that offers the superior quantified edge.
-- Use 4h timeframe for structural bias and 3m for execution timing.
+- Use {HTF_LABEL} timeframe for structural bias and 3m for execution timing.
 - Monitor volume vs. average volume, Open Interest, and Funding to measure conviction.
 - Employ multi-timeframe technical analysis (EMA, RSI, MACD, ATR, etc.).
 - Keep take-profit/stop-loss targets responsive (e.g. 2–4% TP, 1–2% SL) when volatility supports it.
@@ -118,7 +121,7 @@ ADVANCED ANALYSIS PLAYBOOK:
 
 MULTI-TIMEFRAME PROCESS:
 1. Check global and per-asset regime data (provided in the prompt).
-2. Analyze 4h indicators for directional bias.
+2. Analyze {HTF_LABEL} indicators for directional bias.
 3. Use 3m indicators for timing and confirmation.
 4. Incorporate volume, Open Interest, Funding, and other metrics to judge conviction.
 5. Decide whether to go long, short, hold, or close based on the strongest quantified edge.
@@ -134,8 +137,8 @@ DATA NOTES:
 - Volume statistics highlight participation strength.
 
 TREND & COUNTER-TREND GUIDELINES:
-- When price is below 4h EMA20 with bearish momentum, short setups merit priority.
-- When price is above 4h EMA20 with bullish momentum, long setups merit priority.
+- When price is below {HTF_LABEL} EMA20 with bearish momentum, short setups merit priority.
+- When price is above {HTF_LABEL} EMA20 with bullish momentum, long setups merit priority.
 - Counter-trend trades (long or short) demand stronger confirmation, higher confidence, and clear reasoning.
 - If volume ratio is ≤0.30× average, call out the weakness, reduce confidence materially, and consider skipping the trade unless another data point overwhelmingly compensates.
 
@@ -152,7 +155,7 @@ Provide response in `CHAIN_OF_THOUGHTS` and `DECISIONS` (JSON) parts.
 
 Example Format (NOF1AI Advanced Style):
 CHAIN_OF_THOUGHTS
-[Advanced systematic analysis of all assets using 4h trends and 3m entries. Focus on market structure, volume confirmation, and risk management. Example: "XRP showing strong momentum with volume confirmation. 4h RSI at 62.5 shows room to run, MACD positive, price well above EMA20. Open Interest increasing suggests institutional interest. Targeting $0.56 with stop below $0.48. Invalidation if 4h price closes below EMA20."]
+[Advanced systematic analysis of all assets using {HTF_LABEL} trends and 3m entries. Focus on market structure, volume confirmation, and risk management. Example: "XRP showing strong momentum with volume confirmation. {HTF_LABEL} RSI at 62.5 shows room to run, MACD positive, price well above EMA20. Open Interest increasing suggests institutional interest. Targeting $0.56 with stop below $0.48. Invalidation if {HTF_LABEL} price closes below EMA20."]
 DECISIONS
 {
   "XRP": {
@@ -162,7 +165,7 @@ DECISIONS
     "profit_target": 0.56,
     "stop_loss": 0.48,
     "risk_usd": 45.0,
-    "invalidation_condition": "If 4h price closes below 4h EMA20"
+    "invalidation_condition": "If {HTF_LABEL} price closes below {HTF_LABEL} EMA20"
   },
   "SOL": {
     "signal": "sell_to_enter",
@@ -171,7 +174,7 @@ DECISIONS
     "profit_target": 185.0,
     "stop_loss": 198.0,
     "risk_usd": 45.0,
-    "invalidation_condition": "If 4h price closes above 4h EMA20"
+    "invalidation_condition": "If {HTF_LABEL} price closes above {HTF_LABEL} EMA20"
   },
   "ADA": {
     "signal": "buy_to_enter",
@@ -180,7 +183,7 @@ DECISIONS
     "profit_target": 0.52,
     "stop_loss": 0.48,
     "risk_usd": 45.0,
-    "invalidation_condition": "If 4h price closes below 4h EMA20"
+    "invalidation_condition": "If {HTF_LABEL} price closes below {HTF_LABEL} EMA20"
   },
   "DOGE": {
     "signal": "sell_to_enter",
@@ -189,7 +192,7 @@ DECISIONS
     "profit_target": 0.145,
     "stop_loss": 0.165,
     "risk_usd": 45.0,
-    "invalidation_condition": "If 4h price closes above 4h EMA20"
+    "invalidation_condition": "If {HTF_LABEL} price closes above {HTF_LABEL} EMA20"
   },
   "LINK": { "signal": "hold" },
   "JASMY": { "signal": "hold" }
@@ -226,7 +229,7 @@ Remember: You are a systematic trading model. Make principled decisions based on
         print("⚠️  Using simulation mode...")
         return """
 CHAIN_OF_THOUGHTS
-Simulation Mode: Assuming market pullback. Shorting SOL based on simulated 4h resistance. Aiming for 1:1.5 R/R using simulated ATR. Holding others.
+Simulation Mode: Assuming market pullback. Shorting SOL based on simulated {HTF_LABEL} resistance. Aiming for 1:1.5 R/R using simulated ATR. Holding others.
 DECISIONS
 {
   "SOL": {
@@ -237,7 +240,7 @@ DECISIONS
     "profit_target": 185.0,
     "stop_loss": 198.0,
     "risk_usd": 15.0,
-    "invalidation_condition": "If 4h price closes above 199.0"
+    "invalidation_condition": "If {HTF_LABEL} price closes above 199.0"
   },
   "XRP": { "signal": "hold" },
   "ADA": { "signal": "hold" },
@@ -516,7 +519,7 @@ class RealMarketData:
                  rsi_7_series = self.calculate_rsi_series(close_prices, 7)
                  indicators['rsi_7'] = rsi_7_series.iloc[-1]
                  indicators['rsi_7_series'] = rsi_7_series.iloc[-hist_len:].round(3).where(pd.notna, None).tolist()
-            if interval == '4h':
+            if interval == HTF_INTERVAL:
                  atr_3_series = self.calculate_atr_series(df['high'], df['low'], df['close'], 3)
                  indicators['atr_3'] = atr_3_series.iloc[-1]
 
@@ -1310,16 +1313,16 @@ class PortfolioManager:
     def update_trend_state(
         self,
         coin: str,
-        indicators_4h: Dict[str, Any],
+        indicators_htf: Dict[str, Any],
         indicators_3m: Optional[Dict[str, Any]] = None
     ) -> Dict[str, Any]:
-        price_4h = indicators_4h.get('current_price')
-        ema20_4h = indicators_4h.get('ema_20')
+        price_htf = indicators_htf.get('current_price')
+        ema20_htf = indicators_htf.get('ema_20')
 
-        if not isinstance(price_4h, (int, float)) or not isinstance(ema20_4h, (int, float)) or ema20_4h == 0:
+        if not isinstance(price_htf, (int, float)) or not isinstance(ema20_htf, (int, float)) or ema20_htf == 0:
             return {'trend': 'unknown', 'recent_flip': False, 'last_flip_cycle': None}
 
-        delta = (price_4h - ema20_4h) / ema20_4h
+        delta = (price_htf - ema20_htf) / ema20_htf
         price_neutral = abs(delta) <= Config.EMA_NEUTRAL_BAND_PCT
         current_trend = 'neutral' if price_neutral else ('bullish' if delta > 0 else 'bearish')
 
@@ -1336,9 +1339,9 @@ class PortfolioManager:
                     current_trend = 'neutral'
 
                 if current_trend == 'neutral':
-                    if price_4h <= ema20_4h and price_3m <= ema20_3m and rsi_3m <= Config.TREND_SHORT_RSI_THRESHOLD:
+                    if price_htf <= ema20_htf and price_3m <= ema20_3m and rsi_3m <= Config.TREND_SHORT_RSI_THRESHOLD:
                         current_trend = 'bearish'
-                    elif price_4h >= ema20_4h and price_3m >= ema20_3m and rsi_3m >= Config.TREND_LONG_RSI_THRESHOLD:
+                    elif price_htf >= ema20_htf and price_3m >= ema20_3m and rsi_3m >= Config.TREND_LONG_RSI_THRESHOLD:
                         current_trend = 'bullish'
 
         record = self.trend_state.get(coin, {'trend': current_trend, 'last_flip_cycle': self.current_cycle_number, 'last_flip_direction': current_trend})
@@ -1976,23 +1979,26 @@ class PortfolioManager:
         coin: str,
         indicator_cache: Optional[Dict[str, Dict[str, Any]]] = None
     ) -> Tuple[Optional[Dict[str, Any]], Optional[Dict[str, Any]]]:
-        """Fetch indicators for 3m and 4h from cache if available, otherwise from market data."""
+        """Fetch indicators for 3m and higher timeframe from cache if available, otherwise from market data."""
         cache_source = indicator_cache if indicator_cache is not None else getattr(self, 'indicator_cache', {})
         cached_entry = cache_source.get(coin) if isinstance(cache_source, dict) else None
 
         indicators_3m = None
-        indicators_4h = None
+        indicators_htf = None
 
         if isinstance(cached_entry, dict):
             indicators_3m = copy.deepcopy(cached_entry.get('3m'))
-            indicators_4h = copy.deepcopy(cached_entry.get('4h'))
+            cached_htf = cached_entry.get(HTF_INTERVAL)
+            if cached_htf is None and HTF_INTERVAL != '4h':
+                cached_htf = cached_entry.get('4h')  # backward compatibility
+            indicators_htf = copy.deepcopy(cached_htf)
 
         if not isinstance(indicators_3m, dict) or 'error' in indicators_3m:
             indicators_3m = self.market_data.get_technical_indicators(coin, '3m')
-        if not isinstance(indicators_4h, dict) or 'error' in indicators_4h:
-            indicators_4h = self.market_data.get_technical_indicators(coin, '4h')
+        if not isinstance(indicators_htf, dict) or 'error' in indicators_htf:
+            indicators_htf = self.market_data.get_technical_indicators(coin, HTF_INTERVAL)
 
-        return indicators_3m, indicators_4h
+        return indicators_3m, indicators_htf
 
     def _execute_normal_decisions(
         self,
@@ -2090,28 +2096,28 @@ class PortfolioManager:
             print(f"📊 Adjusted partial sale: {proposed_percent*100:.0f}% → {adjusted_percent*100:.0f}% to maintain ${min_remaining:.2f} minimum limit")
             return adjusted_percent
 
-    def _is_counter_trend_trade(self, coin: str, signal: str, indicators_3m: Dict, indicators_4h: Dict) -> bool:
-        """Check if trade is counter-trend based on 4h trend vs 3m signal"""
+    def _is_counter_trend_trade(self, coin: str, signal: str, indicators_3m: Dict, indicators_htf: Dict) -> bool:
+        """Check if trade is counter-trend based on higher timeframe trend vs 3m signal"""
         try:
-            if 'error' in indicators_3m or 'error' in indicators_4h:
+            if 'error' in indicators_3m or 'error' in indicators_htf:
                 return False
             
-            price_4h = indicators_4h.get('current_price')
-            ema20_4h = indicators_4h.get('ema_20')
+            price_htf = indicators_htf.get('current_price')
+            ema20_htf = indicators_htf.get('ema_20')
             price_3m = indicators_3m.get('current_price')
             ema20_3m = indicators_3m.get('ema_20')
             
-            # Determine 4h trend direction
-            trend_4h = "BULLISH" if price_4h > ema20_4h else "BEARISH"
+            # Determine higher timeframe trend direction
+            trend_htf = "BULLISH" if price_htf > ema20_htf else "BEARISH"
             
             # Determine 3m trend direction
             trend_3m = "BULLISH" if price_3m > ema20_3m else "BEARISH"
             
-            # Check if trade is counter-trend (signal vs 4h trend)
-            if signal == 'buy_to_enter' and trend_4h == "BEARISH":
-                return True  # Long against bearish 4h trend
-            elif signal == 'sell_to_enter' and trend_4h == "BULLISH":
-                return True  # Short against bullish 4h trend
+            # Check if trade is counter-trend (signal vs higher timeframe trend)
+            if signal == 'buy_to_enter' and trend_htf == "BEARISH":
+                return True  # Long against bearish higher timeframe trend
+            elif signal == 'sell_to_enter' and trend_htf == "BULLISH":
+                return True  # Short against bullish higher timeframe trend
             
             return False
             
@@ -2135,10 +2141,10 @@ class PortfolioManager:
             # Trend-following trade - no adjustment
             return confidence
 
-    def validate_counter_trade(self, coin: str, signal: str, indicators_3m: Dict, indicators_4h: Dict) -> Dict[str, Any]:
+    def validate_counter_trade(self, coin: str, signal: str, indicators_3m: Dict, indicators_htf: Dict) -> Dict[str, Any]:
         """Validate counter-trade with multiple technical conditions"""
         try:
-            if 'error' in indicators_3m or 'error' in indicators_4h:
+            if 'error' in indicators_3m or 'error' in indicators_htf:
                 return {"valid": False, "reason": "Indicator data error"}
             conditions_met: List[str] = []
             conditions_met_count = 0
@@ -2327,12 +2333,12 @@ class PortfolioManager:
             neutral_count = 0
             
             for coin in market_data.available_coins:
-                indicators_4h = market_data.get_technical_indicators(coin, '4h')
-                if 'error' in indicators_4h:
+                indicators_htf = market_data.get_technical_indicators(coin, HTF_INTERVAL)
+                if 'error' in indicators_htf:
                     continue
                 
-                price = indicators_4h.get('current_price')
-                ema20 = indicators_4h.get('ema_20')
+                price = indicators_htf.get('current_price')
+                ema20 = indicators_htf.get('ema_20')
                 
                 if not isinstance(price, (int, float)) or not isinstance(ema20, (int, float)) or ema20 == 0:
                     continue
@@ -2370,9 +2376,9 @@ class PortfolioManager:
             market_data = RealMarketData()
             
             indicators_3m = market_data.get_technical_indicators(coin, '3m')
-            indicators_4h = market_data.get_technical_indicators(coin, '4h')
+            indicators_htf = market_data.get_technical_indicators(coin, HTF_INTERVAL)
             
-            if 'error' in indicators_3m or 'error' in indicators_4h:
+            if 'error' in indicators_3m or 'error' in indicators_htf:
                 return False
             
             # Enhanced short conditions:
@@ -2380,10 +2386,10 @@ class PortfolioManager:
             rsi_3m = indicators_3m.get('rsi_14', 50)
             # 2. Volume > 1.5x average
             volume_ratio = indicators_3m.get('volume', 0) / indicators_3m.get('avg_volume', 1)
-            # 3. 4h trend bearish
-            price_4h = indicators_4h.get('current_price')
-            ema20_4h = indicators_4h.get('ema_20')
-            trend_bearish = price_4h < ema20_4h
+            # 3. Higher timeframe trend bearish
+            price_htf = indicators_htf.get('current_price')
+            ema20_htf = indicators_htf.get('ema_20')
+            trend_bearish = price_htf < ema20_htf
             
             # All conditions must be met
             return rsi_3m > 70 and volume_ratio > 1.5 and trend_bearish
@@ -2531,9 +2537,9 @@ class PortfolioManager:
                 volume_ratio = None
                 trend_classification = 'unknown'
                 try:
-                    indicators_3m, indicators_4h = self._get_indicator_snapshot(coin, indicator_cache)
-                    if ('error' in indicators_3m) or ('error' in indicators_4h):
-                        print(f"⚠️ Indicator fetch error for {coin}: {indicators_3m.get('error', '') or indicators_4h.get('error', '')}")
+                    indicators_3m, indicators_htf = self._get_indicator_snapshot(coin, indicator_cache)
+                    if ('error' in indicators_3m) or ('error' in indicators_htf):
+                        print(f"⚠️ Indicator fetch error for {coin}: {indicators_3m.get('error', '') or indicators_htf.get('error', '')}")
                         execution_report['blocked'].append({'coin': coin, 'reason': 'indicator_error'})
                         trade['runtime_decision'] = 'blocked_indicator_error'
                         continue
@@ -2556,7 +2562,7 @@ class PortfolioManager:
                             trade['runtime_decision'] = 'blocked_low_volume'
                             continue
                         trade['confidence'] = confidence
-                    trend_info = self.update_trend_state(coin, indicators_4h, indicators_3m)
+                    trend_info = self.update_trend_state(coin, indicators_htf, indicators_3m)
                     current_trend = trend_info.get('trend', 'unknown')
                     flip_cycle = trend_info.get('last_flip_cycle')
                     last_flip_direction = trend_info.get('last_flip_direction')
@@ -2571,19 +2577,19 @@ class PortfolioManager:
                     if confidence != pre_bias_confidence:
                         print(f"🧭 Directional bias adjustment: {coin} {signal} confidence {pre_bias_confidence:.2f} → {confidence:.2f}")
                         trade['confidence'] = confidence
-                    is_counter_trend = self._is_counter_trend_trade(coin, signal, indicators_3m, indicators_4h)
+                    is_counter_trend = self._is_counter_trend_trade(coin, signal, indicators_3m, indicators_htf)
                     trend_classification = 'counter_trend' if is_counter_trend else 'trend_following'
                     trade['trend_alignment'] = trend_classification
                     snapshot_parts = []
-                    price_4h = indicators_4h.get('current_price')
-                    ema20_4h = indicators_4h.get('ema_20')
+                    price_htf = indicators_htf.get('current_price')
+                    ema20_htf = indicators_htf.get('ema_20')
                     price_3m = indicators_3m.get('current_price')
                     ema20_3m = indicators_3m.get('ema_20')
                     def _fmt(val):
                         return f"{val:.4f}" if isinstance(val, (int, float)) else "n/a"
-                    comparison_4h = "?" if not isinstance(price_4h, (int, float)) or not isinstance(ema20_4h, (int, float)) else (">" if price_4h > ema20_4h else "<" if price_4h < ema20_4h else "=")
+                    comparison_htf = "?" if not isinstance(price_htf, (int, float)) or not isinstance(ema20_htf, (int, float)) else (">" if price_htf > ema20_htf else "<" if price_htf < ema20_htf else "=")
                     comparison_3m = "?" if not isinstance(price_3m, (int, float)) or not isinstance(ema20_3m, (int, float)) else (">" if price_3m > ema20_3m else "<" if price_3m < ema20_3m else "=")
-                    snapshot_parts.append(f"4h price={_fmt(price_4h)} {comparison_4h} EMA20={_fmt(ema20_4h)}")
+                    snapshot_parts.append(f"{HTF_LABEL} price={_fmt(price_htf)} {comparison_htf} EMA20={_fmt(ema20_htf)}")
                     snapshot_parts.append(f"3m price={_fmt(price_3m)} {comparison_3m} EMA20={_fmt(ema20_3m)}")
                     snapshot_parts.append(f"volume_ratio={volume_ratio:.2f}x")
                     snapshot_parts.append(f"counter_trend={is_counter_trend}")
@@ -2625,7 +2631,7 @@ class PortfolioManager:
                             print(f"⚠️ COUNTER-TREND DETECTED: {coin} - respecting AI decision with additional validation")
                             
                             # Perform validation for counter-trend trades only
-                            validation_result = self.validate_counter_trade(coin, signal, indicators_3m, indicators_4h)
+                            validation_result = self.validate_counter_trade(coin, signal, indicators_3m, indicators_htf)
                             
                             if validation_result['valid']:
                                 print(f"✅ COUNTER-TRADE STRONG: {validation_result['reason']}")
@@ -2657,16 +2663,16 @@ class PortfolioManager:
                                     print(f"⏳ Trend flip guard (trend-following): {coin} sizing 85% two cycles after flip.")
                                 trade['confidence'] = confidence
                         # Trend-following trade path
-                        price_4h = indicators_4h.get('current_price')
-                        ema20_4h = indicators_4h.get('ema_20')
+                        price_htf_follow = indicators_htf.get('current_price')
+                        ema20_htf_follow = indicators_htf.get('ema_20')
                         ema20_3m = indicators_3m.get('ema_20')
                         price_3m = indicators_3m.get('current_price')
                         trend_aligned = False
-                        if isinstance(price_4h, (int, float)) and isinstance(ema20_4h, (int, float)) \
+                        if isinstance(price_htf_follow, (int, float)) and isinstance(ema20_htf_follow, (int, float)) \
                                 and isinstance(price_3m, (int, float)) and isinstance(ema20_3m, (int, float)):
-                            if signal == 'buy_to_enter' and price_4h >= ema20_4h and price_3m >= ema20_3m:
+                            if signal == 'buy_to_enter' and price_htf_follow >= ema20_htf_follow and price_3m >= ema20_3m:
                                 trend_aligned = True
-                            elif signal == 'sell_to_enter' and price_4h <= ema20_4h and price_3m <= ema20_3m:
+                            elif signal == 'sell_to_enter' and price_htf_follow <= ema20_htf_follow and price_3m <= ema20_3m:
                                 trend_aligned = True
                         if trend_aligned:
                             if volume_ratio is not None and volume_ratio >= 0.5:
@@ -2674,9 +2680,9 @@ class PortfolioManager:
                                     partial_margin_factor = 0.5
                                     print(f"🧪 Low-volume trend-following: using 50% margin for {coin} (volume ratio {volume_ratio:.2f})")
                             ratio_str = f"{volume_ratio:.2f}" if volume_ratio is not None else "n/a"
-                            print(f"✅ TREND-FOLLOWING: {coin} aligns with 4h trend direction (volume ratio {ratio_str})")
+                            print(f"✅ TREND-FOLLOWING: {coin} aligns with {HTF_LABEL} trend direction (volume ratio {ratio_str})")
                         else:
-                            print(f"✅ TREND-FOLLOWING: {coin} aligns with 4h trend direction")
+                            print(f"✅ TREND-FOLLOWING: {coin} aligns with {HTF_LABEL} trend direction")
                             
                 except Exception as e:
                     print(f"⚠️ Counter-trend detection failed for {coin}: {e}")
@@ -2974,20 +2980,20 @@ class AlphaArenaDeepSeek:
     def check_trend_alignment(self, coin: str) -> bool:
         """Check if trends are aligned across multiple timeframes"""
         try:
-            indicators_4h = self.market_data.get_technical_indicators(coin, '4h')
+            indicators_htf = self.market_data.get_technical_indicators(coin, HTF_INTERVAL)
             indicators_3m = self.market_data.get_technical_indicators(coin, '3m')
             
-            if 'error' in indicators_4h or 'error' in indicators_3m:
+            if 'error' in indicators_htf or 'error' in indicators_3m:
                 return False
             
-            price_4h = indicators_4h.get('current_price')
-            ema20_4h = indicators_4h.get('ema_20')
+            price_htf = indicators_htf.get('current_price')
+            ema20_htf = indicators_htf.get('ema_20')
             price_3m = indicators_3m.get('current_price')
             ema20_3m = indicators_3m.get('ema_20')
             
             # Trend alignment: Both timeframes in same direction
-            trend_aligned = (price_4h > ema20_4h and price_3m > ema20_3m) or \
-                           (price_4h < ema20_4h and price_3m < ema20_3m)
+            trend_aligned = (price_htf > ema20_htf and price_3m > ema20_3m) or \
+                           (price_htf < ema20_htf and price_3m < ema20_3m)
             
             return trend_aligned
             
@@ -2998,20 +3004,20 @@ class AlphaArenaDeepSeek:
     def check_momentum_alignment(self, coin: str) -> bool:
         """Check if momentum indicators are aligned across timeframes"""
         try:
-            indicators_4h = self.market_data.get_technical_indicators(coin, '4h')
+            indicators_htf = self.market_data.get_technical_indicators(coin, HTF_INTERVAL)
             indicators_3m = self.market_data.get_technical_indicators(coin, '3m')
             
-            if 'error' in indicators_4h or 'error' in indicators_3m:
+            if 'error' in indicators_htf or 'error' in indicators_3m:
                 return False
             
             rsi_3m = indicators_3m.get('rsi_14', 50)
-            rsi_4h = indicators_4h.get('rsi_14', 50)
+            rsi_htf = indicators_htf.get('rsi_14', 50)
             macd_3m = indicators_3m.get('macd', 0)
-            macd_4h = indicators_4h.get('macd', 0)
+            macd_htf = indicators_htf.get('macd', 0)
             
             # Momentum alignment: Both timeframes showing same momentum direction
-            momentum_aligned = (rsi_3m > 50 and rsi_4h > 50 and macd_3m > 0 and macd_4h > 0) or \
-                              (rsi_3m < 50 and rsi_4h < 50 and macd_3m < 0 and macd_4h < 0)
+            momentum_aligned = (rsi_3m > 50 and rsi_htf > 50 and macd_3m > 0 and macd_htf > 0) or \
+                              (rsi_3m < 50 and rsi_htf < 50 and macd_3m < 0 and macd_htf < 0)
             
             return momentum_aligned
             
@@ -3022,42 +3028,44 @@ class AlphaArenaDeepSeek:
     def enhanced_trend_detection(self, coin: str) -> Dict[str, Any]:
         """Enhanced trend detection with simple trend strength and counter-trade detection"""
         try:
-            indicators_4h = self.market_data.get_technical_indicators(coin, '4h')
+            indicators_htf = self.market_data.get_technical_indicators(coin, HTF_INTERVAL)
             indicators_3m = self.market_data.get_technical_indicators(coin, '3m')
             
-            if 'error' in indicators_4h or 'error' in indicators_3m:
+            if 'error' in indicators_htf or 'error' in indicators_3m:
                 return {'trend_strength': 0, 'trend_direction': 'NEUTRAL', 'ema_comparison': 'N/A', 'volume_confidence': 0.0}
             
-            price_4h = indicators_4h.get('current_price')
-            ema20_4h = indicators_4h.get('ema_20')
-            ema50_4h = indicators_4h.get('ema_50')
+            price_htf = indicators_htf.get('current_price')
+            ema20_htf = indicators_htf.get('ema_20')
+            ema50_htf = indicators_htf.get('ema_50')
             price_3m = indicators_3m.get('current_price')
             ema20_3m = indicators_3m.get('ema_20')
             
+            trend_label_htf = "BULLISH" if price_htf > ema20_htf else "BEARISH"
+
             # Nof1AI Blog Style: EMA20 vs EMA50 comparison
-            ema_comparison = f"20-Period EMA: {format_num(ema20_4h)} vs. 50-Period EMA: {format_num(ema50_4h)}"
+            ema_comparison = f"20-Period EMA: {format_num(ema20_htf)} vs. 50-Period EMA: {format_num(ema50_htf)}"
             
             # Simple trend strength calculation (used mainly for counter-trend context)
             trend_strength = 0
             trend_direction = 'NEUTRAL'
             
-            # 4h EMA alignment (strong trend indicator) - Nof1AI Blog Style
-            if ema20_4h > ema50_4h and price_4h > ema20_4h:
+            # Higher timeframe EMA alignment (strong trend indicator) - Nof1AI Blog Style
+            if ema20_htf > ema50_htf and price_htf > ema20_htf:
                 trend_strength += 3  # Strong bullish (EMA20 > EMA50 + price > EMA20)
                 trend_direction = 'STRONG_BULLISH'
-            elif ema20_4h < ema50_4h and price_4h < ema20_4h:
+            elif ema20_htf < ema50_htf and price_htf < ema20_htf:
                 trend_strength += 3  # Strong bearish (EMA20 < EMA50 + price < EMA20)
                 trend_direction = 'STRONG_BEARISH'
-            elif ema20_4h > ema50_4h:
+            elif ema20_htf > ema50_htf:
                 trend_strength += 1  # Weak bullish (EMA20 > EMA50 but price < EMA20)
                 trend_direction = 'WEAK_BULLISH'
-            elif ema20_4h < ema50_4h:
+            elif ema20_htf < ema50_htf:
                 trend_strength += 1  # Weak bearish (EMA20 < EMA50 but price > EMA20)
                 trend_direction = 'WEAK_BEARISH'
             
             # 3m trend alignment
-            if (price_4h > ema20_4h and price_3m > ema20_3m) or \
-               (price_4h < ema20_4h and price_3m < ema20_3m):
+            if (price_htf > ema20_htf and price_3m > ema20_3m) or \
+               (price_htf < ema20_htf and price_3m < ema20_3m):
                 trend_strength += 1  # Multi-timeframe alignment bonus
             
             # Volume Confirmation (Nof1AI Blog Style)
@@ -3070,10 +3078,11 @@ class AlphaArenaDeepSeek:
                 'trend_strength': trend_strength,
                 'trend_direction': trend_direction,
                 'ema_comparison': ema_comparison,
-                'price_vs_ema20_4h': 'ABOVE' if price_4h > ema20_4h else 'BELOW',
+                'price_vs_ema20_htf': 'ABOVE' if price_htf > ema20_htf else 'BELOW',
                 'price_vs_ema20_3m': 'ABOVE' if price_3m > ema20_3m else 'BELOW',
                 'volume_confidence': volume_confidence,
-                'counter_trade_info': counter_trade_info
+                'counter_trade_info': counter_trade_info,
+                'trend_htf': trend_label_htf
             }
             
         except Exception as e:
@@ -3083,14 +3092,14 @@ class AlphaArenaDeepSeek:
     def get_counter_trade_information(self, coin: str) -> Dict[str, Any]:
         """Get counter-trade information for AI decision making (information only, no blocking)"""
         try:
-            indicators_4h = self.market_data.get_technical_indicators(coin, '4h')
+            indicators_htf = self.market_data.get_technical_indicators(coin, HTF_INTERVAL)
             indicators_3m = self.market_data.get_technical_indicators(coin, '3m')
             
-            if 'error' in indicators_4h or 'error' in indicators_3m:
+            if 'error' in indicators_htf or 'error' in indicators_3m:
                 return {'counter_trade_risk': 'UNKNOWN', 'conditions_met': 0, 'total_conditions': 5}
             
-            price_4h = indicators_4h.get('current_price')
-            ema20_4h = indicators_4h.get('ema_20')
+            price_htf = indicators_htf.get('current_price')
+            ema20_htf = indicators_htf.get('ema_20')
             price_3m = indicators_3m.get('current_price')
             ema20_3m = indicators_3m.get('ema_20')
             rsi_3m = indicators_3m.get('rsi_14', 50)
@@ -3099,7 +3108,7 @@ class AlphaArenaDeepSeek:
             macd_3m = indicators_3m.get('macd', 0)
             macd_signal_3m = indicators_3m.get('macd_signal', 0)
             
-            trend_4h = "BULLISH" if price_4h > ema20_4h else "BEARISH"
+            trend_htf = "BULLISH" if price_htf > ema20_htf else "BEARISH"
             trend_3m = "BULLISH" if price_3m > ema20_3m else "BEARISH"
             
             conditions_met = 0
@@ -3107,7 +3116,7 @@ class AlphaArenaDeepSeek:
             conditions_details: List[str] = []
             
             # Condition 1: 3m trend alignment
-            if (trend_4h == "BULLISH" and price_3m < ema20_3m) or (trend_4h == "BEARISH" and price_3m > ema20_3m):
+            if (trend_htf == "BULLISH" and price_3m < ema20_3m) or (trend_htf == "BEARISH" and price_3m > ema20_3m):
                 conditions_met += 1
                 conditions_details.append("✅ 3m trend alignment")
             else:
@@ -3122,7 +3131,7 @@ class AlphaArenaDeepSeek:
                 conditions_details.append(f"❌ Volume {volume_ratio:.1f}x average (need >1.5x)")
             
             # Condition 3: Extreme RSI
-            if (trend_4h == "BULLISH" and rsi_3m < 25) or (trend_4h == "BEARISH" and rsi_3m > 75):
+            if (trend_htf == "BULLISH" and rsi_3m < 25) or (trend_htf == "BEARISH" and rsi_3m > 75):
                 conditions_met += 1
                 conditions_details.append(f"✅ Extreme RSI: {rsi_3m:.1f}")
             else:
@@ -3137,7 +3146,7 @@ class AlphaArenaDeepSeek:
                 conditions_details.append(f"❌ Weak technical level ({price_ema_distance:.2f}% from EMA)")
             
             # Condition 5: MACD divergence
-            if (trend_4h == "BULLISH" and macd_3m > macd_signal_3m) or (trend_4h == "BEARISH" and macd_3m < macd_signal_3m):
+            if (trend_htf == "BULLISH" and macd_3m > macd_signal_3m) or (trend_htf == "BEARISH" and macd_3m < macd_signal_3m):
                 conditions_met += 1
                 conditions_details.append("✅ MACD divergence")
             else:
@@ -3162,7 +3171,7 @@ class AlphaArenaDeepSeek:
                 'total_conditions': total_conditions,
                 'recommendation': recommendation,
                 'conditions_details': conditions_details,
-                'trend_4h': trend_4h,
+                'trend_htf': trend_htf,
                 'trend_3m': trend_3m,
                 'volume_ratio': round(volume_ratio, 2),
                 'rsi_3m': round(rsi_3m, 2),
@@ -3176,34 +3185,34 @@ class AlphaArenaDeepSeek:
     def calculate_comprehensive_trend_strength(self, coin: str) -> Dict[str, Any]:
         """Calculate comprehensive trend strength using 5 technical indicators with weighted scoring"""
         try:
-            indicators_4h = self.market_data.get_technical_indicators(coin, '4h')
+            indicators_htf = self.market_data.get_technical_indicators(coin, HTF_INTERVAL)
             indicators_3m = self.market_data.get_technical_indicators(coin, '3m')
             
-            if 'error' in indicators_4h or 'error' in indicators_3m:
+            if 'error' in indicators_htf or 'error' in indicators_3m:
                 return {'strength_score': 0, 'trend_direction': 'UNCLEAR', 'component_scores': {}}
             
-            price_4h = indicators_4h.get('current_price')
-            ema20_4h = indicators_4h.get('ema_20')
-            ema50_4h = indicators_4h.get('ema_50')
-            rsi_4h = indicators_4h.get('rsi_14', 50)
-            macd_4h = indicators_4h.get('macd', 0)
-            volume_4h = indicators_4h.get('volume', 0)
-            avg_volume_4h = indicators_4h.get('avg_volume', 1)
+            price_htf = indicators_htf.get('current_price')
+            ema20_htf = indicators_htf.get('ema_20')
+            ema50_htf = indicators_htf.get('ema_50')
+            rsi_htf = indicators_htf.get('rsi_14', 50)
+            macd_htf = indicators_htf.get('macd', 0)
+            volume_htf = indicators_htf.get('volume', 0)
+            avg_volume_htf = indicators_htf.get('avg_volume', 1)
             
             # 1. RSI Strength (20% weight)
-            rsi_strength = self.analyze_rsi_strength(rsi_4h)
+            rsi_strength = self.analyze_rsi_strength(rsi_htf)
             
             # 2. MACD Strength (25% weight - most important)
-            macd_strength = self.analyze_macd_strength(macd_4h)
+            macd_strength = self.analyze_macd_strength(macd_htf)
             
             # 3. Volume Strength (15% weight)
-            volume_strength = self.analyze_volume_strength(volume_4h, avg_volume_4h)
+            volume_strength = self.analyze_volume_strength(volume_htf, avg_volume_htf)
             
             # 4. Bollinger Bands Strength (20% weight)
-            bb_strength = self.analyze_bollinger_bands_strength(indicators_4h)
+            bb_strength = self.analyze_bollinger_bands_strength(indicators_htf)
             
             # 5. Moving Averages Strength (20% weight)
-            ma_strength = self.analyze_moving_averages_strength(price_4h, ema20_4h, ema50_4h)
+            ma_strength = self.analyze_moving_averages_strength(price_htf, ema20_htf, ema50_htf)
             
             # Weighted average - each indicator has different importance
             total_strength = (
@@ -3215,7 +3224,7 @@ class AlphaArenaDeepSeek:
             )
             
             # Determine trend direction
-            trend_direction = self.determine_trend_direction(price_4h, ema20_4h, ema50_4h, rsi_4h, macd_4h)
+            trend_direction = self.determine_trend_direction(price_htf, ema20_htf, ema50_htf, rsi_htf, macd_htf)
             
             return {
                 'strength_score': total_strength,
@@ -3452,9 +3461,9 @@ class AlphaArenaDeepSeek:
         """Check if short position should be enhanced (%15 daha büyük)"""
         try:
             indicators_3m = self.market_data.get_technical_indicators(coin, '3m')
-            indicators_4h = self.market_data.get_technical_indicators(coin, '4h')
+            indicators_htf = self.market_data.get_technical_indicators(coin, HTF_INTERVAL)
             
-            if 'error' in indicators_3m or 'error' in indicators_4h:
+            if 'error' in indicators_3m or 'error' in indicators_htf:
                 return False
             
             # Enhanced short conditions:
@@ -3462,10 +3471,10 @@ class AlphaArenaDeepSeek:
             rsi_3m = indicators_3m.get('rsi_14', 50)
             # 2. Volume > 1.5x average
             volume_ratio = indicators_3m.get('volume', 0) / indicators_3m.get('avg_volume', 1)
-            # 3. 4h trend bearish
-            price_4h = indicators_4h.get('current_price')
-            ema20_4h = indicators_4h.get('ema_20')
-            trend_bearish = price_4h < ema20_4h
+            # 3. Higher timeframe trend bearish
+            price_htf = indicators_htf.get('current_price')
+            ema20_htf = indicators_htf.get('ema_20')
+            trend_bearish = price_htf < ema20_htf
             
             # All conditions must be met
             return rsi_3m > 70 and volume_ratio > 1.5 and trend_bearish
@@ -3477,10 +3486,10 @@ class AlphaArenaDeepSeek:
     def generate_advanced_exit_plan(self, coin: str, direction: str, entry_price: float) -> Dict[str, Any]:
         """Generate advanced exit plan with momentum failure detection (Nof1AI Blog Style)"""
         try:
-            indicators_4h = self.market_data.get_technical_indicators(coin, '4h')
+            indicators_htf = self.market_data.get_technical_indicators(coin, HTF_INTERVAL)
             indicators_3m = self.market_data.get_technical_indicators(coin, '3m')
             
-            if 'error' in indicators_4h or 'error' in indicators_3m:
+            if 'error' in indicators_htf or 'error' in indicators_3m:
                 return {
                     'profit_target': None,
                     'stop_loss': None,
@@ -3488,9 +3497,10 @@ class AlphaArenaDeepSeek:
                 }
             
             current_price = indicators_3m.get('current_price', entry_price)
-            atr_14 = indicators_4h.get('atr_14', 0)
-            rsi_14 = indicators_4h.get('rsi_14', 50)
-            ema_20 = indicators_4h.get('ema_20', current_price)
+            atr_14 = indicators_htf.get('atr_14', 0)
+            rsi_14 = indicators_htf.get('rsi_14', 50)
+            ema_20 = indicators_htf.get('ema_20', current_price)
+            htf_upper = HTF_LABEL.upper()
             
             # Calculate TP/SL based on ATR (Nof1AI Blog Style)
             if direction == 'long':
@@ -3500,11 +3510,11 @@ class AlphaArenaDeepSeek:
                 
                 # Advanced invalidation conditions (Nof1AI Blog Style)
                 if rsi_14 > 70:
-                    invalidation_condition = "If 4H RSI breaks back below 60, signaling momentum failure"
+                    invalidation_condition = f"If {htf_upper} RSI breaks back below 60, signaling momentum failure"
                 elif rsi_14 < 40:
-                    invalidation_condition = "If 4H RSI breaks above 50, signaling momentum recovery"
+                    invalidation_condition = f"If {htf_upper} RSI breaks above 50, signaling momentum recovery"
                 else:
-                    invalidation_condition = "If 4H price closes below 4H EMA20, signaling trend reversal"
+                    invalidation_condition = f"If {htf_upper} price closes below {htf_upper} EMA20, signaling trend reversal"
                     
             else:  # short
                 # Short position: TP = entry - 2x ATR, SL = entry + 1x ATR
@@ -3513,19 +3523,19 @@ class AlphaArenaDeepSeek:
                 
                 # Advanced invalidation conditions (Nof1AI Blog Style)
                 if rsi_14 < 30:
-                    invalidation_condition = "If 4H RSI breaks back above 40, signaling momentum failure"
+                    invalidation_condition = f"If {htf_upper} RSI breaks back above 40, signaling momentum failure"
                 elif rsi_14 > 60:
-                    invalidation_condition = "If 4H RSI breaks below 50, signaling momentum recovery"
+                    invalidation_condition = f"If {htf_upper} RSI breaks below 50, signaling momentum recovery"
                 else:
-                    invalidation_condition = "If 4H price closes above 4H EMA20, signaling trend reversal"
+                    invalidation_condition = f"If {htf_upper} price closes above {htf_upper} EMA20, signaling trend reversal"
             
             return {
                 'profit_target': round(profit_target, 4),
                 'stop_loss': round(stop_loss, 4),
                 'invalidation_condition': invalidation_condition,
                 'atr_based': True,
-                'rsi_context': f"4H RSI: {rsi_14:.1f}",
-                'ema_context': f"4H EMA20: {ema_20:.4f}"
+                'rsi_context': f"{htf_upper} RSI: {rsi_14:.1f}",
+                'ema_context': f"{htf_upper} EMA20: {ema_20:.4f}"
             }
             
         except Exception as e:
@@ -3543,12 +3553,12 @@ class AlphaArenaDeepSeek:
             bearish_count = 0
             
             for coin in self.market_data.available_coins:
-                indicators_4h = self.market_data.get_technical_indicators(coin, '4h')
-                if 'error' in indicators_4h:
+                indicators_htf = self.market_data.get_technical_indicators(coin, HTF_INTERVAL)
+                if 'error' in indicators_htf:
                     continue
                 
-                price = indicators_4h.get('current_price')
-                ema20 = indicators_4h.get('ema_20')
+                price = indicators_htf.get('current_price')
+                ema20 = indicators_htf.get('ema_20')
                 
                 if price > ema20:
                     bullish_count += 1
@@ -3569,20 +3579,20 @@ class AlphaArenaDeepSeek:
     def detect_market_regime(
         self,
         coin: str,
-        indicators_4h: Optional[Dict[str, Any]] = None,
+        indicators_htf: Optional[Dict[str, Any]] = None,
         indicators_3m: Optional[Dict[str, Any]] = None
     ) -> str:
         """Detect market condition based on multi-timeframe indicators"""
         try:
-            if indicators_4h is None:
-                indicators_4h = self.market_data.get_technical_indicators(coin, '4h')
-            if not isinstance(indicators_4h, dict) or 'error' in indicators_4h:
+            if indicators_htf is None:
+                indicators_htf = self.market_data.get_technical_indicators(coin, HTF_INTERVAL)
+            if not isinstance(indicators_htf, dict) or 'error' in indicators_htf:
                 return "UNCLEAR"
             
-            price = indicators_4h.get('current_price')
-            ema_20 = indicators_4h.get('ema_20')
-            rsi = indicators_4h.get('rsi_14', 50)
-            macd = indicators_4h.get('macd', 0)
+            price = indicators_htf.get('current_price')
+            ema_20 = indicators_htf.get('ema_20')
+            rsi = indicators_htf.get('rsi_14', 50)
+            macd = indicators_htf.get('macd', 0)
 
             if not isinstance(price, (int, float)) or not isinstance(ema_20, (int, float)) or ema_20 == 0:
                 return "UNCLEAR"
@@ -3867,15 +3877,15 @@ class AlphaArenaDeepSeek:
             try:
                 # Get indicators for both timeframes
                 indicators_3m = self.market_data.get_technical_indicators(coin, '3m')
-                indicators_4h = self.market_data.get_technical_indicators(coin, '4h')
+                indicators_htf = self.market_data.get_technical_indicators(coin, HTF_INTERVAL)
                 
-                if 'error' in indicators_3m or 'error' in indicators_4h:
+                if 'error' in indicators_3m or 'error' in indicators_htf:
                     analysis.append(f"❌ {coin}: Data error - cannot analyze counter-trade conditions")
                     continue
                 
                 # Extract key indicators
-                price_4h = indicators_4h.get('current_price')
-                ema20_4h = indicators_4h.get('ema_20')
+                price_htf = indicators_htf.get('current_price')
+                ema20_htf = indicators_htf.get('ema_20')
                 price_3m = indicators_3m.get('current_price')
                 ema20_3m = indicators_3m.get('ema_20')
                 rsi_3m = indicators_3m.get('rsi_14', 50)
@@ -3884,8 +3894,8 @@ class AlphaArenaDeepSeek:
                 macd_3m = indicators_3m.get('macd', 0)
                 macd_signal_3m = indicators_3m.get('macd_signal', 0)
                 
-                # Determine 4h trend direction
-                trend_4h = "BULLISH" if price_4h > ema20_4h else "BEARISH"
+                # Determine higher timeframe trend direction
+                trend_htf = "BULLISH" if price_htf > ema20_htf else "BEARISH"
                 trend_3m = "BULLISH" if price_3m > ema20_3m else "BEARISH"
                 
                 # Counter-trade conditions analysis
@@ -3894,7 +3904,7 @@ class AlphaArenaDeepSeek:
                 conditions_details = []
                 
                 # Condition 1: 3m trend alignment
-                if (trend_4h == "BULLISH" and trend_3m == "BEARISH") or (trend_4h == "BEARISH" and trend_3m == "BULLISH"):
+                if (trend_htf == "BULLISH" and trend_3m == "BEARISH") or (trend_htf == "BEARISH" and trend_3m == "BULLISH"):
                     conditions_met += 1
                     conditions_details.append("✅ 3m trend alignment")
                 else:
@@ -3909,7 +3919,7 @@ class AlphaArenaDeepSeek:
                     conditions_details.append(f"❌ Volume {volume_ratio:.1f}x average (need >1.5x)")
                 
                 # Condition 3: Extreme RSI
-                if (trend_4h == "BULLISH" and rsi_3m < 25) or (trend_4h == "BEARISH" and rsi_3m > 75):
+                if (trend_htf == "BULLISH" and rsi_3m < 25) or (trend_htf == "BEARISH" and rsi_3m > 75):
                     conditions_met += 1
                     conditions_details.append(f"✅ Extreme RSI: {rsi_3m:.1f}")
                 else:
@@ -3924,7 +3934,7 @@ class AlphaArenaDeepSeek:
                     conditions_details.append(f"❌ Weak technical level ({price_ema_distance:.2f}% from EMA)")
                 
                 # Condition 5: MACD divergence
-                if (trend_4h == "BULLISH" and macd_3m > macd_signal_3m) or (trend_4h == "BEARISH" and macd_3m < macd_signal_3m):
+                if (trend_htf == "BULLISH" and macd_3m > macd_signal_3m) or (trend_htf == "BEARISH" and macd_3m < macd_signal_3m):
                     conditions_met += 1
                     conditions_details.append("✅ MACD divergence")
                 else:
@@ -3945,9 +3955,10 @@ class AlphaArenaDeepSeek:
                     recommendation = "NO COUNTER-TRADE SETUP - Focus on trend-following"
                 
                 # Build analysis string for this coin
+                htf_upper = HTF_LABEL.upper()
                 coin_analysis = f"""
 {coin} COUNTER-TRADE ANALYSIS:
-  4h Trend: {trend_4h} | 3m Trend: {trend_3m}
+  {htf_upper} Trend: {trend_htf} | 3m Trend: {trend_3m}
   Conditions Met: {conditions_met}/{total_conditions}
   Risk Level: {risk_level}
   Recommendation: {recommendation}
@@ -4171,8 +4182,8 @@ REMEMBER: These are suggestions only. You make the final trading decisions based
                     f"loss_cycles={weakest_short['loss_cycles']}). Evaluate trimming/closing this before proposing a new short."
                 )
             slot_lines.append(
-                "  • Short capacity FULL → System blocks new shorts. Provide either (a) a close/trim plan for a current short "
-                "OR (b) a LONG alternative (trend-following with 4h alignment or counter-trend with ≥0.75 confidence)."
+                f"  • Short capacity FULL → System blocks new shorts. Provide either (a) a close/trim plan for a current short "
+                f"OR (b) a LONG alternative (trend-following with {HTF_LABEL} alignment or counter-trend with ≥0.75 confidence)."
             )
 
         prompt += f"\n{'='*20} POSITION SLOT STATUS {'='*20}\n" + "\n".join(slot_lines) + "\n"
@@ -4183,15 +4194,15 @@ REMEMBER: These are suggestions only. You make the final trading decisions based
         for coin in self.market_data.available_coins:
             prompt += f"\n{'='*20} ALL {coin} DATA {'='*20}\n"
             indicators_3m = self.market_data.get_technical_indicators(coin, '3m')
-            indicators_4h = self.market_data.get_technical_indicators(coin, '4h')
+            indicators_htf = self.market_data.get_technical_indicators(coin, HTF_INTERVAL)
             sentiment = self.market_data.get_market_sentiment(coin)
             self.latest_indicator_cache[coin] = {
                 '3m': copy.deepcopy(indicators_3m),
-                '4h': copy.deepcopy(indicators_4h)
+                HTF_INTERVAL: copy.deepcopy(indicators_htf)
             }
             
             # Add market regime detection
-            market_regime = self.detect_market_regime(coin, indicators_4h=indicators_4h, indicators_3m=indicators_3m)
+            market_regime = self.detect_market_regime(coin, indicators_htf=indicators_htf, indicators_3m=indicators_3m)
             prompt += f"--- MARKET REGIME: {market_regime} ---\n"
             
             prompt += f"--- Market Sentiment for {coin} Perps ---\n"
@@ -4222,7 +4233,7 @@ REMEMBER: These are suggestions only. You make the final trading decisions based
             # --- End inner function ---
 
             prompt += "--- Intraday series (3‑minute intervals) ---\n"; prompt += format_indicators(indicators_3m)
-            prompt += "\n--- Longer‑term context (4‑hour timeframe) ---\n"; prompt += format_indicators(indicators_4h)
+            prompt += f"\n--- Longer‑term context ({HTF_LABEL} timeframe) ---\n"; prompt += format_indicators(indicators_htf)
 
             # --- Add current position details if open ---
             if coin in self.portfolio.positions:
@@ -4352,12 +4363,12 @@ Current live positions & performance:"""
             neutral_count = 0
             
             for coin in self.market_data.available_coins:
-                indicators_4h = self.market_data.get_technical_indicators(coin, '4h')
-                if 'error' in indicators_4h:
+                indicators_htf = self.market_data.get_technical_indicators(coin, HTF_INTERVAL)
+                if 'error' in indicators_htf:
                     continue
                 
-                price = indicators_4h.get('current_price')
-                ema20 = indicators_4h.get('ema_20')
+                price = indicators_htf.get('current_price')
+                ema20 = indicators_htf.get('ema_20')
                 
                 if not isinstance(price, (int, float)) or not isinstance(ema20, (int, float)) or ema20 == 0:
                     continue
@@ -4930,11 +4941,11 @@ Current live positions & performance:"""
     def update_trend_state(
         self,
         coin: str,
-        indicators_4h: Dict[str, Any],
+        indicators_htf: Dict[str, Any],
         indicators_3m: Optional[Dict[str, Any]] = None
     ) -> Dict[str, Any]:
         """Delegate trend state updates to PortfolioManager for backward compatibility."""
-        return self.portfolio.update_trend_state(coin, indicators_4h, indicators_3m)
+        return self.portfolio.update_trend_state(coin, indicators_htf, indicators_3m)
 
     def get_recent_trend_flip_summary(self) -> List[str]:
         """Expose portfolio trend flip summary for existing integrations."""

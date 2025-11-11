@@ -37,10 +37,10 @@ def main() -> None:
         {
             "name": "counter_short_high_conf",
             "signal": "sell_to_enter",
-            "indicators_4h": {
+            "indicators_htf": {
                 "current_price": 15.5,
                 "ema_20": 15.2,
-            },  # Bullish 4h → short is counter-trend
+            },  # Bullish HTF → short is counter-trend
             "indicators_3m": {
                 "current_price": 15.0,
                 "ema_20": 15.05,
@@ -54,7 +54,7 @@ def main() -> None:
         {
             "name": "counter_short_low_volume_blocked",
             "signal": "sell_to_enter",
-            "indicators_4h": {
+            "indicators_htf": {
                 "current_price": 12.8,
                 "ema_20": 12.5,
             },  # Still counter-trend short
@@ -71,10 +71,10 @@ def main() -> None:
         {
             "name": "trend_following_short_classification",
             "signal": "sell_to_enter",
-            "indicators_4h": {
+            "indicators_htf": {
                 "current_price": 9.4,
                 "ema_20": 9.9,
-            },  # Bearish 4h → short is trend-following
+            },  # Bearish HTF → short is trend-following
             "indicators_3m": {
                 "current_price": 9.2,
                 "ema_20": 9.3,
@@ -95,7 +95,7 @@ def main() -> None:
             coin="TEST",
             signal=scenario["signal"],
             indicators_3m=scenario["indicators_3m"],
-            indicators_4h=scenario["indicators_4h"],
+            indicators_htf=scenario["indicators_htf"],
         )
         print(f"  Counter-trend detected: {is_counter}")
 
@@ -103,7 +103,7 @@ def main() -> None:
             coin="TEST",
             signal=scenario["signal"],
             indicators_3m=scenario["indicators_3m"],
-            indicators_4h=scenario["indicators_4h"],
+            indicators_htf=scenario["indicators_htf"],
         )
         print("  Validation result:")
         pprint(result, indent=4, sort_dicts=False)

@@ -6,6 +6,8 @@ import pandas as pd
 import numpy as np
 from config import Config
 
+HTF_INTERVAL = getattr(Config, 'HTF_INTERVAL', '1h') or '1h'
+HTF_LABEL = HTF_INTERVAL
 class EnhancedContextProvider:
     """
     Provides enhanced context to help AI make better decisions
@@ -101,14 +103,14 @@ class EnhancedContextProvider:
         
         for coin in market_data.available_coins:
             try:
-                indicators_4h = market_data.get_technical_indicators(coin, '4h')
-                if not isinstance(indicators_4h, dict) or 'error' in indicators_4h:
+                indicators_htf = market_data.get_technical_indicators(coin, HTF_INTERVAL)
+                if not isinstance(indicators_htf, dict) or 'error' in indicators_htf:
                     coin_regimes[coin] = {"regime": "unknown", "score": 0, "price_vs_ema20": "unknown"}
                     continue
                 
-                price = indicators_4h.get('current_price')
-                ema20 = indicators_4h.get('ema_20')
-                ema50 = indicators_4h.get('ema_50')
+                price = indicators_htf.get('current_price')
+                ema20 = indicators_htf.get('ema_20')
+                ema50 = indicators_htf.get('ema_50')
                 
                 score = 0
                 regime = "neutral"
