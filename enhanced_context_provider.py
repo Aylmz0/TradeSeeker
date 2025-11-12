@@ -84,8 +84,23 @@ class EnhancedContextProvider:
                 'remaining_to_target_pct': remaining_pct,
                 'time_in_trade_minutes': round(time_in_trade, 2),
                 'distance_to_stop_pct': round(abs(stop_loss - current_price) / current_price * 100, 2) if current_price else 0,
-                'risk_reward_ratio': round(abs(profit_target - entry_price) / abs(stop_loss - entry_price), 2) if stop_loss != entry_price else 0
+                'risk_reward_ratio': round(abs(profit_target - entry_price) / abs(stop_loss - entry_price), 2) if stop_loss != entry_price else 0,
+                'direction': direction,
+                'trend_alignment': position.get('trend_alignment', position.get('trend_context', {}).get('alignment', 'unknown')),
+                'trend_context': position.get('trend_context', {}),
+                'confidence': position.get('confidence')
             }
+
+            trailing_state = position.get('trailing') or {}
+            if trailing_state:
+                enhanced_context[symbol]['trailing'] = {
+                    'last_update_cycle': trailing_state.get('last_update_cycle'),
+                    'last_reason': trailing_state.get('last_reason'),
+                    'last_stop': trailing_state.get('last_stop'),
+                    'progress_percent': trailing_state.get('progress_percent'),
+                    'time_in_trade_min': trailing_state.get('time_in_trade_min'),
+                    'last_volume_ratio': trailing_state.get('last_volume_ratio')
+                }
         
         return enhanced_context
     

@@ -1,57 +1,42 @@
 {
-    "current_balance": 9670.56455107,
+    "current_balance": 185.0,
     "positions": {
-        "ADA": {
-            "symbol": "ADA",
-            "direction": "long",
-            "quantity": 16627.0,
-            "entry_price": 0.599,
-            "current_price": 0.5992,
-            "unrealized_pnl": 3.3253999999996338,
-            "notional_usd": 9954.5849,
-            "margin_usd": 0.0,
+        "SOL": {
+            "symbol": "SOL",
+            "direction": "short",
+            "quantity": 0.9182736455463728,
+            "entry_price": 163.35,
+            "entry_time": "2025-11-11T16:49:53.282106",
+            "current_price": 163.36,
+            "unrealized_pnl": -0.009182736455481476,
+            "notional_usd": 150.0,
+            "margin_usd": 15.0,
             "leverage": 10,
-            "entry_time": 1762833490327,
-            "liquidation_price": 0.0,
+            "liquidation_price": 178.0515,
             "confidence": 0.4662,
             "exit_plan": {
-                "stop_loss": 0.585,
-                "profit_target": 0.615,
-                "invalidation_condition": "If 4h price closes below 4h EMA20 (0.5780)"
+                "profit_target": 158.0,
+                "stop_loss": 167.5,
+                "invalidation_condition": "If 1h price closes above 1h EMA20 (165.9450)"
             },
+            "risk_usd": 15.0,
             "loss_cycle_count": 0,
-            "risk_usd": 0.0,
-            "exchange_metadata": {
-                "symbol": "ADAUSDT",
-                "raw": {
-                    "symbol": "ADAUSDT",
-                    "positionAmt": "16627",
-                    "entryPrice": "0.599",
-                    "breakEvenPrice": "0.5992396",
-                    "markPrice": "0.59870000",
-                    "unRealizedProfit": "-4.98810000",
-                    "liquidationPrice": "0",
-                    "leverage": "10",
-                    "maxNotionalValue": "1000000",
-                    "marginType": "cross",
-                    "isolatedMargin": "0.00000000",
-                    "isAutoAddMargin": "false",
-                    "positionSide": "BOTH",
-                    "notional": "9954.58490000",
-                    "isolatedWallet": "0",
-                    "updateTime": 1762833490327,
-                    "isolated": false,
-                    "adlQuantile": 0
-                }
-            }
+            "trend_context": {
+                "trend_at_entry": "bearish",
+                "cycle": 4
+            },
+            "sl_oid": -1,
+            "tp_oid": -1,
+            "entry_oid": -1,
+            "wait_for_fill": false
         }
     },
-    "total_value": 9673.88995107,
-    "total_return": 4736.944975535,
+    "total_value": 199.99081726354453,
+    "total_return": -0.00459136822773587,
     "initial_balance": 200.0,
-    "trade_count": 0,
-    "last_updated": "2025-11-11T06:58:13.022222",
-    "sharpe_ratio": 15.454917636788268,
+    "trade_count": 1,
+    "last_updated": "2025-11-11T16:49:54.073443",
+    "sharpe_ratio": -15.491933384829668,
     "directional_bias": {
         "long": {
             "rolling": [],
@@ -79,7 +64,7 @@
         }
     },
     "last_history_reset_cycle": 0,
-    "cycles_since_history_reset": 1,
+    "cycles_since_history_reset": 4,
     "directional_cooldowns": {
         "long": 0,
         "short": 0

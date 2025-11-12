@@ -157,8 +157,8 @@ Example Format (NOF1AI Advanced Style):
 CHAIN_OF_THOUGHTS
 [Advanced systematic analysis of all assets using {HTF_LABEL} trends and 3m entries. Focus on market structure, volume confirmation, and risk management. Example: "XRP showing strong momentum with volume confirmation. {HTF_LABEL} RSI at 62.5 shows room to run, MACD positive, price well above EMA20. Open Interest increasing suggests institutional interest. Targeting $0.56 with stop below $0.48. Invalidation if {HTF_LABEL} price closes below EMA20."]
 DECISIONS
-{
-  "XRP": {
+{{
+  "XRP": {{
     "signal": "buy_to_enter",
     "leverage": 10,
     "confidence": 0.75,
@@ -166,8 +166,8 @@ DECISIONS
     "stop_loss": 0.48,
     "risk_usd": 45.0,
     "invalidation_condition": "If {HTF_LABEL} price closes below {HTF_LABEL} EMA20"
-  },
-  "SOL": {
+  }},
+  "SOL": {{
     "signal": "sell_to_enter",
     "leverage": 10,
     "confidence": 0.75,
@@ -175,8 +175,8 @@ DECISIONS
     "stop_loss": 198.0,
     "risk_usd": 45.0,
     "invalidation_condition": "If {HTF_LABEL} price closes above {HTF_LABEL} EMA20"
-  },
-  "ADA": {
+  }},
+  "ADA": {{
     "signal": "buy_to_enter",
     "leverage": 10,
     "confidence": 0.75,
@@ -184,8 +184,8 @@ DECISIONS
     "stop_loss": 0.48,
     "risk_usd": 45.0,
     "invalidation_condition": "If {HTF_LABEL} price closes below {HTF_LABEL} EMA20"
-  },
-  "DOGE": {
+  }},
+  "DOGE": {{
     "signal": "sell_to_enter",
     "leverage": 10,
     "confidence": 0.75,
@@ -193,10 +193,10 @@ DECISIONS
     "stop_loss": 0.165,
     "risk_usd": 45.0,
     "invalidation_condition": "If {HTF_LABEL} price closes above {HTF_LABEL} EMA20"
-  },
-  "LINK": { "signal": "hold" },
-  "JASMY": { "signal": "hold" }
-}
+  }},
+  "LINK": {{ "signal": "hold" }},
+  "JASMY": {{ "signal": "hold" }}
+}}
 
 Remember: You are a systematic trading model. Make principled decisions based on quantitative data and advanced technical analysis."""
                     },
@@ -231,8 +231,8 @@ Remember: You are a systematic trading model. Make principled decisions based on
 CHAIN_OF_THOUGHTS
 Simulation Mode: Assuming market pullback. Shorting SOL based on simulated {HTF_LABEL} resistance. Aiming for 1:1.5 R/R using simulated ATR. Holding others.
 DECISIONS
-{
-  "SOL": {
+{{
+  "SOL": {{
     "signal": "sell_to_enter",
     "leverage": 10,
     "quantity_usd": 30,
@@ -241,13 +241,13 @@ DECISIONS
     "stop_loss": 198.0,
     "risk_usd": 15.0,
     "invalidation_condition": "If {HTF_LABEL} price closes above 199.0"
-  },
-  "XRP": { "signal": "hold" },
-  "ADA": { "signal": "hold" },
-  "DOGE": { "signal": "hold" },
-  "JASMY": { "signal": "hold" },
-  "LINK": { "signal": "hold" }
-}
+  }},
+  "XRP": {{ "signal": "hold" }},
+  "ADA": {{ "signal": "hold" }},
+  "DOGE": {{ "signal": "hold" }},
+  "JASMY": {{ "signal": "hold" }},
+  "LINK": {{ "signal": "hold" }}
+}}
 """
     def get_cached_decisions(self) -> str:
         """Get cached decisions from recent successful cycles"""
@@ -871,7 +871,21 @@ class PortfolioManager:
             merged_pos['symbol'] = coin
 
             # Carry forward runtime metadata that Binance snapshot doesn't include
-            for key in ('confidence', 'loss_cycle_count', 'trend_context', 'entry_oid', 'tp_oid', 'sl_oid', 'wait_for_fill'):
+            for key in (
+                'confidence',
+                'loss_cycle_count',
+                'trend_context',
+                'trend_alignment',
+                'entry_oid',
+                'tp_oid',
+                'sl_oid',
+                'wait_for_fill',
+                'entry_volume_ratio',
+                'entry_volume',
+                'entry_avg_volume',
+                'entry_atr_14',
+                'trailing'
+            ):
                 if key in previous and key not in merged_pos:
                     merged_pos[key] = previous[key]
 
@@ -1264,10 +1278,12 @@ class PortfolioManager:
         if not stats:
             return confidence
 
+        original_confidence = confidence
         adjusted_confidence = confidence
 
+        # Hafifletilmiş caution penalty: 0.8 yerine 0.95
         if stats.get('caution_active'):
-            adjusted_confidence *= 0.8
+            adjusted_confidence = max(adjusted_confidence * 0.95, adjusted_confidence - 0.03)
 
         trend_lower = current_trend.lower() if isinstance(current_trend, str) else 'unknown'
 
@@ -1284,9 +1300,14 @@ class PortfolioManager:
             elif side == 'short':
                 adjusted_confidence *= Config.DIRECTIONAL_BEARISH_SHORT_MULTIPLIER
 
+        # Hafifletilmiş rolling avg penalty: 0.93 yerine 0.97
         rolling_avg = stats.get('rolling_avg', 0.0)
         if rolling_avg < 0:
-            adjusted_confidence *= 0.93
+            adjusted_confidence = max(adjusted_confidence * 0.97, adjusted_confidence - 0.02)
+
+        # Minimum confidence floor: Orijinal değerin %90'ı altına düşmesin
+        min_floor = original_confidence * 0.90
+        adjusted_confidence = max(adjusted_confidence, min_floor, Config.MIN_CONFIDENCE)
 
         return adjusted_confidence
 
@@ -1876,17 +1897,17 @@ class PortfolioManager:
                 if adjusted_percent > 0:
                     return {"action": "partial_close", "percent": adjusted_percent, "reason": f"Profit taking at {level1*100:.1f}% gain ({adjusted_percent*100:.0f}%)"}
             
-            # Dynamic Trailing Stop based on profit level
-            if unrealized_pnl_percent >= level2:  # Level 2 profit - tighter trailing stop
-                trailing_stop = entry_price * (1 + level1)  # Level 1 above entry
-                if current_price >= trailing_stop:
-                    position['exit_plan']['stop_loss'] = trailing_stop
-                    return {"action": "update_stop", "new_stop": trailing_stop, "reason": f"Tight trailing stop at {level2*100:.1f}% profit"}
-            elif unrealized_pnl_percent >= level1:  # Level 1 profit - normal trailing stop
-                trailing_stop = entry_price * (1 + level1 * 0.5)  # Half of level 1 above entry
-                if current_price >= trailing_stop:
-                    position['exit_plan']['stop_loss'] = trailing_stop
-                    return {"action": "update_stop", "new_stop": trailing_stop, "reason": f"Normal trailing stop at {level1*100:.1f}% profit"}
+            trailing_action = self._evaluate_trailing_stop(
+                position=position,
+                current_price=current_price,
+                profit_target=profit_target,
+                direction=direction,
+                entry_price=entry_price,
+                unrealized_pnl_percent=unrealized_pnl_percent,
+                profit_levels=profit_levels
+            )
+            if trailing_action:
+                return trailing_action
         
         elif direction == 'short':
             unrealized_pnl_usd = max(0.0, (entry_price - current_price) * position['quantity'])
@@ -1915,19 +1936,210 @@ class PortfolioManager:
                 if adjusted_percent > 0:
                     return {"action": "partial_close", "percent": adjusted_percent, "reason": f"Profit taking at {level1*100:.1f}% gain ({adjusted_percent*100:.0f}%)"}
             
-            # Dynamic Trailing Stop for shorts
-            if unrealized_pnl_percent >= level2:  # Level 2 profit - tighter trailing stop
-                trailing_stop = entry_price * (1 - level1)  # Level 1 below entry
-                if current_price <= trailing_stop:
-                    position['exit_plan']['stop_loss'] = trailing_stop
-                    return {"action": "update_stop", "new_stop": trailing_stop, "reason": f"Tight trailing stop at {level2*100:.1f}% profit"}
-            elif unrealized_pnl_percent >= level1:  # Level 1 profit - normal trailing stop
-                trailing_stop = entry_price * (1 - level1 * 0.5)  # Half of level 1 below entry
-                if current_price <= trailing_stop:
-                    position['exit_plan']['stop_loss'] = trailing_stop
-                    return {"action": "update_stop", "new_stop": trailing_stop, "reason": f"Normal trailing stop at {level1*100:.1f}% profit"}
+            trailing_action = self._evaluate_trailing_stop(
+                position=position,
+                current_price=current_price,
+                profit_target=profit_target,
+                direction=direction,
+                entry_price=entry_price,
+                unrealized_pnl_percent=unrealized_pnl_percent,
+                profit_levels=profit_levels
+            )
+            if trailing_action:
+                return trailing_action
         
         return exit_decision
+
+    def _evaluate_trailing_stop(
+        self,
+        position: Dict[str, Any],
+        current_price: float,
+        profit_target: Optional[float],
+        direction: str,
+        entry_price: float,
+        unrealized_pnl_percent: float,
+        profit_levels: Dict[str, float]
+    ) -> Optional[Dict[str, Any]]:
+        """Evaluate advanced trailing stop conditions based on progress, time, volume and ATR."""
+        if unrealized_pnl_percent <= 0 or not isinstance(current_price, (int, float)) or current_price <= 0:
+            return None
+
+        symbol = position.get('symbol')
+        exit_plan = position.get('exit_plan') or {}
+
+        level1_threshold = 0.0
+        if isinstance(profit_levels, dict):
+            try:
+                level1_threshold = float(profit_levels.get('level1', 0.0) or 0.0)
+            except (TypeError, ValueError):
+                level1_threshold = 0.0
+        if unrealized_pnl_percent < max(level1_threshold * 0.5, 0.0):
+            return None
+
+        existing_stop = exit_plan.get('stop_loss')
+        try:
+            existing_stop = float(existing_stop) if existing_stop is not None else None
+        except (TypeError, ValueError):
+            existing_stop = None
+
+        # Calculate progress toward profit target (in %)
+        progress_pct = 0.0
+        progress_valid = False
+        if isinstance(profit_target, (int, float)) and profit_target > 0 and profit_target != entry_price:
+            if direction == 'long':
+                denominator = profit_target - entry_price
+                if denominator > 0:
+                    progress_pct = ((current_price - entry_price) / denominator) * 100
+                    progress_valid = True
+            elif direction == 'short':
+                denominator = entry_price - profit_target
+                if denominator > 0:
+                    progress_pct = ((entry_price - current_price) / denominator) * 100
+                    progress_valid = True
+        progress_pct = max(0.0, min(progress_pct, 200.0))
+
+        pnl_percent = max(0.0, unrealized_pnl_percent * 100.0)
+        progress_score = progress_pct if progress_valid else pnl_percent
+
+        # Time in trade (minutes)
+        time_in_trade = 0.0
+        entry_time_str = position.get('entry_time')
+        if entry_time_str:
+            try:
+                entry_time = datetime.fromisoformat(entry_time_str.replace('Z', '+00:00'))
+                time_in_trade = max(0.0, (datetime.now() - entry_time).total_seconds() / 60.0)
+            except Exception:
+                time_in_trade = 0.0
+
+        progress_triggered = progress_score >= Config.TRAILING_PROGRESS_TRIGGER
+        time_triggered = (
+            time_in_trade >= Config.TRAILING_TIME_MINUTES
+            and progress_score >= Config.TRAILING_TIME_PROGRESS_FLOOR
+        )
+        if not (progress_triggered or time_triggered):
+            return None
+
+        # Fetch current 3m indicators for ATR & volume context
+        current_volume_ratio = None
+        atr_value = None
+        try:
+            indicators_3m = self.market_data.get_technical_indicators(symbol, '3m') if self.market_data else {}
+        except Exception as exc:
+            print(f"⚠️ Trailing stop indicator fetch failed for {symbol}: {exc}")
+            indicators_3m = {}
+
+        if isinstance(indicators_3m, dict):
+            volume_now = indicators_3m.get('volume')
+            avg_volume_now = indicators_3m.get('avg_volume')
+            if isinstance(volume_now, (int, float)) and isinstance(avg_volume_now, (int, float)) and avg_volume_now > 0:
+                current_volume_ratio = volume_now / avg_volume_now
+            atr_value = indicators_3m.get('atr_14')
+
+        if not isinstance(atr_value, (int, float)) or atr_value <= 0:
+            atr_value = position.get('entry_atr_14')
+        if not isinstance(atr_value, (int, float)) or atr_value <= 0:
+            atr_value = current_price * Config.TRAILING_FALLBACK_BUFFER_PCT
+
+        entry_volume_ratio = position.get('entry_volume_ratio')
+        volume_drop_triggered = False
+        if isinstance(current_volume_ratio, (int, float)):
+            if current_volume_ratio <= Config.TRAILING_VOLUME_ABSOLUTE_THRESHOLD:
+                volume_drop_triggered = True
+            elif isinstance(entry_volume_ratio, (int, float)) and entry_volume_ratio > 0:
+                if current_volume_ratio <= entry_volume_ratio * Config.TRAILING_VOLUME_DROP_RATIO:
+                    volume_drop_triggered = True
+
+        min_improvement_abs = max(
+            current_price * Config.TRAILING_MIN_IMPROVEMENT_PCT,
+            max(Config.MIN_EXIT_PLAN_OFFSET, 1e-7)
+        )
+        atr_buffer = max(atr_value * Config.TRAILING_ATR_MULTIPLIER, min_improvement_abs)
+
+        reason_tokens: List[str] = []
+        if progress_triggered:
+            reason_tokens.append(f"progress {progress_score:.1f}%")
+        if time_triggered:
+            reason_tokens.append(f"time {time_in_trade:.1f}m")
+        if volume_drop_triggered and isinstance(current_volume_ratio, (int, float)):
+            reason_tokens.append(f"volume {current_volume_ratio:.2f}x")
+
+        if not reason_tokens:
+            reason_tokens.append("trailing criteria met")
+
+        new_stop: Optional[float] = None
+        if direction == 'long':
+            baseline_stop = current_price - atr_buffer
+            baseline_stop = min(baseline_stop, current_price - min_improvement_abs)
+            if progress_triggered:
+                baseline_stop = max(baseline_stop, entry_price + min_improvement_abs)
+            elif time_triggered:
+                baseline_stop = max(baseline_stop, entry_price + Config.MIN_EXIT_PLAN_OFFSET)
+
+            if existing_stop is not None:
+                baseline_stop = max(baseline_stop, existing_stop + min_improvement_abs)
+
+            if baseline_stop >= current_price:
+                baseline_stop = current_price - min_improvement_abs
+
+            if existing_stop is not None and baseline_stop <= existing_stop + min_improvement_abs:
+                return None
+
+            if baseline_stop <= 0:
+                return None
+
+            new_stop = baseline_stop
+        else:  # short
+            baseline_stop = current_price + atr_buffer
+            baseline_stop = max(baseline_stop, current_price + min_improvement_abs)
+            if progress_triggered:
+                baseline_stop = min(baseline_stop, entry_price - min_improvement_abs)
+            elif time_triggered:
+                baseline_stop = min(baseline_stop, entry_price - Config.MIN_EXIT_PLAN_OFFSET)
+
+            if existing_stop is not None:
+                baseline_stop = min(baseline_stop, existing_stop - min_improvement_abs)
+
+            if baseline_stop <= current_price:
+                baseline_stop = current_price + min_improvement_abs
+
+            if progress_triggered and baseline_stop > entry_price - min_improvement_abs:
+                baseline_stop = entry_price - min_improvement_abs
+
+            if baseline_stop <= current_price:
+                return None
+
+            if existing_stop is not None and (existing_stop - baseline_stop) <= min_improvement_abs:
+                return None
+
+            new_stop = baseline_stop
+
+        if new_stop is None:
+            return None
+
+        new_stop = round(max(0.0, new_stop), 6)
+        if direction == 'long' and new_stop >= current_price:
+            return None
+        if direction == 'short' and new_stop <= current_price:
+            return None
+
+        # Persist updated stop and trailing metadata
+        exit_plan['stop_loss'] = new_stop
+        position['exit_plan'] = exit_plan
+
+        trailing_meta = position.setdefault('trailing', {})
+        trailing_meta.update({
+            'active': True,
+            'last_update_cycle': getattr(self, 'current_cycle_number', None),
+            'last_reason': ", ".join(reason_tokens),
+            'last_stop': new_stop,
+            'progress_percent': round(progress_score, 2),
+            'time_in_trade_min': round(time_in_trade, 2)
+        })
+        if isinstance(current_volume_ratio, (int, float)):
+            trailing_meta['last_volume_ratio'] = round(current_volume_ratio, 4)
+
+        reason = f"Trailing stop tightened ({', '.join(reason_tokens)})"
+        return {"action": "update_stop", "new_stop": new_stop, "reason": reason}
 
     def _execute_new_positions_only(
         self,
@@ -2126,15 +2338,18 @@ class PortfolioManager:
             return False
 
     def apply_market_regime_adjustment(self, confidence: float, signal: str, market_regime: str) -> float:
-        """Apply market regime based confidence adjustment (0.7 multiplier for counter-trades)"""
+        """Apply market regime based confidence adjustment (hafifletilmiş - 0.7 yerine 0.92)"""
+        original_confidence = confidence
         if market_regime == "BEARISH" and signal == "buy_to_enter":
             # Long in bearish market - counter-trade
-            adjusted_confidence = confidence * 0.7
+            # Hafifletilmiş: 0.7 yerine 0.92 (sadece %8 düşüş)
+            adjusted_confidence = max(confidence * 0.92, confidence - 0.05, original_confidence * 0.90)
             print(f"📊 Market regime adjustment: BEARISH market, LONG signal → confidence {confidence:.2f} → {adjusted_confidence:.2f}")
             return adjusted_confidence
         elif market_regime == "BULLISH" and signal == "sell_to_enter":
             # Short in bullish market - counter-trade
-            adjusted_confidence = confidence * 0.7
+            # Hafifletilmiş: 0.7 yerine 0.92 (sadece %8 düşüş)
+            adjusted_confidence = max(confidence * 0.92, confidence - 0.05, original_confidence * 0.90)
             print(f"📊 Market regime adjustment: BULLISH market, SHORT signal → confidence {confidence:.2f} → {adjusted_confidence:.2f}")
             return adjusted_confidence
         else:
@@ -2151,6 +2366,8 @@ class PortfolioManager:
             total_conditions_available = 5
             score = 0.0
             score_breakdown: List[str] = []
+            relaxed_cycles = getattr(self, 'relaxed_countertrend_cycles', 0)
+            relax_mode_active = relaxed_cycles > 0
             
             def _register(condition: bool, description: str, weight: float) -> None:
                 nonlocal conditions_met_count, score
@@ -2165,63 +2382,74 @@ class PortfolioManager:
             ema20_3m = indicators_3m.get('ema_20')
             if isinstance(price_3m, (int, float)) and isinstance(ema20_3m, (int, float)):
                 if signal == 'buy_to_enter':
-                    _register(price_3m > ema20_3m, "3m momentum supportive (price > EMA20)", 1.0)
+                    _register(price_3m > ema20_3m, "3m momentum supportive (price > EMA20)", 0.9)
                 elif signal == 'sell_to_enter':
-                    _register(price_3m < ema20_3m, "3m momentum supportive (price < EMA20)", 1.0)
+                    _register(price_3m < ema20_3m, "3m momentum supportive (price < EMA20)", 0.9)
             
             # Condition 2: Volume confirmation (>1.5x average)
             current_volume = indicators_3m.get('volume', 0)
             avg_volume = indicators_3m.get('avg_volume', 1)
             volume_ratio = current_volume / avg_volume if avg_volume > 0 else 0
             if volume_ratio > 1.5:
-                _register(True, f"Volume {volume_ratio:.1f}x average", 1.4)
-            elif volume_ratio > 1.0:
                 _register(True, f"Volume {volume_ratio:.1f}x average", 1.1)
+            elif volume_ratio > 0.8:
+                _register(True, f"Volume {volume_ratio:.1f}x average", 0.8)
             else:
                 score_breakdown.append(f"Volume {volume_ratio:.2f}x average (no boost)")
             
             # Condition 3: Extreme RSI
             rsi_3m = indicators_3m.get('rsi_14', 50)
             if signal == 'buy_to_enter':
-                _register(rsi_3m < 30, f"Extreme RSI ({rsi_3m:.1f})", 1.3)
+                _register(rsi_3m < 35, f"Extreme RSI ({rsi_3m:.1f})", 1.0)
             elif signal == 'sell_to_enter':
-                _register(rsi_3m > 70, f"Extreme RSI ({rsi_3m:.1f})", 1.3)
+                _register(rsi_3m > 65, f"Extreme RSI ({rsi_3m:.1f})", 1.0)
             
             # Condition 4: Price close to EMA20 (< 1%)
             if isinstance(price_3m, (int, float)) and isinstance(ema20_3m, (int, float)) and price_3m:
                 price_ema_distance = abs(price_3m - ema20_3m) / price_3m * 100
-                _register(price_ema_distance < 1.0, f"Price within 1% of EMA20 ({price_ema_distance:.2f}%)", 0.8)
+                ema_distance_threshold = 1.8 if not relax_mode_active else 2.5
+                _register(price_ema_distance < ema_distance_threshold, f"Price within {ema_distance_threshold:.1f}% of EMA20 ({price_ema_distance:.2f}%)", 0.6)
             
             # Condition 5: MACD divergence supportive
             macd_3m = indicators_3m.get('macd', 0)
             macd_signal_3m = indicators_3m.get('macd_signal', 0)
             if signal == 'buy_to_enter':
-                _register(macd_3m > macd_signal_3m, "MACD divergence supportive", 1.0)
+                _register(macd_3m > macd_signal_3m, "MACD divergence supportive", 0.8)
             elif signal == 'sell_to_enter':
-                _register(macd_3m < macd_signal_3m, "MACD divergence supportive", 1.0)
+                _register(macd_3m < macd_signal_3m, "MACD divergence supportive", 0.8)
 
             # Volume safety rail: reject extremely illiquid environments
-            if volume_ratio is not None and volume_ratio < 0.2:
-                return {
-                    "valid": False,
-                    "conditions_met": conditions_met,
-                    "total_conditions": conditions_met_count,
-                    "conditions_required": total_conditions_available,
-                    "score": score,
-                    "score_threshold": None,
-                    "score_breakdown": score_breakdown,
-                    "reason": f"Volume ratio {volume_ratio:.2f}x is below 0.20x minimum for counter-trend entries"
-                }
+            if volume_ratio is not None:
+                volume_safety_floor = 0.12
+                if relax_mode_active:
+                    volume_safety_floor = 0.06
+                if volume_ratio < volume_safety_floor:
+                    return {
+                        "valid": False,
+                        "conditions_met": conditions_met,
+                        "total_conditions": conditions_met_count,
+                        "conditions_required": total_conditions_available,
+                        "score": score,
+                        "score_threshold": None,
+                        "score_breakdown": score_breakdown,
+                        "reason": (
+                            f"Volume ratio {volume_ratio:.2f}x is below {volume_safety_floor:.2f}x minimum for counter-trend entries"
+                            if not relax_mode_active else
+                            f"Volume ratio {volume_ratio:.2f}x is below relaxed minimum {volume_safety_floor:.2f}x while cooldown active"
+                        )
+                    }
 
             # Dynamic score threshold based on liquidity context
-            score_threshold = 3.0
+            score_threshold = 2.3
             if volume_ratio is not None:
                 if volume_ratio >= 1.5:
-                    score_threshold = 2.6
+                    score_threshold = 2.0
                 elif volume_ratio >= 0.8:
-                    score_threshold = 3.0
+                    score_threshold = 2.2
                 else:
-                    score_threshold = 2.8
+                    score_threshold = 2.1
+            if relax_mode_active:
+                score_threshold = max(1.8, score_threshold - 0.3)
 
             valid = score >= score_threshold
             return {
@@ -2230,13 +2458,15 @@ class PortfolioManager:
                 "total_conditions": conditions_met_count,
                 "conditions_required": total_conditions_available,
                 "score": round(score, 2),
-                "score_threshold": score_threshold,
+                "score_threshold": round(score_threshold, 2),
                 "score_breakdown": score_breakdown,
                 "reason": (
                     f"Counter-trend score {score:.2f} ≥ threshold {score_threshold:.2f} ({conditions_met_count}/{total_conditions_available} signals)"
                     if valid else
                     f"Counter-trend score {score:.2f} < threshold {score_threshold:.2f} ({conditions_met_count}/{total_conditions_available} signals)"
-                )
+                ),
+                "relax_mode_active": relax_mode_active,
+                "relaxed_cycles_remaining": relaxed_cycles if relax_mode_active else 0
             }
         except Exception as e:
             print(f"⚠️ Counter-trade validation error for {coin}: {e}")
@@ -2552,16 +2782,27 @@ class PortfolioManager:
                     avg_volume = indicators_3m.get('avg_volume', 1)
                     volume_ratio = current_volume / avg_volume if avg_volume and avg_volume > 0 else 0.0
                     trade['volume_ratio_runtime'] = round(volume_ratio, 4)
-                    if volume_ratio < 0.3:
-                        original_confidence = confidence
-                        confidence *= 0.7
-                        print(f"🥶 LOW VOLUME PENALTY: {coin} volume ratio {volume_ratio:.2f}x. Confidence {original_confidence:.2f} → {confidence:.2f}")
-                        if confidence < Config.MIN_CONFIDENCE:
-                            print(f"🚫 Low volume block: {coin} confidence {confidence:.2f} below minimum after penalty.")
-                            execution_report['blocked'].append({'coin': coin, 'reason': 'low_volume', 'volume_ratio': volume_ratio, 'confidence': confidence})
-                            trade['runtime_decision'] = 'blocked_low_volume'
-                            continue
-                        trade['confidence'] = confidence
+                    relax_cycles_global = getattr(self, 'relaxed_countertrend_cycles', 0)
+                    relax_mode_active_global = relax_cycles_global > 0
+                    if volume_ratio is not None:
+                        low_volume_threshold = 0.2 if not relax_mode_active_global else 0.1
+                        if volume_ratio < low_volume_threshold:
+                            if relax_mode_active_global:
+                                print(f"⚡ Relaxed mode: skipping low-volume penalty for {coin} (ratio {volume_ratio:.2f}x).")
+                            else:
+                                original_confidence = confidence
+                                # Hafifletilmiş penalty: 0.8 yerine 0.92 (sadece %8 düşüş)
+                                confidence = max(confidence * 0.92, confidence - 0.05)
+                                # Minimum confidence floor: AI'nın verdiği değerin %85'i altına düşmesin
+                                min_floor = original_confidence * 0.85
+                                confidence = max(confidence, min_floor, Config.MIN_CONFIDENCE)
+                                print(f"🥶 LOW VOLUME PENALTY: {coin} volume ratio {volume_ratio:.2f}x. Confidence {original_confidence:.2f} → {confidence:.2f}")
+                                if confidence < Config.MIN_CONFIDENCE:
+                                    print(f"🚫 Low volume block: {coin} confidence {confidence:.2f} below minimum after penalty.")
+                                    execution_report['blocked'].append({'coin': coin, 'reason': 'low_volume', 'volume_ratio': volume_ratio, 'confidence': confidence})
+                                    trade['runtime_decision'] = 'blocked_low_volume'
+                                    continue
+                                trade['confidence'] = confidence
                     trend_info = self.update_trend_state(coin, indicators_htf, indicators_3m)
                     current_trend = trend_info.get('trend', 'unknown')
                     flip_cycle = trend_info.get('last_flip_cycle')
@@ -2607,27 +2848,35 @@ class PortfolioManager:
                             guard_active = guard_cycles_since_flip is not None and guard_cycles_since_flip <= guard_window
                             if guard_active:
                                 if guard_cycles_since_flip == 0:
-                                    print(f"⏳ Trend flip guard: {coin} counter-trend {direction.upper()} blocked in same-cycle flip (cycle {flip_cycle}).")
-                                    execution_report['blocked'].append({'coin': coin, 'reason': 'trend_flip_guard_same_cycle', 'classification': trend_classification})
-                                    trade['runtime_decision'] = 'blocked_trend_flip_same_cycle'
-                                    continue
-                                elif guard_cycles_since_flip == 1:
-                                    if confidence < 0.85:
-                                        print(f"🚫 Flip guard confidence floor: {coin} {signal} confidence {confidence:.2f} < 0.85 one cycle after flip.")
+                                    min_conf = 0.75
+                                    if confidence < min_conf:
+                                        print(f"🚫 Flip guard confidence floor: {coin} {signal} confidence {confidence:.2f} < {min_conf:.2f} in same cycle after flip.")
                                         execution_report['blocked'].append({'coin': coin, 'reason': 'trend_flip_guard_confidence', 'classification': trend_classification})
                                         trade['runtime_decision'] = 'blocked_trend_flip_confidence'
                                         continue
-                                    partial_margin_factor = min(partial_margin_factor, 0.5)
-                                    print(f"⏳ Trend flip guard (counter-trend): {coin} sizing capped at 50% one cycle after flip.")
+                                    partial_margin_factor = min(partial_margin_factor, 0.4)
+                                    print(f"⏳ Trend flip guard: {coin} sizing capped at 40% in same-cycle counter-trend attempt (confidence {confidence:.2f}).")
+                                elif guard_cycles_since_flip == 1:
+                                    min_conf = 0.70
+                                    if confidence < min_conf:
+                                        print(f"🚫 Flip guard confidence floor: {coin} {signal} confidence {confidence:.2f} < {min_conf:.2f} one cycle after flip.")
+                                        execution_report['blocked'].append({'coin': coin, 'reason': 'trend_flip_guard_confidence', 'classification': trend_classification})
+                                        trade['runtime_decision'] = 'blocked_trend_flip_confidence'
+                                        continue
+                                    partial_margin_factor = min(partial_margin_factor, 0.6)
+                                    print(f"⏳ Trend flip guard (counter-trend): {coin} sizing capped at 60% one cycle after flip.")
                                 elif guard_cycles_since_flip == 2:
-                                    partial_margin_factor = min(partial_margin_factor, 0.7)
-                                    print(f"⏳ Trend flip guard (counter-trend): {coin} sizing capped at 70% two cycles after flip.")
-                            counter_confidence_floor = 0.70
+                                    partial_margin_factor = min(partial_margin_factor, 0.8)
+                                    print(f"⏳ Trend flip guard (counter-trend): {coin} sizing capped at 80% two cycles after flip.")
+                            counter_confidence_floor = 0.65 if not relaxed_countertrend else 0.60
                             if confidence < counter_confidence_floor:
-                                print(f"🚫 Counter-trend confidence floor: {coin} {signal} confidence {confidence:.2f} < {counter_confidence_floor:.2f}. Skipping trade.")
-                                execution_report['blocked'].append({'coin': coin, 'reason': 'counter_trend_floor', 'classification': trend_classification, 'confidence': confidence})
-                                trade['runtime_decision'] = 'blocked_counter_trend_floor'
-                                continue
+                                if relaxed_countertrend:
+                                    print(f"⚠️ Relaxed mode: counter-trend confidence {confidence:.2f} below {counter_confidence_floor:.2f}, but allowing due to cooldown.")
+                                else:
+                                    print(f"🚫 Counter-trend confidence floor: {coin} {signal} confidence {confidence:.2f} < {counter_confidence_floor:.2f}. Skipping trade.")
+                                    execution_report['blocked'].append({'coin': coin, 'reason': 'counter_trend_floor', 'classification': trend_classification, 'confidence': confidence})
+                                    trade['runtime_decision'] = 'blocked_counter_trend_floor'
+                                    continue
                             print(f"⚠️ COUNTER-TREND DETECTED: {coin} - respecting AI decision with additional validation")
                             
                             # Perform validation for counter-trend trades only
@@ -2649,18 +2898,22 @@ class PortfolioManager:
                         if guard_active and last_flip_direction:
                             is_trend_direction = ((last_flip_direction == 'bullish' and direction == 'long') or (last_flip_direction == 'bearish' and direction == 'short'))
                             if is_trend_direction:
+                                original_conf = confidence
                                 if guard_cycles_since_flip == 0:
-                                    confidence *= 0.90
+                                    # Hafifletilmiş: 0.90 yerine 0.97
+                                    confidence = max(confidence * 0.97, confidence - 0.02, original_conf * 0.95)
                                     partial_margin_factor = min(partial_margin_factor, 0.5)
-                                    print(f"⏳ Trend flip guard (trend-following): {coin} confidence tempered & sizing 50% immediately after flip.")
+                                    print(f"⏳ Trend flip guard (trend-following): {coin} confidence {original_conf:.2f} → {confidence:.2f} & sizing 50% immediately after flip.")
                                 elif guard_cycles_since_flip == 1:
-                                    confidence *= 0.95
+                                    # Hafifletilmiş: 0.95 yerine 0.98
+                                    confidence = max(confidence * 0.98, confidence - 0.01, original_conf * 0.97)
                                     partial_margin_factor = min(partial_margin_factor, 0.7)
-                                    print(f"⏳ Trend flip guard (trend-following): {coin} confidence tempered & sizing 70% one cycle after flip.")
+                                    print(f"⏳ Trend flip guard (trend-following): {coin} confidence {original_conf:.2f} → {confidence:.2f} & sizing 70% one cycle after flip.")
                                 elif guard_cycles_since_flip == 2:
-                                    confidence *= 0.98
+                                    # Hafifletilmiş: 0.98 yerine 0.99
+                                    confidence = max(confidence * 0.99, original_conf * 0.98)
                                     partial_margin_factor = min(partial_margin_factor, 0.85)
-                                    print(f"⏳ Trend flip guard (trend-following): {coin} sizing 85% two cycles after flip.")
+                                    print(f"⏳ Trend flip guard (trend-following): {coin} confidence {original_conf:.2f} → {confidence:.2f} & sizing 85% two cycles after flip.")
                                 trade['confidence'] = confidence
                         # Trend-following trade path
                         price_htf_follow = indicators_htf.get('current_price')
@@ -2787,15 +3040,40 @@ class PortfolioManager:
                 estimated_liq_price = self._estimate_liquidation_price(current_price, leverage, direction)
                 
                 self.positions[coin] = {
-                    'symbol': coin, 'direction': direction, 'quantity': quantity_coin, 'entry_price': current_price,
-                    'entry_time': datetime.now().isoformat(), 'current_price': current_price, 'unrealized_pnl': 0.0,
-                    'notional_usd': notional_usd, 'margin_usd': margin_usd, 'leverage': leverage,
-                    'liquidation_price': estimated_liq_price, 'confidence': confidence,
-                    'exit_plan': { 'profit_target': trade.get('profit_target'), 'stop_loss': stop_loss, 'invalidation_condition': trade.get('invalidation_condition') },
+                    'symbol': coin,
+                    'direction': direction,
+                    'quantity': quantity_coin,
+                    'entry_price': current_price,
+                    'entry_time': datetime.now().isoformat(),
+                    'current_price': current_price,
+                    'unrealized_pnl': 0.0,
+                    'notional_usd': notional_usd,
+                    'margin_usd': margin_usd,
+                    'leverage': leverage,
+                    'liquidation_price': estimated_liq_price,
+                    'confidence': confidence,
+                    'exit_plan': {
+                        'profit_target': trade.get('profit_target'),
+                        'stop_loss': stop_loss,
+                        'invalidation_condition': trade.get('invalidation_condition')
+                    },
                     'risk_usd': margin_usd,
                     'loss_cycle_count': 0,
-                    'trend_context': {'trend_at_entry': current_trend, 'cycle': self.current_cycle_number},
-                    'sl_oid': -1, 'tp_oid': -1, 'entry_oid': -1, 'wait_for_fill': False
+                    'entry_volume': indicators_3m.get('volume') if isinstance(indicators_3m, dict) else None,
+                    'entry_avg_volume': indicators_3m.get('avg_volume') if isinstance(indicators_3m, dict) else None,
+                    'entry_volume_ratio': volume_ratio,
+                    'entry_atr_14': indicators_3m.get('atr_14') if isinstance(indicators_3m, dict) else None,
+                    'trend_alignment': trend_classification,
+                    'trend_context': {
+                        'trend_at_entry': current_trend,
+                        'alignment': trend_classification,
+                        'cycle': self.current_cycle_number
+                    },
+                    'trailing': {},
+                    'sl_oid': -1,
+                    'tp_oid': -1,
+                    'entry_oid': -1,
+                    'wait_for_fill': False
                 }
                 print(f"✅ {signal.upper()}: Opened {direction} {coin} ({format_num(quantity_coin, 4)} @ ${format_num(current_price, 4)} / Notional ${format_num(notional_usd, 2)} / Margin ${format_num(margin_usd, 2)} / Est. Liq: ${format_num(estimated_liq_price, 4)})")
                 execution_report['executed'].append({
@@ -3795,7 +4073,23 @@ class AlphaArenaDeepSeek:
                 progress = data.get('profit_target_progress', 0)
                 remaining_pct = max(0.0, round(100 - progress, 2))
             time_in_trade = data.get('time_in_trade_minutes', 0)
-            formatted += f"  {symbol}: ${pnl:.2f} PnL, {remaining_pct}% to target, {time_in_trade}min in trade\n"
+            direction = (data.get('direction') or 'long').upper()
+            trend_alignment = str(data.get('trend_alignment', 'unknown')).upper()
+            trend_context = data.get('trend_context') or {}
+            trend_entry = str(trend_context.get('trend_at_entry', 'unknown')).upper()
+            entry_cycle = trend_context.get('cycle')
+            confidence = data.get('confidence')
+
+            cycle_note = f", entry cycle {entry_cycle}" if isinstance(entry_cycle, (int, float)) else ""
+            confidence_note = f", entry confidence {confidence:.2f}" if isinstance(confidence, (int, float)) else ""
+            counter_note = ""
+            if trend_alignment == 'COUNTER_TREND':
+                counter_note = " | Counter-trend position — hold unless invalidation triggers."
+
+            formatted += (
+                f"  {symbol}: ${pnl:.2f} PnL, {remaining_pct}% to target, {time_in_trade}min in trade | "
+                f"{direction} {trend_alignment} vs HTF trend {trend_entry}{cycle_note}{confidence_note}{counter_note}\n"
+            )
         return formatted
 
     def format_market_regime_context(self, market_regime: Dict) -> str:

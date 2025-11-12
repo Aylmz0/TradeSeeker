@@ -1,0 +1,86 @@
+{
+    "analysis_period": "Last 10 cycles (Total: 25)",
+    "timestamp": "2025-11-11T14:45:23.591492",
+    "trading_activity": {
+        "total_decisions": 60,
+        "entry_signals": 7,
+        "hold_signals": 51,
+        "close_signals": 2,
+        "decision_rate": 11.666666666666666
+    },
+    "trade_performance": {
+        "total_trades": 10,
+        "winning_trades": 5,
+        "losing_trades": 5,
+        "break_even_trades": 0,
+        "win_rate": 50.0,
+        "total_pnl": -1.41,
+        "average_pnl": -0.14,
+        "profit_factor": 0.77,
+        "largest_win": 2.09,
+        "largest_loss": -2.77
+    },
+    "portfolio_performance": {
+        "initial_balance": 200.0,
+        "current_balance": 146.75708338532473,
+        "total_value": 194.8340315225377,
+        "total_return": -2.58,
+        "sharpe_ratio": -0.756,
+        "open_positions": 3
+    },
+    "coin_performance": {
+        "JASMY": {
+            "trades": 1,
+            "total_pnl": -0.6263048016701478,
+            "wins": 0,
+            "losses": 1,
+            "win_rate": 0.0,
+            "avg_pnl": -0.6263048016701478
+        },
+        "LINK": {
+            "trades": 2,
+            "total_pnl": -0.684525822391687,
+            "wins": 1,
+            "losses": 1,
+            "win_rate": 50.0,
+            "avg_pnl": -0.3422629111958435
+        },
+        "ADA": {
+            "trades": 2,
+            "total_pnl": -0.43657019065631886,
+            "wins": 1,
+            "losses": 1,
+            "win_rate": 50.0,
+            "avg_pnl": -0.21828509532815943
+        },
+        "SOL": {
+            "trades": 1,
+            "total_pnl": 1.0641550975475476,
+            "wins": 1,
+            "losses": 0,
+            "win_rate": 100.0,
+            "avg_pnl": 1.0641550975475476
+        },
+        "XRP": {
+            "trades": 2,
+            "total_pnl": 1.4252283256909237,
+            "wins": 2,
+            "losses": 0,
+            "win_rate": 100.0,
+            "avg_pnl": 0.7126141628454619
+        },
+        "DOGE": {
+            "trades": 2,
+            "total_pnl": -2.1492509340911035,
+            "wins": 0,
+            "losses": 2,
+            "win_rate": 0.0,
+            "avg_pnl": -1.0746254670455517
+        }
+    },
+    "recommendations": [
+        "[INFO] Position count 3; exceeds reference threshold (\u22653)",
+        "[INFO] Recorded return -2.58% within analysis window; below growth target",
+        "[INFO] Coins with cumulative negative PnL: JASMY, LINK, ADA, DOGE"
+    ]
+}

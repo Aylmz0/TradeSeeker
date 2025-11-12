@@ -95,6 +95,16 @@ class Config:
     DEFAULT_PROFIT_TARGET_PCT: float = float(os.getenv('DEFAULT_PROFIT_TARGET_PCT', '0.015'))  # 1.5% default TP buffer
     MIN_EXIT_PLAN_OFFSET: float = float(os.getenv('MIN_EXIT_PLAN_OFFSET', '0.0001'))  # Minimum absolute offset for tiny-priced coins
 
+    # Trailing Stop Configuration
+    TRAILING_PROGRESS_TRIGGER: float = float(os.getenv('TRAILING_PROGRESS_TRIGGER', '80.0'))  # % progress towards TP
+    TRAILING_TIME_PROGRESS_FLOOR: float = float(os.getenv('TRAILING_TIME_PROGRESS_FLOOR', '50.0'))  # % progress required for time-based trailing
+    TRAILING_TIME_MINUTES: float = float(os.getenv('TRAILING_TIME_MINUTES', '20'))  # Minutes in trade before time-based trailing activates
+    TRAILING_ATR_MULTIPLIER: float = float(os.getenv('TRAILING_ATR_MULTIPLIER', '1.2'))  # Multiplier for ATR-based buffer
+    TRAILING_FALLBACK_BUFFER_PCT: float = float(os.getenv('TRAILING_FALLBACK_BUFFER_PCT', '0.004'))  # 0.4% price buffer fallback
+    TRAILING_VOLUME_ABSOLUTE_THRESHOLD: float = float(os.getenv('TRAILING_VOLUME_ABSOLUTE_THRESHOLD', '0.2'))  # Absolute volume ratio floor
+    TRAILING_VOLUME_DROP_RATIO: float = float(os.getenv('TRAILING_VOLUME_DROP_RATIO', '0.5'))  # Relative drop vs entry volume ratio
+    TRAILING_MIN_IMPROVEMENT_PCT: float = float(os.getenv('TRAILING_MIN_IMPROVEMENT_PCT', '0.0005'))  # Minimum 0.05% improvement before updating stop
+
     # Higher Timeframe Configuration
     HTF_INTERVAL: str = os.getenv('HTF_INTERVAL', '1h').lower()
     
