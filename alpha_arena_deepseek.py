@@ -140,7 +140,7 @@ TREND & COUNTER-TREND GUIDELINES:
 - When price is below {HTF_LABEL} EMA20 with bearish momentum, short setups merit priority.
 - When price is above {HTF_LABEL} EMA20 with bullish momentum, long setups merit priority.
 - Counter-trend trades (long or short) demand stronger confirmation, higher confidence, and clear reasoning.
-- If volume ratio is ≤0.30× average, call out the weakness, reduce confidence materially, and consider skipping the trade unless another data point overwhelmingly compensates.
+- If volume ratio is ≤0.15× average, call out the weakness, reduce confidence materially, and consider skipping the trade unless another data point overwhelmingly compensates.
 
 ACTION FORMAT:
 - Use signals: `buy_to_enter`, `sell_to_enter`, `hold`, `close_position`.
@@ -553,14 +553,14 @@ class RealMarketData:
                 prices[coin] = self._get_fallback_price(coin)
 
         # First try batched endpoint (single request, lower latency)
-                    try:
+        try:
             response = self.session.get(
                 f"{self.spot_url}/ticker/price",
                 params={'symbols': json.dumps(symbols, separators=(',', ':'))},
                 timeout=3
             )
-                        response.raise_for_status()
-                        data = response.json()
+            response.raise_for_status()
+            data = response.json()
             if isinstance(data, list):
                 for entry in data:
                     symbol = entry.get('symbol')
@@ -588,8 +588,8 @@ class RealMarketData:
                     params={'symbol': f"{coin}USDT"},
                     timeout=3
                 )
-                    response.raise_for_status()
-                    data = response.json()
+                response.raise_for_status()
+                data = response.json()
                 price_val = float(data.get('price', 0))
                 if price_val <= 0:
                     raise ValueError(f"Non-positive price {price_val}")
@@ -2406,7 +2406,7 @@ class PortfolioManager:
             
             # Condition 4: Price close to EMA20 (< 1%)
             if isinstance(price_3m, (int, float)) and isinstance(ema20_3m, (int, float)) and price_3m:
-            price_ema_distance = abs(price_3m - ema20_3m) / price_3m * 100
+                price_ema_distance = abs(price_3m - ema20_3m) / price_3m * 100
                 ema_distance_threshold = 1.8 if not relax_mode_active else 2.5
                 _register(price_ema_distance < ema_distance_threshold, f"Price within {ema_distance_threshold:.1f}% of EMA20 ({price_ema_distance:.2f}%)", 0.6)
             
@@ -2785,7 +2785,7 @@ class PortfolioManager:
                     relax_cycles_global = getattr(self, 'relaxed_countertrend_cycles', 0)
                     relax_mode_active_global = relax_cycles_global > 0
                     if volume_ratio is not None:
-                        low_volume_threshold = 0.2 if not relax_mode_active_global else 0.1
+                        low_volume_threshold = 0.15 if not relax_mode_active_global else 0.1
                         if volume_ratio < low_volume_threshold:
                             if relax_mode_active_global:
                                 print(f"⚡ Relaxed mode: skipping low-volume penalty for {coin} (ratio {volume_ratio:.2f}x).")
@@ -2848,13 +2848,13 @@ class PortfolioManager:
                             guard_active = guard_cycles_since_flip is not None and guard_cycles_since_flip <= guard_window
                             if guard_active:
                                 if guard_cycles_since_flip == 0:
-                                    min_conf = 0.75
+                                    min_conf = 0.65
                                     if confidence < min_conf:
                                         print(f"🚫 Flip guard confidence floor: {coin} {signal} confidence {confidence:.2f} < {min_conf:.2f} in same cycle after flip.")
                                         execution_report['blocked'].append({'coin': coin, 'reason': 'trend_flip_guard_confidence', 'classification': trend_classification})
                                         trade['runtime_decision'] = 'blocked_trend_flip_confidence'
                                         continue
-                                    partial_margin_factor = min(partial_margin_factor, 0.4)
+                                    partial_margin_factor = min(partial_margin_factor, 0.7)
                                     print(f"⏳ Trend flip guard: {coin} sizing capped at 40% in same-cycle counter-trend attempt (confidence {confidence:.2f}).")
                                 elif guard_cycles_since_flip == 1:
                                     min_conf = 0.70
@@ -2863,10 +2863,10 @@ class PortfolioManager:
                                         execution_report['blocked'].append({'coin': coin, 'reason': 'trend_flip_guard_confidence', 'classification': trend_classification})
                                         trade['runtime_decision'] = 'blocked_trend_flip_confidence'
                                         continue
-                                    partial_margin_factor = min(partial_margin_factor, 0.6)
+                                    partial_margin_factor = min(partial_margin_factor, 0.8)
                                     print(f"⏳ Trend flip guard (counter-trend): {coin} sizing capped at 60% one cycle after flip.")
                                 elif guard_cycles_since_flip == 2:
-                                    partial_margin_factor = min(partial_margin_factor, 0.8)
+                                    partial_margin_factor = min(partial_margin_factor, 0.9)
                                     print(f"⏳ Trend flip guard (counter-trend): {coin} sizing capped at 80% two cycles after flip.")
                             counter_confidence_floor = 0.65 if not relaxed_countertrend else 0.60
                             if confidence < counter_confidence_floor:
@@ -2881,13 +2881,13 @@ class PortfolioManager:
                             
                             # Perform validation for counter-trend trades only
                             validation_result = self.validate_counter_trade(coin, signal, indicators_3m, indicators_htf)
-                        
-                        if validation_result['valid']:
-                            print(f"✅ COUNTER-TRADE STRONG: {validation_result['reason']}")
-                            print(f"   Conditions met: {validation_result.get('conditions_met', [])}")
-                        else:
-                            print(f"⚠️ COUNTER-TRADE WEAK: {validation_result['reason']}")
-                            print(f"   Conditions met: {validation_result.get('conditions_met', [])}")
+                            
+                            if validation_result['valid']:
+                                print(f"✅ COUNTER-TRADE STRONG: {validation_result['reason']}")
+                                print(f"   Conditions met: {validation_result.get('conditions_met', [])}")
+                            else:
+                                print(f"⚠️ COUNTER-TRADE WEAK: {validation_result['reason']}")
+                                print(f"   Conditions met: {validation_result.get('conditions_met', [])}")
                                 if signal in ['buy_to_enter', 'sell_to_enter']:
                                     print(f"🚫 Skipping {coin} {signal} due to insufficient counter-trend confirmation.")
                                     execution_report['blocked'].append({'coin': coin, 'reason': 'counter_trend_validation', 'classification': trend_classification, 'confidence': confidence})
@@ -2902,17 +2902,17 @@ class PortfolioManager:
                                 if guard_cycles_since_flip == 0:
                                     # Hafifletilmiş: 0.90 yerine 0.97
                                     confidence = max(confidence * 0.97, confidence - 0.02, original_conf * 0.95)
-                                    partial_margin_factor = min(partial_margin_factor, 0.5)
+                                    partial_margin_factor = min(partial_margin_factor, 0.7)
                                     print(f"⏳ Trend flip guard (trend-following): {coin} confidence {original_conf:.2f} → {confidence:.2f} & sizing 50% immediately after flip.")
                                 elif guard_cycles_since_flip == 1:
                                     # Hafifletilmiş: 0.95 yerine 0.98
                                     confidence = max(confidence * 0.98, confidence - 0.01, original_conf * 0.97)
-                                    partial_margin_factor = min(partial_margin_factor, 0.7)
+                                    partial_margin_factor = min(partial_margin_factor, 0.8)
                                     print(f"⏳ Trend flip guard (trend-following): {coin} confidence {original_conf:.2f} → {confidence:.2f} & sizing 70% one cycle after flip.")
                                 elif guard_cycles_since_flip == 2:
                                     # Hafifletilmiş: 0.98 yerine 0.99
                                     confidence = max(confidence * 0.99, original_conf * 0.98)
-                                    partial_margin_factor = min(partial_margin_factor, 0.85)
+                                    partial_margin_factor = min(partial_margin_factor, 0.90)
                                     print(f"⏳ Trend flip guard (trend-following): {coin} confidence {original_conf:.2f} → {confidence:.2f} & sizing 85% two cycles after flip.")
                                 trade['confidence'] = confidence
                         # Trend-following trade path
@@ -3130,7 +3130,7 @@ class PortfolioManager:
 
                 profit = (current_price - entry_price) * sell_quantity if direction == 'long' else (entry_price - current_price) * sell_quantity
                 if not live_trading:
-                self.current_balance += (margin_used + profit)
+                    self.current_balance += (margin_used + profit)
 
                 print(f"✅ CLOSE (AI): Closed {direction} {coin} @ ${format_num(current_price, 4)} (PnL: ${format_num(profit, 2)})")
                 execution_report['executed'].append({'coin': coin, 'signal': 'close_position', 'pnl': profit, 'direction': direction})
@@ -3319,7 +3319,7 @@ class AlphaArenaDeepSeek:
             ema20_3m = indicators_3m.get('ema_20')
             
             trend_label_htf = "BULLISH" if price_htf > ema20_htf else "BEARISH"
-            
+
             # Nof1AI Blog Style: EMA20 vs EMA50 comparison
             ema_comparison = f"20-Period EMA: {format_num(ema20_htf)} vs. 50-Period EMA: {format_num(ema50_htf)}"
             
@@ -3707,7 +3707,7 @@ class AlphaArenaDeepSeek:
         """Calculate volume quality score (0-100) based on Config thresholds"""
         try:
             if indicators_3m is None or not isinstance(indicators_3m, dict):
-            indicators_3m = self.market_data.get_technical_indicators(coin, '3m')
+                indicators_3m = self.market_data.get_technical_indicators(coin, '3m')
             if 'error' in indicators_3m:
                 return 0.0
             
@@ -4070,7 +4070,7 @@ class AlphaArenaDeepSeek:
             pnl = data.get('unrealized_pnl', 0)
             remaining_pct = data.get('remaining_to_target_pct')
             if remaining_pct is None:
-            progress = data.get('profit_target_progress', 0)
+                progress = data.get('profit_target_progress', 0)
                 remaining_pct = max(0.0, round(100 - progress, 2))
             time_in_trade = data.get('time_in_trade_minutes', 0)
             direction = (data.get('direction') or 'long').upper()
