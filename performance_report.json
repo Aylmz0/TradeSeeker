@@ -1,0 +1,54 @@
+[
+  {
+    "analysis_period": "Last 9 cycles (Total: 9)",
+    "timestamp": "2025-11-13T12:47:30.564282",
+    "trading_activity": {
+      "total_decisions": 54,
+      "entry_signals": 5,
+      "hold_signals": 47,
+      "close_signals": 2,
+      "decision_rate": 9.25925925925926
+    },
+    "trade_performance": {
+      "total_trades": 3,
+      "winning_trades": 3,
+      "losing_trades": 0,
+      "break_even_trades": 0,
+      "win_rate": 100.0,
+      "total_pnl": 2.11,
+      "average_pnl": 0.7,
+      "profit_factor": Infinity,
+      "largest_win": 1.17,
+      "largest_loss": 0.38
+    },
+    "portfolio_performance": {
+      "initial_balance": 200.0,
+      "current_balance": 178.33936408264165,
+      "total_value": 201.68186012214852,
+      "total_return": 0.84,
+      "sharpe_ratio": 5.617,
+      "open_positions": 1
+    },
+    "coin_performance": {
+      "DOGE": {
+        "trades": 2,
+        "total_pnl": 1.7336391261968451,
+        "wins": 2,
+        "losses": 0,
+        "win_rate": 100.0,
+        "avg_pnl": 0.8668195630984226
+      },
+      "ADA": {
+        "trades": 1,
+        "total_pnl": 0.37528731640122936,
+        "wins": 1,
+        "losses": 0,
+        "win_rate": 100.0,
+        "avg_pnl": 0.37528731640122936
+      }
+    },
+    "recommendations": [
+      "[INFO] Recorded return 0.84% within analysis window; below growth target"
+    ]
+  }
+]

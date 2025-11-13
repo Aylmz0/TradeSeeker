@@ -94,8 +94,8 @@ RISK MANAGEMENT:
 
 SYMMETRIC STRATEGY GUIDANCE:
 - Evaluate both LONG and SHORT paths for every asset. Bullish regimes support longs; bearish regimes support shorts.
-- Counter-trend trades are direction-agnostic and optional; use them only when the pre-computed checklist (in the prompt) shows ≥3/5 conditions and you can rationalize the edge.
-- Counter-trend trades require higher confidence (>0.75). If you override the checklist, add a short justification.
+- Counter-trend trades are a valid and valuable strategy; use them when the pre-computed checklist (in the prompt) shows ≥2/5 conditions and you can rationalize the edge. Counter-trend opportunities often provide excellent risk/reward ratios.
+- Counter-trend trades require moderate confidence (>0.65). If you see a strong counter-trend setup, don't hesitate to take it even if confidence is above 0.60.
 - Only label a setup as counter-trend when your proposed trade direction is opposite the {HTF_LABEL} trend. If {HTF_LABEL} trend and trade direction align but 3m is temporarily opposing, treat it as trend-following.
 - Prioritize trades with quantified momentum, participation, and risk/reward advantages.
 - When regime, momentum, and participation align in your favor, favor committing capital decisively instead of waiting for perfect confirmation.
@@ -117,13 +117,16 @@ ADVANCED ANALYSIS PLAYBOOK:
 - Keep take-profit/stop-loss targets responsive (e.g. 2–4% TP, 1–2% SL) when volatility supports it.
 - Manage exits proactively; do not wait for targets if data invalidates the thesis.
 - High-confidence setups (0.7–0.8+) justify higher exposure within risk limits.
-- Favor trend-following exposure by default; deploy counter-trend positions only when the checklist and your analysis both justify the added risk.
+- Consider both trend-following and counter-trend opportunities equally; choose the setup with the best quantified edge regardless of trend direction. Counter-trend trades can be highly profitable when conditions align.
+- Remember: Be aggressive but disciplined.
 
 MULTI-TIMEFRAME PROCESS:
 1. Check global and per-asset regime data (provided in the prompt).
-2. Analyze {HTF_LABEL} indicators for directional bias.
-3. Use 3m indicators for timing and confirmation.
-4. Incorporate volume, Open Interest, Funding, and other metrics to judge conviction.
+2. Analyze {HTF_LABEL} (1h) indicators for structural trend and directional bias.
+3. Analyze 15m indicators for medium-term momentum confirmation.
+4. Use 3m indicators for entry/exit timing and short-term confirmation.
+5. Use alignment across all three timeframes (1h + 15m + 3m) for strongest signals.
+6. Incorporate volume, Open Interest, Funding, and other metrics to judge conviction.
 5. Decide whether to go long, short, hold, or close based on the strongest quantified edge.
 
 STARTUP BEHAVIOR:
@@ -139,8 +142,20 @@ DATA NOTES:
 TREND & COUNTER-TREND GUIDELINES:
 - When price is below {HTF_LABEL} EMA20 with bearish momentum, short setups merit priority.
 - When price is above {HTF_LABEL} EMA20 with bullish momentum, long setups merit priority.
-- Counter-trend trades (long or short) demand stronger confirmation, higher confidence, and clear reasoning.
+- Counter-trend trades (long or short) are encouraged when technical conditions support them. Look for oversold/overbought conditions, divergences, or reversal patterns that suggest a counter-trend move. Confidence above 0.65 is sufficient for counter-trend entries.
 - If volume ratio is ≤0.15× average, call out the weakness, reduce confidence materially, and consider skipping the trade unless another data point overwhelmingly compensates.
+
+TREND REVERSAL DETECTION:
+- Monitor positions that have been open for extended periods (1+ hours). Extended positions may need review, but don't automatically assume reversal is imminent.
+- Multi-timeframe analysis: {HTF_LABEL} (1h) provides structural trend, 15m provides medium-term momentum confirmation, and 3m provides short-term entry/exit timing.
+- 15m momentum provides important confirmation between {HTF_LABEL} trend and 3m momentum. When 15m aligns with {HTF_LABEL}, it strengthens the trend signal. When 15m aligns with 3m but opposes {HTF_LABEL}, it suggests potential reversal.
+- 3m momentum provides supplementary context alongside {HTF_LABEL} trend analysis. Use it as one data point among many, not as a primary decision driver. Short-term 3m momentum changes are normal market noise.
+- Reversal signal strength:
+  * "VERY STRONG": {HTF_LABEL} + 15m + 3m all show reversal - evaluate exit plan carefully
+  * "STRONG": {HTF_LABEL} + (15m or 3m) show reversal - consider exit plan review
+  * "MEDIUM": 15m + 3m show reversal (but {HTF_LABEL} doesn't) - informational, continue monitoring
+  * "INFORMATIONAL": Only 3m or only 15m shows reversal - continue monitoring, prioritize {HTF_LABEL} trend
+- When you see reversal signals, evaluate the full context including position duration, profit/loss status, and original thesis before making any changes. Prioritize {HTF_LABEL} trend confirmation and your systematic exit plan.
 
 ACTION FORMAT:
 - Use signals: `buy_to_enter`, `sell_to_enter`, `hold`, `close_position`.
@@ -655,7 +670,6 @@ class RealMarketData:
             'open_interest_avg': avg_oi,
             'funding_rate': funding_rate
         }
-
 # --- Portfolio Manager Class ---
 class PortfolioManager:
     """Manages the portfolio state, positions, and history."""
@@ -904,15 +918,19 @@ class PortfolioManager:
         """Refresh balances and open positions from Binance when in live mode."""
         if not self.is_live_trading or not self.order_executor or not self.order_executor.is_live():
             return
+        wallet_balance = None
         try:
             overview = self.order_executor.get_account_overview()
             if overview:
                 available = overview.get("availableBalance")
-                wallet = overview.get("walletBalance")
+                wallet_balance = overview.get("walletBalance")
                 if available is not None:
+                    old_balance = self.current_balance
                     self.current_balance = float(available)
-                if wallet is not None:
-                    self.total_value = float(wallet)
+                    if abs(old_balance - self.current_balance) > 0.01:  # Only log if significant change
+                        print(f"💰 Balance updated: ${old_balance:.2f} → ${self.current_balance:.2f}")
+                if wallet_balance is not None:
+                    self.total_value = float(wallet_balance)
         except BinanceAPIError as exc:
             print(f"⚠️ Binance balance sync failed: {exc}")
         except Exception as exc:
@@ -922,6 +940,18 @@ class PortfolioManager:
             snapshot = self.order_executor.get_positions_snapshot()
             if isinstance(snapshot, dict):
                 self.positions = self._merge_live_positions(snapshot)
+                # Add unrealized PnL from open positions to total_value after positions are synced
+                total_unrealized_pnl = sum(
+                    pos.get('unrealized_pnl', 0) 
+                    for pos in self.positions.values() 
+                    if isinstance(pos.get('unrealized_pnl'), (int, float))
+                )
+                old_total = self.total_value
+                if wallet_balance is not None:
+                    self.total_value = float(wallet_balance)
+                self.total_value += total_unrealized_pnl
+                if abs(old_total - self.total_value) > 0.01:  # Only log if significant change
+                    print(f"📊 Total value updated: ${old_total:.2f} → ${self.total_value:.2f} (unrealized PnL: ${total_unrealized_pnl:.2f})")
             else:
                 self.positions = {}
         except BinanceAPIError as exc:
@@ -978,6 +1008,157 @@ class PortfolioManager:
                     exit_plan['invalidation_condition'] = invalidation
                 position['risk_usd'] = position.get('margin_usd', margin_usd)
                 self._ensure_exit_plan(position, exit_plan)
+                
+                # Place TP/SL orders on Binance if live trading
+                if self.is_live_trading and self.order_executor:
+                    try:
+                        # Calculate margin-based stop loss using kademeli loss cutting
+                        loss_multiplier = 0.03  # Default: %3 for margin >= 50
+                        if margin_usd < 30:
+                            loss_multiplier = 0.07  # %7 for margin < 30
+                        elif margin_usd < 40:
+                            loss_multiplier = 0.05  # %5 for margin 30-40
+                        elif margin_usd < 50:
+                            loss_multiplier = 0.05  # %5 for margin 40-50
+                        else:
+                            loss_multiplier = 0.03  # %3 for margin >= 50
+                        
+                        loss_threshold_usd = margin_usd * loss_multiplier
+                        
+                        # Calculate stop loss price from loss threshold
+                        # loss_threshold_usd = abs(entry_price - stop_loss_price) * quantity
+                        # stop_loss_price = entry_price ± (loss_threshold_usd / quantity)
+                        if executed_qty > 0:
+                            if direction == 'long':
+                                margin_based_stop_loss = avg_price - (loss_threshold_usd / executed_qty)
+                            else:  # short
+                                margin_based_stop_loss = avg_price + (loss_threshold_usd / executed_qty)
+                            
+                            # Use the tighter stop loss (closer to entry price = more conservative)
+                            # For long: higher stop_loss is tighter (closer to entry)
+                            # For short: lower stop_loss is tighter (closer to entry)
+                            if stop_loss is not None and stop_loss > 0:
+                                if direction == 'long':
+                                    # For long: use the higher stop loss (more conservative)
+                                    final_stop_loss = max(stop_loss, margin_based_stop_loss)
+                                else:  # short
+                                    # For short: use the lower stop loss (more conservative)
+                                    final_stop_loss = min(stop_loss, margin_based_stop_loss)
+                            else:
+                                final_stop_loss = margin_based_stop_loss
+                            
+                            # Ensure stop loss is valid (positive and reasonable)
+                            if final_stop_loss > 0:
+                                sl_order = self.order_executor.place_stop_loss_order(
+                                    coin=coin,
+                                    direction=direction,
+                                    stop_price=final_stop_loss,
+                                )
+                                position.setdefault('exchange_orders', {})['stop_loss'] = sl_order.get('orderId')
+                                print(f"✅ Binance STOP_LOSS order placed for {coin} at ${format_num(final_stop_loss, 4)} (margin-based: ${loss_threshold_usd:.2f} loss limit, {loss_multiplier*100:.1f}% of ${margin_usd:.2f} margin)")
+                        else:
+                            # Fallback to AI's stop loss if quantity is invalid
+                            if stop_loss is not None and stop_loss > 0:
+                                sl_order = self.order_executor.place_stop_loss_order(
+                                    coin=coin,
+                                    direction=direction,
+                                    stop_price=stop_loss,
+                                )
+                                position.setdefault('exchange_orders', {})['stop_loss'] = sl_order.get('orderId')
+                                print(f"✅ Binance STOP_LOSS order placed for {coin} at ${format_num(stop_loss, 4)} (AI provided)")
+                        
+                        # Calculate profit levels for partial profit taking
+                        profit_levels = self.get_profit_levels_by_notional(notional_runtime)
+                        entry_price = avg_price
+                        
+                        # Place partial take profit orders on Binance
+                        # Level 1: %25 profit at level1 gain
+                        if profit_target is not None and profit_target > 0:
+                            # Calculate level prices based on profit levels
+                            if direction == 'long':
+                                level1_price = entry_price * (1 + profit_levels['level1'])
+                                level2_price = entry_price * (1 + profit_levels['level2'])
+                                level3_price = entry_price * (1 + profit_levels['level3'])
+                            else:  # short
+                                level1_price = entry_price * (1 - profit_levels['level1'])
+                                level2_price = entry_price * (1 - profit_levels['level2'])
+                                level3_price = entry_price * (1 - profit_levels['level3'])
+                            
+                            # Place %25 take profit order at level1
+                            tp1_qty = executed_qty * profit_levels['take1']
+                            if tp1_qty > 0:
+                                try:
+                                    tp1_order = self.order_executor.place_take_profit_order(
+                                        coin=coin,
+                                        direction=direction,
+                                        stop_price=level1_price,
+                                        quantity=tp1_qty,
+                                    )
+                                    position.setdefault('exchange_orders', {})['take_profit_25'] = tp1_order.get('orderId')
+                                    print(f"✅ Binance TAKE_PROFIT 25% order placed for {coin} at ${format_num(level1_price, 4)} (qty: {format_num(tp1_qty, 4)})")
+                                except Exception as e:
+                                    print(f"⚠️ Failed to place 25% TP order for {coin}: {e}")
+                            
+                            # Place %25 more take profit order at level2 (total %50)
+                            tp2_qty = executed_qty * (profit_levels['take2'] - profit_levels['take1'])  # Additional 25%
+                            if tp2_qty > 0:
+                                try:
+                                    tp2_order = self.order_executor.place_take_profit_order(
+                                        coin=coin,
+                                        direction=direction,
+                                        stop_price=level2_price,
+                                        quantity=tp2_qty,
+                                    )
+                                    position.setdefault('exchange_orders', {})['take_profit_50'] = tp2_order.get('orderId')
+                                    print(f"✅ Binance TAKE_PROFIT 50% order placed for {coin} at ${format_num(level2_price, 4)} (qty: {format_num(tp2_qty, 4)})")
+                                except Exception as e:
+                                    print(f"⚠️ Failed to place 50% TP order for {coin}: {e}")
+                            
+                            # Place %25 more take profit order at level3 (total %75)
+                            tp3_qty = executed_qty * (profit_levels['take3'] - profit_levels['take2'])  # Additional 25%
+                            if tp3_qty > 0:
+                                try:
+                                    tp3_order = self.order_executor.place_take_profit_order(
+                                        coin=coin,
+                                        direction=direction,
+                                        stop_price=level3_price,
+                                        quantity=tp3_qty,
+                                    )
+                                    position.setdefault('exchange_orders', {})['take_profit_75'] = tp3_order.get('orderId')
+                                    print(f"✅ Binance TAKE_PROFIT 75% order placed for {coin} at ${format_num(level3_price, 4)} (qty: {format_num(tp3_qty, 4)})")
+                                except Exception as e:
+                                    print(f"⚠️ Failed to place 75% TP order for {coin}: {e}")
+                            
+                            # Place main take profit order at profit_target (for remaining 25% or full close)
+                            # Calculate remaining quantity after partial takes
+                            remaining_qty = executed_qty * (1 - profit_levels['take3'])  # Remaining 25%
+                            if remaining_qty > 0:
+                                try:
+                                    tp_order = self.order_executor.place_take_profit_order(
+                                        coin=coin,
+                                        direction=direction,
+                                        stop_price=profit_target,
+                                        quantity=remaining_qty,
+                                    )
+                                    position.setdefault('exchange_orders', {})['take_profit'] = tp_order.get('orderId')
+                                    print(f"✅ Binance TAKE_PROFIT main order placed for {coin} at ${format_num(profit_target, 4)} (qty: {format_num(remaining_qty, 4)})")
+                                except Exception as e:
+                                    print(f"⚠️ Failed to place main TP order for {coin}: {e}")
+                            else:
+                                # If all quantity is already in partial orders, use closePosition for main TP
+                                try:
+                                    tp_order = self.order_executor.place_take_profit_order(
+                                        coin=coin,
+                                        direction=direction,
+                                        stop_price=profit_target,
+                                    )
+                                    position.setdefault('exchange_orders', {})['take_profit'] = tp_order.get('orderId')
+                                    print(f"✅ Binance TAKE_PROFIT main order placed for {coin} at ${format_num(profit_target, 4)} (closePosition)")
+                                except Exception as e:
+                                    print(f"⚠️ Failed to place main TP order for {coin}: {e}")
+                    except Exception as exc:
+                        print(f"⚠️ Failed to place TP/SL orders on Binance for {coin}: {exc}")
+                        # Continue even if TP/SL order placement fails - fallback to 45s monitoring
             return {
                 "success": True,
                 "order": order,
@@ -1011,6 +1192,15 @@ class PortfolioManager:
             return {"success": False, "error": "invalid_quantity"}
 
         try:
+            # Cancel TP/SL orders on Binance before closing position
+            exchange_orders = position.get('exchange_orders', {})
+            if exchange_orders:
+                try:
+                    self.order_executor.cancel_all_orders_for_symbol(coin)
+                    print(f"✅ Cancelled TP/SL orders on Binance for {coin}")
+                except Exception as exc:
+                    print(f"⚠️ Failed to cancel TP/SL orders for {coin}: {exc}")
+            
             order = self.order_executor.close_position(
                 coin=coin,
                 direction=direction,
@@ -1084,6 +1274,7 @@ class PortfolioManager:
             if executed_qty <= 0:
                 return {"success": False, "error": "no_fill"}
             pnl = self._calculate_realized_pnl(position.get("entry_price", 0.0), avg_price, executed_qty, direction)
+            # Sync account balance after partial close to get updated balance
             self.sync_live_account()
             history_entry = {
                 "symbol": coin,
@@ -1165,11 +1356,30 @@ class PortfolioManager:
         safe_file_write(self.history_file, [])
         safe_file_write(self.cycle_history_file, [])
         safe_file_write("performance_history.json", [])
-        safe_file_write("performance_report.json", {
+        # Preserve existing performance reports, just add a reset marker
+        existing_reports = safe_file_read("performance_report.json", [])
+        if isinstance(existing_reports, dict):
+            # Old format - convert to array
+            if "reset_reason" not in existing_reports:
+                existing_reports = [existing_reports]
+            else:
+                existing_reports = []
+        elif not isinstance(existing_reports, list):
+            existing_reports = []
+        
+        # Add reset marker
+        reset_marker = {
             "reset_reason": "periodic_bias_control",
             "reset_at_cycle": cycle_number,
             "timestamp": datetime.now().isoformat()
-        })
+        }
+        existing_reports.append(reset_marker)
+        
+        # Keep only last 50 entries
+        if len(existing_reports) > 50:
+            existing_reports = existing_reports[-50:]
+        
+        safe_file_write("performance_report.json", existing_reports)
         self.portfolio_values_history = [self.total_value]
         for pos in self.positions.values():
             pos['loss_cycle_count'] = 0
@@ -1444,7 +1654,6 @@ class PortfolioManager:
             cycle_data['metadata'] = metadata
         self.cycle_history.append(cycle_data); self.cycle_history = self.cycle_history[-self.max_cycle_history:]
         safe_file_write(self.cycle_history_file, self.cycle_history); print(f"✅ Saved cycle {cycle_number} (Total: {len(self.cycle_history)})")
-
     def update_prices(self, new_prices: Dict[str, float], increment_loss_counters: bool = True):
         """Updates prices and recalculates total value."""
         total_unrealized_pnl = 0.0
@@ -1605,6 +1814,12 @@ class PortfolioManager:
                         self.add_to_history(history_entry)
                     print(f"⚡ PARTIAL CLOSE {coin} ({direction}) [LIVE]: {exit_decision['reason']} ({close_percent*100:.0f}% / PnL ${format_num(live_result.get('pnl', 0), 2)})")
                     state_changed = True
+                    # Sync account balance after partial close in live mode
+                    try:
+                        self.sync_live_account()
+                        print(f"✅ Account balance synced after partial close of {coin}")
+                    except Exception as sync_exc:
+                        print(f"⚠️ Failed to sync account after partial close: {sync_exc}")
                     continue
 
                 close_quantity = quantity * close_percent
@@ -1636,7 +1851,30 @@ class PortfolioManager:
             elif exit_decision['action'] == 'update_stop':
                 # Update trailing stop - ANINDA GÜNCELLEME
                 updated_stops.append(coin)
-                print(f"📈 TRAILING STOP UPDATE {coin}: New stop at ${format_num(exit_decision['new_stop'], 4)}")
+                new_stop = exit_decision['new_stop']
+                exit_plan['stop_loss'] = new_stop
+                print(f"📈 TRAILING STOP UPDATE {coin}: New stop at ${format_num(new_stop, 4)}")
+                
+                # Update stop loss order on Binance if live trading
+                if hasattr(self, 'bot') and self.bot.is_live_trading and self.bot.order_executor:
+                    try:
+                        # Cancel old stop loss order
+                        exchange_orders = position.get('exchange_orders', {})
+                        if exchange_orders.get('stop_loss'):
+                            self.bot.order_executor.cancel_all_orders_for_symbol(coin)
+                        
+                        # Place new stop loss order
+                        sl_order = self.bot.order_executor.place_stop_loss_order(
+                            coin=coin,
+                            direction=direction,
+                            stop_price=new_stop,
+                        )
+                        position.setdefault('exchange_orders', {})['stop_loss'] = sl_order.get('orderId')
+                        print(f"✅ Binance STOP_LOSS order updated for {coin} at ${format_num(new_stop, 4)}")
+                    except Exception as exc:
+                        print(f"⚠️ Failed to update stop loss order on Binance for {coin}: {exc}")
+                        # Continue - fallback to 45s monitoring
+                
                 state_changed = True
                 continue
             
@@ -1670,6 +1908,12 @@ class PortfolioManager:
                     print(f"   Live Closed PnL: ${format_num(live_result.get('pnl', 0), 2)}")
                     closed_positions.append(coin)
                     state_changed = True
+                    # Sync account balance after closing position in live mode
+                    try:
+                        self.sync_live_account()
+                        print(f"✅ Account balance synced after closing {coin}")
+                    except Exception as sync_exc:
+                        print(f"⚠️ Failed to sync account after close: {sync_exc}")
                     continue
 
                 if direction == 'long': profit = (current_price - entry_price) * quantity
@@ -1742,7 +1986,7 @@ class PortfolioManager:
 
     def get_profit_levels_by_notional(self, notional_usd: float) -> Dict[str, float]:
         """Get dynamic profit levels based on notional size"""
-        if notional_usd < 150:
+        if notional_usd < 200:
             # Small positions: aggressive profit taking
             return {
                 'level1': 0.007,  # %0.7
@@ -1755,9 +1999,9 @@ class PortfolioManager:
         elif notional_usd < 300:
             # Medium positions: balanced profit taking
             return {
-                'level1': 0.007,  # %0.7
-                'level2': 0.009,  # %0.9
-                'level3': 0.011,  # %1.1
+                'level1': 0.006,  # %0.7
+                'level2': 0.008,  # %0.9
+                'level3': 0.010,  # %1.1
                 'take1': 0.25,    # %25 profit al
                 'take2': 0.50,    # %50 profit al
                 'take3': 0.75     # %75 profit al
@@ -1765,9 +2009,9 @@ class PortfolioManager:
         elif notional_usd < 400:
             # Large positions: conservative profit taking
             return {
-                'level1': 0.006,  # %0.6
-                'level2': 0.008,  # %0.8
-                'level3': 0.010,  # %1.0
+                'level1': 0.005,  # %0.6
+                'level2': 0.007,  # %0.8
+                'level3': 0.009,  # %1.0
                 'take1': 0.25,    # %25 profit al
                 'take2': 0.50,    # %50 profit al
                 'take3': 0.75     # %75 profit al
@@ -1785,9 +2029,9 @@ class PortfolioManager:
         elif notional_usd < 600:
             # xxLarge positions: conservative profit taking
             return {
-                'level1': 0.004,  # %0.
-                'level2': 0.006,  # %0.6
-                'level3': 0.008,  # %0.8
+                'level1': 0.003,  # %0.
+                'level2': 0.005,  # %0.6
+                'level3': 0.007,  # %0.8
                 'take1': 0.25,    # %25 profit al
                 'take2': 0.50,    # %50 profit al
                 'take3': 0.75     # %75 profit al
@@ -1795,9 +2039,9 @@ class PortfolioManager:
         else:
             # Very large positions: very conservative profit taking
             return {
-                'level1': 0.003,  # %0.3
-                'level2': 0.005,  # %0.5
-                'level3': 0.007,  # %0.7
+                'level1': 0.002,  # %0.3
+                'level2': 0.004,  # %0.5
+                'level3': 0.006,  # %0.7
                 'take1': 0.25,    # %25 profit al
                 'take2': 0.50,    # %50 profit al
                 'take3': 0.75     # %75 profit al
@@ -1838,15 +2082,15 @@ class PortfolioManager:
             return {"action": "close_position", "reason": reason}
         
         # --- KADEMELİ LOSS CUTTING MEKANİZMASI (Margin tabanlı) ---
-        loss_multiplier = 0.05
+        loss_multiplier = 0.03  # Default: %3 for margin >= 50
         if margin_used < 30:
-            loss_multiplier = 0.08
+            loss_multiplier = 0.07  # %7 for margin < 30
         elif margin_used < 40:
-            loss_multiplier = 0.07
+            loss_multiplier = 0.05  # %5 for margin 30-40
         elif margin_used < 50:
-            loss_multiplier = 0.06
+            loss_multiplier = 0.05  # %5 for margin 40-50
         else:
-            loss_multiplier = 0.05
+            loss_multiplier = 0.03  # %3 for margin >= 50
 
         loss_threshold_usd = margin_used * loss_multiplier
         
@@ -2873,10 +3117,7 @@ class PortfolioManager:
                                 if relaxed_countertrend:
                                     print(f"⚠️ Relaxed mode: counter-trend confidence {confidence:.2f} below {counter_confidence_floor:.2f}, but allowing due to cooldown.")
                                 else:
-                                    print(f"🚫 Counter-trend confidence floor: {coin} {signal} confidence {confidence:.2f} < {counter_confidence_floor:.2f}. Skipping trade.")
-                                    execution_report['blocked'].append({'coin': coin, 'reason': 'counter_trend_floor', 'classification': trend_classification, 'confidence': confidence})
-                                    trade['runtime_decision'] = 'blocked_counter_trend_floor'
-                                    continue
+                                    print(f"⚠️ WARNING: Counter-trend confidence {confidence:.2f} below recommended {counter_confidence_floor:.2f} - proceeding with AI decision")
                             print(f"⚠️ COUNTER-TREND DETECTED: {coin} - respecting AI decision with additional validation")
                             
                             # Perform validation for counter-trend trades only
@@ -2888,11 +3129,7 @@ class PortfolioManager:
                             else:
                                 print(f"⚠️ COUNTER-TRADE WEAK: {validation_result['reason']}")
                                 print(f"   Conditions met: {validation_result.get('conditions_met', [])}")
-                                if signal in ['buy_to_enter', 'sell_to_enter']:
-                                    print(f"🚫 Skipping {coin} {signal} due to insufficient counter-trend confirmation.")
-                                    execution_report['blocked'].append({'coin': coin, 'reason': 'counter_trend_validation', 'classification': trend_classification, 'confidence': confidence})
-                                    trade['runtime_decision'] = 'blocked_counter_trend_validation'
-                                    continue
+                                print(f"⚠️ WARNING: Counter-trend validation shows weak conditions - proceeding with AI decision")
                     else:
                         guard_active = guard_cycles_since_flip is not None and guard_cycles_since_flip <= guard_window
                         if guard_active and last_flip_direction:
@@ -3156,8 +3393,6 @@ class PortfolioManager:
             else: print(f"⚠️ Unknown signal '{signal}' for {coin}. Skipping.")
 
         self.last_execution_report = execution_report
-
-
 # --- Main Bot Class ---
 # format_num is global
 
@@ -3256,22 +3491,25 @@ class AlphaArenaDeepSeek:
             self.invocation_count = 0
 
     def check_trend_alignment(self, coin: str) -> bool:
-        """Check if trends are aligned across multiple timeframes"""
+        """Check if trends are aligned across multiple timeframes (1h + 15m + 3m)"""
         try:
             indicators_htf = self.market_data.get_technical_indicators(coin, HTF_INTERVAL)
+            indicators_15m = self.market_data.get_technical_indicators(coin, '15m')
             indicators_3m = self.market_data.get_technical_indicators(coin, '3m')
             
-            if 'error' in indicators_htf or 'error' in indicators_3m:
+            if 'error' in indicators_htf or 'error' in indicators_15m or 'error' in indicators_3m:
                 return False
             
             price_htf = indicators_htf.get('current_price')
             ema20_htf = indicators_htf.get('ema_20')
+            price_15m = indicators_15m.get('current_price')
+            ema20_15m = indicators_15m.get('ema_20')
             price_3m = indicators_3m.get('current_price')
             ema20_3m = indicators_3m.get('ema_20')
             
-            # Trend alignment: Both timeframes in same direction
-            trend_aligned = (price_htf > ema20_htf and price_3m > ema20_3m) or \
-                           (price_htf < ema20_htf and price_3m < ema20_3m)
+            # Trend alignment: All three timeframes in same direction (strongest signal)
+            trend_aligned = (price_htf > ema20_htf and price_15m > ema20_15m and price_3m > ema20_3m) or \
+                           (price_htf < ema20_htf and price_15m < ema20_15m and price_3m < ema20_3m)
             
             return trend_aligned
             
@@ -3280,22 +3518,25 @@ class AlphaArenaDeepSeek:
             return False
 
     def check_momentum_alignment(self, coin: str) -> bool:
-        """Check if momentum indicators are aligned across timeframes"""
+        """Check if momentum indicators are aligned across timeframes (1h + 15m + 3m)"""
         try:
             indicators_htf = self.market_data.get_technical_indicators(coin, HTF_INTERVAL)
+            indicators_15m = self.market_data.get_technical_indicators(coin, '15m')
             indicators_3m = self.market_data.get_technical_indicators(coin, '3m')
             
-            if 'error' in indicators_htf or 'error' in indicators_3m:
+            if 'error' in indicators_htf or 'error' in indicators_15m or 'error' in indicators_3m:
                 return False
             
             rsi_3m = indicators_3m.get('rsi_14', 50)
+            rsi_15m = indicators_15m.get('rsi_14', 50)
             rsi_htf = indicators_htf.get('rsi_14', 50)
             macd_3m = indicators_3m.get('macd', 0)
+            macd_15m = indicators_15m.get('macd', 0)
             macd_htf = indicators_htf.get('macd', 0)
             
-            # Momentum alignment: Both timeframes showing same momentum direction
-            momentum_aligned = (rsi_3m > 50 and rsi_htf > 50 and macd_3m > 0 and macd_htf > 0) or \
-                              (rsi_3m < 50 and rsi_htf < 50 and macd_3m < 0 and macd_htf < 0)
+            # Momentum alignment: All three timeframes showing same momentum direction (strongest signal)
+            momentum_aligned = (rsi_3m > 50 and rsi_15m > 50 and rsi_htf > 50 and macd_3m > 0 and macd_15m > 0 and macd_htf > 0) or \
+                              (rsi_3m < 50 and rsi_15m < 50 and rsi_htf < 50 and macd_3m < 0 and macd_15m < 0 and macd_htf < 0)
             
             return momentum_aligned
             
@@ -3307,14 +3548,17 @@ class AlphaArenaDeepSeek:
         """Enhanced trend detection with simple trend strength and counter-trade detection"""
         try:
             indicators_htf = self.market_data.get_technical_indicators(coin, HTF_INTERVAL)
+            indicators_15m = self.market_data.get_technical_indicators(coin, '15m')
             indicators_3m = self.market_data.get_technical_indicators(coin, '3m')
             
-            if 'error' in indicators_htf or 'error' in indicators_3m:
+            if 'error' in indicators_htf or 'error' in indicators_15m or 'error' in indicators_3m:
                 return {'trend_strength': 0, 'trend_direction': 'NEUTRAL', 'ema_comparison': 'N/A', 'volume_confidence': 0.0}
             
             price_htf = indicators_htf.get('current_price')
             ema20_htf = indicators_htf.get('ema_20')
             ema50_htf = indicators_htf.get('ema_50')
+            price_15m = indicators_15m.get('current_price')
+            ema20_15m = indicators_15m.get('ema_20')
             price_3m = indicators_3m.get('current_price')
             ema20_3m = indicators_3m.get('ema_20')
             
@@ -3341,10 +3585,21 @@ class AlphaArenaDeepSeek:
                 trend_strength += 1  # Weak bearish (EMA20 < EMA50 but price > EMA20)
                 trend_direction = 'WEAK_BEARISH'
             
-            # 3m trend alignment
-            if (price_htf > ema20_htf and price_3m > ema20_3m) or \
-               (price_htf < ema20_htf and price_3m < ema20_3m):
-                trend_strength += 1  # Multi-timeframe alignment bonus
+            # Multi-timeframe alignment bonus (1h + 15m + 3m)
+            alignment_count = 0
+            if price_htf > ema20_htf and price_15m > ema20_15m and price_3m > ema20_3m:
+                alignment_count = 3
+            elif price_htf < ema20_htf and price_15m < ema20_15m and price_3m < ema20_3m:
+                alignment_count = 3
+            elif (price_htf > ema20_htf and price_15m > ema20_15m) or (price_htf > ema20_htf and price_3m > ema20_3m) or (price_15m > ema20_15m and price_3m > ema20_3m):
+                alignment_count = 2
+            elif (price_htf < ema20_htf and price_15m < ema20_15m) or (price_htf < ema20_htf and price_3m < ema20_3m) or (price_15m < ema20_15m and price_3m < ema20_3m):
+                alignment_count = 2
+            
+            if alignment_count >= 3:
+                trend_strength += 2  # Strong multi-timeframe alignment (all 3 timeframes)
+            elif alignment_count == 2:
+                trend_strength += 1  # Medium multi-timeframe alignment (2 of 3 timeframes)
             
             # Volume Confirmation (Nof1AI Blog Style)
             volume_confidence = self.calculate_volume_confidence(coin)
@@ -3930,7 +4185,6 @@ class AlphaArenaDeepSeek:
         except Exception as e:
             print(f"⚠️ Regime detection error for {coin}: {e}")
             return "UNCLEAR"
-
     def get_trading_context(self) -> Dict[str, Any]:
         """Get historical context from recent cycles - Enhanced with 5 cycle analysis"""
         try:
@@ -4488,10 +4742,12 @@ REMEMBER: These are suggestions only. You make the final trading decisions based
         for coin in self.market_data.available_coins:
             prompt += f"\n{'='*20} ALL {coin} DATA {'='*20}\n"
             indicators_3m = self.market_data.get_technical_indicators(coin, '3m')
+            indicators_15m = self.market_data.get_technical_indicators(coin, '15m')
             indicators_htf = self.market_data.get_technical_indicators(coin, HTF_INTERVAL)
             sentiment = self.market_data.get_market_sentiment(coin)
             self.latest_indicator_cache[coin] = {
                 '3m': copy.deepcopy(indicators_3m),
+                '15m': copy.deepcopy(indicators_15m),
                 HTF_INTERVAL: copy.deepcopy(indicators_htf)
             }
             
@@ -4527,6 +4783,7 @@ REMEMBER: These are suggestions only. You make the final trading decisions based
             # --- End inner function ---
 
             prompt += "--- Intraday series (3‑minute intervals) ---\n"; prompt += format_indicators(indicators_3m)
+            prompt += "\n--- Medium-term context (15‑minute intervals) ---\n"; prompt += format_indicators(indicators_15m)
             prompt += f"\n--- Longer‑term context ({HTF_LABEL} timeframe) ---\n"; prompt += format_indicators(indicators_htf)
 
             # --- Add current position details if open ---
@@ -4537,6 +4794,127 @@ REMEMBER: These are suggestions only. You make the final trading decisions based
                 prompt += f"  Current Price: ${format_num(position.get('current_price', 0))}\n"; prompt += f"  Liquidation Price (Est.): ${format_num(position.get('liquidation_price', 0))}\n"
                 prompt += f"  Unrealized PnL: ${format_num(position.get('unrealized_pnl', 0), 2)}\n"; prompt += f"  Leverage: {position.get('leverage', 1)}x\n"
                 prompt += f"  Notional Value: ${format_num(position.get('notional_usd', 0), 2)}\n"
+                
+                # Calculate position duration
+                entry_time_str = position.get('entry_time')
+                position_duration_minutes = None
+                position_duration_hours = None
+                if entry_time_str:
+                    try:
+                        entry_dt = datetime.fromisoformat(entry_time_str)
+                        position_duration_minutes = max(0, int((datetime.now() - entry_dt).total_seconds() // 60))
+                        position_duration_hours = position_duration_minutes / 60.0
+                    except Exception:
+                        pass
+                
+                if position_duration_minutes is not None:
+                    if position_duration_hours >= 1:
+                        prompt += f"  Position Duration: {position_duration_hours:.1f} hours ({position_duration_minutes} minutes)\n"
+                    else:
+                        prompt += f"  Position Duration: {position_duration_minutes} minutes\n"
+                
+                # Get current trend state
+                trend_info = self.portfolio.update_trend_state(coin, indicators_htf, indicators_3m)
+                current_trend = trend_info.get('trend', 'unknown')
+                trend_direction = position.get('direction', 'long').lower()
+                
+                # Determine 3m momentum
+                price_3m = indicators_3m.get('current_price')
+                ema20_3m = indicators_3m.get('ema_20')
+                rsi_3m = indicators_3m.get('rsi_14', indicators_3m.get('rsi_7', 50))
+                momentum_3m = 'unknown'
+                if isinstance(price_3m, (int, float)) and isinstance(ema20_3m, (int, float)) and ema20_3m > 0:
+                    if price_3m > ema20_3m:
+                        momentum_3m = 'bullish'
+                    elif price_3m < ema20_3m:
+                        momentum_3m = 'bearish'
+                
+                # Determine 15m momentum
+                price_15m = indicators_15m.get('current_price')
+                ema20_15m = indicators_15m.get('ema_20')
+                rsi_15m = indicators_15m.get('rsi_14', indicators_15m.get('rsi_7', 50))
+                momentum_15m = 'unknown'
+                if isinstance(price_15m, (int, float)) and isinstance(ema20_15m, (int, float)) and ema20_15m > 0:
+                    if price_15m > ema20_15m:
+                        momentum_15m = 'bullish'
+                    elif price_15m < ema20_15m:
+                        momentum_15m = 'bearish'
+                
+                # Check for potential trend reversal using HTF trend, 15m momentum, and 3m momentum
+                trend_reversal_warning = ""
+                reversal_signals = []
+                
+                # HTF trend reversal check
+                if current_trend == 'bullish' and trend_direction == 'short':
+                    reversal_signals.append(f"{HTF_LABEL} trend flipped to BULLISH")
+                elif current_trend == 'bearish' and trend_direction == 'long':
+                    reversal_signals.append(f"{HTF_LABEL} trend flipped to BEARISH")
+                
+                # 15m momentum reversal check (medium-term confirmation)
+                if momentum_15m == 'bullish' and trend_direction == 'short':
+                    reversal_signals.append("15m momentum turned BULLISH")
+                elif momentum_15m == 'bearish' and trend_direction == 'long':
+                    reversal_signals.append("15m momentum turned BEARISH")
+                
+                # 3m momentum reversal check (more sensitive, earlier signal)
+                if momentum_3m == 'bullish' and trend_direction == 'short':
+                    reversal_signals.append("3m momentum turned BULLISH")
+                elif momentum_3m == 'bearish' and trend_direction == 'long':
+                    reversal_signals.append("3m momentum turned BEARISH")
+                
+                # Generate warning based on signal strength
+                if reversal_signals:
+                    # Count signals: HTF=strong, 15m=medium, 3m=early
+                    htf_signal = any(f"{HTF_LABEL}" in s for s in reversal_signals)
+                    signal_15m = any("15m" in s for s in reversal_signals)
+                    signal_3m = any("3m" in s for s in reversal_signals)
+                    
+                    if htf_signal and signal_15m and signal_3m:
+                        signal_strength = "VERY STRONG"
+                    elif htf_signal and (signal_15m or signal_3m):
+                        signal_strength = "STRONG"
+                    elif signal_15m and signal_3m:
+                        signal_strength = "MEDIUM"
+                    else:
+                        signal_strength = "INFORMATIONAL"
+                    
+                    signals_text = " & ".join(reversal_signals)
+                    
+                    if trend_direction == 'short':
+                        trend_reversal_warning = f"ℹ️ {signal_strength} REVERSAL SIGNAL ({signals_text}): You have a SHORT position but momentum is showing bullish signs. "
+                        if signal_strength in ["VERY STRONG", "STRONG"]:
+                            trend_reversal_warning += f"Multiple timeframes ({HTF_LABEL}, 15m, 3m) show reversal potential - evaluate your exit plan and consider if the position thesis is still valid."
+                        elif signal_strength == "MEDIUM":
+                            trend_reversal_warning += "15m and 3m momentum show bullish signs - this is medium-strength context. Continue monitoring but prioritize {HTF_LABEL} trend confirmation."
+                        else:
+                            trend_reversal_warning += "Short-term momentum shows bullish signs - this is informational context. Continue monitoring but prioritize {HTF_LABEL} trend confirmation before making exit decisions."
+                    else:  # long position
+                        trend_reversal_warning = f"ℹ️ {signal_strength} REVERSAL SIGNAL ({signals_text}): You have a LONG position but momentum is showing bearish signs. "
+                        if signal_strength in ["VERY STRONG", "STRONG"]:
+                            trend_reversal_warning += f"Multiple timeframes ({HTF_LABEL}, 15m, 3m) show reversal potential - evaluate your exit plan and consider if the position thesis is still valid."
+                        elif signal_strength == "MEDIUM":
+                            trend_reversal_warning += "15m and 3m momentum show bearish signs - this is medium-strength context. Continue monitoring but prioritize {HTF_LABEL} trend confirmation."
+                        else:
+                            trend_reversal_warning += "Short-term momentum shows bearish signs - this is informational context. Continue monitoring but prioritize {HTF_LABEL} trend confirmation before making exit decisions."
+                
+                # Extended position duration warning
+                if position_duration_hours is not None and position_duration_hours >= 4:
+                    if trend_reversal_warning:
+                        trend_reversal_warning += f"\n  ℹ️ POSITION DURATION: This {trend_direction.upper()} position has been open for {position_duration_hours:.1f} hours. Review your exit plan and ensure it's still aligned with current market conditions."
+                    else:
+                        trend_reversal_warning = f"ℹ️ POSITION DURATION: This {trend_direction.upper()} position has been open for {position_duration_hours:.1f} hours. This is informational - ensure your exit plan remains valid."
+                
+                if trend_reversal_warning:
+                    prompt += f"\n  {trend_reversal_warning}\n"
+                
+                prompt += f"  Current {HTF_LABEL} Trend: {current_trend.upper()}\n"
+                prompt += f"  Current 15m Momentum: {momentum_15m.upper()}\n"
+                prompt += f"  Current 3m Momentum: {momentum_3m.upper()}\n"
+                if isinstance(rsi_15m, (int, float)):
+                    prompt += f"  15m RSI: {rsi_15m:.1f}\n"
+                if isinstance(rsi_3m, (int, float)):
+                    prompt += f"  3m RSI: {rsi_3m:.1f}\n"
+                
                 exit_plan = position.get('exit_plan', {}); prompt += f"  YOUR ACTIVE EXIT PLAN:\n"
                 prompt += f"    Profit Target: {exit_plan.get('profit_target', 'N/A')}\n"; prompt += f"    Stop Loss: {exit_plan.get('stop_loss', 'N/A')}\n"
                 prompt += f"    Invalidation: {exit_plan.get('invalidation_condition', 'N/A')}\n"; prompt += f"  Your Confidence: {position.get('confidence', 'N/A')}\n"
@@ -4559,7 +4937,6 @@ REMEMBER: These are suggestions only. You make the final trading decisions based
 
 Market Behavior: {trading_context['market_behavior']}
 Recent Trading Decisions: {json.dumps(trading_context['recent_decisions'], indent=2)}
-
 {'='*20} REAL-TIME RISK STATUS {'='*20}
 
 CURRENT STATUS: {current_positions_count} positions open, ${format_num(total_margin_used, 2)} margin used
@@ -4775,6 +5152,16 @@ Current live positions & performance:"""
     def run_trading_cycle(self, cycle_number: int):
         """Run a single trading cycle with auto TP/SL and enhanced features"""
         print(f"\n{'='*80}\n🔄 TRADING CYCLE {cycle_number} | ⏰ {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n{'='*80}")
+        
+        # Check bot control at cycle start
+        control = self._read_bot_control()
+        if control.get("status") == "paused":
+            print(f"⏸️ Cycle {cycle_number} SKIPPED - Bot is PAUSED")
+            return
+        elif control.get("status") == "stopped":
+            print(f"🛑 Cycle {cycle_number} STOPPED - Bot STOP command received")
+            return
+        
         self.current_cycle_number = cycle_number
         self.portfolio.current_cycle_number = cycle_number
         if hasattr(self.portfolio, 'tick_cooldowns'):
@@ -4808,6 +5195,18 @@ Current live positions & performance:"""
             valid_prices = {k: v for k, v in real_prices.items() if isinstance(v, (int, float)) and v > 0}
             cycle_timing['market_data_ms'] = round((time.perf_counter() - md_start) * 1000, 2)
             if not valid_prices: raise ValueError("No valid market prices received.")
+            
+            # Check bot control before live account sync (can be slow)
+            control = self._read_bot_control()
+            if control.get("status") == "paused":
+                print(f"⏸️ Cycle {cycle_number} PAUSED before account sync - stopping cycle")
+                self.cycle_active = False
+                return
+            elif control.get("status") == "stopped":
+                print(f"🛑 Cycle {cycle_number} STOPPED - Bot STOP command received")
+                self.cycle_active = False
+                return
+            
             if self.portfolio.is_live_trading:
                 self.portfolio.sync_live_account()
             self.portfolio.update_prices(valid_prices, increment_loss_counters=True) # Update PnL before checking TP/SL
@@ -4827,14 +5226,48 @@ Current live positions & performance:"""
             else:
                 if auto_exit_triggered:
                     print("ℹ️ Auto TP/SL/extended exit triggered earlier this cycle — proceeding with AI analysis.")
+                # Check bot control before AI call (can be slow in live mode)
+                control = self._read_bot_control()
+                if control.get("status") == "paused":
+                    print(f"⏸️ Cycle {cycle_number} PAUSED before AI call - stopping cycle")
+                    self.cycle_active = False
+                    return
+                elif control.get("status") == "stopped":
+                    print(f"🛑 Cycle {cycle_number} STOPPED - Bot STOP command received")
+                    self.cycle_active = False
+                    return
+                
                 ai_timer_start = time.perf_counter()
                 print("\n🤖 GENERATING PROMPT...")
                 self.invocation_count += 1 # Increment AI call count
                 prompt = self.generate_alpha_arena_prompt()
                 print("📋 USER PROMPT (summary): " + prompt[:200] + "...")
 
+                # Check bot control before AI API call (can be slow in live mode)
+                control = self._read_bot_control()
+                if control.get("status") == "paused":
+                    print(f"⏸️ Cycle {cycle_number} PAUSED before AI API call - stopping cycle")
+                    self.cycle_active = False
+                    return
+                elif control.get("status") == "stopped":
+                    print(f"🛑 Cycle {cycle_number} STOPPED - Bot STOP command received")
+                    self.cycle_active = False
+                    return
+
                 print("\n💭 DEEPSEEK ANALYZING...")
                 ai_response = self.deepseek.get_ai_decision(prompt)
+                
+                # Check bot control after AI API call (may have taken time in live mode)
+                control = self._read_bot_control()
+                if control.get("status") == "paused":
+                    print(f"⏸️ Cycle {cycle_number} PAUSED after AI call - stopping cycle")
+                    self.cycle_active = False
+                    return
+                elif control.get("status") == "stopped":
+                    print(f"🛑 Cycle {cycle_number} STOPPED - Bot STOP command received")
+                    self.cycle_active = False
+                    return
+                
                 parsed_response = self.parse_ai_response(ai_response)
                 thoughts = parsed_response.get("chain_of_thoughts", "Parse Error.")
                 decisions = parsed_response.get("decisions", {})
@@ -4874,6 +5307,17 @@ Current live positions & performance:"""
             # Execute AI decisions only if it's a valid dict and NOT empty AND no manual override was active
             execution_elapsed = None
             if isinstance(decisions, dict) and decisions and not manual_override:
+                # Check bot control before execution (live mode can be slow)
+                control = self._read_bot_control()
+                if control.get("status") == "paused":
+                    print(f"⏸️ Cycle {cycle_number} PAUSED before execution - stopping cycle")
+                    self.cycle_active = False
+                    return
+                elif control.get("status") == "stopped":
+                    print(f"🛑 Cycle {cycle_number} STOPPED - Bot STOP command received")
+                    self.cycle_active = False
+                    return
+                
                 exec_start = time.perf_counter()
                 # AI ÖNCELİKLİ SİSTEM: "close_position" sinyali varsa tüm pozisyon kapatılır
                 has_close_position_signal = any(
@@ -5073,6 +5517,16 @@ Current live positions & performance:"""
         finally:
             self.cycle_active = False
             self.enhanced_exit_enabled = True
+            # Check bot control after exception - if paused/stopped, don't continue
+            try:
+                control = self._read_bot_control()
+                if control.get("status") == "stopped":
+                    print(f"🛑 Cycle {cycle_number} exception handler: Bot STOP command received")
+                    raise SystemExit("Bot stopped by user command")
+            except SystemExit:
+                raise
+            except Exception as control_e:
+                print(f"⚠️ Failed to check bot control after exception: {control_e}")
 
     def show_status(self):
         """Show current status in the console"""
@@ -5116,15 +5570,45 @@ Current live positions & performance:"""
         print("🔄 TP/SL monitoring loop started (45 second interval)")
         while self.is_running:
             try:
+                # Check bot control file for pause/stop command
+                control = self._read_bot_control()
+                if control.get("status") == "stopped":
+                    print("🛑 TP/SL monitoring: STOP command received. Stopping monitoring loop...")
+                    self.is_running = False
+                    break
+                elif control.get("status") == "paused":
+                    print("⏸️ TP/SL monitoring: Bot is PAUSED. Waiting for resume...")
+                    # Wait in smaller intervals to check for resume
+                    while True:
+                        time.sleep(10)
+                        control = self._read_bot_control()
+                        if control.get("status") == "running":
+                            print("▶️ TP/SL monitoring: Bot RESUMED. Continuing monitoring...")
+                            break
+                        elif control.get("status") == "stopped":
+                            print("🛑 TP/SL monitoring: STOP command received. Stopping monitoring loop...")
+                            self.is_running = False
+                            break
+                    if control.get("status") == "stopped":
+                        break
+                    continue
+                
                 # Enhanced exit strategy control - check if enabled
                 if getattr(self, 'cycle_active', False):
                     # Trading cycle active; wait until it completes
                     for _ in range(5):
                         if not self.is_running:
                             break
+                        # Check bot control during wait
+                        control = self._read_bot_control()
+                        if control.get("status") == "stopped":
+                            self.is_running = False
+                            break
                         if not getattr(self, 'cycle_active', False):
                             break
                         time.sleep(1)
+                    if control.get("status") == "stopped":
+                        break
                     continue
 
                 if not self.enhanced_exit_enabled:
@@ -5133,7 +5617,14 @@ Current live positions & performance:"""
                     for _ in range(10):
                         if not self.is_running:
                             break
+                        # Check bot control during wait
+                        control = self._read_bot_control()
+                        if control.get("status") == "stopped":
+                            self.is_running = False
+                            break
                         time.sleep(1)
+                    if control.get("status") == "stopped":
+                        break
                     continue
                 
                 # Get current prices
@@ -5144,24 +5635,49 @@ Current live positions & performance:"""
                     # Update portfolio prices
                     self.portfolio.update_prices(valid_prices, increment_loss_counters=False)
                     
-                    # Check and execute TP/SL with enhanced exit strategy
-                    positions_closed = self.portfolio.check_and_execute_tp_sl(valid_prices)
+                    # Check if positions have Binance TP/SL orders
+                    positions_with_binance_orders = 0
+                    for coin, position in self.portfolio.positions.items():
+                        exchange_orders = position.get('exchange_orders', {})
+                        if exchange_orders.get('stop_loss') or exchange_orders.get('take_profit'):
+                            positions_with_binance_orders += 1
                     
-                    if positions_closed:
-                        print(f"⏰ 45-SECOND TP/SL CHECK: Positions closed")
+                    # Only run TP/SL check if positions don't have Binance orders (fallback)
+                    if positions_with_binance_orders < len(self.portfolio.positions):
+                        # Check and execute TP/SL with enhanced exit strategy (fallback for positions without Binance orders)
+                        positions_closed = self.portfolio.check_and_execute_tp_sl(valid_prices)
+                        
+                        if positions_closed:
+                            print(f"⏰ 45-SECOND TP/SL CHECK (FALLBACK): Positions closed")
+                        else:
+                            print(f"⏰ 45-SECOND TP/SL CHECK (FALLBACK): No triggers ({positions_with_binance_orders}/{len(self.portfolio.positions)} positions have Binance TP/SL)")
                     else:
-                        print(f"⏰ 45-SECOND TP/SL CHECK: No triggers")
+                        print(f"⏰ 45-SECOND TP/SL CHECK: All positions have Binance TP/SL orders - skipping manual check")
                 else:
                     print("⚠️ TP/SL monitoring: No valid prices available")
                 
+                # Check bot control before sleep
+                control = self._read_bot_control()
+                if control.get("status") == "stopped":
+                    print("🛑 TP/SL monitoring: STOP command received. Stopping monitoring loop...")
+                    self.is_running = False
+                    break
+                
             except Exception as e:
                 print(f"❌ TP/SL monitoring error: {e}")
+                # Check bot control after exception
+                try:
+                    control = self._read_bot_control()
+                    if control.get("status") == "stopped":
+                        print("🛑 TP/SL monitoring: STOP command received after exception")
+                        self.is_running = False
+                        break
+                except Exception as control_e:
+                    print(f"⚠️ Failed to check bot control after TP/SL exception: {control_e}")
             
             # Wait 45 seconds before next check
-            for _ in range(45):
-                if not self.is_running:
-                    break
-                time.sleep(1)
+            if self.is_running:
+                time.sleep(45)
 
     def run_simulation(self, total_duration_hours: int = 168, cycle_interval_minutes: int = 2):
         """Run the simulation with dynamic cycle frequency and TP/SL monitoring"""
@@ -5183,8 +5699,33 @@ Current live positions & performance:"""
         print(f"   Resuming from Cycle {start_cycle}...")
         self.invocation_count = start_cycle - 1; current_cycle_number = start_cycle - 1
 
+        # Initialize bot control file
+        bot_control_file = "bot_control.json"
+        self._write_bot_control({"status": "running", "last_updated": datetime.now().isoformat()})
+        
         try:
             while datetime.now() < end_time:
+                # Check bot control file for pause/stop command BEFORE starting cycle
+                control = self._read_bot_control()
+                if control.get("status") == "paused":
+                    print(f"⏸️ Bot is PAUSED. Waiting for resume command... (checking every 10 seconds)")
+                    # Wait in smaller intervals to check for resume
+                    while True:
+                        time.sleep(10)
+                        control = self._read_bot_control()
+                        if control.get("status") == "running":
+                            print(f"▶️ Bot RESUMED. Continuing trading cycles...")
+                            break
+                        elif control.get("status") == "stopped":
+                            print(f"🛑 Bot STOP command received. Stopping gracefully...")
+                            break
+                    if control.get("status") == "stopped":
+                        break
+                    continue
+                elif control.get("status") == "stopped":
+                    print(f"🛑 Bot STOP command received. Stopping gracefully...")
+                    break
+                
                 current_cycle_number += 1; cycle_start_time = time.time()
                 
                 # Calculate dynamic cycle frequency
@@ -5197,6 +5738,27 @@ Current live positions & performance:"""
                 sleep_time = max(0, dynamic_cycle_interval - elapsed_time)
                 print(f"\n⏳ Cycle {current_cycle_number} complete in {format_num(elapsed_time,2)}s. Next cycle in {format_num(sleep_time/60, 2)} mins... (Ctrl+C to stop)")
                 time.sleep(max(sleep_time, 0.5))
+                
+                # Check bot control file AFTER sleep (before next cycle)
+                control = self._read_bot_control()
+                if control.get("status") == "paused":
+                    print(f"⏸️ Bot is PAUSED. Waiting for resume command... (checking every 10 seconds)")
+                    # Wait in smaller intervals to check for resume
+                    while True:
+                        time.sleep(10)
+                        control = self._read_bot_control()
+                        if control.get("status") == "running":
+                            print(f"▶️ Bot RESUMED. Continuing trading cycles...")
+                            break
+                        elif control.get("status") == "stopped":
+                            print(f"🛑 Bot STOP command received. Stopping gracefully...")
+                            break
+                    if control.get("status") == "stopped":
+                        break
+                    continue
+                elif control.get("status") == "stopped":
+                    print(f"🛑 Bot STOP command received. Stopping gracefully...")
+                    break
 
         except KeyboardInterrupt:
             print("\n⏹️ Program stopped by user.")
@@ -5247,6 +5809,19 @@ Current live positions & performance:"""
 
     def count_positions_by_direction(self) -> Dict[str, int]:
         return self.portfolio.count_positions_by_direction()
+    
+    def _read_bot_control(self) -> Dict[str, Any]:
+        """Read bot control file to check for pause/stop commands."""
+        try:
+            return safe_file_read("bot_control.json", {"status": "running", "last_updated": datetime.now().isoformat()})
+        except Exception as e:
+            print(f"⚠️ Failed to read bot_control.json: {e}")
+            # Return default running state if file read fails (fail-safe)
+            return {"status": "running", "last_updated": datetime.now().isoformat()}
+    
+    def _write_bot_control(self, data: Dict[str, Any]):
+        """Write bot control file."""
+        safe_file_write("bot_control.json", data)
 
     def apply_directional_bias(self, signal: str, confidence: float, bias_metrics: Dict[str, Dict[str, Any]], current_trend: str) -> float:
         return self.portfolio.apply_directional_bias(signal, confidence, bias_metrics, current_trend)

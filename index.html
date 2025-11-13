@@ -79,9 +79,17 @@
         <!-- Header -->
         <div class="flex flex-wrap justify-between items-center gap-4 mb-6">
             <h1 class="text-2xl sm:text-3xl font-bold text-main">DeepSeek Bot Admin Panel</h1>
+            <div class="flex items-center space-x-4">
             <div id="statusIndicator" class="flex items-center space-x-2">
                 <span class="status-dot status-down"></span>
                 <span class="text-sm font-medium text-secondary">DISCONNECTED</span>
+                </div>
+                <div class="flex items-center space-x-2">
+                    <button id="botControlBtn" onclick="toggleBotControl()" class="px-4 py-2 rounded font-medium text-sm transition-colors bg-indigo-600 hover:bg-indigo-700 text-white">
+                        <span id="botControlText">⏸️ PAUSE</span>
+                    </button>
+                    <span id="botStatusText" class="text-xs text-secondary">Checking...</span>
+                </div>
             </div>
         </div>
 
@@ -956,11 +964,122 @@
             }
         }
 
+        // --- Bot Control Functions ---
+        let botControlInterval;
+        
+        async function checkBotStatus() {
+            try {
+                const response = await fetch('/api/bot-control?t=' + Date.now());
+                if (response.ok) {
+                    const control = await response.json();
+                    updateBotControlUI(control.status || 'unknown');
+                }
+            } catch (error) {
+                console.error('Error checking bot status:', error);
+                updateBotControlUI('unknown');
+            }
+        }
+        
+        function updateBotControlUI(status) {
+            const btn = document.getElementById('botControlBtn');
+            const btnText = document.getElementById('botControlText');
+            const statusText = document.getElementById('botStatusText');
+            
+            if (status === 'running') {
+                btn.className = 'px-4 py-2 rounded font-medium text-sm transition-colors bg-yellow-600 hover:bg-yellow-700 text-white';
+                btnText.textContent = '⏸️ PAUSE';
+                statusText.textContent = 'Running';
+                statusText.className = 'text-xs text-positive';
+            } else if (status === 'paused') {
+                btn.className = 'px-4 py-2 rounded font-medium text-sm transition-colors bg-green-600 hover:bg-green-700 text-white';
+                btnText.textContent = '▶️ RESUME';
+                statusText.textContent = 'Paused';
+                statusText.className = 'text-xs text-yellow-500';
+            } else if (status === 'stopped') {
+                btn.className = 'px-4 py-2 rounded font-medium text-sm transition-colors bg-green-600 hover:bg-green-700 text-white';
+                btnText.textContent = '▶️ START';
+                statusText.textContent = 'Stopped';
+                statusText.className = 'text-xs text-negative';
+            } else {
+                btn.className = 'px-4 py-2 rounded font-medium text-sm transition-colors bg-gray-600 hover:bg-gray-700 text-white';
+                btnText.textContent = '❓ UNKNOWN';
+                statusText.textContent = 'Unknown';
+                statusText.className = 'text-xs text-secondary';
+            }
+        }
+        
+        async function toggleBotControl() {
+            const btn = document.getElementById('botControlBtn');
+            const btnText = document.getElementById('botControlText');
+            const originalText = btnText.textContent;
+            
+            try {
+                btn.disabled = true;
+                btnText.textContent = '⏳ Processing...';
+                
+                // Determine action based on current status
+                const statusResponse = await fetch('/api/bot-control?t=' + Date.now());
+                let currentStatus = 'unknown';
+                if (statusResponse.ok) {
+                    const control = await statusResponse.json();
+                    currentStatus = control.status || 'unknown';
+                }
+                
+                let action;
+                if (currentStatus === 'running') {
+                    action = 'pause';
+                } else if (currentStatus === 'paused' || currentStatus === 'stopped') {
+                    action = 'resume';
+                } else {
+                    action = 'resume'; // Default to resume if unknown
+                }
+                
+                const response = await fetch('/api/bot-control', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ action: action })
+                });
+                
+                // Read response body once
+                const responseText = await response.text();
+                let result;
+                try {
+                    result = JSON.parse(responseText);
+                } catch (e) {
+                    // If not JSON, use text as error message
+                    throw new Error(responseText || `HTTP ${response.status}: Failed to send bot control command`);
+                }
+                
+                if (!response.ok) {
+                    throw new Error(result.message || `HTTP ${response.status}: Failed to send bot control command`);
+                }
+                
+                if (result.status === 'success') {
+                    updateBotControlUI(result.bot_status);
+                    alert(`✅ Bot ${action} command sent successfully!`);
+                } else {
+                    throw new Error(result.message || 'Unknown error');
+                }
+            } catch (error) {
+                console.error('Bot control error:', error);
+                alert(`❌ Failed to control bot: ${error.message}`);
+                btnText.textContent = originalText;
+            } finally {
+                btn.disabled = false;
+                // Refresh status after a short delay
+                setTimeout(checkBotStatus, 1000);
+            }
+        }
+
         // --- Initialization ---
         document.addEventListener('DOMContentLoaded', () => {
             fetchData();
+            checkBotStatus(); // Check bot status on load
             if (fetchInterval) clearInterval(fetchInterval);
             fetchInterval = setInterval(fetchData, FETCH_INTERVAL_MS);
+            // Check bot status every 5 seconds
+            if (botControlInterval) clearInterval(botControlInterval);
+            botControlInterval = setInterval(checkBotStatus, 5000);
         });
 
     </script>

@@ -414,3 +414,126 @@ class BinanceOrderExecutor:
             reduce_only=True,
         )
 
+    def place_take_profit_order(
+        self,
+        coin: str,
+        direction: str,
+        stop_price: float,
+        quantity: Optional[float] = None,
+    ) -> Dict[str, Any]:
+        """
+        Place a TAKE_PROFIT_MARKET order on Binance.
+        
+        Args:
+            coin: Coin symbol (e.g., 'BTC')
+            direction: 'long' or 'short'
+            stop_price: Price at which to trigger the take profit
+            quantity: Optional quantity (if None, uses closePosition=true)
+        
+        Returns:
+            Order response from Binance
+        """
+        if not self.is_live():
+            raise BinanceAPIError("Attempted to place live order while executor disabled.")
+
+        symbol = self.symbol_map[coin]
+        filters = self.symbol_filters.get(symbol)
+        if filters:
+            stop_price = self._round_to_step(stop_price, filters.tick_size)
+
+        # For take profit: long positions trigger when price goes UP, short when price goes DOWN
+        # So for long: stopPrice should be above current price, side should be SELL
+        # For short: stopPrice should be below current price, side should be BUY
+        side = "SELL" if direction == "long" else "BUY"
+
+        payload = {
+            "symbol": symbol,
+            "side": side,
+            "type": "TAKE_PROFIT_MARKET",
+            "stopPrice": stop_price,
+            "newOrderRespType": "RESULT",
+        }
+
+        if quantity is not None:
+            adjusted_qty = self._validate_and_format_quantity(symbol, quantity, stop_price)
+            payload["quantity"] = adjusted_qty
+        else:
+            payload["closePosition"] = "true"
+
+        logger.info(
+            "Placing take profit order %s %s stopPrice=%s quantity=%s",
+            symbol,
+            side,
+            stop_price,
+            quantity if quantity else "closePosition",
+        )
+
+        assert self.client is not None
+        return self.client.place_order(payload)
+
+    def place_stop_loss_order(
+        self,
+        coin: str,
+        direction: str,
+        stop_price: float,
+        quantity: Optional[float] = None,
+    ) -> Dict[str, Any]:
+        """
+        Place a STOP_MARKET order on Binance.
+        
+        Args:
+            coin: Coin symbol (e.g., 'BTC')
+            direction: 'long' or 'short'
+            stop_price: Price at which to trigger the stop loss
+            quantity: Optional quantity (if None, uses closePosition=true)
+        
+        Returns:
+            Order response from Binance
+        """
+        if not self.is_live():
+            raise BinanceAPIError("Attempted to place live order while executor disabled.")
+
+        symbol = self.symbol_map[coin]
+        filters = self.symbol_filters.get(symbol)
+        if filters:
+            stop_price = self._round_to_step(stop_price, filters.tick_size)
+
+        # For stop loss: long positions trigger when price goes DOWN, short when price goes UP
+        # So for long: stopPrice should be below current price, side should be SELL
+        # For short: stopPrice should be above current price, side should be BUY
+        side = "SELL" if direction == "long" else "BUY"
+
+        payload = {
+            "symbol": symbol,
+            "side": side,
+            "type": "STOP_MARKET",
+            "stopPrice": stop_price,
+            "newOrderRespType": "RESULT",
+        }
+
+        if quantity is not None:
+            adjusted_qty = self._validate_and_format_quantity(symbol, quantity, stop_price)
+            payload["quantity"] = adjusted_qty
+        else:
+            payload["closePosition"] = "true"
+
+        logger.info(
+            "Placing stop loss order %s %s stopPrice=%s quantity=%s",
+            symbol,
+            side,
+            stop_price,
+            quantity if quantity else "closePosition",
+        )
+
+        assert self.client is not None
+        return self.client.place_order(payload)
+
+    def cancel_all_orders_for_symbol(self, coin: str) -> Dict[str, Any]:
+        """Cancel all open orders (including TP/SL) for a symbol."""
+        if not self.is_live():
+            raise BinanceAPIError("Attempted to cancel orders while executor disabled.")
+        
+        symbol = self.symbol_map[coin]
+        assert self.client is not None
+        return self.client.cancel_all_orders(symbol)
+

@@ -197,8 +197,34 @@ class PerformanceMonitor:
                 )
             }
             
-            # Save performance report
-            safe_file_write(self.performance_file, performance_report)
+            # Save performance report - append to reports array
+            existing_reports = safe_file_read(self.performance_file, [])
+            
+            # If existing_reports is a dict (old format), convert to array
+            if isinstance(existing_reports, dict):
+                # Check if it's a reset message or old single report
+                if "reset_reason" in existing_reports:
+                    # It's a reset message, start fresh
+                    reports_array = []
+                else:
+                    # It's an old single report, convert to array
+                    reports_array = [existing_reports]
+            elif isinstance(existing_reports, list):
+                # Already an array
+                reports_array = existing_reports
+            else:
+                # Invalid format, start fresh
+                reports_array = []
+            
+            # Add new report to array
+            reports_array.append(performance_report)
+            
+            # Keep only last 50 reports to prevent file from growing too large
+            if len(reports_array) > 50:
+                reports_array = reports_array[-50:]
+            
+            # Save updated reports array
+            safe_file_write(self.performance_file, reports_array)
             
             return performance_report
             

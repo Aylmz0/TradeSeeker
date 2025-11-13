@@ -76,8 +76,22 @@ def get_alerts():
 @app.route('/api/performance')
 def get_performance():
     """Get performance analysis report."""
-    data = safe_file_read('performance_report.json', {})
-    return jsonify(data)
+    reports = safe_file_read('performance_report.json', [])
+    
+    # If it's a dict (old format), return it as is
+    if isinstance(reports, dict):
+        return jsonify(reports)
+    
+    # If it's an array, return the most recent report (last entry that's not a reset marker)
+    if isinstance(reports, list) and len(reports) > 0:
+        # Find the most recent actual report (not a reset marker)
+        for report in reversed(reports):
+            if isinstance(report, dict) and "reset_reason" not in report:
+                return jsonify(report)
+        # If only reset markers, return the last one
+        return jsonify(reports[-1] if reports else {})
+    
+    return jsonify({})
 
 @app.route('/api/performance/refresh', methods=['POST'])
 def refresh_performance():
@@ -136,9 +150,88 @@ def force_close_position():
         logger.error(f"Error processing force-close request: {e}")
         return jsonify({"status": "error", "message": str(e)}), 500
 
-@app.route('/<path:filename>')
+@app.route('/api/bot-control', methods=['POST'])
+def set_bot_control():
+    """Set bot control status (pause/resume/stop)."""
+    try:
+        data = request.get_json()
+        if not data:
+            logger.error("Bot control: No JSON data provided")
+            return jsonify({"status": "error", "message": "No JSON data provided"}), 400
+        
+        action = data.get('action')  # 'pause', 'resume', 'stop'
+        if not action:
+            logger.error("Bot control: No action provided")
+            return jsonify({"status": "error", "message": "No action provided"}), 400
+        
+        if action not in ['pause', 'resume', 'stop']:
+            logger.error(f"Bot control: Invalid action '{action}'")
+            return jsonify({"status": "error", "message": f"Invalid action '{action}'. Use 'pause', 'resume', or 'stop'"}), 400
+        
+        status_map = {
+            'pause': 'paused',
+            'resume': 'running',
+            'stop': 'stopped'
+        }
+        
+        control_data = {
+            "status": status_map[action],
+            "last_updated": datetime.now().isoformat(),
+            "action": action
+        }
+        
+        try:
+            safe_file_write("bot_control.json", control_data)
+            logger.info(f"🔔 Bot control: {action.upper()} command sent successfully")
+        except PermissionError as pe:
+            logger.error(f"Bot control: Permission denied writing bot_control.json: {pe}")
+            return jsonify({
+                "status": "error", 
+                "message": f"Permission denied: Cannot write bot_control.json. Check file permissions. Error: {str(pe)}"
+            }), 500
+        except OSError as ose:
+            logger.error(f"Bot control: OS error writing bot_control.json: {ose}")
+            return jsonify({
+                "status": "error", 
+                "message": f"File system error: Cannot write bot_control.json. Error: {str(ose)}"
+            }), 500
+        except Exception as write_e:
+            logger.error(f"Bot control: Unexpected error writing bot_control.json: {write_e}")
+            return jsonify({
+                "status": "error", 
+                "message": f"Failed to write bot_control.json: {str(write_e)}"
+            }), 500
+        
+        return jsonify({
+            "status": "success",
+            "message": f"Bot {action} command sent successfully.",
+            "bot_status": status_map[action]
+        })
+        
+    except Exception as e:
+        logger.error(f"Error setting bot control: {e}", exc_info=True)
+        return jsonify({
+            "status": "error", 
+            "message": f"Unexpected error: {str(e)}"
+        }), 500
+
+@app.route('/api/bot-control', methods=['GET'])
+def get_bot_control():
+    """Get current bot control status."""
+    try:
+        control = safe_file_read("bot_control.json", {"status": "unknown", "last_updated": None})
+        return jsonify(control)
+    except Exception as e:
+        logger.error(f"Error reading bot control: {e}")
+        return jsonify({"status": "error", "message": str(e)}), 500
+
+@app.route('/<path:filename>', methods=['GET'])
 def serve_static_files(filename):
     """Serve static files (JSON data files, CSS, JS, etc.)."""
+    # Don't serve API routes as static files
+    if filename.startswith('api/'):
+        return jsonify({"status": "error", "message": "Endpoint not found"}), 404
+    
     if filename.endswith('.json'):
         # Add cache control headers for JSON files
         response = send_from_directory('.', filename)
