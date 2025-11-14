@@ -690,8 +690,19 @@
                 return { winRate: 0, riskLevel: 'Low' };
             }
 
-            const winningTrades = tradeHistory.filter(trade => trade.pnl > 0);
-            const winRate = (winningTrades.length / tradeHistory.length) * 100;
+            // Calculate win rate based on profit/loss amounts (not trade counts)
+            // Win Rate = Total Profit / (|Total Profit| + |Total Loss|) * 100
+            const totalProfit = tradeHistory
+                .filter(trade => trade.pnl > 0)
+                .reduce((sum, trade) => sum + trade.pnl, 0);
+            const totalLoss = Math.abs(tradeHistory
+                .filter(trade => trade.pnl < 0)
+                .reduce((sum, trade) => sum + trade.pnl, 0));
+            
+            let winRate = 0;
+            if (totalProfit + totalLoss > 0) {
+                winRate = (totalProfit / (totalProfit + totalLoss)) * 100;
+            }
             
             // Simple risk level calculation based on recent volatility
             const recentTrades = tradeHistory.slice(-10);

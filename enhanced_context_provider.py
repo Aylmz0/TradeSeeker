@@ -253,10 +253,19 @@ class EnhancedContextProvider:
             elif pnl < 0:
                 feedback[direction]["losses"] += 1
         
-        for direction_stats in feedback.values():
+        for direction, direction_stats in feedback.items():
             trades = direction_stats["trades"]
             if trades > 0:
-                direction_stats["win_rate"] = round(direction_stats["wins"] / trades * 100, 1)
+                # Calculate win rate based on profit/loss amounts (not trade counts)
+                # Win Rate = Total Profit / (|Total Profit| + |Total Loss|) * 100
+                direction_trades = [t for t in recent_trades if t.get('direction', '').lower() == direction]
+                direction_profit = sum(t.get('pnl', 0) for t in direction_trades if t.get('pnl', 0) > 0)
+                direction_loss = abs(sum(t.get('pnl', 0) for t in direction_trades if t.get('pnl', 0) < 0))
+                
+                if direction_profit + direction_loss > 0:
+                    direction_stats["win_rate"] = round((direction_profit / (direction_profit + direction_loss)) * 100, 1)
+                else:
+                    direction_stats["win_rate"] = 0.0
                 direction_stats["avg_pnl"] = round(direction_stats["total_pnl"] / trades, 2)
             else:
                 direction_stats["win_rate"] = 0.0

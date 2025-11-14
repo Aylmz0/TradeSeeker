@@ -88,20 +88,27 @@ class PerformanceMonitor:
             
             # Analyze trade performance
             if trades:
-                # Calculate win rate
+                # Calculate win rate based on profit/loss amounts (not trade counts)
                 winning_trades = [t for t in trades if t.get('pnl', 0) > 0]
                 losing_trades = [t for t in trades if t.get('pnl', 0) < 0]
                 break_even_trades = [t for t in trades if t.get('pnl', 0) == 0]
                 
-                win_rate = len(winning_trades) / len(trades) * 100 if trades else 0
+                # Calculate total profit and loss amounts
+                total_profit = sum(t.get('pnl', 0) for t in winning_trades)
+                total_loss = abs(sum(t.get('pnl', 0) for t in losing_trades))
+                
+                # Win rate = Total Profit / (|Total Profit| + |Total Loss|) * 100
+                # This gives a more accurate picture than trade count ratio
+                if total_profit + total_loss > 0:
+                    win_rate = (total_profit / (total_profit + total_loss)) * 100
+                else:
+                    win_rate = 0
                 
                 # Calculate average PnL
                 total_pnl = sum(t.get('pnl', 0) for t in trades)
                 avg_pnl = total_pnl / len(trades) if trades else 0
                 
                 # Calculate profit factor
-                total_profit = sum(t.get('pnl', 0) for t in winning_trades)
-                total_loss = abs(sum(t.get('pnl', 0) for t in losing_trades))
                 profit_factor = total_profit / total_loss if total_loss > 0 else float('inf')
                 
                 # Calculate largest win/loss
@@ -145,9 +152,18 @@ class PerformanceMonitor:
                     elif trade.get('pnl', 0) < 0:
                         coin_performance[coin]['losses'] += 1
             
-            # Calculate coin win rates
+            # Calculate coin win rates (based on profit/loss amounts, not trade counts)
             for coin, stats in coin_performance.items():
-                stats['win_rate'] = (stats['wins'] / stats['trades'] * 100) if stats['trades'] > 0 else 0
+                # Calculate profit and loss amounts for this coin
+                coin_trades = [t for t in trades if t.get('symbol') == coin]
+                coin_profit = sum(t.get('pnl', 0) for t in coin_trades if t.get('pnl', 0) > 0)
+                coin_loss = abs(sum(t.get('pnl', 0) for t in coin_trades if t.get('pnl', 0) < 0))
+                
+                # Win rate = Total Profit / (|Total Profit| + |Total Loss|) * 100
+                if coin_profit + coin_loss > 0:
+                    stats['win_rate'] = (coin_profit / (coin_profit + coin_loss)) * 100
+                else:
+                    stats['win_rate'] = 0
                 stats['avg_pnl'] = stats['total_pnl'] / stats['trades'] if stats['trades'] > 0 else 0
             
             # Compile performance report

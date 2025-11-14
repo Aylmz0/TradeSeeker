@@ -196,7 +196,15 @@ class BacktestEngine:
         winning_trades = [t for t in self.trade_history if t['pnl'] > 0]
         losing_trades = [t for t in self.trade_history if t['pnl'] <= 0]
         
-        win_rate = len(winning_trades) / len(self.trade_history) if self.trade_history else 0
+        # Calculate win rate based on profit/loss amounts (not trade counts)
+        # Win Rate = Total Profit / (|Total Profit| + |Total Loss|) * 100
+        total_profit = sum(t['pnl'] for t in winning_trades) if winning_trades else 0
+        total_loss = abs(sum(t['pnl'] for t in losing_trades) if losing_trades else 0)
+        
+        if total_profit + total_loss > 0:
+            win_rate = (total_profit / (total_profit + total_loss)) * 100
+        else:
+            win_rate = 0
         avg_win = np.mean([t['pnl'] for t in winning_trades]) if winning_trades else 0
         avg_loss = np.mean([t['pnl'] for t in losing_trades]) if losing_trades else 0
         
