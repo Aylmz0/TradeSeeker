@@ -9,12 +9,20 @@ import logging
 from datetime import datetime
 from typing import Dict, Any, Optional
 from flask import Flask, request, jsonify, send_from_directory
+from flask_cors import CORS
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 app = Flask(__name__, static_folder='.', static_url_path='')
+
+# Enable CORS for proxy support (CodeServer, etc.)
+CORS(app, resources={
+    r"/api/*": {"origins": "*"},
+    r"/force-close": {"origins": "*"},
+    r"/*": {"origins": "*"}
+})
 
 # --- Utility Functions ---
 

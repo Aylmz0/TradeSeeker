@@ -293,13 +293,13 @@
 
         async function fetchData() {
             try {
-                const stateResponse = await fetch('/api/portfolio?t=' + Date.now());
+                const stateResponse = await fetch(apiUrl('/api/portfolio') + '?t=' + Date.now());
                 if (!stateResponse.ok) throw new Error('portfolio_state.json fetch failed.');
                 const stateData = await stateResponse.json();
                 if (typeof stateData !== 'object' || stateData === null) throw new Error('Invalid state data.');
                 updateDashboard(stateData);
 
-                const tradeHistoryResponse = await fetch('/api/trades?t=' + Date.now());
+                const tradeHistoryResponse = await fetch(apiUrl('/api/trades') + '?t=' + Date.now());
                 let tradeHistoryData = [];
                 if (tradeHistoryResponse.ok) {
                     tradeHistoryData = await tradeHistoryResponse.json();
@@ -310,7 +310,7 @@
                     updateTradeHistory([]);
                 }
 
-                const cycleHistoryResponse = await fetch('/api/cycles?t=' + Date.now());
+                const cycleHistoryResponse = await fetch(apiUrl('/api/cycles') + '?t=' + Date.now());
                 if (cycleHistoryResponse.ok) {
                     const cycleHistoryData = await cycleHistoryResponse.json();
                     if (!Array.isArray(cycleHistoryData)) throw new Error('Invalid cycle history data.');
@@ -322,7 +322,7 @@
 
                 // Fetch alerts
                 try {
-                    const alertsResponse = await fetch('/api/alerts?t=' + Date.now());
+                    const alertsResponse = await fetch(apiUrl('/api/alerts') + '?t=' + Date.now());
                     if (alertsResponse.ok) {
                         const alertsData = await alertsResponse.json();
                         if (Array.isArray(alertsData)) {
@@ -624,7 +624,7 @@
                 return;
             }
             try {
-                const response = await fetch('/force-close', {
+                const response = await fetch(apiUrl('/force-close'), {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ coin: coin }),
@@ -714,7 +714,7 @@
                 btn.textContent = '🔄 Analyzing...';
                 btn.disabled = true;
                 
-                const response = await fetch('/api/performance/refresh', {
+                const response = await fetch(apiUrl('/api/performance/refresh'), {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' }
                 });
@@ -742,7 +742,7 @@
 
         async function loadPerformanceData() {
             try {
-                const response = await fetch('/api/performance?t=' + Date.now());
+                const response = await fetch(apiUrl('/api/performance') + '?t=' + Date.now());
                 if (response.ok) {
                     const performanceData = await response.json();
                     updatePerformanceDashboard(performanceData);
@@ -969,7 +969,7 @@
         
         async function checkBotStatus() {
             try {
-                const response = await fetch('/api/bot-control?t=' + Date.now());
+                const response = await fetch(apiUrl('/api/bot-control') + '?t=' + Date.now());
                 if (response.ok) {
                     const control = await response.json();
                     updateBotControlUI(control.status || 'unknown');
@@ -1018,7 +1018,7 @@
                 btnText.textContent = '⏳ Processing...';
                 
                 // Determine action based on current status
-                const statusResponse = await fetch('/api/bot-control?t=' + Date.now());
+                const statusResponse = await fetch(apiUrl('/api/bot-control') + '?t=' + Date.now());
                 let currentStatus = 'unknown';
                 if (statusResponse.ok) {
                     const control = await statusResponse.json();
@@ -1034,7 +1034,7 @@
                     action = 'resume'; // Default to resume if unknown
                 }
                 
-                const response = await fetch('/api/bot-control', {
+                const response = await fetch(apiUrl('/api/bot-control'), {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ action: action })
@@ -1071,8 +1071,56 @@
             }
         }
 
+        // --- Proxy-aware Base URL Helper ---
+        // Detects if running behind a proxy (like CodeServer) and adjusts base URL
+        function getBaseURL() {
+            const path = window.location.pathname;
+            
+            // CodeServer proxy pattern: /proxy/port/ or /proxy/port
+            // Example: /proxy/8002/ or /proxy/8002
+            const codeServerMatch = path.match(/^(\/proxy\/\d+\/?)/);
+            if (codeServerMatch) {
+                let proxyPath = codeServerMatch[1];
+                // Ensure trailing slash
+                if (!proxyPath.endsWith('/')) {
+                    proxyPath += '/';
+                }
+                console.log('🔍 CodeServer proxy detected:', proxyPath);
+                return proxyPath;
+            }
+            
+            // Generic proxy pattern: /proxy/...
+            if (path.startsWith('/proxy/')) {
+                // Find the end of proxy path (usually ends with / or before next /)
+                const parts = path.split('/');
+                if (parts.length >= 3) {
+                    // /proxy/port/ format
+                    const proxyPath = '/' + parts[1] + '/' + parts[2] + '/';
+                    console.log('🔍 Generic proxy detected:', proxyPath);
+                    return proxyPath;
+                }
+            }
+            
+            // No proxy detected, use root
+            console.log('🔍 No proxy detected, using root path');
+            return '';
+        }
+        
+        const API_BASE = getBaseURL();
+        
+        // Helper function to build API URLs
+        function apiUrl(path) {
+            // Remove leading slash if present to avoid double slashes
+            const cleanPath = path.startsWith('/') ? path.substring(1) : path;
+            return `${API_BASE}${cleanPath}`;
+        }
+
         // --- Initialization ---
         document.addEventListener('DOMContentLoaded', () => {
+            // Log detected base URL for debugging
+            console.log('🌐 Detected base URL:', API_BASE || '(root)');
+            console.log('🌐 Full API base:', window.location.origin + API_BASE);
+            
             fetchData();
             checkBotStatus(); // Check bot status on load
             if (fetchInterval) clearInterval(fetchInterval);

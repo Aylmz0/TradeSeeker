@@ -150,12 +150,16 @@ TREND REVERSAL DETECTION:
 - Multi-timeframe analysis: {HTF_LABEL} (1h) provides structural trend, 15m provides medium-term momentum confirmation, and 3m provides short-term entry/exit timing.
 - 15m momentum provides important confirmation between {HTF_LABEL} trend and 3m momentum. When 15m aligns with {HTF_LABEL}, it strengthens the trend signal. When 15m aligns with 3m but opposes {HTF_LABEL}, it suggests potential reversal.
 - 3m momentum provides supplementary context alongside {HTF_LABEL} trend analysis. Use it as one data point among many, not as a primary decision driver. Short-term 3m momentum changes are normal market noise.
-- Reversal signal strength:
-  * "VERY STRONG": {HTF_LABEL} + 15m + 3m all show reversal - evaluate exit plan carefully
-  * "STRONG": {HTF_LABEL} + (15m or 3m) show reversal - consider exit plan review
-  * "MEDIUM": 15m + 3m show reversal (but {HTF_LABEL} doesn't) - informational, continue monitoring
-  * "INFORMATIONAL": Only 3m or only 15m shows reversal - continue monitoring, prioritize {HTF_LABEL} trend
+- IMPORTANT: Reversal means momentum is moving AGAINST the position direction. This is an EXIT WARNING, not an entry signal. For example:
+  * LONG position: Reversal = bearish momentum (price < EMA20, RSI < 50, MACD < 0) → Consider closing LONG
+  * SHORT position: Reversal = bullish momentum (price > EMA20, RSI > 50, MACD > 0) → Consider closing SHORT
+- Reversal signal strength (based on how many timeframes show reversal AGAINST position):
+  * "VERY STRONG": {HTF_LABEL} + 15m + 3m ALL show reversal against position - all timeframes aligned against you, strongly consider exit
+  * "STRONG": {HTF_LABEL} + (15m OR 3m) show reversal against position - structural trend reversed, consider exit plan review
+  * "MEDIUM": 15m + 3m show reversal against position (but {HTF_LABEL} doesn't) - short-term momentum reversed but structure intact. This can be a COUNTER-TREND OPPORTUNITY: if {HTF_LABEL} trend is still in position's favor but 15m+3m reversed, consider opening a counter-trend position in the reversal direction (e.g., LONG position with 15m+3m bearish reversal = consider SHORT counter-trend entry, or close LONG and evaluate)
+  * "INFORMATIONAL": Only 15m OR only 3m shows reversal against position - single timeframe noise, continue monitoring, prioritize {HTF_LABEL} trend
 - When you see reversal signals, evaluate the full context including position duration, profit/loss status, and original thesis before making any changes. Prioritize {HTF_LABEL} trend confirmation and your systematic exit plan.
+- NOTE: MEDIUM reversal (15m+3m against position, but {HTF_LABEL} still in favor) can indicate counter-trend opportunities. Evaluate if the reversal momentum is strong enough for a counter-trend entry, but remember counter-trend trades require higher confidence (≥0.65) and proper technical conditions.
 
 ACTION FORMAT:
 - Use signals: `buy_to_enter`, `sell_to_enter`, `hold`, `close_position`.
@@ -1313,7 +1317,7 @@ class PortfolioManager:
             (self.history_file, []),
             (self.cycle_history_file, []),
             ("performance_history.json", []),
-            ("performance_report.json", {})
+            ("performance_report.json", [])  # Changed from {} to [] - now array format
         ]
 
         try:
@@ -1327,9 +1331,18 @@ class PortfolioManager:
                     continue
                 target_path = os.path.join(backup_dir, os.path.basename(file_path))
                 safe_file_write(target_path, data)
+                
+                # Calculate items count for metadata
+                items_count = None
+                if isinstance(data, list):
+                    items_count = len(data)
+                elif isinstance(data, dict):
+                    # For dict, count keys (but performance_report.json should be array now)
+                    items_count = len(data)
+                
                 backed_up.append({
                     "file": file_path,
-                    "items": len(data) if isinstance(data, list) else None
+                    "items": items_count
                 })
 
             metadata = {
