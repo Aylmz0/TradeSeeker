@@ -111,7 +111,7 @@ DATA CONTEXT:
 
 ADVANCED ANALYSIS PLAYBOOK:
 - Apply long and short strategies across all coins; choose the direction that offers the superior quantified edge.
-- Use {HTF_LABEL} timeframe for structural bias and 3m for execution timing.
+- Use {HTF_LABEL} timeframe for structural bias, 15m for medium-term momentum confirmation, and 3m for execution timing.
 - Monitor volume vs. average volume, Open Interest, and Funding to measure conviction.
 - Employ multi-timeframe technical analysis (EMA, RSI, MACD, ATR, etc.).
 - Keep take-profit/stop-loss targets responsive (e.g. 2–4% TP, 1–2% SL) when volatility supports it.
@@ -143,6 +143,8 @@ TREND & COUNTER-TREND GUIDELINES:
 - When price is below {HTF_LABEL} EMA20 with bearish momentum, short setups merit priority.
 - When price is above {HTF_LABEL} EMA20 with bullish momentum, long setups merit priority.
 - Counter-trend trades (long or short) are encouraged when technical conditions support them. Look for oversold/overbought conditions, divergences, or reversal patterns that suggest a counter-trend move. Confidence above 0.65 is sufficient for counter-trend entries.
+- Counter-trend opportunities arise when both 3m and 15m momentum align against the 1h structural trend. 
+  For example: 1h bullish, but 15m bearish AND 3m bearish = counter-trend short opportunity.
 - If volume ratio is ≤0.15× average, call out the weakness, reduce confidence materially, and consider skipping the trade unless another data point overwhelmingly compensates.
 
 TREND REVERSAL DETECTION:
@@ -165,12 +167,6 @@ ACTION FORMAT:
 - Use signals: `buy_to_enter`, `sell_to_enter`, `hold`, `close_position`.
 - If a position is already open on a coin, only `hold` or `close_position` are valid.
 - Provide both `CHAIN_OF_THOUGHTS` (analysis) and `DECISIONS` (JSON).
-
-ACTION FORMAT:
-Use signals: `buy_to_enter`, `sell_to_enter`, `hold`, `close_position`.
-If a position is open, only `hold` or `close_position` are allowed.
-
-Provide response in `CHAIN_OF_THOUGHTS` and `DECISIONS` (JSON) parts.
 
 Example Format (NOF1AI Advanced Style):
 CHAIN_OF_THOUGHTS
@@ -1458,7 +1454,8 @@ class PortfolioManager:
             if stats['consecutive_losses'] >= 3:
                 stats['caution_active'] = True
                 stats['caution_win_progress'] = 0
-            if stats['consecutive_losses'] >= 3 and stats.get('loss_streak_loss_usd', 0.0) >= 10.0:
+            # Cooldown: 3 consecutive losses OR $5 total loss
+            if stats['consecutive_losses'] >= 3 or stats.get('loss_streak_loss_usd', 0.0) >= 5.0:
                 self._activate_directional_cooldown(direction)
                 stats['loss_streak_loss_usd'] = 0.0
         else:
@@ -2014,9 +2011,9 @@ class PortfolioManager:
         if notional_usd < 200:
             # Small positions: aggressive profit taking
             return {
-                'level1': 0.007,  # %0.7
-                'level2': 0.009,  # %0.9
-                'level3': 0.011,  # %1.1
+                'level1': 0.006,  # %0.7
+                'level2': 0.007,  # %0.9
+                'level3': 0.08,  # %1.1
                 'take1': 0.25,    # %25 profit al
                 'take2': 0.50,    # %50 profit al
                 'take3': 0.75     # %75 profit al
@@ -2024,9 +2021,9 @@ class PortfolioManager:
         elif notional_usd < 300:
             # Medium positions: balanced profit taking
             return {
-                'level1': 0.006,  # %0.7
-                'level2': 0.008,  # %0.9
-                'level3': 0.010,  # %1.1
+                'level1': 0.005,  # %0.7
+                'level2': 0.006,  # %0.9
+                'level3': 0.007,  # %1.1
                 'take1': 0.25,    # %25 profit al
                 'take2': 0.50,    # %50 profit al
                 'take3': 0.75     # %75 profit al
@@ -2034,9 +2031,9 @@ class PortfolioManager:
         elif notional_usd < 400:
             # Large positions: conservative profit taking
             return {
-                'level1': 0.005,  # %0.6
-                'level2': 0.007,  # %0.8
-                'level3': 0.009,  # %1.0
+                'level1': 0.004,  # %0.6
+                'level2': 0.005,  # %0.8
+                'level3': 0.006,  # %1.0
                 'take1': 0.25,    # %25 profit al
                 'take2': 0.50,    # %50 profit al
                 'take3': 0.75     # %75 profit al
@@ -2044,9 +2041,9 @@ class PortfolioManager:
         elif notional_usd < 500:
             # xLarge positions: conservative profit taking
             return {
-                'level1': 0.004,  # %0.5
-                'level2': 0.005,  # %0.7
-                'level3': 0.006,  # %0.9
+                'level1': 0.003,  # %0.5
+                'level2': 0.004,  # %0.7
+                'level3': 0.005,  # %0.9
                 'take1': 0.25,    # %25 profit al
                 'take2': 0.50,    # %50 profit al
                 'take3': 0.75     # %75 profit al
@@ -2054,9 +2051,9 @@ class PortfolioManager:
         elif notional_usd < 600:
             # xxLarge positions: conservative profit taking
             return {
-                'level1': 0.003,  # %0.
-                'level2': 0.005,  # %0.6
-                'level3': 0.007,  # %0.8
+                'level1': 0.002,  # %0.
+                'level2': 0.003,  # %0.6
+                'level3': 0.004,  # %0.8
                 'take1': 0.25,    # %25 profit al
                 'take2': 0.50,    # %50 profit al
                 'take3': 0.75     # %75 profit al
@@ -2075,13 +2072,13 @@ class PortfolioManager:
     def get_dynamic_stop_loss_percentage(self, total_portfolio_value: float) -> float:
         """Get dynamic stop-loss percentage based on portfolio value"""
         if total_portfolio_value < 300:
-            return 0.01  # %1.0
+            return 0.07  # %1.0
         elif total_portfolio_value < 400:
-            return 0.008 # %0.8
+            return 0.006 # %0.8
         elif total_portfolio_value < 500:
-            return 0.007 # %0.7
+            return 0.005 # %0.7
         else:
-            return 0.005 # %0.5
+            return 0.004 # %0.5
 
     def enhanced_exit_strategy(self, position: Dict, current_price: float) -> Dict[str, Any]:
         """Enhanced exit strategy with dynamic profit taking and KADEMELİ loss cutting"""
@@ -3117,7 +3114,7 @@ class PortfolioManager:
                             guard_active = guard_cycles_since_flip is not None and guard_cycles_since_flip <= guard_window
                             if guard_active:
                                 if guard_cycles_since_flip == 0:
-                                    min_conf = 0.65
+                                    min_conf = 0.63
                                     if confidence < min_conf:
                                         print(f"🚫 Flip guard confidence floor: {coin} {signal} confidence {confidence:.2f} < {min_conf:.2f} in same cycle after flip.")
                                         execution_report['blocked'].append({'coin': coin, 'reason': 'trend_flip_guard_confidence', 'classification': trend_classification})

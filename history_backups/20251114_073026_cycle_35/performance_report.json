@@ -1,0 +1,134 @@
+[
+    {
+        "analysis_period": "Last 10 cycles (Total: 19)",
+        "timestamp": "2025-11-14T06:32:58.196924",
+        "trading_activity": {
+            "total_decisions": 60,
+            "entry_signals": 6,
+            "hold_signals": 49,
+            "close_signals": 5,
+            "decision_rate": 10.0
+        },
+        "trade_performance": {
+            "total_trades": 5,
+            "winning_trades": 2,
+            "losing_trades": 3,
+            "break_even_trades": 0,
+            "win_rate": 25.72,
+            "total_pnl": -1.07,
+            "average_pnl": -0.21,
+            "profit_factor": 0.35,
+            "largest_win": 0.53,
+            "largest_loss": -0.98
+        },
+        "portfolio_performance": {
+            "initial_balance": 200.0,
+            "current_balance": 198.93000976515697,
+            "total_value": 198.93000976515697,
+            "total_return": -0.53,
+            "sharpe_ratio": -1.125,
+            "open_positions": 0
+        },
+        "coin_performance": {
+            "XRP": {
+                "trades": 2,
+                "total_pnl": -0.1057253792022178,
+                "wins": 1,
+                "losses": 1,
+                "win_rate": 21.92195958275661,
+                "avg_pnl": -0.0528626896011089
+            },
+            "DOGE": {
+                "trades": 2,
+                "total_pnl": 0.018863686700945514,
+                "wins": 1,
+                "losses": 1,
+                "win_rate": 50.91412286372608,
+                "avg_pnl": 0.009431843350472757
+            },
+            "SOL": {
+                "trades": 1,
+                "total_pnl": -0.9831285423417903,
+                "wins": 0,
+                "losses": 1,
+                "win_rate": 0.0,
+                "avg_pnl": -0.9831285423417903
+            }
+        },
+        "recommendations": [
+            "[INFO] Recorded return -0.53% within analysis window; below growth target",
+            "[INFO] Coins with cumulative negative PnL: XRP, SOL"
+        ]
+    },
+    {
+        "analysis_period": "Last 10 cycles (Total: 29)",
+        "timestamp": "2025-11-14T07:10:28.477118",
+        "trading_activity": {
+            "total_decisions": 60,
+            "entry_signals": 5,
+            "hold_signals": 55,
+            "close_signals": 0,
+            "decision_rate": 8.333333333333332
+        },
+        "trade_performance": {
+            "total_trades": 10,
+            "winning_trades": 7,
+            "losing_trades": 3,
+            "break_even_trades": 0,
+            "win_rate": 77.94,
+            "total_pnl": 4.15,
+            "average_pnl": 0.41,
+            "profit_factor": 3.53,
+            "largest_win": 2.0,
+            "largest_loss": -0.98
+        },
+        "portfolio_performance": {
+            "initial_balance": 200.0,
+            "current_balance": 93.03982457400636,
+            "total_value": 203.248513711717,
+            "total_return": 1.62,
+            "sharpe_ratio": 15.907,
+            "open_positions": 3
+        },
+        "coin_performance": {
+            "XRP": {
+                "trades": 2,
+                "total_pnl": -0.1057253792022178,
+                "wins": 1,
+                "losses": 1,
+                "win_rate": 21.92195958275661,
+                "avg_pnl": -0.0528626896011089
+            },
+            "DOGE": {
+                "trades": 2,
+                "total_pnl": 0.018863686700945514,
+                "wins": 1,
+                "losses": 1,
+                "win_rate": 50.91412286372608,
+                "avg_pnl": 0.009431843350472757
+            },
+            "SOL": {
+                "trades": 4,
+                "total_pnl": 1.6817953712175657,
+                "wins": 3,
+                "losses": 1,
+                "win_rate": 73.05059194662988,
+                "avg_pnl": 0.42044884280439143
+            },
+            "ADA": {
+                "trades": 2,
+                "total_pnl": 2.5512603759018995,
+                "wins": 2,
+                "losses": 0,
+                "win_rate": 100.0,
+                "avg_pnl": 1.2756301879509497
+            }
+        },
+        "recommendations": [
+            "[INFO] Cash balance $93.04 vs $200.00 initial; liquidity below 50% of baseline",
+            "[INFO] Position count 3; exceeds reference threshold (\u22653)",
+            "[INFO] Recorded return 1.62% within analysis window; below growth target",
+            "[INFO] Coins with cumulative negative PnL: XRP"
+        ]
+    }
+]
