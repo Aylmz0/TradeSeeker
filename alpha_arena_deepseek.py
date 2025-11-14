@@ -94,7 +94,7 @@ RISK MANAGEMENT:
 
 SYMMETRIC STRATEGY GUIDANCE:
 - Evaluate both LONG and SHORT paths for every asset. Bullish regimes support longs; bearish regimes support shorts.
-- Counter-trend trades are a valid and valuable strategy; use them when the pre-computed checklist (in the prompt) shows ≥2/5 conditions and you can rationalize the edge. Counter-trend opportunities often provide excellent risk/reward ratios.
+- Counter-trend trades are a valid and valuable strategy; use them when the pre-computed checklist (in the prompt) shows >2/5 conditions and you can rationalize the edge. Counter-trend opportunities often provide excellent risk/reward ratios.
 - Counter-trend trades require moderate confidence (>0.65). If you see a strong counter-trend setup, don't hesitate to take it even if confidence is above 0.60.
 - Only label a setup as counter-trend when your proposed trade direction is opposite the {HTF_LABEL} trend. If {HTF_LABEL} trend and trade direction align but 3m is temporarily opposing, treat it as trend-following.
 - Prioritize trades with quantified momentum, participation, and risk/reward advantages.
@@ -127,7 +127,8 @@ MULTI-TIMEFRAME PROCESS:
 4. Use 3m indicators for entry/exit timing and short-term confirmation.
 5. Use alignment across all three timeframes (1h + 15m + 3m) for strongest signals.
 6. Incorporate volume, Open Interest, Funding, and other metrics to judge conviction.
-5. Decide whether to go long, short, hold, or close based on the strongest quantified edge.
+7. In your analysis, always mention all three timeframes (1h, 15m, 3m) for each coin you evaluate.
+8. Decide whether to go long, short, hold, or close based on the strongest quantified edge across all timeframes.
 
 STARTUP BEHAVIOR:
 - During the first 2-3 cycles, observe unless an exceptional, well-supported setup appears.
@@ -156,21 +157,21 @@ TREND REVERSAL DETECTION:
   * LONG position: Reversal = bearish momentum (price < EMA20, RSI < 50, MACD < 0) → Consider closing LONG
   * SHORT position: Reversal = bullish momentum (price > EMA20, RSI > 50, MACD > 0) → Consider closing SHORT
 - Reversal signal strength (based on how many timeframes show reversal AGAINST position):
-  * "VERY STRONG": {HTF_LABEL} + 15m + 3m ALL show reversal against position - all timeframes aligned against you, strongly consider exit
-  * "STRONG": {HTF_LABEL} + (15m OR 3m) show reversal against position - structural trend reversed, consider exit plan review
-  * "MEDIUM": 15m + 3m show reversal against position (but {HTF_LABEL} doesn't) - short-term momentum reversed but structure intact. This can be a COUNTER-TREND OPPORTUNITY: if {HTF_LABEL} trend is still in position's favor but 15m+3m reversed, consider opening a counter-trend position in the reversal direction (e.g., LONG position with 15m+3m bearish reversal = consider SHORT counter-trend entry, or close LONG and evaluate)
+  * "STRONG": 15m + 3m BOTH show reversal against position (but {HTF_LABEL} doesn't) - strong reversal signal. This can be a COUNTER-TREND OPPORTUNITY: if {HTF_LABEL} trend is still in position's favor but 15m+3m reversed, consider opening a counter-trend position in the reversal direction (e.g., LONG position with 15m+3m bearish reversal = consider SHORT counter-trend entry, or close LONG and evaluate)
   * "INFORMATIONAL": Only 15m OR only 3m shows reversal against position - single timeframe noise, continue monitoring, prioritize {HTF_LABEL} trend
+  * NOTE: If {HTF_LABEL} + 15m + 3m ALL show the same direction, this is NOT a reversal - this is the trend itself continuing. Reversal only occurs when shorter timeframes (15m+3m) oppose the position while {HTF_LABEL} may still be in favor.
 - When you see reversal signals, evaluate the full context including position duration, profit/loss status, and original thesis before making any changes. Prioritize {HTF_LABEL} trend confirmation and your systematic exit plan.
-- NOTE: MEDIUM reversal (15m+3m against position, but {HTF_LABEL} still in favor) can indicate counter-trend opportunities. Evaluate if the reversal momentum is strong enough for a counter-trend entry, but remember counter-trend trades require higher confidence (≥0.65) and proper technical conditions.
+- NOTE: STRONG reversal (15m+3m against position, but {HTF_LABEL} still in favor) can indicate counter-trend opportunities. Evaluate if the reversal momentum is strong enough for a counter-trend entry, but remember counter-trend trades require higher confidence (≥0.65) and proper technical conditions.
 
 ACTION FORMAT:
 - Use signals: `buy_to_enter`, `sell_to_enter`, `hold`, `close_position`.
 - If a position is already open on a coin, only `hold` or `close_position` are valid.
 - Provide both `CHAIN_OF_THOUGHTS` (analysis) and `DECISIONS` (JSON).
+- In your CHAIN_OF_THOUGHTS, for each coin you analyze, explicitly mention: (1) {HTF_LABEL} (1h) trend assessment, (2) 15m momentum assessment, and (3) 3m momentum assessment.
 
 Example Format (NOF1AI Advanced Style):
 CHAIN_OF_THOUGHTS
-[Advanced systematic analysis of all assets using {HTF_LABEL} trends and 3m entries. Focus on market structure, volume confirmation, and risk management. Example: "XRP showing strong momentum with volume confirmation. {HTF_LABEL} RSI at 62.5 shows room to run, MACD positive, price well above EMA20. Open Interest increasing suggests institutional interest. Targeting $0.56 with stop below $0.48. Invalidation if {HTF_LABEL} price closes below EMA20."]
+[Advanced systematic analysis of all assets using {HTF_LABEL} (1h) trends, 15m momentum confirmation, and 3m entry timing. For each coin, analyze all three timeframes. Focus on market structure, volume confirmation, and risk management. Example: "XRP: 1h bullish (price > EMA20, RSI 62.5), 15m bullish momentum (price > EMA20, RSI 58), 3m bullish (price > EMA20, RSI 60). All three timeframes aligned bullish with volume confirmation. Open Interest increasing suggests institutional interest. Targeting $0.56 with stop below $0.48. Invalidation if {HTF_LABEL} price closes below EMA20."]
 DECISIONS
 {{
   "XRP": {{
@@ -706,6 +707,8 @@ class PortfolioManager:
         self.order_executor: Optional["BinanceOrderExecutor"] = None
         self.directional_cooldowns: Dict[str, int] = {'long': 0, 'short': 0}
         self.relaxed_countertrend_cycles: int = 0
+        self.counter_trend_cooldown: int = 0
+        self.counter_trend_consecutive_losses: int = 0
 
         self.current_cycle_number = 0
 
@@ -782,6 +785,8 @@ class PortfolioManager:
         self.cycles_since_history_reset = data.get('cycles_since_history_reset', self.cycles_since_history_reset)
         self.directional_cooldowns = data.get('directional_cooldowns', {'long': 0, 'short': 0})
         self.relaxed_countertrend_cycles = data.get('relaxed_countertrend_cycles', 0)
+        self.counter_trend_cooldown = data.get('counter_trend_cooldown', 0)
+        self.counter_trend_consecutive_losses = data.get('counter_trend_consecutive_losses', 0)
 
     def save_state(self):
         data = {
@@ -797,7 +802,9 @@ class PortfolioManager:
             'last_history_reset_cycle': self.last_history_reset_cycle,
             'cycles_since_history_reset': self.cycles_since_history_reset,
             'directional_cooldowns': self.directional_cooldowns,
-            'relaxed_countertrend_cycles': self.relaxed_countertrend_cycles
+            'relaxed_countertrend_cycles': self.relaxed_countertrend_cycles,
+            'counter_trend_cooldown': self.counter_trend_cooldown,
+            'counter_trend_consecutive_losses': self.counter_trend_consecutive_losses
         }
         safe_file_write(self.state_file, data); print(f"✅ Saved state.")
 
@@ -1395,6 +1402,8 @@ class PortfolioManager:
         self.last_history_reset_cycle = cycle_number
         self.cycles_since_history_reset = 0
         self.directional_cooldowns = {'long': 0, 'short': 0}
+        self.counter_trend_cooldown = 0
+        self.counter_trend_consecutive_losses = 0
         self.relaxed_countertrend_cycles = 0
         self.save_state()
         print("✅ History reset complete.")
@@ -1436,6 +1445,11 @@ class PortfolioManager:
         stats['rolling'].append(pnl)
         stats['net_pnl'] += pnl
         stats['trades'] += 1
+        
+        # Check if this is a counter-trend trade
+        trend_alignment = trade.get('trend_alignment', 'unknown')
+        is_counter_trend = (trend_alignment == 'counter_trend')
+        
         if pnl > 0:
             stats['wins'] += 1
             stats['consecutive_losses'] = 0
@@ -1445,6 +1459,9 @@ class PortfolioManager:
                 if stats['caution_win_progress'] >= 3:
                     stats['caution_active'] = False
                     stats['caution_win_progress'] = 0
+            # Reset counter-trend consecutive losses on win
+            if is_counter_trend:
+                self.counter_trend_consecutive_losses = 0
         elif pnl < 0:
             stats['losses'] += 1
             stats['consecutive_losses'] += 1
@@ -1458,11 +1475,22 @@ class PortfolioManager:
             if stats['consecutive_losses'] >= 3 or stats.get('loss_streak_loss_usd', 0.0) >= 5.0:
                 self._activate_directional_cooldown(direction)
                 stats['loss_streak_loss_usd'] = 0.0
+            
+            # Counter-trend cooldown: 2 consecutive counter-trend losses
+            if is_counter_trend:
+                self.counter_trend_consecutive_losses += 1
+                if self.counter_trend_consecutive_losses >= 2:
+                    self.counter_trend_cooldown = 3
+                    self.counter_trend_consecutive_losses = 0
+                    print(f"🛡️ Counter-trend cooldown activated: 2 consecutive counter-trend losses (3 cycles cooldown).")
         else:
             stats['consecutive_losses'] = 0
             stats['consecutive_wins'] = 0
             stats['caution_win_progress'] = 0
             stats['loss_streak_loss_usd'] = 0.0
+            # Reset counter-trend consecutive losses on breakeven
+            if is_counter_trend:
+                self.counter_trend_consecutive_losses = 0
 
     def count_positions_by_direction(self) -> Dict[str, int]:
         counts = {'long': 0, 'short': 0}
@@ -1490,7 +1518,11 @@ class PortfolioManager:
         if self.relaxed_countertrend_cycles > 0:
             self.relaxed_countertrend_cycles -= 1
             if self.relaxed_countertrend_cycles == 0:
-                print("✅ Counter-trend restrictions restored.")
+                print(f"✅ Relaxed counter-trend mode cleared.")
+        if self.counter_trend_cooldown > 0:
+            self.counter_trend_cooldown -= 1
+            if self.counter_trend_cooldown == 0:
+                print(f"✅ Counter-trend cooldown cleared.")
 
     def apply_directional_bias(self, signal: str, confidence: float, bias_metrics: Dict[str, Dict[str, Any]], current_trend: str) -> float:
         side = 'long' if signal == 'buy_to_enter' else 'short'
@@ -3106,6 +3138,14 @@ class PortfolioManager:
                     direction = 'long' if signal == 'buy_to_enter' else 'short'
                     
                     if is_counter_trend:
+                        # Check counter-trend cooldown
+                        counter_trend_cooldown = getattr(self.portfolio, 'counter_trend_cooldown', 0)
+                        if counter_trend_cooldown > 0:
+                            print(f"🚫 Counter-trend cooldown active: Blocking {coin} {signal} ({counter_trend_cooldown} cycles remaining).")
+                            execution_report['blocked'].append({'coin': coin, 'reason': 'counter_trend_cooldown', 'classification': trend_classification})
+                            trade['runtime_decision'] = 'blocked_counter_trend_cooldown'
+                            continue
+                        
                         relaxed_countertrend = getattr(self, 'relaxed_countertrend_cycles', 0) > 0
                         if relaxed_countertrend:
                             remaining_relax = getattr(self, 'relaxed_countertrend_cycles', 0)
@@ -4885,38 +4925,51 @@ REMEMBER: These are suggestions only. You make the final trading decisions based
                     reversal_signals.append("3m momentum turned BEARISH")
                 
                 # Generate warning based on signal strength
+                trend_reversal_warning = ""
                 if reversal_signals:
-                    # Count signals: HTF=strong, 15m=medium, 3m=early
+                    # Count signals: HTF=structural, 15m=medium, 3m=short
                     htf_signal = any(f"{HTF_LABEL}" in s for s in reversal_signals)
                     signal_15m = any("15m" in s for s in reversal_signals)
                     signal_3m = any("3m" in s for s in reversal_signals)
                     
+                    # If 1h + 15m + 3m all show reversal, this is NOT a reversal - it's the trend itself
+                    # Only create reversal signal if 15m+3m oppose position (with or without 1h)
                     if htf_signal and signal_15m and signal_3m:
-                        signal_strength = "VERY STRONG"
-                    elif htf_signal and (signal_15m or signal_3m):
-                        signal_strength = "STRONG"
+                        # All timeframes aligned - this is trend continuation, not reversal
+                        # Don't create reversal warning in this case
+                        trend_reversal_warning = ""
                     elif signal_15m and signal_3m:
-                        signal_strength = "MEDIUM"
-                    else:
+                        # 15m + 3m both show reversal (strong reversal signal)
+                        signal_strength = "STRONG"
+                        signals_text = " & ".join([s for s in reversal_signals if "15m" in s or "3m" in s])
+                        
+                        if trend_direction == 'short':
+                            trend_reversal_warning = f"ℹ️ {signal_strength} REVERSAL SIGNAL ({signals_text}): You have a SHORT position but momentum is showing bullish signs. "
+                            trend_reversal_warning += "15m and 3m momentum both show bullish signs - strong reversal signal. This can be a counter-trend opportunity. Evaluate your exit plan and consider if the position thesis is still valid."
+                        else:  # long position
+                            trend_reversal_warning = f"ℹ️ {signal_strength} REVERSAL SIGNAL ({signals_text}): You have a LONG position but momentum is showing bearish signs. "
+                            trend_reversal_warning += "15m and 3m momentum both show bearish signs - strong reversal signal. This can be a counter-trend opportunity. Evaluate your exit plan and consider if the position thesis is still valid."
+                    elif signal_15m or signal_3m:
+                        # Only one of 15m or 3m shows reversal (informational)
                         signal_strength = "INFORMATIONAL"
-                    
-                    signals_text = " & ".join(reversal_signals)
-                    
-                    if trend_direction == 'short':
-                        trend_reversal_warning = f"ℹ️ {signal_strength} REVERSAL SIGNAL ({signals_text}): You have a SHORT position but momentum is showing bullish signs. "
-                        if signal_strength in ["VERY STRONG", "STRONG"]:
-                            trend_reversal_warning += f"Multiple timeframes ({HTF_LABEL}, 15m, 3m) show reversal potential - evaluate your exit plan and consider if the position thesis is still valid."
-                        elif signal_strength == "MEDIUM":
-                            trend_reversal_warning += "15m and 3m momentum show bullish signs - this is medium-strength context. Continue monitoring but prioritize {HTF_LABEL} trend confirmation."
-                        else:
+                        signals_text = " & ".join([s for s in reversal_signals if "15m" in s or "3m" in s])
+                        
+                        if trend_direction == 'short':
+                            trend_reversal_warning = f"ℹ️ {signal_strength} REVERSAL SIGNAL ({signals_text}): You have a SHORT position but momentum is showing bullish signs. "
                             trend_reversal_warning += "Short-term momentum shows bullish signs - this is informational context. Continue monitoring but prioritize {HTF_LABEL} trend confirmation before making exit decisions."
-                    else:  # long position
-                        trend_reversal_warning = f"ℹ️ {signal_strength} REVERSAL SIGNAL ({signals_text}): You have a LONG position but momentum is showing bearish signs. "
-                        if signal_strength in ["VERY STRONG", "STRONG"]:
-                            trend_reversal_warning += f"Multiple timeframes ({HTF_LABEL}, 15m, 3m) show reversal potential - evaluate your exit plan and consider if the position thesis is still valid."
-                        elif signal_strength == "MEDIUM":
-                            trend_reversal_warning += "15m and 3m momentum show bearish signs - this is medium-strength context. Continue monitoring but prioritize {HTF_LABEL} trend confirmation."
-                        else:
+                        else:  # long position
+                            trend_reversal_warning = f"ℹ️ {signal_strength} REVERSAL SIGNAL ({signals_text}): You have a LONG position but momentum is showing bearish signs. "
+                            trend_reversal_warning += "Short-term momentum shows bearish signs - this is informational context. Continue monitoring but prioritize {HTF_LABEL} trend confirmation before making exit decisions."
+                    else:
+                        # Only HTF signal (shouldn't happen, but handle it)
+                        signal_strength = "INFORMATIONAL"
+                        signals_text = " & ".join(reversal_signals)
+                        
+                        if trend_direction == 'short':
+                            trend_reversal_warning = f"ℹ️ {signal_strength} REVERSAL SIGNAL ({signals_text}): You have a SHORT position but momentum is showing bullish signs. "
+                            trend_reversal_warning += "Short-term momentum shows bullish signs - this is informational context. Continue monitoring but prioritize {HTF_LABEL} trend confirmation before making exit decisions."
+                        else:  # long position
+                            trend_reversal_warning = f"ℹ️ {signal_strength} REVERSAL SIGNAL ({signals_text}): You have a LONG position but momentum is showing bearish signs. "
                             trend_reversal_warning += "Short-term momentum shows bearish signs - this is informational context. Continue monitoring but prioritize {HTF_LABEL} trend confirmation before making exit decisions."
                 
                 # Extended position duration warning
