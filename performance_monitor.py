@@ -424,18 +424,31 @@ class PerformanceMonitor:
         
         return suggestions
 
-    def detect_trend_reversal_signals(self, coin: str) -> Dict[str, Any]:
-        """Detect trend reversal signals for a specific coin (Information Only - Decision Remains With AI)"""
+    def detect_trend_reversal_signals(self, coin: str, indicators_cache: Dict[str, Dict[str, Dict[str, Any]]] = None) -> Dict[str, Any]:
+        """Detect trend reversal signals for a specific coin (Information Only - Decision Remains With AI)
+        
+        Args:
+            coin: Coin symbol to analyze
+            indicators_cache: Optional pre-fetched indicators dict {coin: {interval: indicators}}
+                            If provided, uses cached data instead of fetching new data
+        """
         try:
-            # Import market data functions
-            from alpha_arena_deepseek import RealMarketData
-            market_data = RealMarketData()
+            # Get HTF_INTERVAL from alpha_arena_deepseek
+            from alpha_arena_deepseek import HTF_INTERVAL
             
-            # Get indicators for both timeframes
-            indicators_3m = market_data.get_technical_indicators(coin, '3m')
-            indicators_4h = market_data.get_technical_indicators(coin, '4h')
+            # Use cached indicators if provided (OPTIMIZATION: No re-fetch)
+            if indicators_cache and coin in indicators_cache:
+                coin_indicators = indicators_cache[coin]
+                indicators_3m = coin_indicators.get('3m', {})
+                indicators_htf = coin_indicators.get(HTF_INTERVAL, {})
+            else:
+                # Fallback: fetch indicators (legacy behavior)
+                from alpha_arena_deepseek import RealMarketData
+                market_data = RealMarketData()
+                indicators_3m = market_data.get_technical_indicators(coin, '3m')
+                indicators_htf = market_data.get_technical_indicators(coin, HTF_INTERVAL)
             
-            if 'error' in indicators_3m or 'error' in indicators_4h:
+            if 'error' in indicators_3m or 'error' in indicators_htf:
                 return {
                     "coin": coin,
                     "reversal_detected": False,
@@ -445,21 +458,21 @@ class PerformanceMonitor:
                 }
             
             # Extract key indicators
-            price_4h = indicators_4h.get('current_price')
-            ema20_4h = indicators_4h.get('ema_20')
+            price_htf = indicators_htf.get('current_price')
+            ema20_htf = indicators_htf.get('ema_20')
             price_3m = indicators_3m.get('current_price')
             ema20_3m = indicators_3m.get('ema_20')
             rsi_3m = indicators_3m.get('rsi_14', 50)
-            rsi_4h = indicators_4h.get('rsi_14', 50)
+            rsi_htf = indicators_htf.get('rsi_14', 50)
             volume_3m = indicators_3m.get('volume', 0)
             avg_volume_3m = indicators_3m.get('avg_volume', 1)
             macd_3m = indicators_3m.get('macd', 0)
             macd_signal_3m = indicators_3m.get('macd_signal', 0)
-            macd_4h = indicators_4h.get('macd', 0)
-            macd_signal_4h = indicators_4h.get('macd_signal', 0)
+            macd_htf = indicators_htf.get('macd', 0)
+            macd_signal_htf = indicators_htf.get('macd_signal', 0)
             
             # Determine current trend direction
-            trend_4h = "BULLISH" if price_4h > ema20_4h else "BEARISH"
+            trend_htf = "BULLISH" if price_htf > ema20_htf else "BEARISH"
             trend_3m = "BULLISH" if price_3m > ema20_3m else "BEARISH"
             
             # Trend reversal detection criteria
@@ -468,17 +481,18 @@ class PerformanceMonitor:
             signal_details = []
             
             # 1. Multi-timeframe EMA kırılma analizi
-            if trend_4h != trend_3m:
+            htf_label = HTF_INTERVAL.upper()
+            if trend_htf != trend_3m:
                 reversal_signals += 1
-                signal_details.append(f"Multi-timeframe EMA divergence: 4h {trend_4h} vs 3m {trend_3m}")
+                signal_details.append(f"Multi-timeframe EMA divergence: {htf_label} {trend_htf} vs 3m {trend_3m}")
             
             # 2. RSI momentum shift detection
             rsi_shift_3m = "BULLISH" if rsi_3m > 50 else "BEARISH"
-            rsi_shift_4h = "BULLISH" if rsi_4h > 50 else "BEARISH"
+            rsi_shift_htf = "BULLISH" if rsi_htf > 50 else "BEARISH"
             
-            if rsi_shift_3m != trend_3m or rsi_shift_4h != trend_4h:
+            if rsi_shift_3m != trend_3m or rsi_shift_htf != trend_htf:
                 reversal_signals += 1
-                signal_details.append(f"RSI momentum shift: 4h RSI {rsi_4h:.1f} ({rsi_shift_4h}), 3m RSI {rsi_3m:.1f} ({rsi_shift_3m})")
+                signal_details.append(f"RSI momentum shift: {htf_label} RSI {rsi_htf:.1f} ({rsi_shift_htf}), 3m RSI {rsi_3m:.1f} ({rsi_shift_3m})")
             
             # 3. Volume-price divergence
             volume_ratio = volume_3m / avg_volume_3m if avg_volume_3m > 0 else 0
@@ -496,9 +510,9 @@ class PerformanceMonitor:
             
             # 4. MACD signal line crossover
             macd_divergence_3m = (macd_3m > macd_signal_3m and trend_3m == "BEARISH") or (macd_3m < macd_signal_3m and trend_3m == "BULLISH")
-            macd_divergence_4h = (macd_4h > macd_signal_4h and trend_4h == "BEARISH") or (macd_4h < macd_signal_4h and trend_4h == "BULLISH")
+            macd_divergence_htf = (macd_htf > macd_signal_htf and trend_htf == "BEARISH") or (macd_htf < macd_signal_htf and trend_htf == "BULLISH")
             
-            if macd_divergence_3m or macd_divergence_4h:
+            if macd_divergence_3m or macd_divergence_htf:
                 reversal_signals += 1
                 signal_details.append("MACD signal line divergence detected")
             
@@ -522,7 +536,7 @@ class PerformanceMonitor:
                 "signal_strength": signal_strength,
                 "signals_detected": reversal_signals,
                 "total_signals": total_signals,
-                "current_trend_4h": trend_4h,
+                f"current_trend_{HTF_INTERVAL}": trend_htf,
                 "current_trend_3m": trend_3m,
                 "signal_details": signal_details,
                 "recommendation": recommendation,
@@ -539,8 +553,14 @@ class PerformanceMonitor:
                 "recommendation": "Unable to analyze trend reversal"
             }
 
-    def detect_trend_reversal_for_all_coins(self, coins: List[str]) -> Dict[str, Any]:
-        """Detect trend break signals for all specified coins (Loss Risk Information Only)"""
+    def detect_trend_reversal_for_all_coins(self, coins: List[str], indicators_cache: Dict[str, Dict[str, Dict[str, Any]]] = None) -> Dict[str, Any]:
+        """Detect trend break signals for all specified coins (Loss Risk Information Only)
+        
+        Args:
+            coins: List of coin symbols to analyze
+            indicators_cache: Optional pre-fetched indicators dict {coin: {interval: indicators}}
+                            If provided, uses cached data instead of fetching new data (OPTIMIZATION)
+        """
         try:
             reversal_results = {}
             high_risk_coins = []
@@ -551,7 +571,7 @@ class PerformanceMonitor:
             print(f"🔍 Analyzing trend break signals for {len(coins)} coins...")
             
             for coin in coins:
-                reversal_result = self.detect_trend_reversal_signals(coin)
+                reversal_result = self.detect_trend_reversal_signals(coin, indicators_cache=indicators_cache)
                 reversal_results[coin] = reversal_result
                 
                 # Categorize coins by signal strength
