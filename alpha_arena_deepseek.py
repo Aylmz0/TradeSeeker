@@ -95,6 +95,7 @@ RISK MANAGEMENT:
 
 SYMMETRIC STRATEGY GUIDANCE:
 - Evaluate both LONG and SHORT paths for every asset. Bullish regimes support longs; bearish regimes support shorts.
+- NEUTRAL regime: When a coin's market regime is NEUTRAL (1h trend doesn't align with 3m/15m), you can still take LONG or SHORT positions. NEUTRAL indicates counter-trend opportunities or mixed signals - evaluate technical conditions and take the direction with the best quantified edge. Both LONG and SHORT trades are valid in NEUTRAL conditions.
 - Counter-trend trades are a valid and valuable strategy; use them when the pre-computed checklist (in the prompt) shows >2/5 conditions and you can rationalize the edge. Counter-trend opportunities often provide excellent risk/reward ratios.
 - Counter-trend trades require moderate confidence (>0.65). If you see a strong counter-trend setup, don't hesitate to take it even if confidence is above 0.60.
 - Only label a setup as counter-trend when your proposed trade direction is opposite the {HTF_LABEL} trend. If {HTF_LABEL} trend and trade direction align but 3m is temporarily opposing, treat it as trend-following.
@@ -110,6 +111,24 @@ DATA CONTEXT:
 - Treat the supplied data as the authoritative source for every decision.
 - When reporting comparisons (e.g., price vs EMA), write them explicitly as `price=2.2854 > EMA20=2.2835` or `price=... < EMA20=...` so the direction is unambiguous.
 - Reference both global regime counts (bullish/bearish/neutral) and coin-specific regimes when summarizing market context to avoid contradictory statements.
+
+JSON DATA FORMAT (Format Version 1.0):
+- Market data is provided in JSON format for easier parsing and structured analysis.
+- JSON sections are embedded within the prompt with clear labels (e.g., "COUNTER_TRADE_ANALYSIS (JSON):").
+- Each JSON section contains structured data:
+  * COUNTER_TRADE_ANALYSIS: Array of counter-trade conditions per coin with risk levels
+  * TREND_REVERSAL_DATA: Array of reversal signals per coin with strength indicators
+  * ENHANCED_CONTEXT: Position, market regime, performance, and risk context
+  * COOLDOWN_STATUS: Directional and coin-specific cooldown information
+  * POSITION_SLOTS: Current position slot usage and availability
+  * MARKET_DATA: Per-coin market data with timeframes (3m, 15m, HTF) and indicators
+  * PORTFOLIO: Account value, returns, and position details
+  * RISK_STATUS: Current risk metrics and trading limits
+  * HISTORICAL_CONTEXT: Recent trading decisions and market behavior
+- All numerical values in JSON are raw numbers (not formatted strings) for direct use in calculations.
+- Series data may be compressed if longer than 50 values (first 5 and last 5 values kept, with summary stats).
+- Parse JSON sections using standard JSON parsing; all data types are clearly defined (numbers, strings, booleans, arrays, objects).
+- If a JSON section is missing or invalid, use the plain text context provided alongside it.
 
 ADVANCED ANALYSIS PLAYBOOK:
 - Apply long and short strategies across all coins; choose the direction that offers the superior quantified edge.
@@ -987,13 +1006,20 @@ class PortfolioManager:
                 
                 old_total = self.total_value
                 
-                # Total value = Available cash + Margin used
-                # This is the simple and correct formula: what you have available + what's locked in positions
-                self.total_value = self.current_balance + total_margin_used
+                # Calculate total unrealized PnL
+                total_unrealized_pnl = 0.0
+                for pos in self.positions.values():
+                    pnl = pos.get('unrealized_pnl', 0.0)
+                    if isinstance(pnl, (int, float)):
+                        total_unrealized_pnl += pnl
+                
+                # Total value = Available cash + Margin used + Unrealized PnL
+                # This is the correct formula: what you have available + what's locked in positions + unrealized gains/losses
+                self.total_value = self.current_balance + total_margin_used + total_unrealized_pnl
                 
                 if abs(old_total - self.total_value) > 0.01:
                     print(f"📊 Total value updated: ${old_total:.2f} → ${self.total_value:.2f}")
-                    print(f"   (Available cash: ${self.current_balance:.2f} + Margin used: ${total_margin_used:.2f})")
+                    print(f"   (Available cash: ${self.current_balance:.2f} + Margin used: ${total_margin_used:.2f} + Unrealized PnL: ${total_unrealized_pnl:.2f})")
                     
                     # Debug: Also show what Binance says for comparison
                     if overview:
@@ -1791,7 +1817,24 @@ class PortfolioManager:
     ):
         prompt_summary = "N/A"
         if isinstance(prompt, str) and prompt not in (None, "N/A"):
-            prompt_summary = prompt[:300] + "..." if len(prompt) > 300 else prompt
+            # For JSON prompts, try to extract a meaningful summary
+            if "COUNTER_TRADE_ANALYSIS (JSON):" in prompt or "MARKET_DATA (JSON):" in prompt:
+                # JSON format prompt - create a structured summary
+                try:
+                    # Extract key sections for summary
+                    summary_parts = []
+                    if "COUNTER_TRADE_ANALYSIS (JSON):" in prompt:
+                        summary_parts.append("Counter-trade analysis (JSON)")
+                    if "MARKET_DATA (JSON):" in prompt:
+                        summary_parts.append("Market data (JSON)")
+                    if "PORTFOLIO (JSON):" in prompt:
+                        summary_parts.append("Portfolio (JSON)")
+                    prompt_summary = f"JSON Format: {', '.join(summary_parts)} | " + prompt[:200] + "..."
+                except:
+                    prompt_summary = prompt[:300] + "..." if len(prompt) > 300 else prompt
+            else:
+                # Text format prompt - use original truncation
+                prompt_summary = prompt[:300] + "..." if len(prompt) > 300 else prompt
         
         # Add cooldown information to cycle data
         cooldown_info = {
@@ -1872,9 +1915,10 @@ class PortfolioManager:
                 if isinstance(margin, (int, float)) and margin > 0:
                     total_margin_used += margin
             
-            # Total value = Available cash + Margin used (simple and correct)
+            # Total value = Available cash + Margin used + Unrealized PnL
             # This works for both live and simulation mode
-            self.total_value = self.current_balance + total_margin_used
+            # Unrealized PnL must be included to reflect true portfolio value
+            self.total_value = self.current_balance + total_margin_used + total_unrealized_pnl
 
         if self.initial_balance > 0: self.total_return = ((self.total_value - self.initial_balance) / self.initial_balance) * 100
         else: self.total_return = 0.0
@@ -4434,74 +4478,74 @@ class AlphaArenaDeepSeek:
         self,
         coin: str,
         indicators_htf: Optional[Dict[str, Any]] = None,
-        indicators_3m: Optional[Dict[str, Any]] = None
+        indicators_3m: Optional[Dict[str, Any]] = None,
+        indicators_15m: Optional[Dict[str, Any]] = None
     ) -> str:
-        """Detect market condition based on multi-timeframe indicators"""
+        """
+        Detect market condition based on multi-timeframe indicators.
+        
+        Rule: For a coin to be BULLISH, 1h must be bullish AND (3m OR 15m must be bullish).
+        For a coin to be BEARISH, 1h must be bearish AND (3m OR 15m must be bearish).
+        Otherwise, return NEUTRAL.
+        """
         try:
             if indicators_htf is None:
                 indicators_htf = self.market_data.get_technical_indicators(coin, HTF_INTERVAL)
             if not isinstance(indicators_htf, dict) or 'error' in indicators_htf:
                 return "UNCLEAR"
             
-            price = indicators_htf.get('current_price')
-            ema_20 = indicators_htf.get('ema_20')
-            rsi = indicators_htf.get('rsi_14', 50)
-            macd = indicators_htf.get('macd', 0)
+            price_htf = indicators_htf.get('current_price')
+            ema20_htf = indicators_htf.get('ema_20')
 
-            if not isinstance(price, (int, float)) or not isinstance(ema_20, (int, float)) or ema_20 == 0:
+            if not isinstance(price_htf, (int, float)) or not isinstance(ema20_htf, (int, float)) or ema20_htf == 0:
                 return "UNCLEAR"
 
-            # Optional intraday context (3m)
+            # Determine 1h trend
+            delta_htf = (price_htf - ema20_htf) / ema20_htf
+            price_neutral = abs(delta_htf) <= Config.EMA_NEUTRAL_BAND_PCT
+            htf_trend = None
+            if not price_neutral:
+                htf_trend = "bullish" if delta_htf > 0 else "bearish"
+            else:
+                return "NEUTRAL"
+
+            # Get 3m trend
             if indicators_3m is None:
                 indicators_3m = self.market_data.get_technical_indicators(coin, '3m')
-            intraday_trend = None
-            intraday_rsi = None
+            trend_3m = None
             if isinstance(indicators_3m, dict) and 'error' not in indicators_3m:
                 price_3m = indicators_3m.get('current_price')
-                ema20_3m = indicators_3m.get('ema_20', price_3m)
-                if isinstance(price_3m, (int, float)) and isinstance(ema20_3m, (int, float)):
-                    intraday_trend = "bullish" if price_3m >= ema20_3m else "bearish"
-                intraday_rsi = indicators_3m.get('rsi_14', indicators_3m.get('rsi_7', 50))
+                ema20_3m = indicators_3m.get('ema_20')
+                if isinstance(price_3m, (int, float)) and isinstance(ema20_3m, (int, float)) and ema20_3m > 0:
+                    trend_3m = "bullish" if price_3m >= ema20_3m else "bearish"
 
-            delta = (price - ema_20) / ema_20
-            price_neutral = abs(delta) <= Config.EMA_NEUTRAL_BAND_PCT
-            trend_direction = "NEUTRAL" if price_neutral else ("BULLISH" if delta > 0 else "BEARISH")
+            # Get 15m trend
+            if indicators_15m is None:
+                indicators_15m = self.market_data.get_technical_indicators(coin, '15m')
+            trend_15m = None
+            if isinstance(indicators_15m, dict) and 'error' not in indicators_15m:
+                price_15m = indicators_15m.get('current_price')
+                ema20_15m = indicators_15m.get('ema_20')
+                if isinstance(price_15m, (int, float)) and isinstance(ema20_15m, (int, float)) and ema20_15m > 0:
+                    trend_15m = "bullish" if price_15m >= ema20_15m else "bearish"
 
-            if trend_direction != "NEUTRAL" and intraday_trend and isinstance(intraday_rsi, (int, float)):
-                if trend_direction == "BEARISH" and intraday_trend == "bullish" and intraday_rsi >= Config.INTRADAY_NEUTRAL_RSI_HIGH:
-                    trend_direction = "NEUTRAL"
-                elif trend_direction == "BULLISH" and intraday_trend == "bearish" and intraday_rsi <= Config.INTRADAY_NEUTRAL_RSI_LOW:
-                    trend_direction = "NEUTRAL"
-
-            if trend_direction == "NEUTRAL":
-                intraday_supports_short = (
-                    price is not None and ema_20 is not None and price <= ema_20 and
-                    isinstance(intraday_rsi, (int, float)) and intraday_rsi <= Config.TREND_SHORT_RSI_THRESHOLD and
-                    (intraday_trend == "bearish" or intraday_trend is None)
-                )
-                intraday_supports_long = (
-                    price is not None and ema_20 is not None and price >= ema_20 and
-                    isinstance(intraday_rsi, (int, float)) and intraday_rsi >= Config.TREND_LONG_RSI_THRESHOLD and
-                    (intraday_trend == "bullish" or intraday_trend is None)
-                )
-                if intraday_supports_short:
-                    trend_direction = "BEARISH"
-                elif intraday_supports_long:
-                    trend_direction = "BULLISH"
+            # Apply rule: 1h + (3m OR 15m) must align for BULLISH/BEARISH
+            if htf_trend == "bullish":
+                # For BULLISH: 1h bullish AND (3m bullish OR 15m bullish)
+                if trend_3m == "bullish" or trend_15m == "bullish":
+                    return "BULLISH"
                 else:
-                    return "NEUTRAL_BALANCED"
-
-            if rsi > 70 and macd < 0:
-                return f"{trend_direction}_REVERSAL"
-            if rsi < 30 and macd > 0:
-                return f"{trend_direction}_REVERSAL"
-            if rsi > 60:
-                return f"{trend_direction}_TREND"
-            if rsi < 40:
-                return f"{trend_direction}_TREND"
-            if 45 <= rsi <= 55:
-                return f"{trend_direction}_RANGING"
-                return f"{trend_direction}_CONSOLIDATION"
+                    # 1h bullish but shorter timeframes bearish = NEUTRAL (counter-trend opportunity)
+                    return "NEUTRAL"
+            elif htf_trend == "bearish":
+                # For BEARISH: 1h bearish AND (3m bearish OR 15m bearish)
+                if trend_3m == "bearish" or trend_15m == "bearish":
+                    return "BEARISH"
+                else:
+                    # 1h bearish but shorter timeframes bullish = NEUTRAL (counter-trend opportunity)
+                    return "NEUTRAL"
+            else:
+                return "NEUTRAL"
                 
         except Exception as e:
             print(f"⚠️ Regime detection error for {coin}: {e}")
@@ -5166,7 +5210,7 @@ REMEMBER: These are suggestions only. You make the final trading decisions based
             }
             
             # Add market regime detection
-            market_regime = self.detect_market_regime(coin, indicators_htf=indicators_htf, indicators_3m=indicators_3m)
+            market_regime = self.detect_market_regime(coin, indicators_htf=indicators_htf, indicators_3m=indicators_3m, indicators_15m=indicators_15m)
             prompt += f"--- MARKET REGIME: {market_regime} ---\n"
             
             prompt += f"--- Market Sentiment for {coin} Perps ---\n"
@@ -5399,6 +5443,217 @@ Current live positions & performance:"""
         else:
             for coin, pos in self.portfolio.positions.items():
                 prompt += f"\n{{'symbol': '{coin}', 'quantity': {format_num(pos.get('quantity', 0), 4)}, 'entry_price': {format_num(pos.get('entry_price', 0))}, 'current_price': {format_num(pos.get('current_price', 0))}, 'liquidation_price': {format_num(pos.get('liquidation_price', 0))}, 'unrealized_pnl': {format_num(pos.get('unrealized_pnl', 0), 2)}, 'leverage': {pos.get('leverage', 1)}, 'exit_plan': {json.dumps(pos.get('exit_plan', {}))}, 'confidence': {pos.get('confidence', 0.5)}, 'risk_usd': {pos.get('risk_usd', 'N/A')}, 'sl_oid': -1, 'tp_oid': -1, 'wait_for_fill': False, 'entry_oid': -1, 'notional_usd': {format_num(pos.get('notional_usd', 0), 2)}}}"
+        return prompt
+
+    def generate_alpha_arena_prompt_json(self) -> str:
+        """
+        Generate hybrid JSON prompt with structured data sections.
+        Uses JSON for data, plain text for instructions and warnings.
+        """
+        from prompt_json_builders import (
+            build_metadata_json,
+            build_counter_trade_json,
+            build_trend_reversal_json,
+            build_enhanced_context_json,
+            build_cooldown_status_json,
+            build_position_slot_json,
+            build_market_data_json,
+            build_portfolio_json,
+            build_risk_status_json,
+            build_historical_context_json,
+            build_directional_bias_json,
+            build_trend_flip_guard_json
+        )
+        from prompt_json_utils import safe_json_dumps, create_json_section, compare_token_usage
+        from prompt_json_schemas import JSON_PROMPT_VERSION
+        from config import Config
+        
+        current_time = datetime.now()
+        minutes_running = int((current_time - self.portfolio.start_time).total_seconds() / 60)
+        
+        # Fetch all indicators in parallel (same as original)
+        all_indicators, all_sentiment = self._fetch_all_indicators_parallel()
+        
+        # Get enhanced context and other data
+        enhanced_context = self.get_enhanced_context()
+        counter_trade_analysis = self._get_counter_trade_analysis_from_indicators(all_indicators)
+        
+        # Get trend reversal detection
+        from performance_monitor import PerformanceMonitor
+        performance_monitor = PerformanceMonitor()
+        trend_reversal_analysis = performance_monitor.detect_trend_reversal_for_all_coins(
+            self.market_data.available_coins,
+            indicators_cache=all_indicators
+        )
+        
+        # Get cooldown status
+        directional_cooldowns = getattr(self.portfolio, 'directional_cooldowns', {'long': 0, 'short': 0})
+        coin_cooldowns = getattr(self.portfolio, 'coin_cooldowns', {})
+        counter_trend_cooldown = getattr(self.portfolio, 'counter_trend_cooldown', 0)
+        relaxed_countertrend_cycles = getattr(self.portfolio, 'relaxed_countertrend_cycles', 0)
+        
+        # Get trading context
+        trading_context = self.get_trading_context()
+        
+        # Get directional bias metrics (for performance snapshot)
+        bias_metrics = getattr(self, 'latest_bias_metrics', self.get_directional_bias_metrics())
+        
+        # Get trend flip summary
+        recent_flips = self.portfolio.get_recent_trend_flip_summary()
+        flip_history_window = getattr(self.portfolio, 'trend_flip_history_window', self.portfolio.trend_flip_cooldown)
+        
+        # Build JSON sections
+        compact = Config.JSON_PROMPT_COMPACT
+        
+        # Metadata
+        metadata_json = build_metadata_json(minutes_running, current_time, self.invocation_count)
+        
+        # Counter-trade analysis
+        counter_trade_json = build_counter_trade_json(
+            counter_trade_analysis,
+            all_indicators,
+            self.market_data.available_coins,
+            HTF_INTERVAL
+        )
+        
+        # Trend reversal
+        trend_reversal_json = build_trend_reversal_json(
+            trend_reversal_analysis,
+            self.portfolio.positions
+        )
+        
+        # Enhanced context
+        enhanced_context_json = build_enhanced_context_json(enhanced_context)
+        
+        # Cooldown status
+        cooldown_status_json = build_cooldown_status_json(
+            directional_cooldowns,
+            coin_cooldowns,
+            counter_trend_cooldown,
+            relaxed_countertrend_cycles
+        )
+        
+        # Position slot status
+        max_positions = self.get_max_positions_for_cycle(max(1, getattr(self, 'current_cycle_number', 1)))
+        position_slot_json = build_position_slot_json(self.portfolio.positions, max_positions)
+        
+        # Market data (per coin)
+        market_data_json = []
+        for coin in self.market_data.available_coins:
+            indicators_3m = all_indicators.get(coin, {}).get('3m', {})
+            indicators_15m = all_indicators.get(coin, {}).get('15m', {})
+            indicators_htf = all_indicators.get(coin, {}).get(HTF_INTERVAL, {})
+            sentiment = all_sentiment.get(coin, {})
+            
+            # Detect market regime
+            market_regime = self.detect_market_regime(coin, indicators_htf=indicators_htf, indicators_3m=indicators_3m, indicators_15m=indicators_15m)
+            
+            # Get position if exists
+            position = self.portfolio.positions.get(coin)
+            
+            coin_market_data = build_market_data_json(
+                coin,
+                market_regime,
+                sentiment,
+                indicators_3m,
+                indicators_15m,
+                indicators_htf,
+                position,
+                max_series_length=Config.JSON_SERIES_MAX_LENGTH
+            )
+            market_data_json.append(coin_market_data)
+        
+        # Portfolio
+        portfolio_json = build_portfolio_json(self.portfolio)
+        
+        # Risk status
+        risk_status_json = build_risk_status_json(self.portfolio, max_positions)
+        
+        # Historical context
+        historical_context_json = build_historical_context_json(trading_context)
+        
+        # Directional bias (performance snapshot)
+        directional_bias_json = build_directional_bias_json(bias_metrics)
+        
+        # Trend flip guard
+        trend_flip_guard_json = build_trend_flip_guard_json(
+            recent_flips,
+            self.portfolio.trend_flip_cooldown,
+            flip_history_window
+        )
+        
+        # Build hybrid prompt
+        prompt = f"""
+USER_PROMPT:
+It has been {minutes_running} minutes since you started trading. The current time is {current_time} and you've been invoked {self.invocation_count} times. Below, we are providing you with a variety of state data, price data, and predictive signals so you can discover alpha. Below that is your current account information, value, performance, positions, etc.
+
+ALL OF THE PRICE OR SIGNAL DATA BELOW IS ORDERED: OLDEST → NEWEST
+Timeframes note: Unless stated otherwise in a section title, intraday series are provided at 3‑minute intervals. If a coin uses a different interval, it is explicitly stated in that coin's section.
+
+{'='*20} REAL-TIME COUNTER-TRADE ANALYSIS {'='*20}
+
+We pre-compute the standard 5 counter-trend conditions for every coin. Review these findings first; only recalc if you detect inconsistencies or need extra validation.
+
+{create_json_section("COUNTER_TRADE_ANALYSIS", counter_trade_json, compact=compact)}
+
+{'='*20} TREND REVERSAL DETECTION {'='*20}
+
+All notes below are informational statistics about potential reversals; evaluate them independently before acting.
+
+{create_json_section("TREND_REVERSAL_DATA", trend_reversal_json, compact=compact)}
+
+{'='*20} ENHANCED DECISION CONTEXT (Non-binding suggestions) {'='*20}
+
+Metrics and remarks in this section are informational only. You must weigh them yourself before making any trading decision.
+
+{create_json_section("ENHANCED_CONTEXT", enhanced_context_json, compact=compact)}
+
+DIRECTIONAL PERFORMANCE SNAPSHOT (Last 20 trades max):
+{create_json_section("DIRECTIONAL_BIAS", directional_bias_json, compact=compact)}
+
+⚠️ IMPORTANT: If a direction (LONG or SHORT) is in cooldown, you MUST NOT propose any new trades in that direction. The system will block them, but you should avoid proposing them in the first place. Cooldown is activated after 3 consecutive losses OR $5+ total loss in a direction.
+
+{create_json_section("COOLDOWN_STATUS", cooldown_status_json, compact=compact)}
+
+⚠️ IMPORTANT: If a coin is in cooldown, you MUST NOT propose any new trades for that coin (LONG or SHORT). The system will block them, but you should avoid proposing them in the first place. Coin cooldown is activated after a loss on that coin and lasts for 1 cycle.
+
+RECENT TREND FLIP GUARD (Cooldown = {self.portfolio.trend_flip_cooldown} cycles | History = {flip_history_window} cycles):
+{create_json_section("TREND_FLIP_GUARD", trend_flip_guard_json, compact=compact)}
+
+{'='*20} POSITION SLOT STATUS {'='*20}
+
+{create_json_section("POSITION_SLOTS", position_slot_json, compact=compact)}
+
+{'='*20} MARKET DATA {'='*20}
+
+All market data is provided in JSON format below. Each coin contains:
+- market_regime: Current market regime (BULLISH/BEARISH/NEUTRAL)
+- sentiment: Open Interest and Funding Rate
+- timeframes: 3m, 15m, {HTF_INTERVAL} indicators with historical series
+- position: Current position details (if exists)
+
+{create_json_section("MARKET_DATA", market_data_json, compact=compact)}
+
+{'='*20} HISTORICAL CONTEXT (Last {trading_context.get('total_cycles_analyzed', 0)} Cycles) {'='*20}
+
+{create_json_section("HISTORICAL_CONTEXT", historical_context_json, compact=compact)}
+
+{'='*20} REAL-TIME RISK STATUS {'='*20}
+
+{create_json_section("RISK_STATUS", risk_status_json, compact=compact)}
+
+{'='*20} HERE IS YOUR ACCOUNT INFORMATION & PERFORMANCE {'='*20}
+
+{create_json_section("PORTFOLIO", portfolio_json, compact=compact)}
+"""
+        
+        # Validate JSON if enabled
+        if Config.VALIDATE_JSON_PROMPTS:
+            from prompt_json_schemas import validate_json_against_schema, get_full_prompt_schema
+            # Note: Full validation would require building the complete JSON structure
+            # For now, we validate individual sections
+            pass
+        
         return prompt
 
     def parse_ai_response(self, response: str) -> Dict:
@@ -5678,7 +5933,24 @@ Current live positions & performance:"""
                 ai_timer_start = time.perf_counter()
                 print("\n🤖 GENERATING PROMPT...")
                 self.invocation_count += 1 # Increment AI call count
-                prompt = self.generate_alpha_arena_prompt()
+                # Use JSON prompt if enabled, with fallback to text format
+                prompt = None
+                prompt_format_used = "text"
+                json_serialization_error = None
+                
+                if Config.USE_JSON_PROMPT:
+                    try:
+                        prompt = self.generate_alpha_arena_prompt_json()
+                        prompt_format_used = "json"
+                        print(f"✅ Using JSON prompt format (version {Config.JSON_PROMPT_VERSION})")
+                    except Exception as e:
+                        json_serialization_error = str(e)
+                        print(f"⚠️ JSON prompt generation failed: {e}")
+                        print("   Falling back to text format...")
+                        prompt = self.generate_alpha_arena_prompt()
+                        prompt_format_used = "json_fallback"
+                else:
+                    prompt = self.generate_alpha_arena_prompt()
                 print("📋 USER PROMPT (summary): " + prompt[:200] + "...")
 
                 # Check bot control before AI API call (can be slow in live mode)
@@ -5915,7 +6187,9 @@ Current live positions & performance:"""
                     'directional_cooldowns': dict(self.portfolio.directional_cooldowns),
                     'relaxed_countertrend_cycles': self.portfolio.relaxed_countertrend_cycles,
                     'counter_trend_cooldown': self.portfolio.counter_trend_cooldown
-                }
+                },
+                'prompt_format': prompt_format_used if 'prompt_format_used' in locals() else 'text',
+                'json_serialization_error': json_serialization_error if 'json_serialization_error' in locals() else None
             }
             if execution_report:
                 cycle_metadata['execution_report'] = execution_report

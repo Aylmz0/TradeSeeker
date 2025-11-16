@@ -12,6 +12,7 @@ Profesyonel kripto para ticaret botu - DeepSeek AI entegrasyonu ile otomatik tra
 - **Real-time Data**: Binance API ile gerçek zamanlı piyasa verileri
 - **Web Dashboard**: Gerçek zamanlı izleme ve kontrol paneli
 - **Flexible Risk Levels**: Low, Medium, High risk seviyeleri
+- **JSON Prompt Format** (v1.0): Yapılandırılmış JSON format ile daha iyi AI parsing ve token optimizasyonu
 
 ## 📋 Sistem Gereksinimleri
 
@@ -82,6 +83,15 @@ HTF_INTERVAL=1h  # Options: 30m, 1h, 2h, 4h
 
 # Risk Level Configuration
 RISK_LEVEL=medium  # Options: low, medium, high
+
+# JSON Prompt Feature Flags (New in v1.0)
+USE_JSON_PROMPT=false  # Enable JSON format prompts (true/false)
+JSON_PROMPT_COMPACT=true  # Use compact JSON format to save tokens (true/false) - Recommended: true
+VALIDATE_JSON_PROMPTS=false  # Enable runtime JSON validation (true/false)
+JSON_PROMPT_VERSION=1.0  # JSON prompt format version
+JSON_SERIES_MAX_LENGTH=50  # Maximum series length before compression (default: 50)
+JSON_CACHE_ENABLED=false  # Enable JSON serialization cache (true/false)
+JSON_CACHE_TTL=120  # Cache TTL in seconds (2 minutes = 1 cycle)
 ```
 
 ### 2.1 Canlı Kullanım Konfigürasyon İpuçları
@@ -93,6 +103,7 @@ RISK_LEVEL=medium  # Options: low, medium, high
 - **MIN_CONFIDENCE**: AI karar filtre eşiği. Gerçek bakiyede çok düşük ayarlanması gereksiz işlem sayısını artırabilir; 0.4-0.5 aralığı sağlıklı.  
 - **INITIAL_BALANCE / MIN_POSITION_MARGIN_USD**: Gerçek bakiyeniz farklıysa `.env` ve `config.py` değerlerini güncelleyip botu yeniden başlatın; margin limitleri yeni bakiyeye göre otomatik ölçeklenir.  
 - **API Limits & Failover**: Binance tarafında saniyede 10 istek limitini aşmamak için `MAX_RETRY_ATTEMPTS`, `REQUEST_TIMEOUT` gibi parametreleri aşırı düşürmeyin.  
+- **USE_JSON_PROMPT**: (Varsayılan `false`) JSON format prompt'ları aktif eder. Token tasarrufu için `JSON_PROMPT_COMPACT=true` ile birlikte kullanılması önerilir. Hata durumunda otomatik olarak text format'a fallback yapar. Compact mode ile text format'tan %26'ya kadar token tasarrufu sağlanabilir.  
 
 ### 2.2 Yeni Cihazda Kurulum Kontrol Listesi
 
@@ -247,12 +258,22 @@ Değişiklikten sonra botu yeniden başlatın.
 .
 ├── alpha_arena_deepseek.py    # Ana trading botu
 ├── binance.py                 # Binance Futures emir yürütücüsü (live mode)
-├── admin_server.py            # Web sunucusu
+├── admin_server_flask.py      # Web sunucusu (Flask)
 ├── config.py                  # Konfigürasyon yönetimi
 ├── backtest.py                # Backtesting modülü
 ├── utils.py                   # Yardımcı fonksiyonlar
+├── enhanced_context_provider.py  # Enhanced context sağlayıcı
+├── performance_monitor.py     # Performans izleme ve trend reversal
+├── cache_manager.py           # Cache yönetimi
+├── prompt_json_builders.py    # JSON prompt builder fonksiyonları (v1.0)
+├── prompt_json_utils.py       # JSON utility fonksiyonları (v1.0)
+├── prompt_json_schemas.py     # JSON schema tanımları (v1.0)
+├── test_prompt_json.py        # JSON prompt unit testleri
+├── test_prompt_integration.py # Integration testleri
+├── test_prompt_ab_comparison.py  # A/B karşılaştırma testleri
 ├── index.html                 # Web arayüzü
 ├── .env                       # Çevre değişkenleri
+├── .envexample.txt            # Örnek .env dosyası
 ├── portfolio_state.json       # Portföy durumu
 ├── trade_history.json         # İşlem geçmişi
 ├── cycle_history.json         # Cycle geçmişi
@@ -261,6 +282,48 @@ Değişiklikten sonra botu yeniden başlatın.
 ```
 
 ## 🛠️ Gelişmiş Özellikler
+
+### JSON Prompt Format (v1.0)
+
+Sistem artık AI'a gönderilen prompt'ları JSON formatında sunabilir. Bu özellik:
+
+- **Daha İyi Parsing**: AI modeli yapılandırılmış veriyi daha kolay parse eder
+- **Token Optimizasyonu**: Compact mode ile %26'ya kadar token tasarrufu
+- **Tip Güvenliği**: Veri tipleri açıkça belirtilir (number, string, array, object)
+- **Kolay Validation**: JSON schema validation ile veri doğrulama
+- **Series Compression**: Büyük seriler otomatik olarak sıkıştırılır (%79 token tasarrufu)
+
+#### JSON Prompt Kullanımı
+
+```bash
+# .env dosyasında
+USE_JSON_PROMPT=true
+JSON_PROMPT_COMPACT=true  # Token tasarrufu için önerilir
+```
+
+**Özellikler:**
+- `USE_JSON_PROMPT`: JSON format'ı aktif eder (varsayılan: false)
+- `JSON_PROMPT_COMPACT`: Compact JSON kullanır, token kullanımını azaltır (önerilir: true)
+- `VALIDATE_JSON_PROMPTS`: Runtime'da JSON validation yapar (opsiyonel)
+- `JSON_SERIES_MAX_LENGTH`: Seri uzunluğu bu değeri aşarsa otomatik sıkıştırma yapılır (varsayılan: 50)
+
+**Avantajlar:**
+- Compact mode ile text format'tan %26 daha az token kullanımı
+- Büyük serilerde %79 token tasarrufu (compression ile)
+- Hata durumunda otomatik text format'a fallback
+- NaN/None değerler güvenli şekilde handle edilir
+
+**Test:**
+```bash
+# Unit testler
+python test_prompt_json.py
+
+# Integration testler
+python test_prompt_integration.py
+
+# A/B karşılaştırma
+python test_prompt_ab_comparison.py
+```
 
 ### Manuel Müdahale
 `manual_override.json` dosyası oluşturarak manuel işlem yapabilirsiniz:
