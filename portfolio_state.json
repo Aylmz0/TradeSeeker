@@ -1,5 +1,5 @@
 {
-    "current_balance": 110.96561592011471,
+    "current_balance": 110.78124228135515,
     "positions": {
         "SOL": {
             "symbol": "SOL",
@@ -7,8 +7,8 @@
             "quantity": 1.0486311590198023,
             "entry_price": 136.23,
             "entry_time": "2025-11-16T19:30:51.912616",
-            "current_price": 136.07,
-            "unrealized_pnl": 0.1677809854431648,
+            "current_price": 136.05,
+            "unrealized_pnl": 0.18875360862354176,
             "notional_usd": 142.85502279326766,
             "margin_usd": 14.285502279326767,
             "leverage": 10,
@@ -38,12 +38,12 @@
             "wait_for_fill": false
         }
     },
-    "total_value": 125.41889918488464,
-    "total_return": 0.3351193479077097,
+    "total_value": 125.25549816930545,
+    "total_return": 0.20439853544436346,
     "initial_balance": 125.0,
-    "trade_count": 8,
-    "last_updated": "2025-11-16T19:52:02.595319",
-    "sharpe_ratio": 36.339775080868954,
+    "trade_count": 9,
+    "last_updated": "2025-11-16T19:57:24.919465",
+    "sharpe_ratio": 2.310989326635174,
     "directional_bias": {
         "long": {
             "rolling": [
@@ -52,17 +52,18 @@
                 0.3042487003914005,
                 0.031334016856261214,
                 1.0118043844856668,
-                -0.3337513414991985
+                -0.3337513414991985,
+                -0.18437363875955498
             ],
-            "net_pnl": -0.8842185881232917,
-            "trades": 6,
+            "net_pnl": -1.0685922268828467,
+            "trades": 7,
             "wins": 3,
-            "losses": 3,
-            "consecutive_losses": 1,
+            "losses": 4,
+            "consecutive_losses": 2,
             "consecutive_wins": 0,
             "caution_active": false,
             "caution_win_progress": 0,
-            "loss_streak_loss_usd": 2.2316056898566203
+            "loss_streak_loss_usd": 2.4159793286161753
         },
         "short": {
             "rolling": [
@@ -81,7 +82,7 @@
         }
     },
     "last_history_reset_cycle": 0,
-    "cycles_since_history_reset": 11,
+    "cycles_since_history_reset": 12,
     "directional_cooldowns": {
         "long": 0,
         "short": 0
@@ -89,5 +90,7 @@
     "relaxed_countertrend_cycles": 0,
     "counter_trend_cooldown": 0,
     "counter_trend_consecutive_losses": 0,
-    "coin_cooldowns": {}
+    "coin_cooldowns": {
+        "ASTER": 1
+    }
 }

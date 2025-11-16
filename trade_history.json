@@ -102,5 +102,18 @@
         "exit_time": "2025-11-16T19:49:46.972954",
         "leverage": 10,
         "close_reason": "AI close_position signal"
+    },
+    {
+        "symbol": "ASTER",
+        "direction": "long",
+        "entry_price": 1.196,
+        "exit_price": 1.195,
+        "quantity": 184.3736387595753,
+        "notional_usd": 220.51087195645204,
+        "pnl": -0.18437363875955498,
+        "entry_time": "2025-11-16T19:52:56.459192",
+        "exit_time": "2025-11-16T19:56:53.388412",
+        "leverage": 10,
+        "close_reason": "AI close_position signal"
     }
 ]

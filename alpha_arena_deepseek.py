@@ -119,12 +119,14 @@ JSON DATA FORMAT (Format Version 1.0):
   * COUNTER_TRADE_ANALYSIS: Array of counter-trade conditions per coin with risk levels
   * TREND_REVERSAL_DATA: Array of reversal signals per coin with strength indicators
   * ENHANCED_CONTEXT: Position, market regime, performance, and risk context
+  * DIRECTIONAL_BIAS: Directional performance snapshot (Last 20 trades) with long/short metrics
   * COOLDOWN_STATUS: Directional and coin-specific cooldown information
+  * TREND_FLIP_GUARD: Recent trend flip guard with cooldown and history information
   * POSITION_SLOTS: Current position slot usage and availability
   * MARKET_DATA: Per-coin market data with timeframes (3m, 15m, HTF) and indicators
-  * PORTFOLIO: Account value, returns, and position details
-  * RISK_STATUS: Current risk metrics and trading limits
   * HISTORICAL_CONTEXT: Recent trading decisions and market behavior
+  * RISK_STATUS: Current risk metrics and trading limits
+  * PORTFOLIO: Account value, returns, and position details
 - All numerical values in JSON are raw numbers (not formatted strings) for direct use in calculations.
 - Series data may be compressed if longer than 50 values (first 5 and last 5 values kept, with summary stats).
 - Parse JSON sections using standard JSON parsing; all data types are clearly defined (numbers, strings, booleans, arrays, objects).
@@ -1818,18 +1820,32 @@ class PortfolioManager:
         prompt_summary = "N/A"
         if isinstance(prompt, str) and prompt not in (None, "N/A"):
             # For JSON prompts, try to extract a meaningful summary
-            if "COUNTER_TRADE_ANALYSIS (JSON):" in prompt or "MARKET_DATA (JSON):" in prompt:
+            # Check for all JSON sections
+            json_sections = [
+                ("COUNTER_TRADE_ANALYSIS (JSON):", "Counter-trade analysis"),
+                ("TREND_REVERSAL_DATA (JSON):", "Trend reversal"),
+                ("ENHANCED_CONTEXT (JSON):", "Enhanced context"),
+                ("DIRECTIONAL_BIAS (JSON):", "Directional bias"),
+                ("COOLDOWN_STATUS (JSON):", "Cooldown status"),
+                ("TREND_FLIP_GUARD (JSON):", "Trend flip guard"),
+                ("POSITION_SLOTS (JSON):", "Position slots"),
+                ("MARKET_DATA (JSON):", "Market data"),
+                ("HISTORICAL_CONTEXT (JSON):", "Historical context"),
+                ("RISK_STATUS (JSON):", "Risk status"),
+                ("PORTFOLIO (JSON):", "Portfolio")
+            ]
+            
+            found_sections = [name for marker, name in json_sections if marker in prompt]
+            
+            if found_sections:
                 # JSON format prompt - create a structured summary
                 try:
-                    # Extract key sections for summary
-                    summary_parts = []
-                    if "COUNTER_TRADE_ANALYSIS (JSON):" in prompt:
-                        summary_parts.append("Counter-trade analysis (JSON)")
-                    if "MARKET_DATA (JSON):" in prompt:
-                        summary_parts.append("Market data (JSON)")
-                    if "PORTFOLIO (JSON):" in prompt:
-                        summary_parts.append("Portfolio (JSON)")
-                    prompt_summary = f"JSON Format: {', '.join(summary_parts)} | " + prompt[:200] + "..."
+                    section_count = len(found_sections)
+                    if section_count <= 3:
+                        summary_text = ", ".join(found_sections)
+                    else:
+                        summary_text = f"{', '.join(found_sections[:3])} + {section_count - 3} more"
+                    prompt_summary = f"JSON Format ({section_count} sections): {summary_text} | " + prompt[:200] + "..."
                 except:
                     prompt_summary = prompt[:300] + "..." if len(prompt) > 300 else prompt
             else:
