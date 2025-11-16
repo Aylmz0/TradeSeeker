@@ -73,7 +73,7 @@ class Config:
         'XRP': 1.0,   # AI'nın SL değerine saygı duy
         'LINK': 1.0,  # AI'nın SL değerine saygı duy
         'DOGE': 1.0,  # AI'nın SL değerine saygı duy
-        'JASMY': 1.0  # AI'nın SL değerine saygı duy
+        'ASTER': 1.0  # AI'nın SL değerine saygı duy
     }
     
     # Dynamic Confidence-Based Position Sizing

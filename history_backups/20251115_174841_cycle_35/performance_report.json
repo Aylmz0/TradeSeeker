@@ -1,0 +1,202 @@
+[
+    {
+        "analysis_period": "Last 9 cycles (Total: 9)",
+        "timestamp": "2025-11-15T16:08:41.951813",
+        "trading_activity": {
+            "total_decisions": 54,
+            "entry_signals": 5,
+            "hold_signals": 48,
+            "close_signals": 1,
+            "decision_rate": 9.25925925925926
+        },
+        "trade_performance": {
+            "total_trades": 3,
+            "winning_trades": 0,
+            "losing_trades": 3,
+            "break_even_trades": 0,
+            "win_rate": 0.0,
+            "total_pnl": -4.94,
+            "average_pnl": -1.65,
+            "profit_factor": 0.0,
+            "largest_win": -0.34,
+            "largest_loss": -2.51
+        },
+        "portfolio_performance": {
+            "initial_balance": 200.0,
+            "current_balance": 195.06082766246874,
+            "total_value": 195.06082766246874,
+            "total_return": -2.47,
+            "sharpe_ratio": -4.201,
+            "open_positions": 0
+        },
+        "coin_performance": {
+            "DOGE": {
+                "trades": 1,
+                "total_pnl": -0.34041536482260537,
+                "wins": 0,
+                "losses": 1,
+                "win_rate": 0.0,
+                "avg_pnl": -0.34041536482260537
+            },
+            "SOL": {
+                "trades": 1,
+                "total_pnl": -2.0886233740184705,
+                "wins": 0,
+                "losses": 1,
+                "win_rate": 0.0,
+                "avg_pnl": -2.0886233740184705
+            },
+            "LINK": {
+                "trades": 1,
+                "total_pnl": -2.5101335986902162,
+                "wins": 0,
+                "losses": 1,
+                "win_rate": 0.0,
+                "avg_pnl": -2.5101335986902162
+            }
+        },
+        "recommendations": [
+            "[INFO] Recorded return -2.47% within analysis window; below growth target",
+            "[INFO] Coins with cumulative negative PnL: DOGE, SOL, LINK"
+        ]
+    },
+    {
+        "analysis_period": "Last 10 cycles (Total: 19)",
+        "timestamp": "2025-11-15T16:48:41.959953",
+        "trading_activity": {
+            "total_decisions": 60,
+            "entry_signals": 3,
+            "hold_signals": 56,
+            "close_signals": 1,
+            "decision_rate": 5.0
+        },
+        "trade_performance": {
+            "total_trades": 4,
+            "winning_trades": 0,
+            "losing_trades": 4,
+            "break_even_trades": 0,
+            "win_rate": 0.0,
+            "total_pnl": -5.15,
+            "average_pnl": -1.29,
+            "profit_factor": 0.0,
+            "largest_win": -0.21,
+            "largest_loss": -2.51
+        },
+        "portfolio_performance": {
+            "initial_balance": 200.0,
+            "current_balance": 147.95992460384508,
+            "total_value": 194.37922665779556,
+            "total_return": -2.81,
+            "sharpe_ratio": -3.184,
+            "open_positions": 2
+        },
+        "coin_performance": {
+            "DOGE": {
+                "trades": 1,
+                "total_pnl": -0.34041536482260537,
+                "wins": 0,
+                "losses": 1,
+                "win_rate": 0.0,
+                "avg_pnl": -0.34041536482260537
+            },
+            "SOL": {
+                "trades": 1,
+                "total_pnl": -2.0886233740184705,
+                "wins": 0,
+                "losses": 1,
+                "win_rate": 0.0,
+                "avg_pnl": -2.0886233740184705
+            },
+            "LINK": {
+                "trades": 2,
+                "total_pnl": -2.7208491306763656,
+                "wins": 0,
+                "losses": 2,
+                "win_rate": 0.0,
+                "avg_pnl": -1.3604245653381828
+            }
+        },
+        "recommendations": [
+            "[INFO] Recorded return -2.81% within analysis window; below growth target",
+            "[INFO] Coins with cumulative negative PnL: DOGE, SOL, LINK"
+        ]
+    },
+    {
+        "analysis_period": "Last 10 cycles (Total: 29)",
+        "timestamp": "2025-11-15T17:28:41.967670",
+        "trading_activity": {
+            "total_decisions": 60,
+            "entry_signals": 7,
+            "hold_signals": 51,
+            "close_signals": 2,
+            "decision_rate": 11.666666666666666
+        },
+        "trade_performance": {
+            "total_trades": 19,
+            "winning_trades": 13,
+            "losing_trades": 5,
+            "break_even_trades": 1,
+            "win_rate": 62.3,
+            "total_pnl": 4.31,
+            "average_pnl": 0.23,
+            "profit_factor": 1.65,
+            "largest_win": 2.14,
+            "largest_loss": -2.51
+        },
+        "portfolio_performance": {
+            "initial_balance": 200.0,
+            "current_balance": 115.60738550184028,
+            "total_value": 201.60765591599932,
+            "total_return": 0.8,
+            "sharpe_ratio": 3.512,
+            "open_positions": 3
+        },
+        "coin_performance": {
+            "DOGE": {
+                "trades": 4,
+                "total_pnl": 1.9745458090883845,
+                "wins": 3,
+                "losses": 1,
+                "win_rate": 87.18014715212644,
+                "avg_pnl": 0.4936364522720961
+            },
+            "SOL": {
+                "trades": 5,
+                "total_pnl": 2.82389011773387,
+                "wins": 4,
+                "losses": 1,
+                "win_rate": 70.16736832799344,
+                "avg_pnl": 0.5647780235467741
+            },
+            "LINK": {
+                "trades": 6,
+                "total_pnl": -0.5240503332274924,
+                "wins": 3,
+                "losses": 2,
+                "win_rate": 44.67173798443033,
+                "avg_pnl": -0.08734172220458207
+            },
+            "ADA": {
+                "trades": 1,
+                "total_pnl": -1.4502630841372495,
+                "wins": 0,
+                "losses": 1,
+                "win_rate": 0.0,
+                "avg_pnl": -1.4502630841372495
+            },
+            "XRP": {
+                "trades": 3,
+                "total_pnl": 1.4844403468445058,
+                "wins": 3,
+                "losses": 0,
+                "win_rate": 100.0,
+                "avg_pnl": 0.4948134489481686
+            }
+        },
+        "recommendations": [
+            "[INFO] Position count 3; exceeds reference threshold (\u22653)",
+            "[INFO] Recorded return 0.80% within analysis window; below growth target",
+            "[INFO] Coins with cumulative negative PnL: LINK, ADA"
+        ]
+    }
+]

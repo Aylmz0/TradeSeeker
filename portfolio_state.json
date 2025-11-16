@@ -1,67 +1,23 @@
 {
-    "current_balance": 92.92072452,
+    "current_balance": 6592.34662302,
     "positions": {
-        "SOL": {
-            "symbol": "SOL",
-            "direction": "long",
-            "quantity": 1.35,
-            "entry_price": 141.8,
-            "current_price": 141.74,
-            "unrealized_pnl": -0.08100000000000307,
-            "notional_usd": 191.187,
-            "margin_usd": 0.0,
-            "leverage": 10,
-            "entry_time": 1763219591110,
-            "liquidation_price": 48.28293505,
-            "confidence": 0.0,
-            "exit_plan": {
-                "stop_loss": 140.2,
-                "profit_target": 144.5,
-                "invalidation_condition": "If 1h price closes below 1h EMA20 (141.6769)"
-            },
-            "loss_cycle_count": 0,
-            "risk_usd": 0.0,
-            "exchange_metadata": {
-                "symbol": "SOLUSDT",
-                "raw": {
-                    "symbol": "SOLUSDT",
-                    "positionAmt": "1.35",
-                    "entryPrice": "141.8",
-                    "breakEvenPrice": "141.8709",
-                    "markPrice": "141.62000000",
-                    "unRealizedProfit": "-0.24300000",
-                    "liquidationPrice": "48.28293505",
-                    "leverage": "10",
-                    "maxNotionalValue": "40000000",
-                    "marginType": "cross",
-                    "isolatedMargin": "0.00000000",
-                    "isAutoAddMargin": "false",
-                    "positionSide": "BOTH",
-                    "notional": "191.18700000",
-                    "isolatedWallet": "0",
-                    "updateTime": 1763219591110,
-                    "isolated": false,
-                    "adlQuantile": 3
-                }
-            }
-        },
         "XRP": {
             "symbol": "XRP",
             "direction": "short",
-            "quantity": 66.7,
-            "entry_price": 2.2566,
-            "current_price": 2.2556,
-            "unrealized_pnl": 0.06670000000002228,
-            "notional_usd": 150.297842032,
+            "quantity": 7254.7,
+            "entry_price": 2.2038,
+            "current_price": 2.2054,
+            "unrealized_pnl": -11.607519999998722,
+            "notional_usd": 15990.59137353,
             "margin_usd": 0.0,
             "leverage": 10,
-            "entry_time": 1763217080247,
-            "liquidation_price": 4.12367464,
+            "entry_time": 1763307728843,
+            "liquidation_price": 3.48886758,
             "confidence": 0.0,
             "exit_plan": {
-                "stop_loss": 2.3,
-                "profit_target": 2.22,
-                "invalidation_condition": "If 1h price closes above 1h EMA20 (2.2752)"
+                "stop_loss": 2.26,
+                "profit_target": 2.15,
+                "invalidation_condition": "If 1h price closes above 1h EMA20 (2.2436)"
             },
             "loss_cycle_count": 0,
             "risk_usd": 0.0,
@@ -69,72 +25,111 @@
                 "symbol": "XRPUSDT",
                 "raw": {
                     "symbol": "XRPUSDT",
-                    "positionAmt": "-66.7",
-                    "entryPrice": "2.2566",
-                    "breakEvenPrice": "2.2554717",
-                    "markPrice": "2.25334096",
-                    "unRealizedProfit": "0.21737796",
-                    "liquidationPrice": "4.12367464",
+                    "positionAmt": "-7254.7",
+                    "entryPrice": "2.2038",
+                    "breakEvenPrice": "2.20291848",
+                    "markPrice": "2.20416990",
+                    "unRealizedProfit": "-2.68351353",
+                    "liquidationPrice": "3.48886758",
                     "leverage": "10",
-                    "maxNotionalValue": "10000000",
+                    "maxNotionalValue": "2000000",
                     "marginType": "cross",
                     "isolatedMargin": "0.00000000",
                     "isAutoAddMargin": "false",
                     "positionSide": "BOTH",
-                    "notional": "-150.29784203",
+                    "notional": "-15990.59137353",
                     "isolatedWallet": "0",
-                    "updateTime": 1763217080247,
+                    "updateTime": 1763307728843,
                     "isolated": false,
-                    "adlQuantile": 2
+                    "adlQuantile": 0
+                }
+            }
+        },
+        "ADA": {
+            "symbol": "ADA",
+            "direction": "short",
+            "quantity": 28946.0,
+            "entry_price": 0.4909273578387,
+            "current_price": 0.4914,
+            "unrealized_pnl": -13.681100000989698,
+            "notional_usd": 14221.1698,
+            "margin_usd": 1424.1775794565535,
+            "leverage": 10,
+            "entry_time": 1763307734172,
+            "liquidation_price": 0.81328218,
+            "confidence": 0.79,
+            "exit_plan": {
+                "stop_loss": 0.505,
+                "profit_target": 0.48,
+                "invalidation_condition": "If 1h price closes above 1h EMA20 (0.5009)"
+            },
+            "loss_cycle_count": 0,
+            "risk_usd": 1424.1775794565535,
+            "exchange_metadata": {
+                "symbol": "ADAUSDT",
+                "raw": {
+                    "symbol": "ADAUSDT",
+                    "positionAmt": "-28946",
+                    "entryPrice": "0.4909273578387",
+                    "breakEvenPrice": "0.4907309868956",
+                    "markPrice": "0.49130000",
+                    "unRealizedProfit": "-10.78672690",
+                    "liquidationPrice": "0.81328218",
+                    "leverage": "10",
+                    "maxNotionalValue": "1000000",
+                    "marginType": "cross",
+                    "isolatedMargin": "0.00000000",
+                    "isAutoAddMargin": "false",
+                    "positionSide": "BOTH",
+                    "notional": "-14221.16980000",
+                    "isolatedWallet": "0",
+                    "updateTime": 1763307734172,
+                    "isolated": false,
+                    "adlQuantile": 0
                 }
             }
         }
     },
-    "total_value": 92.90642452000002,
-    "total_return": -53.54678773999999,
-    "initial_balance": 200.0,
-    "trade_count": 4,
-    "last_updated": "2025-11-15T18:21:29.686682",
-    "sharpe_ratio": -3.0102035467074533,
+    "total_value": 9615.583339829554,
+    "total_return": 7592.466671863643,
+    "initial_balance": 125.0,
+    "trade_count": 0,
+    "last_updated": "2025-11-16T18:42:46.327983",
+    "sharpe_ratio": 13.415486999958812,
     "directional_bias": {
         "long": {
-            "rolling": [
-                -0.501600000000019,
-                -0.36800000000001054
-            ],
-            "net_pnl": -0.8696000000000296,
-            "trades": 2,
+            "rolling": [],
+            "net_pnl": 0.0,
+            "trades": 0,
             "wins": 0,
-            "losses": 2,
-            "consecutive_losses": 2,
+            "losses": 0,
+            "consecutive_losses": 0,
             "consecutive_wins": 0,
             "caution_active": false,
             "caution_win_progress": 0,
-            "loss_streak_loss_usd": 0.8696000000000296
+            "loss_streak_loss_usd": 0.0
         },
         "short": {
-            "rolling": [
-                -0.4428000000000168,
-                -0.31460000000002336
-            ],
-            "net_pnl": -0.7574000000000402,
-            "trades": 2,
+            "rolling": [],
+            "net_pnl": 0.0,
+            "trades": 0,
             "wins": 0,
-            "losses": 2,
-            "consecutive_losses": 2,
+            "losses": 0,
+            "consecutive_losses": 0,
             "consecutive_wins": 0,
             "caution_active": false,
             "caution_win_progress": 0,
-            "loss_streak_loss_usd": 0.7574000000000402
+            "loss_streak_loss_usd": 0.0
         }
     },
     "last_history_reset_cycle": 0,
-    "cycles_since_history_reset": 17,
+    "cycles_since_history_reset": 3,
     "directional_cooldowns": {
         "long": 0,
         "short": 0
     },
     "relaxed_countertrend_cycles": 0,
     "counter_trend_cooldown": 0,
-    "counter_trend_consecutive_losses": 0
+    "counter_trend_consecutive_losses": 0,
+    "coin_cooldowns": {}
 }

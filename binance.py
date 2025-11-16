@@ -297,16 +297,74 @@ class BinanceOrderExecutor:
         return self.live and self.client is not None
 
     def get_account_overview(self) -> Dict[str, float]:
+        """Get account overview including total wallet balance (equity) from Binance."""
         if not self.is_live():
             return {}
         assert self.client is not None
-        balances = self.client.get_balance()
-        overview = {"availableBalance": 0.0, "walletBalance": 0.0}
-        for asset in balances:
-            if asset.get("asset") == "USDT":
-                overview["availableBalance"] = float(asset.get("availableBalance", 0.0))
-                overview["walletBalance"] = float(asset.get("balance", 0.0))
-                break
+        
+        overview = {
+            "availableBalance": 0.0,
+            "walletBalance": 0.0,
+            "totalWalletBalance": 0.0
+        }
+        
+        # Use /fapi/v2/account to get total wallet balance (includes unrealized PnL)
+        # This endpoint returns totalWalletBalance which = walletBalance + totalUnrealizedProfit
+        account_info = self.client.get_account_info()
+        
+        if account_info:
+            # Binance /fapi/v2/account returns these fields:
+            # - totalWalletBalance: Total equity (wallet balance + unrealized PnL)
+            # - availableBalance: Available balance for trading
+            # - walletBalance: Wallet balance (without unrealized PnL)
+            # - totalUnrealizedProfit: Total unrealized profit/loss
+            
+            # Try different possible field names (Binance uses totalWalletBalance)
+            total_wallet_balance = (
+                account_info.get("totalWalletBalance") or
+                account_info.get("totalEquity")
+            )
+            
+            if total_wallet_balance is not None:
+                try:
+                    overview["totalWalletBalance"] = float(total_wallet_balance)
+                except (ValueError, TypeError):
+                    pass
+            
+            # Also get availableBalance and walletBalance from account info
+            available = account_info.get("availableBalance")
+            wallet_bal = account_info.get("walletBalance")
+            
+            if available is not None:
+                try:
+                    overview["availableBalance"] = float(available)
+                except (ValueError, TypeError):
+                    pass
+            
+            if wallet_bal is not None:
+                try:
+                    overview["walletBalance"] = float(wallet_bal)
+                except (ValueError, TypeError):
+                    pass
+        
+        # Fallback: Also get available balance from balance endpoint
+        # This is needed if account_info doesn't have availableBalance
+        if overview["availableBalance"] == 0.0:
+            try:
+                balances = self.client.get_balance()
+                for asset in balances:
+                    if asset.get("asset") == "USDT":
+                        available_bal = asset.get("availableBalance", 0.0)
+                        if available_bal:
+                            overview["availableBalance"] = float(available_bal)
+                        # walletBalance is just the USDT balance without unrealized PnL
+                        balance = asset.get("balance", 0.0)
+                        if balance and overview["walletBalance"] == 0.0:
+                            overview["walletBalance"] = float(balance)
+                        break
+            except Exception:
+                pass
+        
         return overview
 
     def get_positions_snapshot(self) -> Dict[str, Dict[str, Any]]:

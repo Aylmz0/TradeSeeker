@@ -6,11 +6,10 @@ import time
 import json
 import os
 from datetime import datetime, timedelta
-from typing import Dict, List, Any, Optional, Tuple
+from typing import Dict, List, Any
 import warnings
 import traceback # For detailed error logging
 import threading
-from collections import deque
 
 # Import new utility modules
 from config import Config
@@ -62,73 +61,72 @@ Your goal is to maximize PnL (profit and loss) by trading perpetual futures on 6
 You are given $200 starting capital and must process numerical market data to discover alpha.
 Your Sharpe ratio is provided to help normalize for risky behavior.
 
-CORE RULES:
-- Make every decision using the numerical data provided; ignore external narratives.
-- Always provide complete exit plans (profit_target, stop_loss, invalidation_condition).
-- All entries must use fixed 10x leverage. Submit 10x on every trade; risk sizing is handled via margin rules.
-- Minimum confidence is 0.4; use higher confidence for stronger quantitative edges.
-- Maximum simultaneous positions across assets: 5.
+CRITICAL RULES:
+- Trade systematically using only the numerical data provided
+- Infer market narratives from time-series data, not external news
+- Always specify complete exit plans: profit_target, stop_loss, invalidation_condition
+- Use leverage up to 10x for calculated exposure
+- Minimum confidence threshold: 0.4 (optimized for more setups)
+- Maximum positions: 5
 
-RISK MANAGEMENT:
-- Portfolio- and position-level risk caps are enforced automatically; focus on selecting high-quality opportunities.
-- Maintain at least 1:1.3 risk/reward.
-- Use objective volatility references (e.g., 4h ATR) when setting stops.
-- Express invalidation clearly (e.g., "If 4h close is below EMA20").
+RISK MANAGEMENT (NOF1AI ADVANCED RISK PROFILE):
+- Portfolio risk limit: 90% of available cash (dynamic - scales with portfolio)
+- Coin risk limit: 40% of available cash per coin (dynamic - scales with portfolio)
+- Position sizing is handled automatically by the system based on your confidence level
+- You don't need to calculate risk percentages or position sizes
+- Focus on providing accurate signals, confidence levels, and exit plans
+- Maximum positions: 5 out of 6 coins
+- Aim for Risk/Reward ratio of at least 1:1.3
+- Use 4-hour ATR for stop-loss distances
+- For invalidation_condition, use clear technical levels (e.g., "If price closes below 4h EMA20")
 
-SYMMETRIC STRATEGY GUIDANCE:
-- Evaluate both LONG and SHORT paths for every asset. Bullish regimes support longs; bearish regimes support shorts.
-- Counter-trend trades are direction-agnostic and optional; use them only when the pre-computed checklist (in the prompt) shows ≥3/5 conditions and you can rationalize the edge.
-- Counter-trend trades require higher confidence (>0.75). If you override the checklist, add a short justification.
-- Only label a setup as counter-trend when your proposed trade direction is opposite the 4h trend. If 4h trend and trade direction align but 3m is temporarily opposing, treat it as trend-following.
-- Prioritize trades with quantified momentum, participation, and risk/reward advantages.
-- When regime, momentum, and participation align in your favor, favor committing capital decisively instead of waiting for perfect confirmation.
-- Execute trend-following setups promptly when 4h + 3m structures point the same way and volume/liquidity is supportive.
+ADVANCED TRADING STRATEGY:
+- Implement both Long and Short strategies across all coins
+- Use 4h timeframe for trend analysis + 3m for entry timing
+- Analyze Open Interest and Funding Rate for market sentiment
+- Consider volume vs average volume for momentum confirmation
+- Use advanced technical analysis with multiple timeframe confirmation
+- **BE AGGRESSIVE: Use higher confidence levels (0.7-0.8) for strong technical setups**
+- **USE TIGHTER TP/SL RANGES: Aim for 2-4% profit targets and 1-2% stop losses for faster position turnover**
+- **Use dynamic TP/SL adjustment based on market conditions**
+- **Take profits when targets are near, don't wait for exact hits**
+- **Be proactive with position management, not just reactive**
+- **TAKE MORE RISKS: Enter positions even with lower volume if technical setup is strong**
+- **PRIMARY STRATEGY: TREND-FOLLOWING (70-80% of trades)**
+  - **Follow 4h trend direction for most positions**
+  - **Use 3m timeframe for entry timing within trend direction**
+  - **Higher win rate and better risk management with trend-following**
+- **SECONDARY STRATEGY: COUNTER-TREND (20-30% of trades, STRONG SETUPS ONLY)**
+  - **Only consider counter-trend when at least 3/5 conditions are met:**
+    - **3m trend alignment**: 3m trend aligns with signal direction
+    - **Volume confirmation**: Volume > 2x average volume
+    - **Extreme RSI**: RSI <25 (long) or >75 (short)
+    - **Strong technical levels**: Price near EMA20 (<1%)
+    - **MACD divergence**: MACD aligns with signal direction
+  - **Counter-trend trades require higher confidence (>0.75)**
+  - **Focus on trend-following first, counter-trend only for exceptional setups**
+- **Focus on high volume coins**
+- **BE AGGRESSIVE but disciplined - Take calculated risks based on technical analysis**
+
+IMPORTANT STARTUP BEHAVIOR:
+- On first cycle (Cycle 1), observe market conditions for at least 2-3 cycles before entering positions
+- Do not enter trades immediately on system startup unless there is exceptionally strong confirmation
+- Prefer to establish baseline market understanding before taking risk
+- You can hold up to 5 positions simultaneously across the 6 available coins
+- Focus on the strongest setups across all coins, not just 2-3 favorites
 
 DATA CONTEXT:
-- You receive 3m (entry/exit) and 4h (trend) series plus historical indicators.
-- All numerical sequences are ordered OLDEST → NEWEST; interpret momentum through time.
-- Volume, Open Interest, and Funding Rate are provided for sentiment context—combine them with price action.
-- Treat the supplied data as the authoritative source for every decision.
-- When reporting comparisons (e.g., price vs EMA), write them explicitly as `price=2.2854 > EMA20=2.2835` or `price=... < EMA20=...` so the direction is unambiguous.
-- Reference both global regime counts (bullish/bearish/neutral) and coin-specific regimes when summarizing market context to avoid contradictory statements.
+- You receive 3m (entry/exit) and 4h (trend) data with historical indicator series
+- All price/signal data is ordered: OLDEST → NEWEST
+- Use series to understand momentum and trend structure
+- Consider Open Interest and Funding Rate for market sentiment
+- Analyze volume patterns for confirmation
 
-ADVANCED ANALYSIS PLAYBOOK:
-- Apply long and short strategies across all coins; choose the direction that offers the superior quantified edge.
-- Use 4h timeframe for structural bias and 3m for execution timing.
-- Monitor volume vs. average volume, Open Interest, and Funding to measure conviction.
-- Employ multi-timeframe technical analysis (EMA, RSI, MACD, ATR, etc.).
-- Keep take-profit/stop-loss targets responsive (e.g. 2–4% TP, 1–2% SL) when volatility supports it.
-- Manage exits proactively; do not wait for targets if data invalidates the thesis.
-- High-confidence setups (0.7–0.8+) justify higher exposure within risk limits.
-- Favor trend-following exposure by default; deploy counter-trend positions only when the checklist and your analysis both justify the added risk.
-
-MULTI-TIMEFRAME PROCESS:
-1. Check global and per-asset regime data (provided in the prompt).
-2. Analyze 4h indicators for directional bias.
-3. Use 3m indicators for timing and confirmation.
-4. Incorporate volume, Open Interest, Funding, and other metrics to judge conviction.
-5. Decide whether to go long, short, hold, or close based on the strongest quantified edge.
-
-STARTUP BEHAVIOR:
-- During the first 2-3 cycles, observe unless an exceptional, well-supported setup appears.
-- Avoid impulsive entries immediately after reset.
-- Maintain up to 5 concurrent positions; choose quality over quantity.
-
-DATA NOTES:
-- Series are ordered oldest → newest; interpret trends accordingly.
-- Open Interest and Funding context is informational; combine with price action.
-- Volume statistics highlight participation strength.
-
-TREND & COUNTER-TREND GUIDELINES:
-- When price is below 4h EMA20 with bearish momentum, short setups merit priority.
-- When price is above 4h EMA20 with bullish momentum, long setups merit priority.
-- Counter-trend trades (long or short) demand stronger confirmation, higher confidence, and clear reasoning.
-- If volume ratio is ≤0.30× average, call out the weakness, reduce confidence materially, and consider skipping the trade unless another data point overwhelmingly compensates.
-
-ACTION FORMAT:
-- Use signals: `buy_to_enter`, `sell_to_enter`, `hold`, `close_position`.
-- If a position is already open on a coin, only `hold` or `close_position` are valid.
-- Provide both `CHAIN_OF_THOUGHTS` (analysis) and `DECISIONS` (JSON).
+TREND ALIGNMENT GUIDELINES:
+- When 4h trend is BEARISH and price is below 4h EMA20: Consider whether SHORT positions might offer better risk-reward
+- When 4h trend is BULLISH and price is above 4h EMA20: Consider whether LONG positions might offer better risk-reward  
+- Counter-trend positions require stronger confirmation but can be profitable
+- Market regime should influence your directional analysis, not dictate it
 
 ACTION FORMAT:
 Use signals: `buy_to_enter`, `sell_to_enter`, `hold`, `close_position`.
@@ -611,13 +609,6 @@ class PortfolioManager:
         self.max_cycle_history = 50; self.maintenance_margin_rate = 0.01
 
         self.current_balance = self.initial_balance; self.positions = {}
-        self.directional_bias = self._init_directional_bias()
-        self.trend_state: Dict[str, Dict[str, Any]] = {}
-        self.trend_flip_cooldown = 3
-        # Trend flip cooldown yönetimi PortfolioManager tarafında tutulur.
-
-        self.current_cycle_number = 0
-
         self.trade_history = self.load_trade_history() # Load first
         self.load_state() # Loads balance, positions, trade_count
         self.cycle_history = self.load_cycle_history()
@@ -629,27 +620,7 @@ class PortfolioManager:
         self.start_time = datetime.now()
         self.portfolio_values_history = [self.initial_balance]  # Track portfolio values for Sharpe ratio
         self.sharpe_ratio = 0.0
-        self.update_prices({}, increment_loss_counters=False) # Calculate initial value with loaded positions
-
-    def _init_directional_bias(self) -> Dict[str, Dict[str, Any]]:
-        return {
-            'long': {
-                'rolling': deque(maxlen=20),
-                'net_pnl': 0.0,
-                'trades': 0,
-                'wins': 0,
-                'losses': 0,
-                'consecutive_losses': 0
-            },
-            'short': {
-                'rolling': deque(maxlen=20),
-                'net_pnl': 0.0,
-                'trades': 0,
-                'wins': 0,
-                'losses': 0,
-                'consecutive_losses': 0
-            }
-        }
+        self.update_prices({}) # Calculate initial value with loaded positions
 
     def load_state(self):
         data = safe_file_read(self.state_file, default_data={})
@@ -658,188 +629,16 @@ class PortfolioManager:
         self.trade_count = data.get('trade_count', len(self.trade_history)) # Initialize from history if not in state
         print(f"✅ Loaded state ({len(self.positions)} positions, {self.trade_count} closed trades)" if data else "ℹ️ No state file found.")
 
-        bias_state = data.get('directional_bias')
-        if bias_state:
-            self.directional_bias = self._init_directional_bias()
-            for side in ('long', 'short'):
-                stored = bias_state.get(side, {})
-                stats = self.directional_bias[side]
-                stats['rolling'].extend(stored.get('rolling', []))
-                stats['net_pnl'] = stored.get('net_pnl', 0.0)
-                stats['trades'] = stored.get('trades', 0)
-                stats['wins'] = stored.get('wins', 0)
-                stats['losses'] = stored.get('losses', 0)
-                stats['consecutive_losses'] = stored.get('consecutive_losses', 0)
-
     def save_state(self):
-        data = {
-            'current_balance': self.current_balance,
-            'positions': self.positions,
-            'total_value': self.total_value,
-            'total_return': self.total_return,
-            'initial_balance': self.initial_balance,
-            'trade_count': self.trade_count,
-            'last_updated': datetime.now().isoformat(),
-            'sharpe_ratio': self.sharpe_ratio,
-            'directional_bias': self._serialize_directional_bias()
-        }
+        data = {'current_balance': self.current_balance, 'positions': self.positions, 'total_value': self.total_value, 'total_return': self.total_return, 'initial_balance': self.initial_balance, 'trade_count': self.trade_count, 'last_updated': datetime.now().isoformat(), 'sharpe_ratio': self.sharpe_ratio}
         safe_file_write(self.state_file, data); print(f"✅ Saved state.")
-
-    def _serialize_directional_bias(self) -> Dict[str, Dict[str, Any]]:
-        serialized = {}
-        for side, stats in self.directional_bias.items():
-            serialized[side] = {
-                'rolling': list(stats['rolling']),
-                'net_pnl': stats['net_pnl'],
-                'trades': stats['trades'],
-                'wins': stats['wins'],
-                'losses': stats['losses'],
-                'consecutive_losses': stats['consecutive_losses']
-            }
-        return serialized
 
     def load_trade_history(self) -> List[Dict]:
         history = safe_file_read(self.history_file, default_data=[]); print(f"✅ Loaded {len(history)} trades."); return history
     def save_trade_history(self):
         history_to_save = self.trade_history[-100:]; safe_file_write(self.history_file, history_to_save); print(f"✅ Saved {len(history_to_save)} trades.")
     def add_to_history(self, trade: Dict):
-        self.trade_history.append(trade)
-        self.trade_count = len(self.trade_history)
-        self.save_trade_history()
-        self.update_directional_bias(trade)
-        self.save_state()
-
-    def update_directional_bias(self, trade: Dict):
-        direction = trade.get('direction')
-        if direction not in ('long', 'short'):
-            return
-        stats = self.directional_bias[direction]
-        pnl = float(trade.get('pnl', 0.0) or 0.0)
-        stats['rolling'].append(pnl)
-        stats['net_pnl'] += pnl
-        stats['trades'] += 1
-        if pnl > 0:
-            stats['wins'] += 1
-            stats['consecutive_losses'] = 0
-        elif pnl < 0:
-            stats['losses'] += 1
-            stats['consecutive_losses'] += 1
-        else:
-            stats['consecutive_losses'] = 0
-
-    def count_positions_by_direction(self) -> Dict[str, int]:
-        counts = {'long': 0, 'short': 0}
-        for pos in self.positions.values():
-            direction = pos.get('direction')
-            if direction in counts:
-                counts[direction] += 1
-        return counts
-
-    def apply_directional_bias(self, signal: str, confidence: float, bias_metrics: Dict[str, Dict[str, Any]], current_trend: str) -> float:
-        side = 'long' if signal == 'buy_to_enter' else 'short'
-        stats = bias_metrics.get(side)
-        if not stats:
-            return confidence
-
-        adjusted_confidence = confidence
-        rolling_avg = stats.get('rolling_avg', 0.0)
-        consecutive_losses = stats.get('consecutive_losses', 0)
-
-        if consecutive_losses >= 3:
-            adjusted_confidence *= 0.9
-
-        trend_lower = current_trend.lower() if isinstance(current_trend, str) else 'unknown'
-
-        if trend_lower == 'neutral':
-            adjusted_confidence *= Config.DIRECTIONAL_NEUTRAL_CONFIDENCE_MODIFIER
-        else:
-            is_aligned = (trend_lower == 'bullish' and side == 'long') or (trend_lower == 'bearish' and side == 'short')
-            if is_aligned and rolling_avg > 0:
-                adjusted_confidence = min(1.0, adjusted_confidence * 1.05)
-            elif not is_aligned and trend_lower in ('bullish', 'bearish'):
-                adjusted_confidence *= Config.DIRECTIONAL_CONFLICT_CONFIDENCE_MODIFIER
-
-        if rolling_avg < 0:
-            adjusted_confidence *= 0.93
-
-        return adjusted_confidence
-
-    def get_directional_bias_metrics(self) -> Dict[str, Dict[str, Any]]:
-        metrics = {}
-        for side, stats in self.directional_bias.items():
-            rolling_list = list(stats['rolling'])
-            rolling_sum = sum(rolling_list)
-            rolling_avg = (rolling_sum / len(rolling_list)) if rolling_list else 0.0
-            metrics[side] = {
-                'net_pnl': stats['net_pnl'],
-                'trades': stats['trades'],
-                'wins': stats['wins'],
-                'losses': stats['losses'],
-                'rolling_sum': rolling_sum,
-                'rolling_avg': rolling_avg,
-                'consecutive_losses': stats['consecutive_losses']
-            }
-        return metrics
-
-    def update_trend_state(
-        self,
-        coin: str,
-        indicators_4h: Dict[str, Any],
-        indicators_3m: Optional[Dict[str, Any]] = None
-    ) -> Dict[str, Any]:
-        price_4h = indicators_4h.get('current_price')
-        ema20_4h = indicators_4h.get('ema_20')
-
-        if not isinstance(price_4h, (int, float)) or not isinstance(ema20_4h, (int, float)) or ema20_4h == 0:
-            return {'trend': 'unknown', 'recent_flip': False, 'last_flip_cycle': None}
-
-        delta = (price_4h - ema20_4h) / ema20_4h
-        price_neutral = abs(delta) <= Config.EMA_NEUTRAL_BAND_PCT
-        current_trend = 'neutral' if price_neutral else ('bullish' if delta > 0 else 'bearish')
-
-        if indicators_3m and isinstance(indicators_3m, dict) and 'error' not in indicators_3m:
-            price_3m = indicators_3m.get('current_price')
-            ema20_3m = indicators_3m.get('ema_20', price_3m)
-            rsi_3m = indicators_3m.get('rsi_14', indicators_3m.get('rsi_7', 50))
-
-            if isinstance(price_3m, (int, float)) and isinstance(ema20_3m, (int, float)) and isinstance(rsi_3m, (int, float)):
-                intraday_trend = 'bullish' if price_3m >= ema20_3m else 'bearish'
-                if current_trend == 'bearish' and intraday_trend == 'bullish' and rsi_3m >= Config.INTRADAY_NEUTRAL_RSI_HIGH:
-                    current_trend = 'neutral'
-                elif current_trend == 'bullish' and intraday_trend == 'bearish' and rsi_3m <= Config.INTRADAY_NEUTRAL_RSI_LOW:
-                    current_trend = 'neutral'
-
-        record = self.trend_state.get(coin, {'trend': current_trend, 'last_flip_cycle': self.current_cycle_number})
-        previous_trend = record.get('trend', current_trend)
-        recent_flip = False
-
-        if previous_trend != current_trend:
-            record['trend'] = current_trend
-            if current_trend != 'neutral':
-                record['last_flip_cycle'] = self.current_cycle_number
-                recent_flip = True
-        else:
-            last_flip_cycle = record.get('last_flip_cycle', self.current_cycle_number)
-            if current_trend != 'neutral' and self.current_cycle_number - last_flip_cycle <= self.trend_flip_cooldown:
-                recent_flip = True
-
-        record['last_seen_cycle'] = self.current_cycle_number
-        self.trend_state[coin] = record
-        return {
-            'trend': current_trend,
-            'recent_flip': recent_flip,
-            'last_flip_cycle': record.get('last_flip_cycle')
-        }
-
-    def get_recent_trend_flip_summary(self) -> List[str]:
-        summaries = []
-        for coin, record in self.trend_state.items():
-            last_flip_cycle = record.get('last_flip_cycle')
-            if last_flip_cycle is None:
-                continue
-            if self.current_cycle_number - last_flip_cycle <= self.trend_flip_cooldown:
-                summaries.append(f"{coin}: {record.get('trend', 'unknown').upper()} since cycle {last_flip_cycle}")
-        return summaries
+        self.trade_history.append(trade); self.trade_count = len(self.trade_history); self.save_trade_history()
 
     def load_cycle_history(self) -> List[Dict]:
         history = safe_file_read(self.cycle_history_file, default_data=[]); print(f"✅ Loaded {len(history)} cycles."); return history
@@ -848,7 +647,7 @@ class PortfolioManager:
         self.cycle_history.append(cycle_data); self.cycle_history = self.cycle_history[-self.max_cycle_history:]
         safe_file_write(self.cycle_history_file, self.cycle_history); print(f"✅ Saved cycle {cycle_number} (Total: {len(self.cycle_history)})")
 
-    def update_prices(self, new_prices: Dict[str, float], increment_loss_counters: bool = True):
+    def update_prices(self, new_prices: Dict[str, float]):
         """Updates prices and recalculates total value."""
         total_unrealized_pnl = 0.0
         for coin, price in new_prices.items():
@@ -857,15 +656,6 @@ class PortfolioManager:
                 entry = pos['entry_price']; qty = pos['quantity']; direction = pos.get('direction', 'long')
                 pnl = (price - entry) * qty if direction == 'long' else (entry - price) * qty
                 pos['unrealized_pnl'] = pnl; total_unrealized_pnl += pnl
-                if increment_loss_counters:
-                    direction = pos.get('direction', 'unknown')
-                    if pnl <= 0:
-                        pos['loss_cycle_count'] = pos.get('loss_cycle_count', 0) + 1
-                        new_count = pos['loss_cycle_count']
-                        if new_count in (5, 8, 10):
-                            print(f"⏳ LOSS CYCLE WATCH: {coin} {direction} negative for {new_count} cycles (PnL ${pnl:.2f}).")
-                    else:
-                        pos['loss_cycle_count'] = 0
             elif coin in self.positions: print(f"⚠️ Invalid price for {coin}: {price}. PnL skip.")
 
         # Calculate total value = cash + sum(margin + pnl for each position)
@@ -928,6 +718,19 @@ class PortfolioManager:
             print(f"⚠️ Sharpe ratio calculation error: {e}")
             return 0.0
     
+    def calculate_risk_usd(self, entry_price: float, stop_loss: float, quantity: float, direction: str) -> float:
+        """Calculate risk in USD for a position (NOF1AI Advanced Style)."""
+        if direction == 'long':
+            risk_per_unit = entry_price - stop_loss
+        else:
+            risk_per_unit = stop_loss - entry_price
+        
+        risk_usd = abs(risk_per_unit * quantity)
+        
+        # Apply NOF1AI risk management: cap at 25% of portfolio
+        max_risk = self.total_value * 0.25
+        return min(risk_usd, max_risk)
+
     def get_manual_override(self) -> Dict:
         """Checks for and deletes the manual override file."""
         override_data = safe_file_read(self.override_file, default_data={})
@@ -956,7 +759,6 @@ class PortfolioManager:
         print("🔎 Checking for TP/SL triggers with enhanced exit strategies...")
         closed_positions = [] # Keep track of positions closed in this check
         updated_stops = [] # Track positions with updated trailing stops
-        state_changed = False
         
         for coin, position in list(self.positions.items()): # Iterate over a copy for safe deletion
             if coin not in current_prices or not isinstance(current_prices[coin], (int, float)) or current_prices[coin] <= 0:
@@ -988,7 +790,7 @@ class PortfolioManager:
                 # Enhanced exit strategy wants to close the position completely
                 close_reason = exit_decision['reason']
                 print(f"⚡ ENHANCED EXIT CLOSE {coin} ({direction}): {close_reason} at price ${format_num(current_price, 4)}")
-                state_changed = True
+                
             elif exit_decision['action'] == 'partial_close':
                 # Partial profit taking - ANINDA İŞLEME
                 close_percent = exit_decision['percent']
@@ -1015,14 +817,12 @@ class PortfolioManager:
                     "leverage": position.get('leverage', 'N/A'), "close_reason": exit_decision['reason']
                 }
                 self.add_to_history(history_entry)
-                state_changed = True
                 continue  # Continue with remaining position
             
             elif exit_decision['action'] == 'update_stop':
                 # Update trailing stop - ANINDA GÜNCELLEME
                 updated_stops.append(coin)
                 print(f"📈 TRAILING STOP UPDATE {coin}: New stop at ${format_num(exit_decision['new_stop'], 4)}")
-                state_changed = True
                 continue
             
             # Traditional TP/SL checks (only if no enhanced exit triggered)
@@ -1055,15 +855,11 @@ class PortfolioManager:
                 self.add_to_history(history_entry) # This increments trade_count
                 closed_positions.append(coin)
                 del self.positions[coin] # Remove from active positions
-                state_changed = True
 
         if closed_positions:
              print(f"✅ Auto-closed positions: {', '.join(closed_positions)}")
         if updated_stops:
              print(f"📈 Updated trailing stops: {', '.join(updated_stops)}")
-
-        if state_changed:
-            self.save_state()
              
         return len(closed_positions) > 0  # Indicate if any positions were closed
 
@@ -1170,19 +966,8 @@ class PortfolioManager:
                 'take3': 0.75     # %75 profit al
             }
 
-    def get_dynamic_stop_loss_percentage(self, total_portfolio_value: float) -> float:
-        """Get dynamic stop-loss percentage based on portfolio value"""
-        if total_portfolio_value < 300:
-            return 0.01  # %1.0
-        elif total_portfolio_value < 400:
-            return 0.008 # %0.8
-        elif total_portfolio_value < 500:
-            return 0.007 # %0.7
-        else:
-            return 0.005 # %0.5
-
     def enhanced_exit_strategy(self, position: Dict, current_price: float) -> Dict[str, Any]:
-        """Enhanced exit strategy with dynamic profit taking and KADEMELİ loss cutting"""
+        """Enhanced exit strategy with dynamic profit taking and loss cutting based on notional size"""
         entry_price = position['entry_price']
         direction = position['direction']
         stop_loss = position['exit_plan']['stop_loss']
@@ -1191,36 +976,28 @@ class PortfolioManager:
         
         exit_decision = {"action": "hold", "reason": "No exit trigger"}
         
+        # Check if position is already at or below maximum limit
         current_margin = position.get('margin_usd', 0)
-        margin_used = position.get('margin_usd', position.get('notional_usd', 0) / max(position.get('leverage', 1), 1))
-        loss_cycle_count = position.get('loss_cycle_count', 0)
-        unrealized_pnl = position.get('unrealized_pnl', 0)
-        if loss_cycle_count >= 10 and unrealized_pnl <= 0:
-            reason = f"Position negative for {loss_cycle_count} cycles"
-            print(f"⏳ Extended loss exit: {position['symbol']} {direction} closed ({reason}).")
-            return {"action": "close_position", "reason": reason}
+        max_limit = self._calculate_maximum_limit()
         
-        # --- KADEMELİ LOSS CUTTING MEKANİZMASI (Margin tabanlı) ---
-        loss_multiplier = 0.05
-        if margin_used < 30:
-            loss_multiplier = 0.08
-        elif margin_used < 40:
-            loss_multiplier = 0.07
-        elif margin_used < 50:
-            loss_multiplier = 0.06
-        else:
-            loss_multiplier = 0.05
-
-        loss_threshold_usd = margin_used * loss_multiplier
-
+        # If position is already at or below maximum limit, close it completely
+        if current_margin <= max_limit:
+            print(f"🛑 Position at maximum limit: ${current_margin:.2f} <= ${max_limit:.2f}. Closing position.")
+            return {"action": "close_position", "reason": f"Position at maximum limit (${max_limit:.2f})"}
+        
+        # --- LOSS CUTTING MECHANISM (1.0% loss) - SIKIŞTIRILMIŞ ---
         if direction == 'long':
-            unrealized_loss_usd = max(0.0, (entry_price - current_price) * position['quantity'])
-        else:
-            unrealized_loss_usd = max(0.0, (current_price - entry_price) * position['quantity'])
-
-        if unrealized_loss_usd >= loss_threshold_usd and loss_threshold_usd > 0:
-            print(f"🛑 KADEMELİ LOSS CUTTING: {direction} {position['symbol']} ${unrealized_loss_usd:.2f} zarar (eşik: ${loss_threshold_usd:.2f}). Pozisyon kapatılıyor.")
-            return {"action": "close_position", "reason": f"Margin-based loss cut ${unrealized_loss_usd:.2f} ≥ ${loss_threshold_usd:.2f}"}
+            unrealized_pnl_percent = (current_price - entry_price) / entry_price
+            # Check for 1.0% loss - SIKIŞTIRILMIŞ
+            if unrealized_pnl_percent <= -0.01:  # 1.0% loss (sıkıştırılmış)
+                print(f"🛑 LOSS CUTTING: {direction} {position['symbol']} at {unrealized_pnl_percent*100:.1f}% loss. Closing position.")
+                return {"action": "close_position", "reason": f"Loss cutting at 1.0% loss ({unrealized_pnl_percent*100:.1f}%)"}
+        elif direction == 'short':
+            unrealized_pnl_percent = (entry_price - current_price) / entry_price
+            # Check for 1.0% loss - SIKIŞTIRILMIŞ
+            if unrealized_pnl_percent <= -0.01:  # 1.0% loss (sıkıştırılmış)
+                print(f"🛑 LOSS CUTTING: {direction} {position['symbol']} at {unrealized_pnl_percent*100:.1f}% loss. Closing position.")
+                return {"action": "close_position", "reason": f"Loss cutting at 1.0% loss ({unrealized_pnl_percent*100:.1f}%)"}
         
         # Get dynamic profit levels based on notional size
         profit_levels = self.get_profit_levels_by_notional(notional_usd)
@@ -1239,23 +1016,17 @@ class PortfolioManager:
             # Dynamic Profit Taking Levels based on notional size
             if unrealized_pnl_percent >= level3:  # Level 3 profit - take 75%
                 take_profit_percent = take3
-                adjusted_percent, force_close, reason = self._adjust_partial_sale_for_max_limit(position, take_profit_percent)
-                if force_close:
-                    return {"action": "close_position", "reason": reason or "Maximum limit reached during profit taking"}
+                adjusted_percent = self._adjust_partial_sale_for_max_limit(position, take_profit_percent)
                 if adjusted_percent > 0:
                     return {"action": "partial_close", "percent": adjusted_percent, "reason": f"Profit taking at {level3*100:.1f}% gain ({adjusted_percent*100:.0f}%)"}
             elif unrealized_pnl_percent >= level2:  # Level 2 profit - take 50%
                 take_profit_percent = take2
-                adjusted_percent, force_close, reason = self._adjust_partial_sale_for_max_limit(position, take_profit_percent)
-                if force_close:
-                    return {"action": "close_position", "reason": reason or "Maximum limit reached during profit taking"}
+                adjusted_percent = self._adjust_partial_sale_for_max_limit(position, take_profit_percent)
                 if adjusted_percent > 0:
                     return {"action": "partial_close", "percent": adjusted_percent, "reason": f"Profit taking at {level2*100:.1f}% gain ({adjusted_percent*100:.0f}%)"}
             elif unrealized_pnl_percent >= level1:  # Level 1 profit - take 25%
                 take_profit_percent = take1
-                adjusted_percent, force_close, reason = self._adjust_partial_sale_for_max_limit(position, take_profit_percent)
-                if force_close:
-                    return {"action": "close_position", "reason": reason or "Maximum limit reached during profit taking"}
+                adjusted_percent = self._adjust_partial_sale_for_max_limit(position, take_profit_percent)
                 if adjusted_percent > 0:
                     return {"action": "partial_close", "percent": adjusted_percent, "reason": f"Profit taking at {level1*100:.1f}% gain ({adjusted_percent*100:.0f}%)"}
             
@@ -1277,23 +1048,17 @@ class PortfolioManager:
             # Dynamic Profit Taking Levels for shorts based on notional size
             if unrealized_pnl_percent >= level3:  # Level 3 profit - take 75%
                 take_profit_percent = take3
-                adjusted_percent, force_close, reason = self._adjust_partial_sale_for_max_limit(position, take_profit_percent)
-                if force_close:
-                    return {"action": "close_position", "reason": reason or "Maximum limit reached during profit taking"}
+                adjusted_percent = self._adjust_partial_sale_for_max_limit(position, take_profit_percent)
                 if adjusted_percent > 0:
                     return {"action": "partial_close", "percent": adjusted_percent, "reason": f"Profit taking at {level3*100:.1f}% gain ({adjusted_percent*100:.0f}%)"}
             elif unrealized_pnl_percent >= level2:  # Level 2 profit - take 50%
                 take_profit_percent = take2
-                adjusted_percent, force_close, reason = self._adjust_partial_sale_for_max_limit(position, take_profit_percent)
-                if force_close:
-                    return {"action": "close_position", "reason": reason or "Maximum limit reached during profit taking"}
+                adjusted_percent = self._adjust_partial_sale_for_max_limit(position, take_profit_percent)
                 if adjusted_percent > 0:
                     return {"action": "partial_close", "percent": adjusted_percent, "reason": f"Profit taking at {level2*100:.1f}% gain ({adjusted_percent*100:.0f}%)"}
             elif unrealized_pnl_percent >= level1:  # Level 1 profit - take 25%
                 take_profit_percent = take1
-                adjusted_percent, force_close, reason = self._adjust_partial_sale_for_max_limit(position, take_profit_percent)
-                if force_close:
-                    return {"action": "close_position", "reason": reason or "Maximum limit reached during profit taking"}
+                adjusted_percent = self._adjust_partial_sale_for_max_limit(position, take_profit_percent)
                 if adjusted_percent > 0:
                     return {"action": "partial_close", "percent": adjusted_percent, "reason": f"Profit taking at {level1*100:.1f}% gain ({adjusted_percent*100:.0f}%)"}
             
@@ -1327,7 +1092,7 @@ class PortfolioManager:
             signal = trade.get('signal')
             if signal in ['buy_to_enter', 'sell_to_enter']:
                 # Apply kademeli position limit
-                if current_positions >= max_positions_for_cycle:
+                if current_positions > max_positions_for_cycle:
                     print(f"⚠️ KADEMELİ POZİSYON LİMİTİ (Cycle {cycle_number}): Max {max_positions_for_cycle} positions allowed. Skipping {coin} entry.")
                     continue
                 current_positions += 1
@@ -1366,7 +1131,7 @@ class PortfolioManager:
             signal = trade.get('signal')
             if signal in ['buy_to_enter', 'sell_to_enter']:
                 # Apply kademeli position limit
-                if current_positions >= max_positions_for_cycle:
+                if current_positions > max_positions_for_cycle:
                     print(f"⚠️ KADEMELİ POZİSYON LİMİTİ (Cycle {cycle_number}): Max {max_positions_for_cycle} positions allowed. Skipping {coin} entry.")
                     continue
                 current_positions += 1
@@ -1387,7 +1152,7 @@ class PortfolioManager:
         return max_limit
 
 
-    def _adjust_partial_sale_for_max_limit(self, position: Dict, proposed_percent: float) -> Tuple[float, bool, Optional[str]]:
+    def _adjust_partial_sale_for_max_limit(self, position: Dict, proposed_percent: float) -> float:
         """Adjust partial sale percentage to ensure position doesn't go below maximum limit"""
         current_margin = position.get('margin_usd', 0)
         
@@ -1397,21 +1162,21 @@ class PortfolioManager:
         if current_margin <= max_limit:
             # Position already at or below maximum limit, don't sell - close completely
             print(f"🛑 Partial sale blocked: Position margin ${current_margin:.2f} <= maximum limit ${max_limit:.2f}. Position will be closed.")
-            return 0.0, True, f"Position margin ${current_margin:.2f} <= maximum limit ${max_limit:.2f}"
+            return 0.0
         
         # Calculate remaining margin after proposed sale
         remaining_after_proposed = current_margin * (1 - proposed_percent)
         
         if remaining_after_proposed >= max_limit:
             # Proposed sale keeps us above maximum limit, use as-is
-            return proposed_percent, False, None
+            return proposed_percent
         else:
             # Adjust sale to leave exactly max_limit margin
             adjusted_sale_amount = current_margin - max_limit
             adjusted_percent = adjusted_sale_amount / current_margin
             
             print(f"📊 Adjusted partial sale: {proposed_percent*100:.0f}% → {adjusted_percent*100:.0f}% to maintain ${max_limit:.2f} maximum limit")
-            return adjusted_percent, False, None
+            return adjusted_percent
 
     def _adjust_partial_sale_for_min_limit(self, position: Dict, proposed_percent: float) -> float:
         """Adjust partial sale percentage to ensure minimum limit remains after sale"""
@@ -1489,61 +1254,62 @@ class PortfolioManager:
         try:
             if 'error' in indicators_3m or 'error' in indicators_4h:
                 return {"valid": False, "reason": "Indicator data error"}
+            
+            required_conditions = 0
             conditions_met = []
-            conditions_met_count = 0
-            total_conditions_available = 5
-
-            # Condition 1: 3m momentum supportive of the counter direction
+            
+            # Condition 1: Multi-timeframe momentum alignment
             price_3m = indicators_3m.get('current_price')
             ema20_3m = indicators_3m.get('ema_20')
-            if isinstance(price_3m, (int, float)) and isinstance(ema20_3m, (int, float)):
-                if signal == 'buy_to_enter' and price_3m > ema20_3m:
-                    conditions_met_count += 1
-                    conditions_met.append("3m momentum supportive (price > EMA20)")
-                elif signal == 'sell_to_enter' and price_3m < ema20_3m:
-                    conditions_met_count += 1
-                    conditions_met.append("3m momentum supportive (price < EMA20)")
-
-            # Condition 2: Volume confirmation (>1.5x average)
+            price_4h = indicators_4h.get('current_price')
+            ema20_4h = indicators_4h.get('ema_20')
+            
+            # Check if 3m trend supports the counter-trade
+            if signal == 'buy_to_enter' and price_3m > ema20_3m:
+                required_conditions += 1
+                conditions_met.append("3m bullish momentum")
+            elif signal == 'sell_to_enter' and price_3m < ema20_3m:
+                required_conditions += 1
+                conditions_met.append("3m bearish momentum")
+            
+            # Condition 2: Volume confirmation (>2x average)
             current_volume = indicators_3m.get('volume', 0)
             avg_volume = indicators_3m.get('avg_volume', 1)
             volume_ratio = current_volume / avg_volume if avg_volume > 0 else 0
-            if volume_ratio > 1.5:
-                conditions_met_count += 1
+            
+            if volume_ratio > 2.0:
+                required_conditions += 1
                 conditions_met.append(f"Volume {volume_ratio:.1f}x average")
-
-            # Condition 3: Extreme RSI
+            
+            # Condition 3: Extreme RSI (<25 or >75)
             rsi_3m = indicators_3m.get('rsi_14', 50)
             if (signal == 'buy_to_enter' and rsi_3m < 25) or (signal == 'sell_to_enter' and rsi_3m > 75):
-                conditions_met_count += 1
-                conditions_met.append(f"Extreme RSI ({rsi_3m:.1f})")
-
-            # Condition 4: Price close to EMA20 (< 1%)
-            if isinstance(price_3m, (int, float)) and isinstance(ema20_3m, (int, float)) and price_3m:
-                price_ema_distance = abs(price_3m - ema20_3m) / price_3m * 100
-                if price_ema_distance < 1.0:
-                    conditions_met_count += 1
-                    conditions_met.append(f"Price within 1% of EMA20 ({price_ema_distance:.2f}%)")
-
-            # Condition 5: MACD divergence supportive
+                required_conditions += 1
+                conditions_met.append(f"Extreme RSI: {rsi_3m:.1f}")
+            
+            # Condition 4: Strong technical levels (price near EMA)
+            price_ema_distance = abs(price_3m - ema20_3m) / price_3m * 100
+            if price_ema_distance < 1.0:  # Within 1% of EMA
+                required_conditions += 1
+                conditions_met.append("Strong technical level")
+            
+            # Condition 5: Divergence detection (simplified)
             macd_3m = indicators_3m.get('macd', 0)
             macd_signal_3m = indicators_3m.get('macd_signal', 0)
+            
             if (signal == 'buy_to_enter' and macd_3m > macd_signal_3m) or (signal == 'sell_to_enter' and macd_3m < macd_signal_3m):
-                conditions_met_count += 1
-                conditions_met.append("MACD divergence supportive")
-
-            valid = conditions_met_count >= 3
+                required_conditions += 1
+                conditions_met.append("MACD divergence")
+            
+            # Minimum 3 conditions required for valid counter-trade
+            valid = required_conditions >= 3
             return {
                 "valid": valid,
                 "conditions_met": conditions_met,
-                "total_conditions": conditions_met_count,
-                "conditions_required": total_conditions_available,
-                "reason": (
-                    f"Counter-trend validation: {conditions_met_count}/{total_conditions_available} conditions met"
-                    if valid else
-                    f"Counter-trend requires ≥3 of 5 conditions (currently {conditions_met_count}/{total_conditions_available})"
-                )
+                "total_conditions": required_conditions,
+                "reason": f"Counter-trade validation: {required_conditions}/5 conditions met" if valid else f"Insufficient conditions: {required_conditions}/5"
             }
+            
         except Exception as e:
             print(f"⚠️ Counter-trade validation error for {coin}: {e}")
             return {"valid": False, "reason": f"Validation error: {str(e)}"}
@@ -1630,45 +1396,33 @@ class PortfolioManager:
     def detect_market_regime_overall(self) -> str:
         """Detect overall market regime across all coins"""
         try:
+            # Import market data to get indicators
             from alpha_arena_deepseek import RealMarketData
             market_data = RealMarketData()
-
+            
             bullish_count = 0
             bearish_count = 0
-            neutral_count = 0
-
+            
             for coin in market_data.available_coins:
                 indicators_4h = market_data.get_technical_indicators(coin, '4h')
                 if 'error' in indicators_4h:
                     continue
-
+                
                 price = indicators_4h.get('current_price')
                 ema20 = indicators_4h.get('ema_20')
-
-                if not isinstance(price, (int, float)) or not isinstance(ema20, (int, float)) or ema20 == 0:
-                    continue
-
-                delta = (price - ema20) / ema20
-                if abs(delta) <= Config.EMA_NEUTRAL_BAND_PCT:
-                    neutral_count += 1
-                elif price > ema20:
+                
+                if price > ema20:
                     bullish_count += 1
                 else:
                     bearish_count += 1
-
-            if bullish_count >= 4:
+            
+            if bullish_count >= 4:  # At least 4 coins bullish
                 return "BULLISH"
-            if bearish_count >= 4:
+            elif bearish_count >= 4:  # At least 4 coins bearish
                 return "BEARISH"
-            if neutral_count >= 4:
+            else:
                 return "NEUTRAL"
-
-            if bullish_count > bearish_count:
-                return "BULLISH" if bullish_count >= 3 else "NEUTRAL"
-            if bearish_count > bullish_count:
-                return "BEARISH" if bearish_count >= 3 else "NEUTRAL"
-            return "NEUTRAL"
-
+                
         except Exception as e:
             print(f"⚠️ Market regime detection error: {e}")
             return "NEUTRAL"
@@ -1711,8 +1465,6 @@ class PortfolioManager:
         # Import Config inside the function to avoid scope issues
         from config import Config
 
-        bias_metrics = getattr(self, 'latest_bias_metrics', self.get_directional_bias_metrics())
-
         for coin, trade in decisions.items():
             if not isinstance(trade, dict): print(f"⚠️ Invalid trade data for {coin}: {type(trade)}"); continue
             if coin not in current_prices or not isinstance(current_prices[coin], (int, float)) or current_prices[coin] <= 0:
@@ -1724,28 +1476,15 @@ class PortfolioManager:
                 if position: print(f"⚠️ {signal.upper()} {coin}: Position already open."); continue
 
                 confidence = trade.get('confidence', 0.5) # Default 50% confidence if missing
-                leverage = trade.get('leverage')
-                if leverage in (None, "", 0):
-                    leverage = 8
+                leverage = trade.get('leverage', 1)
                 # Ensure confidence and leverage are valid numbers
-                try:
-                    confidence = float(confidence)
-                    leverage = int(leverage)
+                try: confidence = float(confidence); leverage = int(leverage)
                 except (ValueError, TypeError): print(f"⚠️ Invalid confidence ({confidence}) or leverage ({leverage}) for {coin}. Skipping."); continue
-                if leverage < 1:
-                    leverage = 1
+                if leverage < 1: leverage = 1
                 # Enforce maximum leverage limit from config
                 if leverage > Config.MAX_LEVERAGE: 
                     print(f"⚠️ Leverage {leverage}x exceeds maximum limit of {Config.MAX_LEVERAGE}x. Reducing to {Config.MAX_LEVERAGE}x.")
                     leverage = Config.MAX_LEVERAGE
-                # Clamp leverage into [8, 10] operational band for new entries
-                if signal in ['buy_to_enter', 'sell_to_enter']:
-                    if leverage < 8:
-                        print(f"ℹ️ Adjusting leverage from {leverage}x to minimum operational level 8x for {coin}.")
-                        leverage = 8
-                    elif leverage > 10:
-                        print(f"ℹ️ Adjusting leverage from {leverage}x to maximum operational level 10x for {coin}.")
-                        leverage = 10
                 if not (0.0 <= confidence <= 1.0): confidence = 0.5 # Clamp confidence to 0.0-1.0
 
                 # --- Enhanced Trading Features ---
@@ -1756,30 +1495,16 @@ class PortfolioManager:
                 # 2. Market Regime Position Sizing
                 market_regime = self.detect_market_regime_overall()
                 market_regime_multiplier = Config.MARKET_REGIME_MULTIPLIERS.get(market_regime, 1.0)
-                partial_margin_factor = 1.0
-
-                direction = 'long' if signal == 'buy_to_enter' else 'short'
-                dominant_direction = None
-                if market_regime == 'BULLISH':
-                    dominant_direction = 'long'
-                elif market_regime == 'BEARISH':
-                    dominant_direction = 'short'
-
-                if dominant_direction and direction == dominant_direction:
-                    directional_counts = self.count_positions_by_direction()
-                    if directional_counts.get(direction, 0) >= 4:
-                        print(f"🚫 SAME-DIRECTION LIMIT: {coin} {signal} blocked. Already {directional_counts.get(direction, 0)} {direction.upper()} positions open in {market_regime} regime.")
-                        continue
-
-                # 3. Enhanced Short Sizing (increase by 15% when criteria met)
+                
+                # 3. Enhanced Short Sizing (%15 daha büyük)
                 if signal == 'sell_to_enter':
                     # Check enhanced short conditions
                     if self.should_enhance_short_sizing(coin):
-                        print(f"📈 ENHANCED SHORT: increasing {coin} short exposure by 15% based on conditions")
+                        print(f"📈 ENHANCED SHORT: {coin} için %15 daha büyük position")
                         if 'quantity_usd' in trade:
                             trade['quantity_usd'] *= Config.SHORT_ENHANCEMENT_MULTIPLIER
                 
-                # 4. Coin-specific dynamic stop-loss adjustment
+                # 4. Coin Bazlı Dynamic Stop-Loss
                 stop_loss = trade.get('stop_loss')
                 try:
                     stop_loss = float(stop_loss) if stop_loss is not None else None
@@ -1793,64 +1518,19 @@ class PortfolioManager:
                         stop_loss = current_price - ((current_price - stop_loss) * stop_loss_multiplier)
                     else:  # sell_to_enter
                         stop_loss = current_price + ((stop_loss - current_price) * stop_loss_multiplier)
-                    print(f"📊 Dynamic Stop-Loss: applied {stop_loss_multiplier}x multiplier for {coin}")
+                    print(f"📊 Dynamic Stop-Loss: {coin} için {stop_loss_multiplier}x multiplier uygulandı")
                 
-                # 5. Counter-Trend detection (validate only for counter trades)
+                # 5. Counter-Trend Detection (Sadece bilgilendirme - blokaj yok)
                 # Get indicators for counter-trend detection
-                current_trend = 'unknown'
                 try:
                     indicators_3m = self.market_data.get_technical_indicators(coin, '3m')
                     indicators_4h = self.market_data.get_technical_indicators(coin, '4h')
-                    if ('error' in indicators_3m) or ('error' in indicators_4h):
-                        print(f"⚠️ Indicator fetch error for {coin}: {indicators_3m.get('error', '') or indicators_4h.get('error', '')}")
-                        continue
-                    current_volume = indicators_3m.get('volume', 0)
-                    avg_volume = indicators_3m.get('avg_volume', 1)
-                    volume_ratio = current_volume / avg_volume if avg_volume and avg_volume > 0 else 0
-                    if volume_ratio < 0.3:
-                        original_confidence = confidence
-                        confidence *= 0.7
-                        print(f"🥶 LOW VOLUME PENALTY: {coin} volume ratio {volume_ratio:.2f}x. Confidence {original_confidence:.2f} → {confidence:.2f}")
-                        if confidence < Config.MIN_CONFIDENCE:
-                            print(f"🚫 Low volume block: {coin} confidence {confidence:.2f} below minimum after penalty.")
-                            continue
-                        trade['confidence'] = confidence
-                    trend_info = self.update_trend_state(coin, indicators_4h, indicators_3m)
-                    current_trend = trend_info.get('trend', 'unknown')
-
-                    pre_bias_confidence = confidence
-                    confidence = self.apply_directional_bias(signal, confidence, bias_metrics, current_trend)
-                    if confidence != pre_bias_confidence:
-                        print(f"🧭 Directional bias adjustment: {coin} {signal} confidence {pre_bias_confidence:.2f} → {confidence:.2f}")
-                        trade['confidence'] = confidence
                     is_counter_trend = self._is_counter_trend_trade(coin, signal, indicators_3m, indicators_4h)
-                    snapshot_parts = []
-                    price_4h = indicators_4h.get('current_price')
-                    ema20_4h = indicators_4h.get('ema_20')
-                    price_3m = indicators_3m.get('current_price')
-                    ema20_3m = indicators_3m.get('ema_20')
-                    def _fmt(val):
-                        return f"{val:.4f}" if isinstance(val, (int, float)) else "n/a"
-                    comparison_4h = "?" if not isinstance(price_4h, (int, float)) or not isinstance(ema20_4h, (int, float)) else (">" if price_4h > ema20_4h else "<" if price_4h < ema20_4h else "=")
-                    comparison_3m = "?" if not isinstance(price_3m, (int, float)) or not isinstance(ema20_3m, (int, float)) else (">" if price_3m > ema20_3m else "<" if price_3m < ema20_3m else "=")
-                    snapshot_parts.append(f"4h price={_fmt(price_4h)} {comparison_4h} EMA20={_fmt(ema20_4h)}")
-                    snapshot_parts.append(f"3m price={_fmt(price_3m)} {comparison_3m} EMA20={_fmt(ema20_3m)}")
-                    snapshot_parts.append(f"volume_ratio={volume_ratio:.2f}x")
-                    snapshot_parts.append(f"counter_trend={is_counter_trend}")
-                    snapshot_parts.append(f"trend_state={current_trend.upper()}")
-                    print(f"🧾 EXECUTION SNAPSHOT {coin}: " + " | ".join(snapshot_parts))
-
+                    
                     if is_counter_trend:
-                        counter_confidence_floor = 0.75
-                        if confidence < counter_confidence_floor:
-                            print(f"🚫 Counter-trend confidence floor: {coin} {signal} confidence {confidence:.2f} < {counter_confidence_floor:.2f}. Skipping trade.")
-                            continue
-                        if trend_info.get('recent_flip'):
-                            print(f"⏳ Trend flip guard: {coin} counter-trend {direction.upper()} blocked within cooldown window (flip cycle {trend_info.get('last_flip_cycle')}).")
-                            continue
-                        print(f"⚠️ COUNTER-TREND DETECTED: {coin} - respecting AI decision with additional validation")
+                        print(f"⚠️ COUNTER-TREND DETECTED: {coin} - AI kararına saygı duyuluyor")
                         
-                        # Perform validation for counter-trend trades only
+                        # Counter-trade koşullarını kontrol et (sadece bilgilendirme)
                         validation_result = self.validate_counter_trade(coin, signal, indicators_3m, indicators_4h)
                         
                         if validation_result['valid']:
@@ -1859,36 +1539,6 @@ class PortfolioManager:
                         else:
                             print(f"⚠️ COUNTER-TRADE WEAK: {validation_result['reason']}")
                             print(f"   Conditions met: {validation_result.get('conditions_met', [])}")
-                            if signal in ['buy_to_enter', 'sell_to_enter']:
-                                print(f"🚫 Skipping {coin} {signal} due to insufficient counter-trend confirmation.")
-                                continue
-                    else:
-                        # Trend-following trade path
-                        price_4h = indicators_4h.get('current_price')
-                        ema20_4h = indicators_4h.get('ema_20')
-                        ema20_3m = indicators_3m.get('ema_20')
-                        price_3m = indicators_3m.get('current_price')
-                        trend_aligned = False
-                        if isinstance(price_4h, (int, float)) and isinstance(ema20_4h, (int, float)) \
-                                and isinstance(price_3m, (int, float)) and isinstance(ema20_3m, (int, float)):
-                            if signal == 'buy_to_enter' and price_4h >= ema20_4h and price_3m >= ema20_3m:
-                                trend_aligned = True
-                            elif signal == 'sell_to_enter' and price_4h <= ema20_4h and price_3m <= ema20_3m:
-                                trend_aligned = True
-                        if trend_aligned:
-                            if volume_ratio >= 0.5:
-                                if volume_ratio < 0.8:
-                                    partial_margin_factor = 0.5
-                                    print(f"🧪 Low-volume trend-following: using 50% margin for {coin} (volume ratio {volume_ratio:.2f})")
-                                boosted_confidence = min(1.0, confidence + 0.05)
-                                if boosted_confidence > confidence:
-                                    print(f"📈 Trend-following boost: volume ratio {volume_ratio:.2f} supports {coin} {signal}. Confidence {confidence:.2f} → {boosted_confidence:.2f}")
-                                    confidence = boosted_confidence
-                                    trade['confidence'] = confidence
-                            else:
-                                print(f"✅ TREND-FOLLOWING: {coin} aligns with 4h trend direction (volume ratio {volume_ratio:.2f})")
-                        else:
-                            print(f"✅ TREND-FOLLOWING: {coin} aligns with 4h trend direction")
                             
                 except Exception as e:
                     print(f"⚠️ Counter-trend detection failed for {coin}: {e}")
@@ -1900,17 +1550,12 @@ class PortfolioManager:
                 
                 # Apply market regime multiplier
                 calculated_margin *= market_regime_multiplier
-                if partial_margin_factor < 1.0:
-                    standard_margin = calculated_margin
-                    reduced_margin = standard_margin * partial_margin_factor
-                    print(f"📉 Applying partial margin ({partial_margin_factor*100:.0f}%): ${standard_margin:.2f} → ${reduced_margin:.2f}")
-                    calculated_margin = max(reduced_margin, Config.MIN_POSITION_MARGIN_USD)
                 
                 # MINIMUM $10 COIN MIKTARI KONTROLÜ
-                if calculated_margin < Config.MIN_POSITION_MARGIN_USD:
-                    print(f"ℹ️ Calculated margin ${calculated_margin:.2f} below minimum ${Config.MIN_POSITION_MARGIN_USD:.2f}. Using minimum margin instead.")
-                    calculated_margin = Config.MIN_POSITION_MARGIN_USD
-
+                if calculated_margin < 10.0:
+                    print(f"⚠️ Calculated margin ${calculated_margin:.2f} below minimum $10 coin amount. Trade blocked.")
+                    continue
+                
                 # AVAILABLE CASH KORUMA KONTROLÜ
                 min_available_cash = self.current_balance * 0.10
                 if (self.current_balance - calculated_margin) < min_available_cash:
@@ -1949,15 +1594,16 @@ class PortfolioManager:
                 direction = 'long' if signal == 'buy_to_enter' else 'short'
                 estimated_liq_price = self._estimate_liquidation_price(current_price, leverage, direction)
 
+                # Calculate actual risk_usd for the position
+                actual_risk_usd = self.calculate_risk_usd(current_price, stop_loss, quantity_coin, direction)
+                
                 self.positions[coin] = {
                     'symbol': coin, 'direction': direction, 'quantity': quantity_coin, 'entry_price': current_price,
                     'entry_time': datetime.now().isoformat(), 'current_price': current_price, 'unrealized_pnl': 0.0,
                     'notional_usd': notional_usd, 'margin_usd': margin_usd, 'leverage': leverage,
                     'liquidation_price': estimated_liq_price, 'confidence': confidence,
                     'exit_plan': { 'profit_target': trade.get('profit_target'), 'stop_loss': stop_loss, 'invalidation_condition': trade.get('invalidation_condition') },
-                    'risk_usd': margin_usd,
-                    'loss_cycle_count': 0,
-                    'trend_context': {'trend_at_entry': current_trend, 'cycle': self.current_cycle_number},
+                    'risk_usd': actual_risk_usd,
                     'sl_oid': -1, 'tp_oid': -1, 'entry_oid': -1, 'wait_for_fill': False
                 }
                 print(f"✅ {signal.upper()}: Opened {direction} {coin} ({format_num(quantity_coin, 4)} @ ${format_num(current_price, 4)} / Notional ${format_num(notional_usd, 2)} / Margin ${format_num(margin_usd, 2)} / Est. Liq: ${format_num(estimated_liq_price, 4)})")
@@ -2007,9 +1653,6 @@ class AlphaArenaDeepSeek:
         self.tp_sl_timer = None
         self.is_running = False
         self.enhanced_exit_enabled = True  # Enhanced exit strategy control flag
-        self.cycle_active = False  # Track whether a trading cycle is executing
-        self.current_cycle_number = 0
-        # Trend flip cooldown yönetimi PortfolioManager tarafında tutulur.
 
     def get_max_positions_for_cycle(self, cycle_number: int) -> int:
         """Cycle bazlı maximum pozisyon limiti - Kademeli artış sistemi"""
@@ -2073,13 +1716,13 @@ class AlphaArenaDeepSeek:
             return False
 
     def enhanced_trend_detection(self, coin: str) -> Dict[str, Any]:
-        """Enhanced trend detection with simple trend strength and counter-trade detection"""
+        """Enhanced trend detection with multiple timeframe analysis (Nof1AI Blog Style)"""
         try:
             indicators_4h = self.market_data.get_technical_indicators(coin, '4h')
             indicators_3m = self.market_data.get_technical_indicators(coin, '3m')
             
             if 'error' in indicators_4h or 'error' in indicators_3m:
-                return {'trend_strength': 0, 'trend_direction': 'NEUTRAL', 'ema_comparison': 'N/A', 'volume_confidence': 0.0}
+                return {'trend_strength': 0, 'trend_direction': 'UNCLEAR', 'ema_comparison': 'N/A', 'volume_confidence': 0.0}
             
             price_4h = indicators_4h.get('current_price')
             ema20_4h = indicators_4h.get('ema_20')
@@ -2090,7 +1733,6 @@ class AlphaArenaDeepSeek:
             # Nof1AI Blog Style: EMA20 vs EMA50 comparison
             ema_comparison = f"20-Period EMA: {format_num(ema20_4h)} vs. 50-Period EMA: {format_num(ema50_4h)}"
             
-            # Simple trend strength calculation (used mainly for counter-trend context)
             trend_strength = 0
             trend_direction = 'NEUTRAL'
             
@@ -2116,322 +1758,18 @@ class AlphaArenaDeepSeek:
             # Volume Confirmation (Nof1AI Blog Style)
             volume_confidence = self.calculate_volume_confidence(coin)
             
-            # Counter-trade detection information
-            counter_trade_info = self.get_counter_trade_information(coin)
-            
             return {
                 'trend_strength': trend_strength,
                 'trend_direction': trend_direction,
                 'ema_comparison': ema_comparison,
                 'price_vs_ema20_4h': 'ABOVE' if price_4h > ema20_4h else 'BELOW',
                 'price_vs_ema20_3m': 'ABOVE' if price_3m > ema20_3m else 'BELOW',
-                'volume_confidence': volume_confidence,
-                'counter_trade_info': counter_trade_info
+                'volume_confidence': volume_confidence
             }
             
         except Exception as e:
             print(f"⚠️ Enhanced trend detection error for {coin}: {e}")
-            return {'trend_strength': 0, 'trend_direction': 'NEUTRAL', 'ema_comparison': 'ERROR', 'volume_confidence': 0.0}
-
-    def get_counter_trade_information(self, coin: str) -> Dict[str, Any]:
-        """Get counter-trade information for AI decision making (information only, no blocking)"""
-        try:
-            indicators_4h = self.market_data.get_technical_indicators(coin, '4h')
-            indicators_3m = self.market_data.get_technical_indicators(coin, '3m')
-            
-            if 'error' in indicators_4h or 'error' in indicators_3m:
-                return {'counter_trade_risk': 'UNKNOWN', 'conditions_met': 0, 'total_conditions': 5}
-            
-            price_4h = indicators_4h.get('current_price')
-            ema20_4h = indicators_4h.get('ema_20')
-            price_3m = indicators_3m.get('current_price')
-            ema20_3m = indicators_3m.get('ema_20')
-            rsi_3m = indicators_3m.get('rsi_14', 50)
-            volume_3m = indicators_3m.get('volume', 0)
-            avg_volume_3m = indicators_3m.get('avg_volume', 1)
-            macd_3m = indicators_3m.get('macd', 0)
-            macd_signal_3m = indicators_3m.get('macd_signal', 0)
-            
-            trend_4h = "BULLISH" if price_4h > ema20_4h else "BEARISH"
-            trend_3m = "BULLISH" if price_3m > ema20_3m else "BEARISH"
-            
-            conditions_met = 0
-            total_conditions = 5
-            conditions_details: List[str] = []
-            
-            # Condition 1: 3m trend alignment
-            if (trend_4h == "BULLISH" and price_3m < ema20_3m) or (trend_4h == "BEARISH" and price_3m > ema20_3m):
-                conditions_met += 1
-                conditions_details.append("✅ 3m trend alignment")
-            else:
-                conditions_details.append("❌ 3m trend misalignment")
-            
-            # Condition 2: Volume confirmation (>1.5x average)
-            volume_ratio = volume_3m / avg_volume_3m if avg_volume_3m > 0 else 0
-            if volume_ratio > 1.5:
-                conditions_met += 1
-                conditions_details.append(f"✅ Volume {volume_ratio:.1f}x average")
-            else:
-                conditions_details.append(f"❌ Volume {volume_ratio:.1f}x average (need >1.5x)")
-            
-            # Condition 3: Extreme RSI
-            if (trend_4h == "BULLISH" and rsi_3m < 25) or (trend_4h == "BEARISH" and rsi_3m > 75):
-                conditions_met += 1
-                conditions_details.append(f"✅ Extreme RSI: {rsi_3m:.1f}")
-            else:
-                conditions_details.append(f"❌ RSI: {rsi_3m:.1f} (need <25 for LONG, >75 for SHORT)")
-            
-            # Condition 4: Strong technical levels (price near EMA)
-            price_ema_distance = abs(price_3m - ema20_3m) / price_3m * 100 if price_3m else 100
-            if price_ema_distance < 1.0:
-                conditions_met += 1
-                conditions_details.append(f"✅ Strong technical level ({price_ema_distance:.2f}% from EMA)")
-            else:
-                conditions_details.append(f"❌ Weak technical level ({price_ema_distance:.2f}% from EMA)")
-            
-            # Condition 5: MACD divergence
-            if (trend_4h == "BULLISH" and macd_3m > macd_signal_3m) or (trend_4h == "BEARISH" and macd_3m < macd_signal_3m):
-                conditions_met += 1
-                conditions_details.append("✅ MACD divergence")
-            else:
-                conditions_details.append("❌ No MACD divergence")
-            
-            if conditions_met >= 4:
-                risk_level = "LOW_RISK"
-                recommendation = "STRONG COUNTER-TRADE SETUP - Consider with high confidence (>0.75)"
-            elif conditions_met >= 3:
-                risk_level = "MEDIUM_RISK"
-                recommendation = "MODERATE COUNTER-TRADE SETUP - Consider with medium confidence (>0.65)"
-            elif conditions_met >= 2:
-                risk_level = "HIGH_RISK"
-                recommendation = "WEAK COUNTER-TRADE SETUP - Avoid or use very low confidence"
-            else:
-                risk_level = "VERY_HIGH_RISK"
-                recommendation = "NO COUNTER-TRADE SETUP - Focus on trend-following"
-            
-            return {
-                'counter_trade_risk': risk_level,
-                'conditions_met': conditions_met,
-                'total_conditions': total_conditions,
-                'recommendation': recommendation,
-                'conditions_details': conditions_details,
-                'trend_4h': trend_4h,
-                'trend_3m': trend_3m,
-                'volume_ratio': round(volume_ratio, 2),
-                'rsi_3m': round(rsi_3m, 2),
-                'price_ema_distance_pct': round(price_ema_distance, 2)
-            }
-        
-        except Exception as e:
-            print(f"⚠️ Counter-trade information error for {coin}: {e}")
-            return {'counter_trade_risk': 'ERROR', 'conditions_met': 0, 'total_conditions': 5}
-
-    def calculate_comprehensive_trend_strength(self, coin: str) -> Dict[str, Any]:
-        """Calculate comprehensive trend strength using 5 technical indicators with weighted scoring"""
-        try:
-            indicators_4h = self.market_data.get_technical_indicators(coin, '4h')
-            indicators_3m = self.market_data.get_technical_indicators(coin, '3m')
-            
-            if 'error' in indicators_4h or 'error' in indicators_3m:
-                return {'strength_score': 0, 'trend_direction': 'UNCLEAR', 'component_scores': {}}
-            
-            price_4h = indicators_4h.get('current_price')
-            ema20_4h = indicators_4h.get('ema_20')
-            ema50_4h = indicators_4h.get('ema_50')
-            rsi_4h = indicators_4h.get('rsi_14', 50)
-            macd_4h = indicators_4h.get('macd', 0)
-            volume_4h = indicators_4h.get('volume', 0)
-            avg_volume_4h = indicators_4h.get('avg_volume', 1)
-            
-            # 1. RSI Strength (20% weight)
-            rsi_strength = self.analyze_rsi_strength(rsi_4h)
-            
-            # 2. MACD Strength (25% weight - most important)
-            macd_strength = self.analyze_macd_strength(macd_4h)
-            
-            # 3. Volume Strength (15% weight)
-            volume_strength = self.analyze_volume_strength(volume_4h, avg_volume_4h)
-            
-            # 4. Bollinger Bands Strength (20% weight)
-            bb_strength = self.analyze_bollinger_bands_strength(indicators_4h)
-            
-            # 5. Moving Averages Strength (20% weight)
-            ma_strength = self.analyze_moving_averages_strength(price_4h, ema20_4h, ema50_4h)
-            
-            # Weighted average - each indicator has different importance
-            total_strength = (
-                rsi_strength * 0.20 +      # %20 ağırlık
-                macd_strength * 0.25 +     # %25 ağırlık (en önemli)
-                volume_strength * 0.15 +   # %15 ağırlık
-                bb_strength * 0.20 +       # %20 ağırlık
-                ma_strength * 0.20         # %20 ağırlık
-            )
-            
-            # Determine trend direction
-            trend_direction = self.determine_trend_direction(price_4h, ema20_4h, ema50_4h, rsi_4h, macd_4h)
-            
-            return {
-                'strength_score': total_strength,
-                'trend_direction': trend_direction,
-                'component_scores': {
-                    'rsi': rsi_strength,
-                    'macd': macd_strength, 
-                    'volume': volume_strength,
-                    'bollinger_bands': bb_strength,
-                    'moving_averages': ma_strength
-                },
-                'confidence_level': self.get_confidence_level(total_strength)
-            }
-            
-        except Exception as e:
-            print(f"⚠️ Comprehensive trend strength error for {coin}: {e}")
-            return {'strength_score': 0, 'trend_direction': 'UNCLEAR', 'component_scores': {}}
-
-    def analyze_rsi_strength(self, rsi: float) -> float:
-        """Analyze RSI strength (0-1 scale)"""
-        if rsi > 70:
-            return 0.9  # Overbought - strong trend continuation
-        elif rsi > 60:
-            return 0.7  # Bullish momentum
-        elif rsi > 50:
-            return 0.5  # Neutral bullish
-        elif rsi > 40:
-            return 0.3  # Neutral bearish
-        elif rsi > 30:
-            return 0.1  # Bearish momentum
-        else:
-            return 0.0  # Oversold - weak trend
-
-    def analyze_macd_strength(self, macd: float) -> float:
-        """Analyze MACD strength (0-1 scale)"""
-        if macd > 0.01:
-            return 1.0  # Strong bullish
-        elif macd > 0.005:
-            return 0.8  # Moderate bullish
-        elif macd > 0:
-            return 0.6  # Weak bullish
-        elif macd > -0.005:
-            return 0.4  # Weak bearish
-        elif macd > -0.01:
-            return 0.2  # Moderate bearish
-        else:
-            return 0.0  # Strong bearish
-
-    def analyze_volume_strength(self, volume: float, avg_volume: float) -> float:
-        """Analyze volume strength (0-1 scale)"""
-        if avg_volume <= 0:
-            return 0.0
-            
-        volume_ratio = volume / avg_volume
-        
-        if volume_ratio >= 1.8:  # High volume: >1.8x average
-            return 1.0
-        elif volume_ratio >= 1.3:  # Medium-high volume: >1.3x average
-            return 0.8
-        elif volume_ratio >= 0.8:  # Normal volume: >0.8x average
-            return 0.6
-        elif volume_ratio >= 0.5:  # Low volume: >0.5x average
-            return 0.3
-        else:  # Very low volume: <0.5x average
-            return 0.1
-
-    def analyze_bollinger_bands_strength(self, indicators: Dict) -> float:
-        """Analyze Bollinger Bands strength (0-1 scale)"""
-        try:
-            price = indicators.get('current_price', 0)
-            ema20 = indicators.get('ema_20', price)
-            atr_14 = indicators.get('atr_14', 0)
-            
-            if atr_14 <= 0:
-                return 0.5  # Neutral if no volatility data
-                
-            # Calculate distance from EMA as percentage of ATR
-            distance = abs(price - ema20) / atr_14
-            
-            if distance > 2.0:
-                return 1.0  # Strong trend (price far from EMA)
-            elif distance > 1.0:
-                return 0.7  # Moderate trend
-            elif distance > 0.5:
-                return 0.4  # Weak trend
-            else:
-                return 0.2  # No trend (consolidation)
-                
-        except Exception as e:
-            print(f"⚠️ Bollinger Bands analysis error: {e}")
-            return 0.5
-
-    def analyze_moving_averages_strength(self, price: float, ema20: float, ema50: float) -> float:
-        """Analyze Moving Averages strength (0-1 scale)"""
-        try:
-            # EMA alignment strength
-            if ema20 > ema50 and price > ema20:
-                return 1.0  # Strong bullish alignment
-            elif ema20 < ema50 and price < ema20:
-                return 1.0  # Strong bearish alignment
-            elif ema20 > ema50:
-                return 0.6  # Weak bullish alignment
-            elif ema20 < ema50:
-                return 0.6  # Weak bearish alignment
-            else:
-                return 0.3  # No clear alignment
-                
-        except Exception as e:
-            print(f"⚠️ Moving Averages analysis error: {e}")
-            return 0.5
-
-    def determine_trend_direction(self, price: float, ema20: float, ema50: float, rsi: float, macd: float) -> str:
-        """Determine overall trend direction based on multiple indicators"""
-        bullish_signals = 0
-        bearish_signals = 0
-        
-        # Price vs EMA20
-        if price > ema20:
-            bullish_signals += 1
-        else:
-            bearish_signals += 1
-            
-        # EMA20 vs EMA50
-        if ema20 > ema50:
-            bullish_signals += 1
-        else:
-            bearish_signals += 1
-            
-        # RSI direction
-        if rsi > 50:
-            bullish_signals += 1
-        else:
-            bearish_signals += 1
-            
-        # MACD direction
-        if macd > 0:
-            bullish_signals += 1
-        else:
-            bearish_signals += 1
-            
-        if bullish_signals >= 3:
-            return "STRONG_BULLISH"
-        elif bearish_signals >= 3:
-            return "STRONG_BEARISH"
-        elif bullish_signals > bearish_signals:
-            return "WEAK_BULLISH"
-        elif bearish_signals > bullish_signals:
-            return "WEAK_BEARISH"
-        else:
-            return "NEUTRAL"
-
-    def get_confidence_level(self, strength_score: float) -> str:
-        """Get confidence level based on trend strength score"""
-        if strength_score > 0.75:
-            return "VERY_HIGH"
-        elif strength_score > 0.60:
-            return "HIGH" 
-        elif strength_score > 0.45:
-            return "MEDIUM"
-        elif strength_score > 0.30:
-            return "LOW"
-        else:
-            return "VERY_LOW"
+            return {'trend_strength': 0, 'trend_direction': 'UNCLEAR', 'ema_comparison': 'ERROR', 'volume_confidence': 0.0}
 
     def calculate_volume_confidence(self, coin: str) -> float:
         """Calculate volume confidence based on current vs average volume (Nof1AI Blog Style)"""
@@ -2450,11 +1788,11 @@ class AlphaArenaDeepSeek:
             volume_ratio = current_volume / avg_volume
             
             # Volume confidence scoring
-            if volume_ratio >= 1.8:  # High volume: >1.8x average
+            if volume_ratio >= 2.0:  # High volume: >2x average
                 return 1.0
-            elif volume_ratio >= 1.3:  # Medium-high volume: >1.3x average
+            elif volume_ratio >= 1.5:  # Medium-high volume: >1.5x average
                 return 0.8
-            elif volume_ratio >= 0.8:  # Normal volume: >0.8x average
+            elif volume_ratio >= 1.0:  # Normal volume: >1x average
                 return 0.6
             elif volume_ratio >= 0.5:  # Low volume: >0.5x average
                 return 0.3
@@ -2614,64 +1952,35 @@ class AlphaArenaDeepSeek:
             print(f"⚠️ Market regime detection error: {e}")
             return "NEUTRAL"
 
-    def detect_market_regime(
-        self,
-        coin: str,
-        indicators_4h: Optional[Dict[str, Any]] = None,
-        indicators_3m: Optional[Dict[str, Any]] = None
-    ) -> str:
-        """Detect market condition based on multi-timeframe indicators"""
+    def detect_market_regime(self, coin: str) -> str:
+        """Detect market condition based on 4h indicators"""
         try:
-            if indicators_4h is None:
-                indicators_4h = self.market_data.get_technical_indicators(coin, '4h')
-            if not isinstance(indicators_4h, dict) or 'error' in indicators_4h:
+            indicators_4h = self.market_data.get_technical_indicators(coin, '4h')
+            if 'error' in indicators_4h:
                 return "UNCLEAR"
-
-            price = indicators_4h.get('current_price')
-            ema_20 = indicators_4h.get('ema_20')
+            
             rsi = indicators_4h.get('rsi_14', 50)
             macd = indicators_4h.get('macd', 0)
-
-            if not isinstance(price, (int, float)) or not isinstance(ema_20, (int, float)) or ema_20 == 0:
-                return "UNCLEAR"
-
-            # Optional intraday context (3m)
-            if indicators_3m is None:
-                indicators_3m = self.market_data.get_technical_indicators(coin, '3m')
-            intraday_trend = None
-            intraday_rsi = None
-            if isinstance(indicators_3m, dict) and 'error' not in indicators_3m:
-                price_3m = indicators_3m.get('current_price')
-                ema20_3m = indicators_3m.get('ema_20', price_3m)
-                if isinstance(price_3m, (int, float)) and isinstance(ema20_3m, (int, float)):
-                    intraday_trend = "bullish" if price_3m >= ema20_3m else "bearish"
-                intraday_rsi = indicators_3m.get('rsi_14', indicators_3m.get('rsi_7', 50))
-
-            delta = (price - ema_20) / ema_20
-            price_neutral = abs(delta) <= Config.EMA_NEUTRAL_BAND_PCT
-            trend_direction = "NEUTRAL" if price_neutral else ("BULLISH" if delta > 0 else "BEARISH")
-
-            if trend_direction != "NEUTRAL" and intraday_trend and isinstance(intraday_rsi, (int, float)):
-                if trend_direction == "BEARISH" and intraday_trend == "bullish" and intraday_rsi >= Config.INTRADAY_NEUTRAL_RSI_HIGH:
-                    trend_direction = "NEUTRAL"
-                elif trend_direction == "BULLISH" and intraday_trend == "bearish" and intraday_rsi <= Config.INTRADAY_NEUTRAL_RSI_LOW:
-                    trend_direction = "NEUTRAL"
-
-            if trend_direction == "NEUTRAL":
-                return "NEUTRAL_BALANCED"
-
+            price = indicators_4h.get('current_price', 0)
+            ema_20 = indicators_4h.get('ema_20', price)
+            
+            # Trend detection
+            trend_direction = "BULLISH" if price > ema_20 else "BEARISH"
+            
+            # Regime classification
             if rsi > 70 and macd < 0:
                 return f"{trend_direction}_REVERSAL"
-            if rsi < 30 and macd > 0:
+            elif rsi < 30 and macd > 0:
                 return f"{trend_direction}_REVERSAL"
-            if rsi > 60:
+            elif rsi > 60:
                 return f"{trend_direction}_TREND"
-            if rsi < 40:
+            elif rsi < 40:
                 return f"{trend_direction}_TREND"
-            if 45 <= rsi <= 55:
+            elif 45 <= rsi <= 55:
                 return f"{trend_direction}_RANGING"
-            return f"{trend_direction}_CONSOLIDATION"
-
+            else:
+                return f"{trend_direction}_CONSOLIDATION"
+                
         except Exception as e:
             print(f"⚠️ Regime detection error for {coin}: {e}")
             return "UNCLEAR"
@@ -2813,12 +2122,9 @@ class AlphaArenaDeepSeek:
         formatted = ""
         for symbol, data in position_context.items():
             pnl = data.get('unrealized_pnl', 0)
-            remaining_pct = data.get('remaining_to_target_pct')
-            if remaining_pct is None:
-                progress = data.get('profit_target_progress', 0)
-                remaining_pct = max(0.0, round(100 - progress, 2))
+            progress = data.get('profit_target_progress', 0)
             time_in_trade = data.get('time_in_trade_minutes', 0)
-            formatted += f"  {symbol}: ${pnl:.2f} PnL, {remaining_pct}% to target, {time_in_trade}min in trade\n"
+            formatted += f"  {symbol}: ${pnl:.2f} PnL, {progress}% to target, {time_in_trade}min in trade\n"
         return formatted
 
     def format_market_regime_context(self, market_regime: Dict) -> str:
@@ -2828,26 +2134,7 @@ class AlphaArenaDeepSeek:
         
         current = market_regime.get('current_regime', 'unknown')
         strength = market_regime.get('regime_strength', 0)
-        bull_count = market_regime.get('bullish_count', 0)
-        bear_count = market_regime.get('bearish_count', 0)
-        neutral_count = market_regime.get('neutral_count', 0)
-        total_coins = market_regime.get('total_coins', bull_count + bear_count + neutral_count)
-        coin_regimes = market_regime.get('coin_regimes', {})
-        
-        formatted = (
-            f"Global regime: {current} "
-            f"(strength {strength}, bullish={bull_count}, bearish={bear_count}, neutral={neutral_count}, total={total_coins})\n"
-        )
-        if coin_regimes:
-            formatted += "  Coin regimes:\n"
-            for coin, data in coin_regimes.items():
-                regime = data.get('regime', 'unknown')
-                score = data.get('score', 0)
-                price_relation = data.get('price_vs_ema20', 'unknown')
-                formatted += f"    - {coin}: {regime} (score {score}, price {price_relation} EMA20)\n"
-        else:
-            formatted += "  Coin regimes: No data\n"
-        return formatted.rstrip()
+        return f"Current: {current}, Strength: {strength}"
 
     def format_performance_insights(self, performance_insights: Dict) -> str:
         """Format performance insights for prompt"""
@@ -2863,140 +2150,16 @@ class AlphaArenaDeepSeek:
             formatted += f"  • {insight}\n"
         return formatted
 
-    def format_directional_feedback(self, directional_feedback: Dict) -> str:
-        """Format long/short feedback for prompt"""
-        if not directional_feedback:
-            return "No directional feedback available"
-        
-        lines = []
-        for direction in ("long", "short"):
-            stats = directional_feedback.get(direction, {})
-            trades = stats.get("trades", 0)
-            wins = stats.get("wins", 0)
-            losses = stats.get("losses", 0)
-            win_rate = stats.get("win_rate", 0.0)
-            avg_pnl = stats.get("avg_pnl", 0.0)
-            total_pnl = stats.get("total_pnl", 0.0)
-            lines.append(
-                f"  {direction.upper()}: trades={trades}, wins={wins}, losses={losses}, win_rate={win_rate}%, avg_pnl=${avg_pnl:.2f}, total_pnl=${total_pnl:.2f}"
-            )
-        return "\n".join(lines)
-    
     def format_risk_context(self, risk_context: Dict) -> str:
         """Format risk context for prompt"""
         if not risk_context:
             return "Risk context: Unknown"
         
         total_risk = risk_context.get('total_risk_usd', 0)
+        risk_percentage = risk_context.get('risk_percentage', 0)
         position_count = risk_context.get('position_count', 0)
         
-        return f"Total Risk: ${total_risk:.2f}, Positions: {position_count}"
-
-    def get_real_time_counter_trade_analysis(self) -> str:
-        """Get real-time counter-trade analysis for all coins"""
-        analysis = []
-        
-        for coin in self.market_data.available_coins:
-            try:
-                # Get indicators for both timeframes
-                indicators_3m = self.market_data.get_technical_indicators(coin, '3m')
-                indicators_4h = self.market_data.get_technical_indicators(coin, '4h')
-                
-                if 'error' in indicators_3m or 'error' in indicators_4h:
-                    analysis.append(f"❌ {coin}: Data error - cannot analyze counter-trade conditions")
-                    continue
-                
-                # Extract key indicators
-                price_4h = indicators_4h.get('current_price')
-                ema20_4h = indicators_4h.get('ema_20')
-                price_3m = indicators_3m.get('current_price')
-                ema20_3m = indicators_3m.get('ema_20')
-                rsi_3m = indicators_3m.get('rsi_14', 50)
-                volume_3m = indicators_3m.get('volume', 0)
-                avg_volume_3m = indicators_3m.get('avg_volume', 1)
-                macd_3m = indicators_3m.get('macd', 0)
-                macd_signal_3m = indicators_3m.get('macd_signal', 0)
-                
-                # Determine 4h trend direction
-                trend_4h = "BULLISH" if price_4h > ema20_4h else "BEARISH"
-                trend_3m = "BULLISH" if price_3m > ema20_3m else "BEARISH"
-                
-                # Counter-trade conditions analysis
-                conditions_met = 0
-                total_conditions = 5
-                conditions_details = []
-                
-                # Condition 1: 3m trend alignment
-                if (trend_4h == "BULLISH" and trend_3m == "BEARISH") or (trend_4h == "BEARISH" and trend_3m == "BULLISH"):
-                    conditions_met += 1
-                    conditions_details.append("✅ 3m trend alignment")
-                else:
-                    conditions_details.append("❌ 3m trend misalignment")
-                
-                # Condition 2: Volume confirmation (>1.5x average)
-                volume_ratio = volume_3m / avg_volume_3m if avg_volume_3m > 0 else 0
-                if volume_ratio > 1.5:
-                    conditions_met += 1
-                    conditions_details.append(f"✅ Volume {volume_ratio:.1f}x average")
-                else:
-                    conditions_details.append(f"❌ Volume {volume_ratio:.1f}x average (need >1.5x)")
-                
-                # Condition 3: Extreme RSI
-                if (trend_4h == "BULLISH" and rsi_3m < 25) or (trend_4h == "BEARISH" and rsi_3m > 75):
-                    conditions_met += 1
-                    conditions_details.append(f"✅ Extreme RSI: {rsi_3m:.1f}")
-                else:
-                    conditions_details.append(f"❌ RSI: {rsi_3m:.1f} (need <25 for LONG, >75 for SHORT)")
-                
-                # Condition 4: Strong technical levels (price near EMA)
-                price_ema_distance = abs(price_3m - ema20_3m) / price_3m * 100
-                if price_ema_distance < 1.0:
-                    conditions_met += 1
-                    conditions_details.append(f"✅ Strong technical level ({price_ema_distance:.2f}% from EMA)")
-                else:
-                    conditions_details.append(f"❌ Weak technical level ({price_ema_distance:.2f}% from EMA)")
-                
-                # Condition 5: MACD divergence
-                if (trend_4h == "BULLISH" and macd_3m > macd_signal_3m) or (trend_4h == "BEARISH" and macd_3m < macd_signal_3m):
-                    conditions_met += 1
-                    conditions_details.append("✅ MACD divergence")
-                else:
-                    conditions_details.append("❌ No MACD divergence")
-                
-                # Determine counter-trade risk level and recommendation
-                if conditions_met >= 4:
-                    risk_level = "LOW_RISK"
-                    recommendation = "STRONG COUNTER-TRADE SETUP - Consider with high confidence (>0.75)"
-                elif conditions_met >= 3:
-                    risk_level = "MEDIUM_RISK"
-                    recommendation = "MODERATE COUNTER-TRADE SETUP - Consider with medium confidence (>0.65)"
-                elif conditions_met >= 2:
-                    risk_level = "HIGH_RISK"
-                    recommendation = "WEAK COUNTER-TRADE SETUP - Avoid or use very low confidence"
-                else:
-                    risk_level = "VERY_HIGH_RISK"
-                    recommendation = "NO COUNTER-TRADE SETUP - Focus on trend-following"
-                
-                # Build analysis string for this coin
-                coin_analysis = f"""
-{coin} COUNTER-TRADE ANALYSIS:
-  4h Trend: {trend_4h} | 3m Trend: {trend_3m}
-  Conditions Met: {conditions_met}/{total_conditions}
-  Risk Level: {risk_level}
-  Recommendation: {recommendation}
-  Conditions:
-    {chr(10).join(f'    {detail}' for detail in conditions_details)}
-"""
-                analysis.append(coin_analysis)
-                
-            except Exception as e:
-                analysis.append(f"❌ {coin}: Analysis error - {str(e)}")
-        
-        # Combine all analyses
-        if not analysis:
-            return "No counter-trade analysis available due to data errors"
-        
-        return "\n".join(analysis)
+        return f"Total Risk: ${total_risk:.2f}, Risk %: {risk_percentage:.1f}%, Positions: {position_count}"
 
     def format_suggestions(self, suggestions: List[str]) -> str:
         """Format suggestions for prompt"""
@@ -3007,52 +2170,6 @@ class AlphaArenaDeepSeek:
         for suggestion in suggestions:
             formatted += f"  • {suggestion}\n"
         return formatted
-
-    def format_trend_reversal_analysis(self, trend_reversal_analysis: Dict) -> str:
-        """Format trend reversal analysis for prompt"""
-        if not trend_reversal_analysis or 'error' in trend_reversal_analysis:
-            return "Trend reversal analysis: No data available"
-        
-        formatted = ""
-        for coin, analysis in trend_reversal_analysis.items():
-            if coin == 'error':
-                continue
-                
-            reversal_signals = analysis.get('reversal_signals', [])
-            if not reversal_signals:
-                continue
-                
-            formatted += f"\n{coin} TREND REVERSAL SIGNALS:\n"
-            for signal in reversal_signals:
-                signal_type = signal.get('type', 'Unknown')
-                strength = signal.get('strength', 'Unknown')
-                description = signal.get('description', 'No description')
-                formatted += f"  • {signal_type} ({strength}): {description}\n"
-        
-        if not formatted:
-            return "Trend reversal analysis: No reversal signals detected"
-        
-        return formatted
-
-    def format_volume_ratio(self, volume: Any, avg_volume: Any) -> str:
-        """Format volume ratio with guard rails for extremely low values."""
-        try:
-            if not isinstance(volume, (int, float)) or not isinstance(avg_volume, (int, float)):
-                return "N/A"
-            if avg_volume <= 0:
-                return "N/A"
-            ratio = volume / avg_volume
-            if ratio == 0:
-                return "0.00x"
-            if ratio < 0.0005:
-                return "<0.0005x"
-            if ratio < 0.01:
-                return f"{ratio:.4f}x"
-            if ratio < 1:
-                return f"{ratio:.3f}x"
-            return f"{ratio:.2f}x"
-        except Exception:
-            return "N/A"
 
     def format_list(self, lst, precision=4):
         """Helper function to format lists for prompt display"""
@@ -3068,31 +2185,6 @@ class AlphaArenaDeepSeek:
         # Get enhanced context for AI decision making
         enhanced_context = self.get_enhanced_context()
         
-        # Get real-time counter-trade analysis for all coins
-        counter_trade_analysis = self.get_real_time_counter_trade_analysis()
-        
-        # Get trend reversal detection for all coins
-        from performance_monitor import PerformanceMonitor
-        performance_monitor = PerformanceMonitor()
-        trend_reversal_analysis = performance_monitor.detect_trend_reversal_for_all_coins(self.market_data.available_coins)
-        
-        bias_metrics = getattr(self, 'latest_bias_metrics', self.get_directional_bias_metrics())
-        bias_lines = []
-        for side in ('long', 'short'):
-            stats = bias_metrics.get(side, {})
-            bias_lines.append(
-                f"  • {side.upper()}: net_pnl=${format_num(stats.get('net_pnl', 0.0), 2)}, "
-                f"trades={stats.get('trades', 0)}, win_rate={format_num((stats.get('wins', 0) / stats.get('trades', 1)) * 100 if stats.get('trades') else 0, 2)}%, "
-                f"rolling_avg=${format_num(stats.get('rolling_avg', 0.0), 2)}, consecutive_losses={stats.get('consecutive_losses', 0)}"
-            )
-        bias_section = "\n".join(bias_lines) if bias_lines else "  • No directional trades recorded"
-
-        recent_flips = self.portfolio.get_recent_trend_flip_summary()
-        if recent_flips:
-            trend_flip_section = "\n".join(f"  • {entry}" for entry in recent_flips)
-        else:
-            trend_flip_section = "  • No recent flips within cooldown window"
-        
         prompt = f"""
 USER_PROMPT:
 It has been {minutes_running} minutes since you started trading. The current time is {current_time} and you've been invoked {self.invocation_count} times. Below, we are providing you with a variety of state data, price data, and predictive signals so you can discover alpha. Below that is your current account information, value, performance, positions, etc.
@@ -3100,21 +2192,9 @@ It has been {minutes_running} minutes since you started trading. The current tim
 ALL OF THE PRICE OR SIGNAL DATA BELOW IS ORDERED: OLDEST → NEWEST
 Timeframes note: Unless stated otherwise in a section title, intraday series are provided at 3‑minute intervals. If a coin uses a different interval, it is explicitly stated in that coin's section.
 
-{'='*20} REAL-TIME COUNTER-TRADE ANALYSIS {'='*20}
-
-We pre-compute the standard 5 counter-trend conditions for every coin. Review these findings first; only recalc if you detect inconsistencies or need extra validation.
-
-{counter_trade_analysis}
-
-{'='*20} TREND REVERSAL DETECTION {'='*20}
-
-All notes below are informational statistics about potential reversals; evaluate them independently before acting.
-
-{self.format_trend_reversal_analysis(trend_reversal_analysis)}
-
 {'='*20} ENHANCED DECISION CONTEXT (Non-binding suggestions) {'='*20}
 
-Metrics and remarks in this section are informational only. You must weigh them yourself before making any trading decision.
+This section provides enhanced context for your decision making. These are suggestions only - final decisions remain with you.
 
 POSITION MANAGEMENT CONTEXT:
 {self.format_position_context(enhanced_context.get('position_context', {}))}
@@ -3124,15 +2204,6 @@ MARKET REGIME ANALYSIS:
 
 PERFORMANCE INSIGHTS:
 {self.format_performance_insights(enhanced_context.get('performance_insights', {}))}
-
-DIRECTIONAL FEEDBACK (LONG vs SHORT):
-{self.format_directional_feedback(enhanced_context.get('directional_feedback', {}))}
-
-DIRECTIONAL PERFORMANCE SNAPSHOT (Last 20 trades max):
-{bias_section}
-
-RECENT TREND FLIP GUARD (Cooldown = {self.portfolio.trend_flip_cooldown} cycles):
-{trend_flip_section}
 
 RISK MANAGEMENT CONTEXT:
 {self.format_risk_context(enhanced_context.get('risk_context', {}))}
@@ -3151,7 +2222,7 @@ REMEMBER: These are suggestions only. You make the final trading decisions based
             sentiment = self.market_data.get_market_sentiment(coin)
             
             # Add market regime detection
-            market_regime = self.detect_market_regime(coin, indicators_4h=indicators_4h, indicators_3m=indicators_3m)
+            market_regime = self.detect_market_regime(coin)
             prompt += f"--- MARKET REGIME: {market_regime} ---\n"
             
             prompt += f"--- Market Sentiment for {coin} Perps ---\n"
@@ -3174,10 +2245,7 @@ REMEMBER: These are suggestions only. You make the final trading decisions based
                 atr_3 = indicators.get('atr_3'); atr_14 = indicators.get('atr_14'); atr_str = ""
                 if atr_3 is not None and pd.notna(atr_3): atr_str += f"{prefix}3‑Period ATR: {format_num(atr_3)} vs "
                 atr_str += f"14‑Period ATR: {format_num(atr_14)}\n"; output += atr_str
-                current_volume = indicators.get('volume', 'N/A')
-                avg_volume = indicators.get('avg_volume', 'N/A')
-                output += f"{prefix}Current Volume: {format_num(current_volume, 3)} vs. Average Volume: {format_num(avg_volume, 3)}\n"
-                output += f"{prefix}Volume ratio (current/avg): {self.format_volume_ratio(current_volume, avg_volume)}\n"
+                output += f"{prefix}Current Volume: {format_num(indicators.get('volume', 'N/A'), 3)} vs. Average Volume: {format_num(indicators.get('avg_volume', 'N/A'), 3)}\n"
                 return output
             # --- End inner function ---
 
@@ -3307,40 +2375,27 @@ Current live positions & performance:"""
         try:
             bullish_count = 0
             bearish_count = 0
-            neutral_count = 0
-
+            
             for coin in self.market_data.available_coins:
                 indicators_4h = self.market_data.get_technical_indicators(coin, '4h')
                 if 'error' in indicators_4h:
                     continue
-
+                
                 price = indicators_4h.get('current_price')
                 ema20 = indicators_4h.get('ema_20')
-
-                if not isinstance(price, (int, float)) or not isinstance(ema20, (int, float)) or ema20 == 0:
-                    continue
-
-                delta = (price - ema20) / ema20
-                if abs(delta) <= Config.EMA_NEUTRAL_BAND_PCT:
-                    neutral_count += 1
-                elif price > ema20:
+                
+                if price > ema20:
                     bullish_count += 1
                 else:
                     bearish_count += 1
-
-            if bullish_count >= 4:
+            
+            if bullish_count >= 4:  # At least 4 coins bullish
                 return "BULLISH"
-            if bearish_count >= 4:
+            elif bearish_count >= 4:  # At least 4 coins bearish
                 return "BEARISH"
-            if neutral_count >= 4:
+            else:
                 return "NEUTRAL"
-
-            if bullish_count > bearish_count:
-                return "BULLISH" if bullish_count >= 3 else "NEUTRAL"
-            if bearish_count > bullish_count:
-                return "BEARISH" if bearish_count >= 3 else "NEUTRAL"
-            return "NEUTRAL"
-
+                
         except Exception as e:
             print(f"⚠️ Market regime detection error: {e}")
             return "NEUTRAL"
@@ -3428,12 +2483,7 @@ Current live positions & performance:"""
     def run_trading_cycle(self, cycle_number: int):
         """Run a single trading cycle with auto TP/SL and enhanced features"""
         print(f"\n{'='*80}\n🔄 TRADING CYCLE {cycle_number} | ⏰ {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n{'='*80}")
-        self.current_cycle_number = cycle_number
-        self.portfolio.current_cycle_number = cycle_number
-        self.latest_bias_metrics = self.portfolio.get_directional_bias_metrics()
-        self.portfolio.latest_bias_metrics = self.latest_bias_metrics
         prompt, thoughts, decisions = "N/A", "N/A", {}
-        self.cycle_active = True
         try:
             # Enhanced exit strategy control - pause during cycle
             print("⏸️ Enhanced exit strategy paused during cycle")
@@ -3453,7 +2503,7 @@ Current live positions & performance:"""
             real_prices = self.market_data.get_all_real_prices()
             valid_prices = {k: v for k, v in real_prices.items() if isinstance(v, (int, float)) and v > 0}
             if not valid_prices: raise ValueError("No valid market prices received.")
-            self.portfolio.update_prices(valid_prices, increment_loss_counters=True) # Update PnL before checking TP/SL
+            self.portfolio.update_prices(valid_prices) # Update PnL before checking TP/SL
 
             # --- Auto TP/SL Check ---
             positions_closed_by_tp_sl = self.portfolio.check_and_execute_tp_sl(valid_prices)
@@ -3569,6 +2619,8 @@ Current live positions & performance:"""
             
             # Enhanced exit strategy control - re-enable after cycle completion
             print("▶️ Enhanced exit strategy re-enabled after cycle completion")
+            self.enhanced_exit_enabled = True
+            
             self.show_status()
 
         except Exception as e:
@@ -3577,9 +2629,6 @@ Current live positions & performance:"""
                  decisions_log = decisions if isinstance(decisions, dict) else {}
                  self.portfolio.add_to_cycle_history(cycle_number, prompt, f"CRITICAL CYCLE ERROR: {e}\n{traceback.format_exc()}", decisions_log)
             except Exception as log_e: print(f"❌ Failed to save error to cycle history: {log_e}")
-        finally:
-            self.cycle_active = False
-            self.enhanced_exit_enabled = True
 
     def show_status(self):
         """Show current status in the console"""
@@ -3624,16 +2673,6 @@ Current live positions & performance:"""
         while self.is_running:
             try:
                 # Enhanced exit strategy control - check if enabled
-                if getattr(self, 'cycle_active', False):
-                    # Trading cycle active; wait until it completes
-                    for _ in range(5):
-                        if not self.is_running:
-                            break
-                        if not getattr(self, 'cycle_active', False):
-                            break
-                        time.sleep(1)
-                    continue
-
                 if not self.enhanced_exit_enabled:
                     print("⏸️ Enhanced exit strategy paused during cycle - TP/SL monitoring waiting")
                     # Wait 10 seconds and check again
@@ -3649,7 +2688,7 @@ Current live positions & performance:"""
                 
                 if valid_prices:
                     # Update portfolio prices
-                    self.portfolio.update_prices(valid_prices, increment_loss_counters=False)
+                    self.portfolio.update_prices(valid_prices)
                     
                     # Check and execute TP/SL with enhanced exit strategy
                     positions_closed = self.portfolio.check_and_execute_tp_sl(valid_prices)
@@ -3712,62 +2751,6 @@ Current live positions & performance:"""
             self.stop_tp_sl_monitoring()
 
         print(f"\n{'='*80}\n🏁 SIMULATION COMPLETED\n{'='*80}"); self.show_status()
-
-    def _adjust_partial_sale_for_min_limit(self, position: Dict, proposed_percent: float) -> float:
-        """Adjust partial sale percentage to ensure minimum limit remains after sale"""
-        current_margin = position.get('margin_usd', 0)
-        
-        # Calculate dynamic minimum limit: $15 fixed OR 10% of available cash, whichever is larger
-        min_remaining = self._calculate_dynamic_minimum_limit()
-        
-        if current_margin <= min_remaining:
-            # Position already at or below minimum, don't sell
-            print(f"🛑 Partial sale blocked: Position margin ${current_margin:.2f} <= minimum limit ${min_remaining:.2f}")
-            return 0.0
-        
-        # Calculate remaining margin after proposed sale
-        remaining_after_proposed = current_margin * (1 - proposed_percent)
-        
-        if remaining_after_proposed >= min_remaining:
-            # Proposed sale keeps us above minimum, use as-is
-            return proposed_percent
-        else:
-            # Adjust sale to leave exactly min_remaining margin
-            adjusted_sale_amount = current_margin - min_remaining
-            adjusted_percent = adjusted_sale_amount / current_margin
-            
-            print(f"📊 Adjusted partial sale: {proposed_percent*100:.0f}% → {adjusted_percent*100:.0f}% to maintain ${min_remaining:.2f} minimum limit")
-            return adjusted_percent
-
-    def update_trend_state(
-        self,
-        coin: str,
-        indicators_4h: Dict[str, Any],
-        indicators_3m: Optional[Dict[str, Any]] = None
-    ) -> Dict[str, Any]:
-        """Delegate trend state updates to PortfolioManager for backward compatibility."""
-        return self.portfolio.update_trend_state(coin, indicators_4h, indicators_3m)
-
-    def get_recent_trend_flip_summary(self) -> List[str]:
-        """Expose portfolio trend flip summary for existing integrations."""
-        return self.portfolio.get_recent_trend_flip_summary()
-
-    def count_positions_by_direction(self) -> Dict[str, int]:
-        return self.portfolio.count_positions_by_direction()
-
-    def apply_directional_bias(self, signal: str, confidence: float, bias_metrics: Dict[str, Dict[str, Any]], current_trend: str) -> float:
-        return self.portfolio.apply_directional_bias(signal, confidence, bias_metrics, current_trend)
-
-    def get_directional_bias_metrics(self) -> Dict[str, Dict[str, Any]]:
-        """Proxy to portfolio directional bias metrics."""
-        return self.portfolio.get_directional_bias_metrics()
-
-    def load_cycle_history(self) -> List[Dict]:
-        history = safe_file_read(self.cycle_history_file, default_data=[]); print(f"✅ Loaded {len(history)} cycles."); return history
-    def add_to_cycle_history(self, cycle_number: int, prompt: str, thoughts: str, decisions: Dict):
-        cycle_data = {'cycle': cycle_number, 'timestamp': datetime.now().isoformat(), 'user_prompt_summary': prompt[:300] + "..." if len(prompt) > 300 else prompt, 'chain_of_thoughts': thoughts, 'decisions': decisions}
-        self.cycle_history.append(cycle_data); self.cycle_history = self.cycle_history[-self.max_cycle_history:]
-        safe_file_write(self.cycle_history_file, self.cycle_history); print(f"✅ Saved cycle {cycle_number} (Total: {len(self.cycle_history)})")
 
 # Define VERSION at the top level
 VERSION = "9 - Auto TP/SL, Dynamic Size, Prompt Eng"

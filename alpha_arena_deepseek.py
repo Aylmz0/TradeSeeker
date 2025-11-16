@@ -75,7 +75,7 @@ class DeepSeekAPI:
                     {
                         "role": "system",
                         "content": f"""You are a zero-shot systematic trading model participating in Alpha Arena.
-Your goal is to maximize PnL (profit and loss) by trading perpetual futures on 6 assets: XRP, DOGE, JASMY, ADA, LINK, SOL.
+Your goal is to maximize PnL (profit and loss) by trading perpetual futures on 6 assets: XRP, DOGE, ASTER, ADA, LINK, SOL.
 
 You are given $200 starting capital and must process numerical market data to discover alpha.
 Your Sharpe ratio is provided to help normalize for risky behavior.
@@ -120,7 +120,7 @@ ADVANCED ANALYSIS PLAYBOOK:
 - Manage exits proactively; do not wait for targets if data invalidates the thesis.
 - High-confidence setups (0.7–0.8+) justify higher exposure within risk limits.
 - Consider both trend-following and counter-trend opportunities equally; choose the setup with the best quantified edge regardless of trend direction. Counter-trend trades can be highly profitable when conditions align.
-- Remember: Be aggressive but disciplined.
+- Remember:BE AGGRESSIVE but disciplined - Take calculated risks based on technical analysis.
 
 MULTI-TIMEFRAME PROCESS:
 1. Check global and per-asset regime data (provided in the prompt).
@@ -214,7 +214,7 @@ DECISIONS
     "invalidation_condition": "If {HTF_LABEL} price closes above {HTF_LABEL} EMA20"
   }},
   "LINK": {{ "signal": "hold" }},
-  "JASMY": {{ "signal": "hold" }}
+  "ASTER": {{ "signal": "hold" }}
 }}
 
 Remember: You are a systematic trading model. Make principled decisions based on quantitative data and advanced technical analysis."""
@@ -264,7 +264,7 @@ DECISIONS
   "XRP": {{ "signal": "hold" }},
   "ADA": {{ "signal": "hold" }},
   "DOGE": {{ "signal": "hold" }},
-  "JASMY": {{ "signal": "hold" }},
+  "ASTER": {{ "signal": "hold" }},
   "LINK": {{ "signal": "hold" }}
 }}
 """
@@ -302,7 +302,7 @@ DECISIONS
         """Generate safe hold decisions for all coins"""
         print("🛡️ Generating safe hold decisions")
         hold_decisions = {}
-        for coin in ['XRP', 'DOGE', 'JASMY', 'ADA', 'LINK', 'SOL']:
+        for coin in ['XRP', 'DOGE', 'ASTER', 'ADA', 'LINK', 'SOL']:
             hold_decisions[coin] = {"signal": "hold", "justification": "Safe mode: Holding due to API error"}
         
         return f"""
@@ -333,7 +333,7 @@ class RealMarketData:
     def __init__(self):
         self.spot_url = "https://api.binance.com/api/v3"
         self.futures_url = "https://fapi.binance.com/fapi/v1"
-        self.available_coins = ['XRP', 'DOGE', 'JASMY', 'ADA', 'LINK', 'SOL'] # SHIB replaced with JASMY
+        self.available_coins = ['XRP', 'DOGE', 'ASTER', 'ADA', 'LINK', 'SOL'] # SHIB replaced with ASTER
         self.indicator_history_length = 10
         self.session = RetryManager.create_session_with_retry()
         self.preloaded_indicators: Dict[str, Dict[str, Dict[str, Any]]] = {}
@@ -712,6 +712,7 @@ class PortfolioManager:
         self.relaxed_countertrend_cycles: int = 0
         self.counter_trend_cooldown: int = 0
         self.counter_trend_consecutive_losses: int = 0
+        self.coin_cooldowns: Dict[str, int] = {}  # Coin bazlı cooldown: {coin: cycles_remaining}
 
         self.current_cycle_number = 0
 
@@ -721,16 +722,18 @@ class PortfolioManager:
         self.risk_manager = AdvancedRiskManager()  # Initialize risk manager
         self.market_data = RealMarketData()  # Initialize market data for counter-trend detection
 
-        if self.is_live_trading:
-            self._initialize_live_trading()
-        elif BINANCE_IMPORT_ERROR:
-            print(f"ℹ️ Binance executor unavailable ({BINANCE_IMPORT_ERROR}). Staying in simulation mode.")
-
+        # Initialize total_value before _initialize_live_trading (which calls sync_live_account)
         self.total_value = self.current_balance
         self.total_return = 0.0
         self.start_time = datetime.now()
         self.portfolio_values_history = [self.initial_balance]  # Track portfolio values for Sharpe ratio
         self.sharpe_ratio = 0.0
+
+        if self.is_live_trading:
+            self._initialize_live_trading()
+        elif BINANCE_IMPORT_ERROR:
+            print(f"ℹ️ Binance executor unavailable ({BINANCE_IMPORT_ERROR}). Staying in simulation mode.")
+
         self.update_prices({}, increment_loss_counters=False) # Calculate initial value with loaded positions
 
     def _init_directional_bias(self) -> Dict[str, Dict[str, Any]]:
@@ -790,6 +793,7 @@ class PortfolioManager:
         self.relaxed_countertrend_cycles = data.get('relaxed_countertrend_cycles', 0)
         self.counter_trend_cooldown = data.get('counter_trend_cooldown', 0)
         self.counter_trend_consecutive_losses = data.get('counter_trend_consecutive_losses', 0)
+        self.coin_cooldowns = data.get('coin_cooldowns', {})
 
     def save_state(self):
         data = {
@@ -807,7 +811,8 @@ class PortfolioManager:
             'directional_cooldowns': self.directional_cooldowns,
             'relaxed_countertrend_cycles': self.relaxed_countertrend_cycles,
             'counter_trend_cooldown': self.counter_trend_cooldown,
-            'counter_trend_consecutive_losses': self.counter_trend_consecutive_losses
+            'counter_trend_consecutive_losses': self.counter_trend_consecutive_losses,
+            'coin_cooldowns': self.coin_cooldowns
         }
         safe_file_write(self.state_file, data); print(f"✅ Saved state.")
 
@@ -928,19 +933,34 @@ class PortfolioManager:
         """Refresh balances and open positions from Binance when in live mode."""
         if not self.is_live_trading or not self.order_executor or not self.order_executor.is_live():
             return
-        wallet_balance = None
+        
+        overview = None
         try:
             overview = self.order_executor.get_account_overview()
             if overview:
                 available = overview.get("availableBalance")
+                total_wallet_balance = overview.get("totalWalletBalance")
                 wallet_balance = overview.get("walletBalance")
-                if available is not None:
+                
+                # Debug: Log what we got from Binance
+                print(f"🔍 Binance API Response: availableBalance={available}, totalWalletBalance={total_wallet_balance}, walletBalance={wallet_balance}")
+                
+                # Update available cash balance
+                if available is not None and available > 0:
                     old_balance = self.current_balance
                     self.current_balance = float(available)
                     if abs(old_balance - self.current_balance) > 0.01:  # Only log if significant change
                         print(f"💰 Balance updated: ${old_balance:.2f} → ${self.current_balance:.2f}")
-                if wallet_balance is not None:
-                    self.total_value = float(wallet_balance)
+                
+                # Note: We'll calculate total_value manually after positions are synced
+                # Total value = Available cash + Margin used + Unrealized PnL
+                # Binance totalWalletBalance is used for validation only
+                if total_wallet_balance is not None and total_wallet_balance > 0:
+                    print(f"✅ Binance totalWalletBalance: ${total_wallet_balance:.2f} (will validate against calculated value)")
+                elif wallet_balance is not None and wallet_balance > 0:
+                    print(f"⚠️ totalWalletBalance not available, using walletBalance: ${wallet_balance:.2f}")
+                else:
+                    print(f"⚠️ Neither totalWalletBalance nor walletBalance available from Binance API")
         except BinanceAPIError as exc:
             print(f"⚠️ Binance balance sync failed: {exc}")
         except Exception as exc:
@@ -950,20 +970,45 @@ class PortfolioManager:
             snapshot = self.order_executor.get_positions_snapshot()
             if isinstance(snapshot, dict):
                 self.positions = self._merge_live_positions(snapshot)
-                # Add unrealized PnL from open positions to total_value after positions are synced
-                total_unrealized_pnl = sum(
-                    pos.get('unrealized_pnl', 0) 
-                    for pos in self.positions.values() 
-                    if isinstance(pos.get('unrealized_pnl'), (int, float))
-                )
+                
+                # Calculate total margin used from all open positions
+                # For cross margin, margin_usd might be 0, so calculate from notional/leverage
+                total_margin_used = 0.0
+                for pos in self.positions.values():
+                    margin = pos.get('margin_usd', 0.0)
+                    if margin <= 0:
+                        # Calculate margin from notional and leverage (for cross margin)
+                        notional = pos.get('notional_usd', 0.0)
+                        leverage = pos.get('leverage', 1)
+                        if notional > 0 and leverage > 0:
+                            margin = notional / leverage
+                    if isinstance(margin, (int, float)) and margin > 0:
+                        total_margin_used += margin
+                
                 old_total = self.total_value
-                if wallet_balance is not None:
-                    self.total_value = float(wallet_balance)
-                self.total_value += total_unrealized_pnl
-                if abs(old_total - self.total_value) > 0.01:  # Only log if significant change
-                    print(f"📊 Total value updated: ${old_total:.2f} → ${self.total_value:.2f} (unrealized PnL: ${total_unrealized_pnl:.2f})")
+                
+                # Total value = Available cash + Margin used
+                # This is the simple and correct formula: what you have available + what's locked in positions
+                self.total_value = self.current_balance + total_margin_used
+                
+                if abs(old_total - self.total_value) > 0.01:
+                    print(f"📊 Total value updated: ${old_total:.2f} → ${self.total_value:.2f}")
+                    print(f"   (Available cash: ${self.current_balance:.2f} + Margin used: ${total_margin_used:.2f})")
+                    
+                    # Debug: Also show what Binance says for comparison
+                    if overview:
+                        total_wb = overview.get("totalWalletBalance")
+                        wallet_b = overview.get("walletBalance")
+                        if total_wb:
+                            wallet_b_str = f"${wallet_b:.2f}" if wallet_b else "N/A"
+                            print(f"   (Binance totalWalletBalance: ${total_wb:.2f}, walletBalance: {wallet_b_str})")
             else:
                 self.positions = {}
+                # No positions, total value = totalWalletBalance (or available cash if not available)
+                if overview and overview.get("totalWalletBalance") and overview.get("totalWalletBalance") > 0:
+                    self.total_value = float(overview["totalWalletBalance"])
+                else:
+                    self.total_value = self.current_balance
         except BinanceAPIError as exc:
             print(f"⚠️ Binance position sync failed: {exc}")
         except Exception as exc:
@@ -1312,6 +1357,7 @@ class PortfolioManager:
         self.last_history_reset_cycle = cycle_number
         self.cycles_since_history_reset = 0
         self.directional_cooldowns = {'long': 0, 'short': 0}
+        self.coin_cooldowns = {}  # Coin bazlı cooldown'ları da sıfırla
         self.counter_trend_cooldown = 0
         self.counter_trend_consecutive_losses = 0
         self.relaxed_countertrend_cycles = 0
@@ -1383,6 +1429,12 @@ class PortfolioManager:
             current_loss_streak = stats.get('loss_streak_loss_usd', 0.0)
             stats['loss_streak_loss_usd'] = current_loss_streak + abs(pnl)
             
+            # Coin bazlı cooldown: Zararla kapandığında o coin için 1 cycle cooldown
+            coin_symbol = trade.get('symbol', '').upper()
+            if coin_symbol:
+                self.coin_cooldowns[coin_symbol] = 1
+                print(f"🛡️ Coin cooldown ACTIVATED for {coin_symbol}: 1 cycle (loss: ${pnl:.2f})")
+            
             if stats['consecutive_losses'] >= 3:
                 stats['caution_active'] = True
                 stats['caution_win_progress'] = 0
@@ -1434,7 +1486,7 @@ class PortfolioManager:
         print(f"🛡️ Directional cooldown activated for {direction.upper()} trades (3 cycles). Counter-trend restrictions relaxed for 3 cycles.")
 
     def tick_cooldowns(self):
-        print(f"⏱️ tick_cooldowns called. Current cooldowns: {self.directional_cooldowns}")
+        print(f"⏱️ tick_cooldowns called. Current cooldowns: {self.directional_cooldowns}, Coin cooldowns: {self.coin_cooldowns}")
         for direction in ('long', 'short'):
             cycles = self.directional_cooldowns.get(direction, 0)
             if cycles > 0:
@@ -1447,6 +1499,21 @@ class PortfolioManager:
                         self.directional_bias[direction]['loss_streak_loss_usd'] = 0.0
                         self.directional_bias[direction]['consecutive_losses'] = 0
                     print(f"✅ Directional cooldown cleared for {direction.upper()} trades. Loss streak reset.")
+        
+        # Coin bazlı cooldown'ları azalt
+        coins_to_remove = []
+        for coin, cycles in self.coin_cooldowns.items():
+            if cycles > 0:
+                self.coin_cooldowns[coin] = cycles - 1
+                print(f"⏱️ {coin} coin cooldown: {cycles} → {self.coin_cooldowns[coin]} cycles remaining")
+                if self.coin_cooldowns[coin] == 0:
+                    coins_to_remove.append(coin)
+                    print(f"✅ Coin cooldown cleared for {coin}.")
+        
+        # Sıfırlanan coin cooldown'larını temizle
+        for coin in coins_to_remove:
+            del self.coin_cooldowns[coin]
+        
         if self.relaxed_countertrend_cycles > 0:
             self.relaxed_countertrend_cycles -= 1
             if self.relaxed_countertrend_cycles == 0:
@@ -1725,13 +1792,23 @@ class PortfolioManager:
         prompt_summary = "N/A"
         if isinstance(prompt, str) and prompt not in (None, "N/A"):
             prompt_summary = prompt[:300] + "..." if len(prompt) > 300 else prompt
+        
+        # Add cooldown information to cycle data
+        cooldown_info = {
+            'directional_cooldowns': dict(self.directional_cooldowns),
+            'relaxed_countertrend_cycles': self.relaxed_countertrend_cycles,
+            'counter_trend_cooldown': self.counter_trend_cooldown,
+            'coin_cooldowns': dict(self.coin_cooldowns)
+        }
+        
         cycle_data = {
             'cycle': cycle_number,
             'timestamp': datetime.now().isoformat(),
             'user_prompt_summary': prompt_summary,
             'chain_of_thoughts': thoughts,
             'decisions': decisions,
-            'status': status
+            'status': status,
+            'cooldown_status': cooldown_info  # Always include cooldown status
         }
         if metadata:
             cycle_data['metadata'] = metadata
@@ -1757,11 +1834,47 @@ class PortfolioManager:
                         pos['loss_cycle_count'] = 0
             elif coin in self.positions: print(f"⚠️ Invalid price for {coin}: {price}. PnL skip.")
 
-        # Calculate total value = cash + sum(margin + pnl for each position)
-        current_portfolio_value = self.current_balance
-        for pos in self.positions.values():
-            current_portfolio_value += pos.get('margin_usd', 0) + pos.get('unrealized_pnl', 0)
-        self.total_value = current_portfolio_value
+        # Calculate total value correctly
+        # In live mode, prefer syncing from Binance (done in sync_live_account)
+        # In simulation mode or when Binance data unavailable, calculate manually
+        if not self.positions:
+            # No positions, total value = available cash (or totalWalletBalance if available in live mode)
+            if self.is_live_trading and self.order_executor and self.order_executor.is_live():
+                # Try to get totalWalletBalance from Binance
+                try:
+                    overview = self.order_executor.get_account_overview()
+                    if overview and overview.get("totalWalletBalance") and overview.get("totalWalletBalance") > 0:
+                        self.total_value = float(overview["totalWalletBalance"])
+                    else:
+                        self.total_value = self.current_balance
+                except:
+                    self.total_value = self.current_balance
+            else:
+                self.total_value = self.current_balance
+        else:
+            # With positions: Calculate margin used (for cross margin, calculate from notional/leverage)
+            total_margin_used = 0.0
+            total_unrealized_pnl = 0.0
+            
+            for pos in self.positions.values():
+                # Get unrealized PnL
+                pnl = pos.get('unrealized_pnl', 0.0)
+                if isinstance(pnl, (int, float)):
+                    total_unrealized_pnl += pnl
+                
+                # Get margin (for cross margin, margin_usd might be 0, so calculate from notional/leverage)
+                margin = pos.get('margin_usd', 0.0)
+                if margin <= 0:
+                    notional = pos.get('notional_usd', 0.0)
+                    leverage = pos.get('leverage', 1)
+                    if notional > 0 and leverage > 0:
+                        margin = notional / leverage
+                if isinstance(margin, (int, float)) and margin > 0:
+                    total_margin_used += margin
+            
+            # Total value = Available cash + Margin used (simple and correct)
+            # This works for both live and simulation mode
+            self.total_value = self.current_balance + total_margin_used
 
         if self.initial_balance > 0: self.total_return = ((self.total_value - self.initial_balance) / self.initial_balance) * 100
         else: self.total_return = 0.0
@@ -2558,17 +2671,20 @@ class PortfolioManager:
             self.execute_decision(decisions_to_execute, valid_prices, indicator_cache=indicator_cache)
 
     def get_max_positions_for_cycle(self, cycle_number: int) -> int:
-        """Cycle bazlı maximum pozisyon limiti - Kademeli artış sistemi"""
+        """Cycle bazlı maximum pozisyon limiti - Kademeli artış sistemi, MAX_POSITIONS ile sınırlı"""
+        from config import Config
+        max_allowed = Config.MAX_POSITIONS
+        
         if cycle_number == 1:
-            return 1  # Cycle 1: max 1 pozisyon
+            return min(1, max_allowed)  # Cycle 1: max 1 pozisyon (veya MAX_POSITIONS)
         elif cycle_number == 2:
-            return 2  # Cycle 2: max 2 pozisyon
+            return min(2, max_allowed)  # Cycle 2: max 2 pozisyon (veya MAX_POSITIONS)
         elif cycle_number == 3:
-            return 3  # Cycle 3: max 3 pozisyon
+            return min(3, max_allowed)  # Cycle 3: max 3 pozisyon (veya MAX_POSITIONS)
         elif cycle_number == 4:
-            return 4  # Cycle 4: max 4 pozisyon
+            return min(4, max_allowed)  # Cycle 4: max 4 pozisyon (veya MAX_POSITIONS)
         else:
-            return 5  # Cycle 5+: max 5 pozisyon
+            return max_allowed  # Cycle 5+: MAX_POSITIONS değerini kullan
 
     def _get_indicator_snapshot(
         self,
@@ -3093,7 +3209,21 @@ class PortfolioManager:
                 elif market_regime == 'BEARISH':
                     dominant_direction = 'short'
 
-                # Cooldown kontrolü: self.directional_cooldowns kullanılmalı (PortfolioManager içinde)
+                # Coin bazlı cooldown kontrolü (öncelikli - zararlı trade'den sonra aynı coin'i engelle)
+                coin_cooldowns = getattr(self, 'coin_cooldowns', {})
+                coin_upper = coin.upper()
+                coin_cooldown_remaining = coin_cooldowns.get(coin_upper, 0)
+                if coin_cooldown_remaining > 0:
+                    print(f"⏸️ Coin cooldown active: Blocking {coin} entry ({coin_cooldown_remaining} cycles remaining - previous loss).")
+                    execution_report['blocked'].append({
+                        'coin': coin,
+                        'reason': 'coin_cooldown',
+                        'cooldown_remaining': coin_cooldown_remaining
+                    })
+                    trade['runtime_decision'] = 'blocked_coin_cooldown'
+                    continue
+
+                # Cooldown kontrolü: PortfolioManager'dan cooldown durumunu al
                 cooldowns = getattr(self, 'directional_cooldowns', {'long': 0, 'short': 0})
                 cooldown_remaining = cooldowns.get(direction, 0)
                 print(f"🔍 Cooldown check for {coin} {direction.upper()}: cooldown_remaining={cooldown_remaining}, cooldowns={cooldowns}")
@@ -3108,24 +3238,23 @@ class PortfolioManager:
                     trade['runtime_decision'] = 'blocked_directional_cooldown'
                     continue
 
-                if dominant_direction and direction == dominant_direction:
-                    directional_counts = self.count_positions_by_direction()
-                    current_same_direction = directional_counts.get(direction, 0)
-                    if current_same_direction >= Config.SAME_DIRECTION_LIMIT:
-                        print(
-                            f"🚫 SAME-DIRECTION LIMIT: {coin} {signal} blocked. "
-                            f"{current_same_direction}/{Config.SAME_DIRECTION_LIMIT} {direction.upper()} positions already open "
-                            f"in {market_regime} regime."
-                        )
-                        execution_report['blocked'].append({
-                            'coin': coin,
-                            'reason': 'same_direction_limit',
-                            'direction': direction,
-                            'current': current_same_direction,
-                            'limit': Config.SAME_DIRECTION_LIMIT
-                        })
-                        trade['runtime_decision'] = 'blocked_same_direction_limit'
-                        continue
+                # Check SAME_DIRECTION_LIMIT for ALL directions (not just dominant)
+                directional_counts = self.count_positions_by_direction()
+                current_same_direction = directional_counts.get(direction, 0)
+                if current_same_direction >= Config.SAME_DIRECTION_LIMIT:
+                    print(
+                        f"🚫 SAME-DIRECTION LIMIT: {coin} {signal} blocked. "
+                        f"{current_same_direction}/{Config.SAME_DIRECTION_LIMIT} {direction.upper()} positions already open."
+                    )
+                    execution_report['blocked'].append({
+                        'coin': coin,
+                        'reason': 'same_direction_limit',
+                        'direction': direction,
+                        'current': current_same_direction,
+                        'limit': Config.SAME_DIRECTION_LIMIT
+                    })
+                    trade['runtime_decision'] = 'blocked_same_direction_limit'
+                    continue
                 
                 # 3. Enhanced Short Sizing (increase by 15% when criteria met)
                 if signal == 'sell_to_enter':
@@ -3604,17 +3733,20 @@ class AlphaArenaDeepSeek:
         self.history_reset_interval = Config.HISTORY_RESET_INTERVAL
 
     def get_max_positions_for_cycle(self, cycle_number: int) -> int:
-        """Cycle bazlı maximum pozisyon limiti - Kademeli artış sistemi"""
+        """Cycle bazlı maximum pozisyon limiti - Kademeli artış sistemi, MAX_POSITIONS ile sınırlı"""
+        from config import Config
+        max_allowed = Config.MAX_POSITIONS
+        
         if cycle_number == 1:
-            return 1  # Cycle 1: max 1 pozisyon
+            return min(1, max_allowed)  # Cycle 1: max 1 pozisyon (veya MAX_POSITIONS)
         elif cycle_number == 2:
-            return 2  # Cycle 2: max 2 pozisyon
+            return min(2, max_allowed)  # Cycle 2: max 2 pozisyon (veya MAX_POSITIONS)
         elif cycle_number == 3:
-            return 3  # Cycle 3: max 3 pozisyon
+            return min(3, max_allowed)  # Cycle 3: max 3 pozisyon (veya MAX_POSITIONS)
         elif cycle_number == 4:
-            return 4  # Cycle 4: max 4 pozisyon
+            return min(4, max_allowed)  # Cycle 4: max 4 pozisyon (veya MAX_POSITIONS)
         else:
-            return 5  # Cycle 5+: max 5 pozisyon
+            return max_allowed  # Cycle 5+: MAX_POSITIONS değerini kullan
     def _apply_directional_capacity_filter(self, decisions: Dict[str, Dict]) -> Tuple[Dict[str, Dict], bool]:
         """Convert entry signals to hold when directional capacity is full."""
         if not isinstance(decisions, dict):
@@ -4852,6 +4984,37 @@ class AlphaArenaDeepSeek:
             )
         bias_section = "\n".join(bias_lines) if bias_lines else "  • No directional trades recorded"
 
+        # Get cooldown status
+        cooldowns = getattr(self.portfolio, 'directional_cooldowns', {'long': 0, 'short': 0})
+        cooldown_lines = []
+        for side in ('long', 'short'):
+            cycles_remaining = cooldowns.get(side, 0)
+            if cycles_remaining > 0:
+                stats = bias_metrics.get(side, {})
+                consecutive_losses = stats.get('consecutive_losses', 0)
+                loss_streak_usd = stats.get('loss_streak_loss_usd', 0.0)
+                reason = []
+                if consecutive_losses >= 3:
+                    reason.append(f"{consecutive_losses} consecutive losses")
+                if loss_streak_usd >= 5.0:
+                    reason.append(f"${loss_streak_usd:.2f} total loss")
+                reason_str = " + ".join(reason) if reason else "unknown"
+                cooldown_lines.append(
+                    f"  • {side.upper()}: COOLDOWN ACTIVE ({cycles_remaining} cycles remaining) - Reason: {reason_str}"
+                )
+            else:
+                cooldown_lines.append(f"  • {side.upper()}: No cooldown (active)")
+        cooldown_section = "\n".join(cooldown_lines) if cooldown_lines else "  • No cooldowns active"
+
+        # Get coin cooldown status
+        coin_cooldowns = getattr(self.portfolio, 'coin_cooldowns', {})
+        coin_cooldown_lines = []
+        if coin_cooldowns:
+            for coin, cycles in sorted(coin_cooldowns.items()):
+                if cycles > 0:
+                    coin_cooldown_lines.append(f"  • {coin}: COOLDOWN ACTIVE ({cycles} cycles remaining - previous loss)")
+        coin_cooldown_section = "\n".join(coin_cooldown_lines) if coin_cooldown_lines else "  • No coin cooldowns active"
+
         recent_flips = self.portfolio.get_recent_trend_flip_summary()
         flip_history_window = getattr(self.portfolio, 'trend_flip_history_window', self.portfolio.trend_flip_cooldown)
         if recent_flips:
@@ -4896,6 +5059,16 @@ DIRECTIONAL FEEDBACK (LONG vs SHORT):
 
 DIRECTIONAL PERFORMANCE SNAPSHOT (Last 20 trades max):
 {bias_section}
+
+DIRECTIONAL COOLDOWN STATUS (CRITICAL - DO NOT PROPOSE TRADES IN COOLDOWN DIRECTIONS):
+{cooldown_section}
+
+⚠️ IMPORTANT: If a direction (LONG or SHORT) is in cooldown, you MUST NOT propose any new trades in that direction. The system will block them, but you should avoid proposing them in the first place. Cooldown is activated after 3 consecutive losses OR $5+ total loss in a direction.
+
+COIN COOLDOWN STATUS (CRITICAL - DO NOT PROPOSE TRADES FOR COINS IN COOLDOWN):
+{coin_cooldown_section}
+
+⚠️ IMPORTANT: If a coin is in cooldown, you MUST NOT propose any new trades for that coin (LONG or SHORT). The system will block them, but you should avoid proposing them in the first place. Coin cooldown is activated after a loss on that coin and lasts for 1 cycle.
 
 RECENT TREND FLIP GUARD (Cooldown = {self.portfolio.trend_flip_cooldown} cycles | History = {flip_history_window} cycles):
 {trend_flip_section}
@@ -5338,7 +5511,7 @@ Current live positions & performance:"""
         """Calculate optimal cycle frequency based on market volatility"""
         try:
             atr_values = []
-            # Tüm coin'leri dahil et (JASMY dahil)
+            # Tüm coin'leri dahil et (ASTER dahil)
             for coin in self.market_data.available_coins:
                 indicators_3m = self.market_data.get_technical_indicators(coin, '3m')
                 if 'error' not in indicators_3m:
@@ -5737,7 +5910,12 @@ Current live positions & performance:"""
 
             cycle_metadata: Dict[str, Any] = {
                 'positions_closed_by_tp_sl': bool(positions_closed_by_tp_sl),
-                'manual_override': bool(manual_override)
+                'manual_override': bool(manual_override),
+                'cooldown_status': {
+                    'directional_cooldowns': dict(self.portfolio.directional_cooldowns),
+                    'relaxed_countertrend_cycles': self.portfolio.relaxed_countertrend_cycles,
+                    'counter_trend_cooldown': self.portfolio.counter_trend_cooldown
+                }
             }
             if execution_report:
                 cycle_metadata['execution_report'] = execution_report
