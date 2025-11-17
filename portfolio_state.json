@@ -1,35 +1,71 @@
 {
-    "current_balance": 110.78124228135515,
+    "current_balance": 85.030113802323,
     "positions": {
-        "SOL": {
-            "symbol": "SOL",
+        "XRP": {
+            "symbol": "XRP",
             "direction": "short",
-            "quantity": 1.0486311590198023,
-            "entry_price": 136.23,
-            "entry_time": "2025-11-16T19:30:51.912616",
-            "current_price": 136.05,
-            "unrealized_pnl": 0.18875360862354176,
-            "notional_usd": 142.85502279326766,
-            "margin_usd": 14.285502279326767,
+            "quantity": 82.30513522727546,
+            "entry_price": 2.1708,
+            "entry_time": "2025-11-16T20:01:10.830416",
+            "current_price": 2.1709,
+            "unrealized_pnl": -0.008230513522744915,
+            "notional_usd": 178.66798755136955,
+            "margin_usd": 17.866798755136955,
             "leverage": 10,
-            "liquidation_price": 148.4907,
-            "confidence": 0.6013999999999999,
+            "liquidation_price": 2.366172,
+            "confidence": 0.72,
             "exit_plan": {
-                "stop_loss": 138.5,
-                "profit_target": 132.0,
-                "invalidation_condition": "If 1h price closes above 1h EMA20 (140.29)"
+                "stop_loss": 2.22,
+                "profit_target": 2.1,
+                "invalidation_condition": "If 1h price closes above 1h EMA20 (2.2288)"
             },
-            "risk_usd": 14.285502279326767,
+            "risk_usd": 17.866798755136955,
             "loss_cycle_count": 0,
-            "entry_volume": 2153.133,
-            "entry_avg_volume": 17098.3839,
-            "entry_volume_ratio": 0.12592611164848158,
-            "entry_atr_14": 0.5115960065832106,
+            "entry_volume": 98183.1,
+            "entry_avg_volume": 469609.605,
+            "entry_volume_ratio": 0.2090738753096841,
+            "entry_atr_14": 0.007906062857513817,
             "trend_alignment": "trend_following",
             "trend_context": {
                 "trend_at_entry": "bearish",
                 "alignment": "trend_following",
-                "cycle": 4
+                "cycle": 13
+            },
+            "trailing": {},
+            "sl_oid": -1,
+            "tp_oid": -1,
+            "entry_oid": -1,
+            "wait_for_fill": false
+        },
+        "ASTER": {
+            "symbol": "ASTER",
+            "direction": "short",
+            "quantity": 193.6897355224406,
+            "entry_price": 1.189,
+            "entry_time": "2025-11-16T20:05:00.556386",
+            "current_price": 1.19,
+            "unrealized_pnl": -0.19368973552241928,
+            "notional_usd": 230.2970955361819,
+            "margin_usd": 23.02970955361819,
+            "leverage": 10,
+            "liquidation_price": 1.29601,
+            "confidence": 0.666,
+            "exit_plan": {
+                "stop_loss": 1.22,
+                "profit_target": 1.15,
+                "invalidation_condition": "If 1h price closes above 1h EMA20 (1.1863)"
+            },
+            "risk_usd": 23.02970955361819,
+            "loss_cycle_count": 0,
+            "entry_volume": 437432.14,
+            "entry_avg_volume": 1361831.7485,
+            "entry_volume_ratio": 0.3212086518630609,
+            "entry_atr_14": 0.008107009660554007,
+            "trend_alignment": "counter_trend",
+            "trend_context": {
+                "trend_at_entry": "neutral",
+                "alignment": "counter_trend",
+                "cycle": 14
             },
             "trailing": {},
             "sl_oid": -1,
@@ -38,12 +74,12 @@
             "wait_for_fill": false
         }
     },
-    "total_value": 125.25549816930545,
-    "total_return": 0.20439853544436346,
+    "total_value": 125.72470186203299,
+    "total_return": 0.5797614896263894,
     "initial_balance": 125.0,
-    "trade_count": 9,
-    "last_updated": "2025-11-16T19:57:24.919465",
-    "sharpe_ratio": 2.310989326635174,
+    "trade_count": 10,
+    "last_updated": "2025-11-16T20:05:31.341259",
+    "sharpe_ratio": 2.940670717012897,
     "directional_bias": {
         "long": {
             "rolling": [
@@ -68,21 +104,22 @@
         "short": {
             "rolling": [
                 0.2337823834196892,
-                0.9015544041450646
+                0.9015544041450646,
+                0.8598775503962307
             ],
-            "net_pnl": 1.1353367875647538,
-            "trades": 2,
-            "wins": 2,
+            "net_pnl": 1.9952143379609844,
+            "trades": 3,
+            "wins": 3,
             "losses": 0,
             "consecutive_losses": 0,
-            "consecutive_wins": 2,
+            "consecutive_wins": 3,
             "caution_active": false,
             "caution_win_progress": 0,
             "loss_streak_loss_usd": 0.0
         }
     },
     "last_history_reset_cycle": 0,
-    "cycles_since_history_reset": 12,
+    "cycles_since_history_reset": 14,
     "directional_cooldowns": {
         "long": 0,
         "short": 0
@@ -90,7 +127,5 @@
     "relaxed_countertrend_cycles": 0,
     "counter_trend_cooldown": 0,
     "counter_trend_consecutive_losses": 0,
-    "coin_cooldowns": {
-        "ASTER": 1
-    }
+    "coin_cooldowns": {}
 }

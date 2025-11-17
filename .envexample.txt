@@ -70,4 +70,4 @@ VALIDATE_JSON_PROMPTS=false  # Enable runtime JSON validation (true/false)
 JSON_PROMPT_VERSION=1.0  # JSON prompt format version
 JSON_SERIES_MAX_LENGTH=50  # Maximum series length before compression (default: 50)
 JSON_CACHE_ENABLED=false  # Enable JSON serialization cache (true/false)
-JSON_CACHE_TTL=120  # Cache TTL in seconds (2 minutes = 1 cycle)
+JSON_CACHE_TTL=240  # Cache TTL in seconds (4 minutes = 1 cycle, adjust based on actual cycle duration)

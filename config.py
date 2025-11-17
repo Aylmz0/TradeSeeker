@@ -115,7 +115,7 @@ class Config:
     JSON_PROMPT_VERSION: str = os.getenv('JSON_PROMPT_VERSION', '1.0')  # Format version
     JSON_SERIES_MAX_LENGTH: int = int(os.getenv('JSON_SERIES_MAX_LENGTH', '50'))  # Max series length before compression
     JSON_CACHE_ENABLED: bool = os.getenv('JSON_CACHE_ENABLED', 'False').lower() == 'true'  # Enable JSON serialization cache
-    JSON_CACHE_TTL: int = int(os.getenv('JSON_CACHE_TTL', '120'))  # Cache TTL in seconds (2 minutes = 1 cycle)
+    JSON_CACHE_TTL: int = int(os.getenv('JSON_CACHE_TTL', '240'))  # Cache TTL in seconds (4 minutes = 1 cycle, adjust based on actual cycle duration)
     
     @classmethod
     def validate_config(cls) -> bool:

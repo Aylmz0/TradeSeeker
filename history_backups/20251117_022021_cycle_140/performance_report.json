@@ -1,0 +1,1887 @@
+[
+    {
+        "analysis_period": "Last 9 cycles (Total: 9)",
+        "timestamp": "2025-11-16T17:40:21.886647",
+        "trading_activity": {
+            "total_decisions": 54,
+            "entry_signals": 11,
+            "hold_signals": 39,
+            "close_signals": 4,
+            "decision_rate": 20.37037037037037
+        },
+        "trade_performance": {
+            "total_trades": 9,
+            "winning_trades": 6,
+            "losing_trades": 3,
+            "break_even_trades": 0,
+            "win_rate": 73.72,
+            "total_pnl": 3.13,
+            "average_pnl": 0.35,
+            "profit_factor": 2.81,
+            "largest_win": 1.32,
+            "largest_loss": -1.32
+        },
+        "portfolio_performance": {
+            "initial_balance": 125.0,
+            "current_balance": 69.70226493907896,
+            "total_value": 129.37026533675552,
+            "total_return": 3.5,
+            "sharpe_ratio": 3.208,
+            "open_positions": 2
+        },
+        "coin_performance": {
+            "ASTER": {
+                "trades": 3,
+                "total_pnl": 0.10842416202840721,
+                "wins": 2,
+                "losses": 1,
+                "win_rate": 51.96934056071159,
+                "avg_pnl": 0.0361413873428024
+            },
+            "DOGE": {
+                "trades": 2,
+                "total_pnl": 1.8005674328662087,
+                "wins": 2,
+                "losses": 0,
+                "win_rate": 100.0,
+                "avg_pnl": 0.9002837164331043
+            },
+            "LINK": {
+                "trades": 2,
+                "total_pnl": 1.6267453211755516,
+                "wins": 2,
+                "losses": 0,
+                "win_rate": 100.0,
+                "avg_pnl": 0.8133726605877758
+            },
+            "XRP": {
+                "trades": 1,
+                "total_pnl": -0.20011727344224137,
+                "wins": 0,
+                "losses": 1,
+                "win_rate": 0.0,
+                "avg_pnl": -0.20011727344224137
+            },
+            "SOL": {
+                "trades": 1,
+                "total_pnl": -0.20947088458588428,
+                "wins": 0,
+                "losses": 1,
+                "win_rate": 0.0,
+                "avg_pnl": -0.20947088458588428
+            }
+        },
+        "recommendations": [
+            "[INFO] Recorded return 3.50% within analysis window; below growth target",
+            "[INFO] Coins with cumulative negative PnL: XRP, SOL"
+        ]
+    },
+    {
+        "analysis_period": "Last 10 cycles (Total: 19)",
+        "timestamp": "2025-11-16T18:20:21.895205",
+        "trading_activity": {
+            "total_decisions": 60,
+            "entry_signals": 13,
+            "hold_signals": 45,
+            "close_signals": 2,
+            "decision_rate": 21.666666666666668
+        },
+        "trade_performance": {
+            "total_trades": 27,
+            "winning_trades": 18,
+            "losing_trades": 9,
+            "break_even_trades": 0,
+            "win_rate": 50.52,
+            "total_pnl": 0.28,
+            "average_pnl": 0.01,
+            "profit_factor": 1.02,
+            "largest_win": 1.32,
+            "largest_loss": -3.44
+        },
+        "portfolio_performance": {
+            "initial_balance": 125.0,
+            "current_balance": 110.27678707227814,
+            "total_value": 125.03128789060875,
+            "total_return": 0.03,
+            "sharpe_ratio": -1.344,
+            "open_positions": 1
+        },
+        "coin_performance": {
+            "ASTER": {
+                "trades": 7,
+                "total_pnl": 1.50761427790188,
+                "wins": 5,
+                "losses": 2,
+                "win_rate": 66.70889528738336,
+                "avg_pnl": 0.21537346827169715
+            },
+            "DOGE": {
+                "trades": 5,
+                "total_pnl": 4.003740000625272,
+                "wins": 5,
+                "losses": 0,
+                "win_rate": 100.0,
+                "avg_pnl": 0.8007480001250544
+            },
+            "LINK": {
+                "trades": 4,
+                "total_pnl": -3.5640502537743415,
+                "wins": 2,
+                "losses": 2,
+                "win_rate": 23.86117437300693,
+                "avg_pnl": -0.8910125634435854
+            },
+            "XRP": {
+                "trades": 5,
+                "total_pnl": -3.883304042303616,
+                "wins": 2,
+                "losses": 3,
+                "win_rate": 23.03737836379673,
+                "avg_pnl": -0.7766608084607232
+            },
+            "SOL": {
+                "trades": 1,
+                "total_pnl": -0.20947088458588428,
+                "wins": 0,
+                "losses": 1,
+                "win_rate": 0.0,
+                "avg_pnl": -0.20947088458588428
+            },
+            "ADA": {
+                "trades": 5,
+                "total_pnl": 2.4222579744148165,
+                "wins": 4,
+                "losses": 1,
+                "win_rate": 79.62449475939049,
+                "avg_pnl": 0.4844515948829633
+            }
+        },
+        "recommendations": [
+            "[INFO] Recorded return 0.03% within analysis window; below growth target",
+            "[INFO] Coins with cumulative negative PnL: LINK, XRP, SOL"
+        ]
+    },
+    {
+        "analysis_period": "Last 10 cycles (Total: 29)",
+        "timestamp": "2025-11-16T19:00:21.906474",
+        "trading_activity": {
+            "total_decisions": 60,
+            "entry_signals": 9,
+            "hold_signals": 48,
+            "close_signals": 3,
+            "decision_rate": 15.0
+        },
+        "trade_performance": {
+            "total_trades": 36,
+            "winning_trades": 24,
+            "losing_trades": 12,
+            "break_even_trades": 0,
+            "win_rate": 53.02,
+            "total_pnl": 1.95,
+            "average_pnl": 0.05,
+            "profit_factor": 1.13,
+            "largest_win": 1.32,
+            "largest_loss": -3.44
+        },
+        "portfolio_performance": {
+            "initial_balance": 125.0,
+            "current_balance": 72.86149320213799,
+            "total_value": 125.69526412756359,
+            "total_return": 0.56,
+            "sharpe_ratio": -1.102,
+            "open_positions": 2
+        },
+        "coin_performance": {
+            "ASTER": {
+                "trades": 8,
+                "total_pnl": 0.28011836955490654,
+                "wins": 5,
+                "losses": 3,
+                "win_rate": 52.440519735751025,
+                "avg_pnl": 0.03501479619436332
+            },
+            "DOGE": {
+                "trades": 5,
+                "total_pnl": 4.003740000625272,
+                "wins": 5,
+                "losses": 0,
+                "win_rate": 100.0,
+                "avg_pnl": 0.8007480001250544
+            },
+            "LINK": {
+                "trades": 7,
+                "total_pnl": -1.4564515422122237,
+                "wins": 5,
+                "losses": 2,
+                "win_rate": 41.840735236467744,
+                "avg_pnl": -0.20806450603031768
+            },
+            "XRP": {
+                "trades": 6,
+                "total_pnl": -4.255898421127504,
+                "wins": 2,
+                "losses": 4,
+                "win_rate": 21.904060716517666,
+                "avg_pnl": -0.7093164035212506
+            },
+            "SOL": {
+                "trades": 4,
+                "total_pnl": 0.8167992858738037,
+                "wins": 2,
+                "losses": 2,
+                "win_rate": 73.27244018955614,
+                "avg_pnl": 0.20419982146845092
+            },
+            "ADA": {
+                "trades": 6,
+                "total_pnl": 2.5575749581325415,
+                "wins": 5,
+                "losses": 1,
+                "win_rate": 80.27729359627236,
+                "avg_pnl": 0.42626249302209024
+            }
+        },
+        "recommendations": [
+            "[INFO] Recorded return 0.56% within analysis window; below growth target",
+            "[INFO] Coins with cumulative negative PnL: LINK, XRP"
+        ]
+    },
+    {
+        "reset_reason": "periodic_bias_control",
+        "reset_at_cycle": 35,
+        "timestamp": "2025-11-16T19:20:21.951936"
+    },
+    {
+        "analysis_period": "Last 5 cycles (Total: 5)",
+        "timestamp": "2025-11-16T19:40:21.908670",
+        "trading_activity": {
+            "total_decisions": 30,
+            "entry_signals": 5,
+            "hold_signals": 24,
+            "close_signals": 1,
+            "decision_rate": 16.666666666666664
+        },
+        "trade_performance": {
+            "total_trades": 4,
+            "winning_trades": 3,
+            "losing_trades": 1,
+            "break_even_trades": 0,
+            "win_rate": 84.24,
+            "total_pnl": 1.81,
+            "average_pnl": 0.45,
+            "profit_factor": 5.35,
+            "largest_win": 1.41,
+            "largest_loss": -0.42
+        },
+        "portfolio_performance": {
+            "initial_balance": 125.0,
+            "current_balance": 101.46915719438827,
+            "total_value": 126.67265922394571,
+            "total_return": 1.34,
+            "sharpe_ratio": 3.853,
+            "open_positions": 1
+        },
+        "coin_performance": {
+            "LINK": {
+                "trades": 1,
+                "total_pnl": -0.4163751645257806,
+                "wins": 0,
+                "losses": 1,
+                "win_rate": 0.0,
+                "avg_pnl": -0.4163751645257806
+            },
+            "ASTER": {
+                "trades": 3,
+                "total_pnl": 2.2257203400439334,
+                "wins": 3,
+                "losses": 0,
+                "win_rate": 100.0,
+                "avg_pnl": 0.7419067800146445
+            }
+        },
+        "recommendations": [
+            "[INFO] Recorded return 1.34% within analysis window; below growth target",
+            "[INFO] Coins with cumulative negative PnL: LINK"
+        ]
+    },
+    {
+        "analysis_period": "Last 10 cycles (Total: 15)",
+        "timestamp": "2025-11-16T20:20:21.920493",
+        "trading_activity": {
+            "total_decisions": 60,
+            "entry_signals": 11,
+            "hold_signals": 43,
+            "close_signals": 6,
+            "decision_rate": 18.333333333333332
+        },
+        "trade_performance": {
+            "total_trades": 12,
+            "winning_trades": 8,
+            "losing_trades": 4,
+            "break_even_trades": 0,
+            "win_rate": 66.17,
+            "total_pnl": 1.8,
+            "average_pnl": 0.15,
+            "profit_factor": 1.96,
+            "largest_win": 1.41,
+            "largest_loss": -0.74
+        },
+        "portfolio_performance": {
+            "initial_balance": 125.0,
+            "current_balance": 68.32211010258237,
+            "total_value": 127.58554753761965,
+            "total_return": 2.07,
+            "sharpe_ratio": 2.499,
+            "open_positions": 3
+        },
+        "coin_performance": {
+            "LINK": {
+                "trades": 1,
+                "total_pnl": -0.4163751645257806,
+                "wins": 0,
+                "losses": 1,
+                "win_rate": 0.0,
+                "avg_pnl": -0.4163751645257806
+            },
+            "ASTER": {
+                "trades": 6,
+                "total_pnl": 3.141100973703218,
+                "wins": 5,
+                "losses": 1,
+                "win_rate": 89.49045691434408,
+                "avg_pnl": 0.5235168289505363
+            },
+            "ADA": {
+                "trades": 1,
+                "total_pnl": 0.0512759288678859,
+                "wins": 1,
+                "losses": 0,
+                "win_rate": 100.0,
+                "avg_pnl": 0.0512759288678859
+            },
+            "XRP": {
+                "trades": 2,
+                "total_pnl": 0.06557164740375657,
+                "wins": 2,
+                "losses": 0,
+                "win_rate": 100.0,
+                "avg_pnl": 0.03278582370187828
+            },
+            "DOGE": {
+                "trades": 1,
+                "total_pnl": -0.3026374327850708,
+                "wins": 0,
+                "losses": 1,
+                "win_rate": 0.0,
+                "avg_pnl": -0.3026374327850708
+            },
+            "SOL": {
+                "trades": 1,
+                "total_pnl": -0.742174406907543,
+                "wins": 0,
+                "losses": 1,
+                "win_rate": 0.0,
+                "avg_pnl": -0.742174406907543
+            }
+        },
+        "recommendations": [
+            "[INFO] Position count 3; exceeds reference threshold (\u22653)",
+            "[INFO] Recorded return 2.07% within analysis window; below growth target",
+            "[INFO] Coins with cumulative negative PnL: LINK, DOGE, SOL"
+        ]
+    },
+    {
+        "analysis_period": "Last 10 cycles (Total: 16)",
+        "timestamp": "2025-11-16T20:24:21.920141",
+        "trading_activity": {
+            "total_decisions": 60,
+            "entry_signals": 11,
+            "hold_signals": 43,
+            "close_signals": 6,
+            "decision_rate": 18.333333333333332
+        },
+        "trade_performance": {
+            "total_trades": 12,
+            "winning_trades": 8,
+            "losing_trades": 4,
+            "break_even_trades": 0,
+            "win_rate": 66.17,
+            "total_pnl": 1.8,
+            "average_pnl": 0.15,
+            "profit_factor": 1.96,
+            "largest_win": 1.41,
+            "largest_loss": -0.74
+        },
+        "portfolio_performance": {
+            "initial_balance": 125.0,
+            "current_balance": 52.14343443029087,
+            "total_value": 127.75064083639762,
+            "total_return": 2.2,
+            "sharpe_ratio": 0.753,
+            "open_positions": 4
+        },
+        "coin_performance": {
+            "LINK": {
+                "trades": 1,
+                "total_pnl": -0.4163751645257806,
+                "wins": 0,
+                "losses": 1,
+                "win_rate": 0.0,
+                "avg_pnl": -0.4163751645257806
+            },
+            "ASTER": {
+                "trades": 6,
+                "total_pnl": 3.141100973703218,
+                "wins": 5,
+                "losses": 1,
+                "win_rate": 89.49045691434408,
+                "avg_pnl": 0.5235168289505363
+            },
+            "ADA": {
+                "trades": 1,
+                "total_pnl": 0.0512759288678859,
+                "wins": 1,
+                "losses": 0,
+                "win_rate": 100.0,
+                "avg_pnl": 0.0512759288678859
+            },
+            "XRP": {
+                "trades": 2,
+                "total_pnl": 0.06557164740375657,
+                "wins": 2,
+                "losses": 0,
+                "win_rate": 100.0,
+                "avg_pnl": 0.03278582370187828
+            },
+            "DOGE": {
+                "trades": 1,
+                "total_pnl": -0.3026374327850708,
+                "wins": 0,
+                "losses": 1,
+                "win_rate": 0.0,
+                "avg_pnl": -0.3026374327850708
+            },
+            "SOL": {
+                "trades": 1,
+                "total_pnl": -0.742174406907543,
+                "wins": 0,
+                "losses": 1,
+                "win_rate": 0.0,
+                "avg_pnl": -0.742174406907543
+            }
+        },
+        "recommendations": [
+            "[INFO] Cash balance $52.14 vs $125.00 initial; liquidity below 50% of baseline",
+            "[INFO] Position count 4; exceeds reference threshold (\u22653)",
+            "[INFO] Recorded return 2.20% within analysis window; below growth target",
+            "[INFO] Coins with cumulative negative PnL: LINK, DOGE, SOL"
+        ]
+    },
+    {
+        "analysis_period": "Last 10 cycles (Total: 19)",
+        "timestamp": "2025-11-16T20:36:21.921561",
+        "trading_activity": {
+            "total_decisions": 60,
+            "entry_signals": 11,
+            "hold_signals": 44,
+            "close_signals": 5,
+            "decision_rate": 18.333333333333332
+        },
+        "trade_performance": {
+            "total_trades": 16,
+            "winning_trades": 12,
+            "losing_trades": 4,
+            "break_even_trades": 0,
+            "win_rate": 76.29,
+            "total_pnl": 4.17,
+            "average_pnl": 0.26,
+            "profit_factor": 3.22,
+            "largest_win": 1.41,
+            "largest_loss": -0.74
+        },
+        "portfolio_performance": {
+            "initial_balance": 125.0,
+            "current_balance": 60.75073836924811,
+            "total_value": 128.68323027859404,
+            "total_return": 2.95,
+            "sharpe_ratio": 2.671,
+            "open_positions": 4
+        },
+        "coin_performance": {
+            "LINK": {
+                "trades": 1,
+                "total_pnl": -0.4163751645257806,
+                "wins": 0,
+                "losses": 1,
+                "win_rate": 0.0,
+                "avg_pnl": -0.4163751645257806
+            },
+            "ASTER": {
+                "trades": 9,
+                "total_pnl": 4.86974769420347,
+                "wins": 8,
+                "losses": 1,
+                "win_rate": 92.6745247355434,
+                "avg_pnl": 0.541083077133719
+            },
+            "ADA": {
+                "trades": 1,
+                "total_pnl": 0.0512759288678859,
+                "wins": 1,
+                "losses": 0,
+                "win_rate": 100.0,
+                "avg_pnl": 0.0512759288678859
+            },
+            "XRP": {
+                "trades": 3,
+                "total_pnl": 0.7071048496020317,
+                "wins": 3,
+                "losses": 0,
+                "win_rate": 100.0,
+                "avg_pnl": 0.23570161653401056
+            },
+            "DOGE": {
+                "trades": 1,
+                "total_pnl": -0.3026374327850708,
+                "wins": 0,
+                "losses": 1,
+                "win_rate": 0.0,
+                "avg_pnl": -0.3026374327850708
+            },
+            "SOL": {
+                "trades": 1,
+                "total_pnl": -0.742174406907543,
+                "wins": 0,
+                "losses": 1,
+                "win_rate": 0.0,
+                "avg_pnl": -0.742174406907543
+            }
+        },
+        "recommendations": [
+            "[INFO] Cash balance $60.75 vs $125.00 initial; liquidity below 50% of baseline",
+            "[INFO] Position count 4; exceeds reference threshold (\u22653)",
+            "[INFO] Recorded return 2.95% within analysis window; below growth target",
+            "[INFO] Coins with cumulative negative PnL: LINK, DOGE, SOL"
+        ]
+    },
+    {
+        "analysis_period": "Last 10 cycles (Total: 25)",
+        "timestamp": "2025-11-16T21:00:21.929138",
+        "trading_activity": {
+            "total_decisions": 60,
+            "entry_signals": 5,
+            "hold_signals": 52,
+            "close_signals": 3,
+            "decision_rate": 8.333333333333332
+        },
+        "trade_performance": {
+            "total_trades": 23,
+            "winning_trades": 17,
+            "losing_trades": 6,
+            "break_even_trades": 0,
+            "win_rate": 68.57,
+            "total_pnl": 4.52,
+            "average_pnl": 0.2,
+            "profit_factor": 2.18,
+            "largest_win": 1.41,
+            "largest_loss": -1.83
+        },
+        "portfolio_performance": {
+            "initial_balance": 125.0,
+            "current_balance": 113.61988286159232,
+            "total_value": 130.3341654255798,
+            "total_return": 4.27,
+            "sharpe_ratio": 2.201,
+            "open_positions": 1
+        },
+        "coin_performance": {
+            "LINK": {
+                "trades": 1,
+                "total_pnl": -0.4163751645257806,
+                "wins": 0,
+                "losses": 1,
+                "win_rate": 0.0,
+                "avg_pnl": -0.4163751645257806
+            },
+            "ASTER": {
+                "trades": 14,
+                "total_pnl": 5.311921988168523,
+                "wins": 12,
+                "losses": 2,
+                "win_rate": 77.0789237794427,
+                "avg_pnl": 0.37942299915489447
+            },
+            "ADA": {
+                "trades": 1,
+                "total_pnl": 0.0512759288678859,
+                "wins": 1,
+                "losses": 0,
+                "win_rate": 100.0,
+                "avg_pnl": 0.0512759288678859
+            },
+            "XRP": {
+                "trades": 4,
+                "total_pnl": 0.7278054916792736,
+                "wins": 4,
+                "losses": 0,
+                "win_rate": 100.0,
+                "avg_pnl": 0.1819513729198184
+            },
+            "DOGE": {
+                "trades": 2,
+                "total_pnl": -0.4151778763627323,
+                "wins": 0,
+                "losses": 2,
+                "win_rate": 0.0,
+                "avg_pnl": -0.20758893818136614
+            },
+            "SOL": {
+                "trades": 1,
+                "total_pnl": -0.742174406907543,
+                "wins": 0,
+                "losses": 1,
+                "win_rate": 0.0,
+                "avg_pnl": -0.742174406907543
+            }
+        },
+        "recommendations": [
+            "[INFO] Recorded return 4.27% within analysis window; below growth target",
+            "[INFO] Coins with cumulative negative PnL: LINK, DOGE, SOL"
+        ]
+    },
+    {
+        "reset_reason": "periodic_bias_control",
+        "reset_at_cycle": 70,
+        "timestamp": "2025-11-16T21:40:21.974297"
+    },
+    {
+        "analysis_period": "Last 10 cycles (Total: 10)",
+        "timestamp": "2025-11-16T22:20:21.943165",
+        "trading_activity": {
+            "total_decisions": 60,
+            "entry_signals": 1,
+            "hold_signals": 58,
+            "close_signals": 1,
+            "decision_rate": 1.6666666666666667
+        },
+        "trade_performance": {
+            "total_trades": 7,
+            "winning_trades": 7,
+            "losing_trades": 0,
+            "break_even_trades": 0,
+            "win_rate": 100.0,
+            "total_pnl": 3.67,
+            "average_pnl": 0.52,
+            "profit_factor": Infinity,
+            "largest_win": 1.16,
+            "largest_loss": 0.2
+        },
+        "portfolio_performance": {
+            "initial_balance": 125.0,
+            "current_balance": 136.75507246608348,
+            "total_value": 136.75507246608348,
+            "total_return": 9.4,
+            "sharpe_ratio": 3.459,
+            "open_positions": 0
+        },
+        "coin_performance": {
+            "DOGE": {
+                "trades": 1,
+                "total_pnl": 0.19721775455044624,
+                "wins": 1,
+                "losses": 0,
+                "win_rate": 100.0,
+                "avg_pnl": 0.19721775455044624
+            },
+            "SOL": {
+                "trades": 3,
+                "total_pnl": 1.780123598798415,
+                "wins": 3,
+                "losses": 0,
+                "win_rate": 100.0,
+                "avg_pnl": 0.593374532932805
+            },
+            "XRP": {
+                "trades": 3,
+                "total_pnl": 1.6918801845517695,
+                "wins": 3,
+                "losses": 0,
+                "win_rate": 100.0,
+                "avg_pnl": 0.5639600615172565
+            }
+        },
+        "recommendations": [
+            "[INFO] Performance metrics stable; no notable anomalies detected"
+        ]
+    },
+    {
+        "analysis_period": "Last 10 cycles (Total: 19)",
+        "timestamp": "2025-11-16T22:56:21.948312",
+        "trading_activity": {
+            "total_decisions": 60,
+            "entry_signals": 9,
+            "hold_signals": 46,
+            "close_signals": 5,
+            "decision_rate": 15.0
+        },
+        "trade_performance": {
+            "total_trades": 18,
+            "winning_trades": 13,
+            "losing_trades": 5,
+            "break_even_trades": 0,
+            "win_rate": 67.86,
+            "total_pnl": 4.71,
+            "average_pnl": 0.26,
+            "profit_factor": 2.11,
+            "largest_win": 1.59,
+            "largest_loss": -1.11
+        },
+        "portfolio_performance": {
+            "initial_balance": 125.0,
+            "current_balance": 117.01771334822432,
+            "total_value": 138.12797300259055,
+            "total_return": 10.5,
+            "sharpe_ratio": 2.088,
+            "open_positions": 1
+        },
+        "coin_performance": {
+            "DOGE": {
+                "trades": 2,
+                "total_pnl": 0.5370149608350372,
+                "wins": 2,
+                "losses": 0,
+                "win_rate": 100.0,
+                "avg_pnl": 0.2685074804175186
+            },
+            "SOL": {
+                "trades": 4,
+                "total_pnl": 0.6704821549589823,
+                "wins": 3,
+                "losses": 1,
+                "win_rate": 61.60098044419124,
+                "avg_pnl": 0.16762053873974558
+            },
+            "XRP": {
+                "trades": 3,
+                "total_pnl": 1.6918801845517695,
+                "wins": 3,
+                "losses": 0,
+                "win_rate": 100.0,
+                "avg_pnl": 0.5639600615172565
+            },
+            "ADA": {
+                "trades": 1,
+                "total_pnl": -0.8241757225906983,
+                "wins": 0,
+                "losses": 1,
+                "win_rate": 0.0,
+                "avg_pnl": -0.8241757225906983
+            },
+            "LINK": {
+                "trades": 3,
+                "total_pnl": 0.9757850311629549,
+                "wins": 2,
+                "losses": 1,
+                "win_rate": 67.84910461937955,
+                "avg_pnl": 0.3252616770543183
+            },
+            "ASTER": {
+                "trades": 5,
+                "total_pnl": 1.6560519789124157,
+                "wins": 3,
+                "losses": 2,
+                "win_rate": 68.40032065627749,
+                "avg_pnl": 0.3312103957824831
+            }
+        },
+        "recommendations": [
+            "[INFO] Coins with cumulative negative PnL: ADA"
+        ]
+    },
+    {
+        "analysis_period": "Last 10 cycles (Total: 20)",
+        "timestamp": "2025-11-16T23:00:21.948534",
+        "trading_activity": {
+            "total_decisions": 60,
+            "entry_signals": 10,
+            "hold_signals": 45,
+            "close_signals": 5,
+            "decision_rate": 16.666666666666664
+        },
+        "trade_performance": {
+            "total_trades": 18,
+            "winning_trades": 13,
+            "losing_trades": 5,
+            "break_even_trades": 0,
+            "win_rate": 67.86,
+            "total_pnl": 4.71,
+            "average_pnl": 0.26,
+            "profit_factor": 2.11,
+            "largest_win": 1.59,
+            "largest_loss": -1.11
+        },
+        "portfolio_performance": {
+            "initial_balance": 125.0,
+            "current_balance": 93.0899313227794,
+            "total_value": 136.37242210250866,
+            "total_return": 9.1,
+            "sharpe_ratio": 0.16,
+            "open_positions": 2
+        },
+        "coin_performance": {
+            "DOGE": {
+                "trades": 2,
+                "total_pnl": 0.5370149608350372,
+                "wins": 2,
+                "losses": 0,
+                "win_rate": 100.0,
+                "avg_pnl": 0.2685074804175186
+            },
+            "SOL": {
+                "trades": 4,
+                "total_pnl": 0.6704821549589823,
+                "wins": 3,
+                "losses": 1,
+                "win_rate": 61.60098044419124,
+                "avg_pnl": 0.16762053873974558
+            },
+            "XRP": {
+                "trades": 3,
+                "total_pnl": 1.6918801845517695,
+                "wins": 3,
+                "losses": 0,
+                "win_rate": 100.0,
+                "avg_pnl": 0.5639600615172565
+            },
+            "ADA": {
+                "trades": 1,
+                "total_pnl": -0.8241757225906983,
+                "wins": 0,
+                "losses": 1,
+                "win_rate": 0.0,
+                "avg_pnl": -0.8241757225906983
+            },
+            "LINK": {
+                "trades": 3,
+                "total_pnl": 0.9757850311629549,
+                "wins": 2,
+                "losses": 1,
+                "win_rate": 67.84910461937955,
+                "avg_pnl": 0.3252616770543183
+            },
+            "ASTER": {
+                "trades": 5,
+                "total_pnl": 1.6560519789124157,
+                "wins": 3,
+                "losses": 2,
+                "win_rate": 68.40032065627749,
+                "avg_pnl": 0.3312103957824831
+            }
+        },
+        "recommendations": [
+            "[INFO] Coins with cumulative negative PnL: ADA"
+        ]
+    },
+    {
+        "analysis_period": "Last 10 cycles (Total: 26)",
+        "timestamp": "2025-11-16T23:24:21.953235",
+        "trading_activity": {
+            "total_decisions": 60,
+            "entry_signals": 16,
+            "hold_signals": 40,
+            "close_signals": 4,
+            "decision_rate": 26.666666666666668
+        },
+        "trade_performance": {
+            "total_trades": 31,
+            "winning_trades": 21,
+            "losing_trades": 10,
+            "break_even_trades": 0,
+            "win_rate": 59.14,
+            "total_pnl": 4.18,
+            "average_pnl": 0.13,
+            "profit_factor": 1.45,
+            "largest_win": 1.59,
+            "largest_loss": -1.51
+        },
+        "portfolio_performance": {
+            "initial_balance": 125.0,
+            "current_balance": 109.45640942998543,
+            "total_value": 138.42183774516565,
+            "total_return": 10.74,
+            "sharpe_ratio": 1.364,
+            "open_positions": 1
+        },
+        "coin_performance": {
+            "DOGE": {
+                "trades": 3,
+                "total_pnl": -0.5143829997837008,
+                "wins": 2,
+                "losses": 1,
+                "win_rate": 33.80827199161418,
+                "avg_pnl": -0.1714609999279003
+            },
+            "SOL": {
+                "trades": 7,
+                "total_pnl": 2.1608295144773826,
+                "wins": 6,
+                "losses": 1,
+                "win_rate": 74.66637058690145,
+                "avg_pnl": 0.3086899306396261
+            },
+            "XRP": {
+                "trades": 5,
+                "total_pnl": 2.96464530222374,
+                "wins": 5,
+                "losses": 0,
+                "win_rate": 100.0,
+                "avg_pnl": 0.5929290604447479
+            },
+            "ADA": {
+                "trades": 3,
+                "total_pnl": -2.429428400844484,
+                "wins": 0,
+                "losses": 3,
+                "win_rate": 0.0,
+                "avg_pnl": -0.8098094669481614
+            },
+            "LINK": {
+                "trades": 6,
+                "total_pnl": 2.7910026750487393,
+                "wins": 5,
+                "losses": 1,
+                "win_rate": 80.67948766206581,
+                "avg_pnl": 0.4651671125081232
+            },
+            "ASTER": {
+                "trades": 7,
+                "total_pnl": -0.7946463199835196,
+                "wins": 3,
+                "losses": 4,
+                "win_rate": 44.2837460109231,
+                "avg_pnl": -0.11352090285478852
+            }
+        },
+        "recommendations": [
+            "[INFO] Coins with cumulative negative PnL: DOGE, ADA, ASTER"
+        ]
+    },
+    {
+        "analysis_period": "Last 10 cycles (Total: 27)",
+        "timestamp": "2025-11-16T23:28:21.953480",
+        "trading_activity": {
+            "total_decisions": 60,
+            "entry_signals": 16,
+            "hold_signals": 40,
+            "close_signals": 4,
+            "decision_rate": 26.666666666666668
+        },
+        "trade_performance": {
+            "total_trades": 33,
+            "winning_trades": 23,
+            "losing_trades": 10,
+            "break_even_trades": 0,
+            "win_rate": 62.36,
+            "total_pnl": 6.13,
+            "average_pnl": 0.19,
+            "profit_factor": 1.66,
+            "largest_win": 1.59,
+            "largest_loss": -1.51
+        },
+        "portfolio_performance": {
+            "initial_balance": 125.0,
+            "current_balance": 117.15387196097139,
+            "total_value": 139.5747646183791,
+            "total_return": 11.66,
+            "sharpe_ratio": 2.358,
+            "open_positions": 1
+        },
+        "coin_performance": {
+            "DOGE": {
+                "trades": 3,
+                "total_pnl": -0.5143829997837008,
+                "wins": 2,
+                "losses": 1,
+                "win_rate": 33.80827199161418,
+                "avg_pnl": -0.1714609999279003
+            },
+            "SOL": {
+                "trades": 9,
+                "total_pnl": 4.117242917212796,
+                "wins": 8,
+                "losses": 1,
+                "win_rate": 82.48817288832291,
+                "avg_pnl": 0.4574714352458662
+            },
+            "XRP": {
+                "trades": 5,
+                "total_pnl": 2.96464530222374,
+                "wins": 5,
+                "losses": 0,
+                "win_rate": 100.0,
+                "avg_pnl": 0.5929290604447479
+            },
+            "ADA": {
+                "trades": 3,
+                "total_pnl": -2.429428400844484,
+                "wins": 0,
+                "losses": 3,
+                "win_rate": 0.0,
+                "avg_pnl": -0.8098094669481614
+            },
+            "LINK": {
+                "trades": 6,
+                "total_pnl": 2.7910026750487393,
+                "wins": 5,
+                "losses": 1,
+                "win_rate": 80.67948766206581,
+                "avg_pnl": 0.4651671125081232
+            },
+            "ASTER": {
+                "trades": 7,
+                "total_pnl": -0.7946463199835196,
+                "wins": 3,
+                "losses": 4,
+                "win_rate": 44.2837460109231,
+                "avg_pnl": -0.11352090285478852
+            }
+        },
+        "recommendations": [
+            "[INFO] Coins with cumulative negative PnL: DOGE, ADA, ASTER"
+        ]
+    },
+    {
+        "analysis_period": "Last 10 cycles (Total: 28)",
+        "timestamp": "2025-11-16T23:32:21.954361",
+        "trading_activity": {
+            "total_decisions": 60,
+            "entry_signals": 17,
+            "hold_signals": 39,
+            "close_signals": 4,
+            "decision_rate": 28.333333333333332
+        },
+        "trade_performance": {
+            "total_trades": 33,
+            "winning_trades": 23,
+            "losing_trades": 10,
+            "break_even_trades": 0,
+            "win_rate": 62.36,
+            "total_pnl": 6.13,
+            "average_pnl": 0.19,
+            "profit_factor": 1.66,
+            "largest_win": 1.59,
+            "largest_loss": -1.51
+        },
+        "portfolio_performance": {
+            "initial_balance": 125.0,
+            "current_balance": 93.53565137363955,
+            "total_value": 138.73800552203622,
+            "total_return": 10.99,
+            "sharpe_ratio": 2.498,
+            "open_positions": 2
+        },
+        "coin_performance": {
+            "DOGE": {
+                "trades": 3,
+                "total_pnl": -0.5143829997837008,
+                "wins": 2,
+                "losses": 1,
+                "win_rate": 33.80827199161418,
+                "avg_pnl": -0.1714609999279003
+            },
+            "SOL": {
+                "trades": 9,
+                "total_pnl": 4.117242917212796,
+                "wins": 8,
+                "losses": 1,
+                "win_rate": 82.48817288832291,
+                "avg_pnl": 0.4574714352458662
+            },
+            "XRP": {
+                "trades": 5,
+                "total_pnl": 2.96464530222374,
+                "wins": 5,
+                "losses": 0,
+                "win_rate": 100.0,
+                "avg_pnl": 0.5929290604447479
+            },
+            "ADA": {
+                "trades": 3,
+                "total_pnl": -2.429428400844484,
+                "wins": 0,
+                "losses": 3,
+                "win_rate": 0.0,
+                "avg_pnl": -0.8098094669481614
+            },
+            "LINK": {
+                "trades": 6,
+                "total_pnl": 2.7910026750487393,
+                "wins": 5,
+                "losses": 1,
+                "win_rate": 80.67948766206581,
+                "avg_pnl": 0.4651671125081232
+            },
+            "ASTER": {
+                "trades": 7,
+                "total_pnl": -0.7946463199835196,
+                "wins": 3,
+                "losses": 4,
+                "win_rate": 44.2837460109231,
+                "avg_pnl": -0.11352090285478852
+            }
+        },
+        "recommendations": [
+            "[INFO] Coins with cumulative negative PnL: DOGE, ADA, ASTER"
+        ]
+    },
+    {
+        "analysis_period": "Last 10 cycles (Total: 29)",
+        "timestamp": "2025-11-16T23:36:21.955537",
+        "trading_activity": {
+            "total_decisions": 60,
+            "entry_signals": 18,
+            "hold_signals": 37,
+            "close_signals": 5,
+            "decision_rate": 30.0
+        },
+        "trade_performance": {
+            "total_trades": 34,
+            "winning_trades": 23,
+            "losing_trades": 11,
+            "break_even_trades": 0,
+            "win_rate": 60.82,
+            "total_pnl": 5.51,
+            "average_pnl": 0.16,
+            "profit_factor": 1.55,
+            "largest_win": 1.59,
+            "largest_loss": -1.51
+        },
+        "portfolio_performance": {
+            "initial_balance": 125.0,
+            "current_balance": 70.89450524669952,
+            "total_value": 137.57215003777193,
+            "total_return": 10.06,
+            "sharpe_ratio": 2.093,
+            "open_positions": 3
+        },
+        "coin_performance": {
+            "DOGE": {
+                "trades": 3,
+                "total_pnl": -0.5143829997837008,
+                "wins": 2,
+                "losses": 1,
+                "win_rate": 33.80827199161418,
+                "avg_pnl": -0.1714609999279003
+            },
+            "SOL": {
+                "trades": 9,
+                "total_pnl": 4.117242917212796,
+                "wins": 8,
+                "losses": 1,
+                "win_rate": 82.48817288832291,
+                "avg_pnl": 0.4574714352458662
+            },
+            "XRP": {
+                "trades": 6,
+                "total_pnl": 2.3370386658896485,
+                "wins": 5,
+                "losses": 1,
+                "win_rate": 82.52888029378991,
+                "avg_pnl": 0.3895064443149414
+            },
+            "ADA": {
+                "trades": 3,
+                "total_pnl": -2.429428400844484,
+                "wins": 0,
+                "losses": 3,
+                "win_rate": 0.0,
+                "avg_pnl": -0.8098094669481614
+            },
+            "LINK": {
+                "trades": 6,
+                "total_pnl": 2.7910026750487393,
+                "wins": 5,
+                "losses": 1,
+                "win_rate": 80.67948766206581,
+                "avg_pnl": 0.4651671125081232
+            },
+            "ASTER": {
+                "trades": 7,
+                "total_pnl": -0.7946463199835196,
+                "wins": 3,
+                "losses": 4,
+                "win_rate": 44.2837460109231,
+                "avg_pnl": -0.11352090285478852
+            }
+        },
+        "recommendations": [
+            "[INFO] Position count 3; exceeds reference threshold (\u22653)",
+            "[INFO] Coins with cumulative negative PnL: DOGE, ADA, ASTER"
+        ]
+    },
+    {
+        "analysis_period": "Last 10 cycles (Total: 30)",
+        "timestamp": "2025-11-16T23:40:21.956643",
+        "trading_activity": {
+            "total_decisions": 60,
+            "entry_signals": 17,
+            "hold_signals": 36,
+            "close_signals": 7,
+            "decision_rate": 28.333333333333332
+        },
+        "trade_performance": {
+            "total_trades": 38,
+            "winning_trades": 25,
+            "losing_trades": 13,
+            "break_even_trades": 0,
+            "win_rate": 57.92,
+            "total_pnl": 4.72,
+            "average_pnl": 0.12,
+            "profit_factor": 1.38,
+            "largest_win": 1.59,
+            "largest_loss": -1.51
+        },
+        "portfolio_performance": {
+            "initial_balance": 125.0,
+            "current_balance": 137.80270273560131,
+            "total_value": 137.80270273560131,
+            "total_return": 10.24,
+            "sharpe_ratio": 0.576,
+            "open_positions": 0
+        },
+        "coin_performance": {
+            "DOGE": {
+                "trades": 4,
+                "total_pnl": -1.9257467742983152,
+                "wins": 2,
+                "losses": 2,
+                "win_rate": 17.901831211528823,
+                "avg_pnl": -0.4814366935745788
+            },
+            "SOL": {
+                "trades": 9,
+                "total_pnl": 4.117242917212796,
+                "wins": 8,
+                "losses": 1,
+                "win_rate": 82.48817288832291,
+                "avg_pnl": 0.4574714352458662
+            },
+            "XRP": {
+                "trades": 6,
+                "total_pnl": 2.3370386658896485,
+                "wins": 5,
+                "losses": 1,
+                "win_rate": 82.52888029378991,
+                "avg_pnl": 0.3895064443149414
+            },
+            "ADA": {
+                "trades": 3,
+                "total_pnl": -2.429428400844484,
+                "wins": 0,
+                "losses": 3,
+                "win_rate": 0.0,
+                "avg_pnl": -0.8098094669481614
+            },
+            "LINK": {
+                "trades": 7,
+                "total_pnl": 1.63302387101919,
+                "wins": 5,
+                "losses": 2,
+                "win_rate": 64.30814081214008,
+                "avg_pnl": 0.23328912443131286
+            },
+            "ASTER": {
+                "trades": 9,
+                "total_pnl": 0.9847215284395928,
+                "wins": 5,
+                "losses": 4,
+                "win_rate": 55.63978797798713,
+                "avg_pnl": 0.10941350315995475
+            }
+        },
+        "recommendations": [
+            "[INFO] Coins with cumulative negative PnL: DOGE, ADA"
+        ]
+    },
+    {
+        "analysis_period": "Last 10 cycles (Total: 31)",
+        "timestamp": "2025-11-16T23:44:21.962503",
+        "trading_activity": {
+            "total_decisions": 60,
+            "entry_signals": 17,
+            "hold_signals": 37,
+            "close_signals": 6,
+            "decision_rate": 28.333333333333332
+        },
+        "trade_performance": {
+            "total_trades": 38,
+            "winning_trades": 25,
+            "losing_trades": 13,
+            "break_even_trades": 0,
+            "win_rate": 57.92,
+            "total_pnl": 4.72,
+            "average_pnl": 0.12,
+            "profit_factor": 1.38,
+            "largest_win": 1.59,
+            "largest_loss": -1.51
+        },
+        "portfolio_performance": {
+            "initial_balance": 125.0,
+            "current_balance": 137.80270273560131,
+            "total_value": 137.80270273560131,
+            "total_return": 10.24,
+            "sharpe_ratio": 0.043,
+            "open_positions": 0
+        },
+        "coin_performance": {
+            "DOGE": {
+                "trades": 4,
+                "total_pnl": -1.9257467742983152,
+                "wins": 2,
+                "losses": 2,
+                "win_rate": 17.901831211528823,
+                "avg_pnl": -0.4814366935745788
+            },
+            "SOL": {
+                "trades": 9,
+                "total_pnl": 4.117242917212796,
+                "wins": 8,
+                "losses": 1,
+                "win_rate": 82.48817288832291,
+                "avg_pnl": 0.4574714352458662
+            },
+            "XRP": {
+                "trades": 6,
+                "total_pnl": 2.3370386658896485,
+                "wins": 5,
+                "losses": 1,
+                "win_rate": 82.52888029378991,
+                "avg_pnl": 0.3895064443149414
+            },
+            "ADA": {
+                "trades": 3,
+                "total_pnl": -2.429428400844484,
+                "wins": 0,
+                "losses": 3,
+                "win_rate": 0.0,
+                "avg_pnl": -0.8098094669481614
+            },
+            "LINK": {
+                "trades": 7,
+                "total_pnl": 1.63302387101919,
+                "wins": 5,
+                "losses": 2,
+                "win_rate": 64.30814081214008,
+                "avg_pnl": 0.23328912443131286
+            },
+            "ASTER": {
+                "trades": 9,
+                "total_pnl": 0.9847215284395928,
+                "wins": 5,
+                "losses": 4,
+                "win_rate": 55.63978797798713,
+                "avg_pnl": 0.10941350315995475
+            }
+        },
+        "recommendations": [
+            "[INFO] Coins with cumulative negative PnL: DOGE, ADA"
+        ]
+    },
+    {
+        "reset_reason": "periodic_bias_control",
+        "reset_at_cycle": 105,
+        "timestamp": "2025-11-17T00:00:21.995101"
+    },
+    {
+        "analysis_period": "Last 1 cycles (Total: 1)",
+        "timestamp": "2025-11-17T00:04:21.956956",
+        "trading_activity": {
+            "total_decisions": 6,
+            "entry_signals": 3,
+            "hold_signals": 3,
+            "close_signals": 0,
+            "decision_rate": 50.0
+        },
+        "trade_performance": {
+            "total_trades": 1,
+            "winning_trades": 0,
+            "losing_trades": 1,
+            "break_even_trades": 0,
+            "win_rate": 0.0,
+            "total_pnl": -2.34,
+            "average_pnl": -2.34,
+            "profit_factor": 0.0,
+            "largest_win": -2.34,
+            "largest_loss": -2.34
+        },
+        "portfolio_performance": {
+            "initial_balance": 125.0,
+            "current_balance": 137.53605950224866,
+            "total_value": 137.53605950224866,
+            "total_return": 10.03,
+            "sharpe_ratio": -18.763,
+            "open_positions": 0
+        },
+        "coin_performance": {
+            "ASTER": {
+                "trades": 1,
+                "total_pnl": -2.3361732160600295,
+                "wins": 0,
+                "losses": 1,
+                "win_rate": 0.0,
+                "avg_pnl": -2.3361732160600295
+            }
+        },
+        "recommendations": [
+            "[INFO] Coins with cumulative negative PnL: ASTER"
+        ]
+    },
+    {
+        "analysis_period": "Last 2 cycles (Total: 2)",
+        "timestamp": "2025-11-17T00:08:21.958839",
+        "trading_activity": {
+            "total_decisions": 12,
+            "entry_signals": 5,
+            "hold_signals": 7,
+            "close_signals": 0,
+            "decision_rate": 41.66666666666667
+        },
+        "trade_performance": {
+            "total_trades": 1,
+            "winning_trades": 0,
+            "losing_trades": 1,
+            "break_even_trades": 0,
+            "win_rate": 0.0,
+            "total_pnl": -2.34,
+            "average_pnl": -2.34,
+            "profit_factor": 0.0,
+            "largest_win": -2.34,
+            "largest_loss": -2.34
+        },
+        "portfolio_performance": {
+            "initial_balance": 125.0,
+            "current_balance": 107.03606294702999,
+            "total_value": 137.53605950224866,
+            "total_return": 10.03,
+            "sharpe_ratio": -6.494,
+            "open_positions": 1
+        },
+        "coin_performance": {
+            "ASTER": {
+                "trades": 1,
+                "total_pnl": -2.3361732160600295,
+                "wins": 0,
+                "losses": 1,
+                "win_rate": 0.0,
+                "avg_pnl": -2.3361732160600295
+            }
+        },
+        "recommendations": [
+            "[INFO] Coins with cumulative negative PnL: ASTER"
+        ]
+    },
+    {
+        "analysis_period": "Last 5 cycles (Total: 5)",
+        "timestamp": "2025-11-17T00:20:21.963461",
+        "trading_activity": {
+            "total_decisions": 30,
+            "entry_signals": 13,
+            "hold_signals": 17,
+            "close_signals": 0,
+            "decision_rate": 43.333333333333336
+        },
+        "trade_performance": {
+            "total_trades": 8,
+            "winning_trades": 5,
+            "losing_trades": 3,
+            "break_even_trades": 0,
+            "win_rate": 27.02,
+            "total_pnl": -3.67,
+            "average_pnl": -0.46,
+            "profit_factor": 0.37,
+            "largest_win": 0.99,
+            "largest_loss": -2.34
+        },
+        "portfolio_performance": {
+            "initial_balance": 125.0,
+            "current_balance": 115.65975205773324,
+            "total_value": 136.67161683629132,
+            "total_return": 9.34,
+            "sharpe_ratio": -3.591,
+            "open_positions": 1
+        },
+        "coin_performance": {
+            "ASTER": {
+                "trades": 2,
+                "total_pnl": -4.275759642465034,
+                "wins": 0,
+                "losses": 2,
+                "win_rate": 0.0,
+                "avg_pnl": -2.137879821232517
+            },
+            "DOGE": {
+                "trades": 4,
+                "total_pnl": 1.3831482813309226,
+                "wins": 4,
+                "losses": 0,
+                "win_rate": 100.0,
+                "avg_pnl": 0.34578707033273065
+            },
+            "XRP": {
+                "trades": 1,
+                "total_pnl": -1.5518323995199164,
+                "wins": 0,
+                "losses": 1,
+                "win_rate": 0.0,
+                "avg_pnl": -1.5518323995199164
+            },
+            "SOL": {
+                "trades": 1,
+                "total_pnl": 0.7742413029273133,
+                "wins": 1,
+                "losses": 0,
+                "win_rate": 100.0,
+                "avg_pnl": 0.7742413029273133
+            }
+        },
+        "recommendations": [
+            "[INFO] Coins with cumulative negative PnL: ASTER, XRP"
+        ]
+    },
+    {
+        "analysis_period": "Last 10 cycles (Total: 10)",
+        "timestamp": "2025-11-17T00:40:21.965397",
+        "trading_activity": {
+            "total_decisions": 60,
+            "entry_signals": 21,
+            "hold_signals": 38,
+            "close_signals": 1,
+            "decision_rate": 35.0
+        },
+        "trade_performance": {
+            "total_trades": 19,
+            "winning_trades": 14,
+            "losing_trades": 5,
+            "break_even_trades": 0,
+            "win_rate": 44.65,
+            "total_pnl": -1.56,
+            "average_pnl": -0.08,
+            "profit_factor": 0.81,
+            "largest_win": 1.09,
+            "largest_loss": -2.34
+        },
+        "portfolio_performance": {
+            "initial_balance": 125.0,
+            "current_balance": 123.0756867977796,
+            "total_value": 139.18362172419333,
+            "total_return": 11.35,
+            "sharpe_ratio": -0.271,
+            "open_positions": 1
+        },
+        "coin_performance": {
+            "ASTER": {
+                "trades": 7,
+                "total_pnl": -3.012657208730009,
+                "wins": 4,
+                "losses": 3,
+                "win_rate": 27.400395599142733,
+                "avg_pnl": -0.4303796012471442
+            },
+            "DOGE": {
+                "trades": 4,
+                "total_pnl": 1.3831482813309226,
+                "wins": 4,
+                "losses": 0,
+                "win_rate": 100.0,
+                "avg_pnl": 0.34578707033273065
+            },
+            "XRP": {
+                "trades": 1,
+                "total_pnl": -1.5518323995199164,
+                "wins": 0,
+                "losses": 1,
+                "win_rate": 0.0,
+                "avg_pnl": -1.5518323995199164
+            },
+            "SOL": {
+                "trades": 1,
+                "total_pnl": 0.7742413029273133,
+                "wins": 1,
+                "losses": 0,
+                "win_rate": 100.0,
+                "avg_pnl": 0.7742413029273133
+            },
+            "ADA": {
+                "trades": 4,
+                "total_pnl": -0.4246700275874808,
+                "wins": 3,
+                "losses": 1,
+                "win_rate": 42.89969390014673,
+                "avg_pnl": -0.1061675068968702
+            },
+            "LINK": {
+                "trades": 2,
+                "total_pnl": 1.2672177524733503,
+                "wins": 2,
+                "losses": 0,
+                "win_rate": 100.0,
+                "avg_pnl": 0.6336088762366752
+            }
+        },
+        "recommendations": [
+            "[INFO] Coins with cumulative negative PnL: ASTER, XRP, ADA"
+        ]
+    },
+    {
+        "analysis_period": "Last 10 cycles (Total: 11)",
+        "timestamp": "2025-11-17T00:44:21.966448",
+        "trading_activity": {
+            "total_decisions": 60,
+            "entry_signals": 21,
+            "hold_signals": 38,
+            "close_signals": 1,
+            "decision_rate": 35.0
+        },
+        "trade_performance": {
+            "total_trades": 19,
+            "winning_trades": 14,
+            "losing_trades": 5,
+            "break_even_trades": 0,
+            "win_rate": 44.65,
+            "total_pnl": -1.56,
+            "average_pnl": -0.08,
+            "profit_factor": 0.81,
+            "largest_win": 1.09,
+            "largest_loss": -2.34
+        },
+        "portfolio_performance": {
+            "initial_balance": 125.0,
+            "current_balance": 88.51603394496308,
+            "total_value": 138.11800506155438,
+            "total_return": 10.49,
+            "sharpe_ratio": -0.752,
+            "open_positions": 2
+        },
+        "coin_performance": {
+            "ASTER": {
+                "trades": 7,
+                "total_pnl": -3.012657208730009,
+                "wins": 4,
+                "losses": 3,
+                "win_rate": 27.400395599142733,
+                "avg_pnl": -0.4303796012471442
+            },
+            "DOGE": {
+                "trades": 4,
+                "total_pnl": 1.3831482813309226,
+                "wins": 4,
+                "losses": 0,
+                "win_rate": 100.0,
+                "avg_pnl": 0.34578707033273065
+            },
+            "XRP": {
+                "trades": 1,
+                "total_pnl": -1.5518323995199164,
+                "wins": 0,
+                "losses": 1,
+                "win_rate": 0.0,
+                "avg_pnl": -1.5518323995199164
+            },
+            "SOL": {
+                "trades": 1,
+                "total_pnl": 0.7742413029273133,
+                "wins": 1,
+                "losses": 0,
+                "win_rate": 100.0,
+                "avg_pnl": 0.7742413029273133
+            },
+            "ADA": {
+                "trades": 4,
+                "total_pnl": -0.4246700275874808,
+                "wins": 3,
+                "losses": 1,
+                "win_rate": 42.89969390014673,
+                "avg_pnl": -0.1061675068968702
+            },
+            "LINK": {
+                "trades": 2,
+                "total_pnl": 1.2672177524733503,
+                "wins": 2,
+                "losses": 0,
+                "win_rate": 100.0,
+                "avg_pnl": 0.6336088762366752
+            }
+        },
+        "recommendations": [
+            "[INFO] Coins with cumulative negative PnL: ASTER, XRP, ADA"
+        ]
+    },
+    {
+        "analysis_period": "Last 10 cycles (Total: 15)",
+        "timestamp": "2025-11-17T01:00:21.969871",
+        "trading_activity": {
+            "total_decisions": 60,
+            "entry_signals": 17,
+            "hold_signals": 42,
+            "close_signals": 1,
+            "decision_rate": 28.333333333333332
+        },
+        "trade_performance": {
+            "total_trades": 22,
+            "winning_trades": 15,
+            "losing_trades": 7,
+            "break_even_trades": 0,
+            "win_rate": 38.26,
+            "total_pnl": -4.65,
+            "average_pnl": -0.21,
+            "profit_factor": 0.62,
+            "largest_win": 1.09,
+            "largest_loss": -2.34
+        },
+        "portfolio_performance": {
+            "initial_balance": 125.0,
+            "current_balance": 79.28110410451669,
+            "total_value": 135.66820675074138,
+            "total_return": 8.53,
+            "sharpe_ratio": -0.591,
+            "open_positions": 2
+        },
+        "coin_performance": {
+            "ASTER": {
+                "trades": 8,
+                "total_pnl": -5.100784163298718,
+                "wins": 4,
+                "losses": 4,
+                "win_rate": 20.864031418652743,
+                "avg_pnl": -0.6375980204123397
+            },
+            "DOGE": {
+                "trades": 5,
+                "total_pnl": -0.6424205976843782,
+                "wins": 4,
+                "losses": 1,
+                "win_rate": 40.57679814040177,
+                "avg_pnl": -0.12848411953687564
+            },
+            "XRP": {
+                "trades": 1,
+                "total_pnl": -1.5518323995199164,
+                "wins": 0,
+                "losses": 1,
+                "win_rate": 0.0,
+                "avg_pnl": -1.5518323995199164
+            },
+            "SOL": {
+                "trades": 1,
+                "total_pnl": 0.7742413029273133,
+                "wins": 1,
+                "losses": 0,
+                "win_rate": 100.0,
+                "avg_pnl": 0.7742413029273133
+            },
+            "ADA": {
+                "trades": 5,
+                "total_pnl": 0.6076893675798469,
+                "wins": 4,
+                "losses": 1,
+                "win_rate": 57.55294359369013,
+                "avg_pnl": 0.12153787351596938
+            },
+            "LINK": {
+                "trades": 2,
+                "total_pnl": 1.2672177524733503,
+                "wins": 2,
+                "losses": 0,
+                "win_rate": 100.0,
+                "avg_pnl": 0.6336088762366752
+            }
+        },
+        "recommendations": [
+            "[INFO] Coins with cumulative negative PnL: ASTER, DOGE, XRP"
+        ]
+    },
+    {
+        "analysis_period": "Last 10 cycles (Total: 25)",
+        "timestamp": "2025-11-17T01:40:21.978341",
+        "trading_activity": {
+            "total_decisions": 60,
+            "entry_signals": 1,
+            "hold_signals": 59,
+            "close_signals": 0,
+            "decision_rate": 1.6666666666666667
+        },
+        "trade_performance": {
+            "total_trades": 23,
+            "winning_trades": 15,
+            "losing_trades": 8,
+            "break_even_trades": 0,
+            "win_rate": 34.79,
+            "total_pnl": -6.61,
+            "average_pnl": -0.29,
+            "profit_factor": 0.53,
+            "largest_win": 1.09,
+            "largest_loss": -2.34
+        },
+        "portfolio_performance": {
+            "initial_balance": 125.0,
+            "current_balance": 77.2012030341969,
+            "total_value": 133.19845810802147,
+            "total_return": 6.56,
+            "sharpe_ratio": -2.045,
+            "open_positions": 2
+        },
+        "coin_performance": {
+            "ASTER": {
+                "trades": 8,
+                "total_pnl": -5.100784163298718,
+                "wins": 4,
+                "losses": 4,
+                "win_rate": 20.864031418652743,
+                "avg_pnl": -0.6375980204123397
+            },
+            "DOGE": {
+                "trades": 5,
+                "total_pnl": -0.6424205976843782,
+                "wins": 4,
+                "losses": 1,
+                "win_rate": 40.57679814040177,
+                "avg_pnl": -0.12848411953687564
+            },
+            "XRP": {
+                "trades": 1,
+                "total_pnl": -1.5518323995199164,
+                "wins": 0,
+                "losses": 1,
+                "win_rate": 0.0,
+                "avg_pnl": -1.5518323995199164
+            },
+            "SOL": {
+                "trades": 2,
+                "total_pnl": -1.1947870975088462,
+                "wins": 1,
+                "losses": 1,
+                "win_rate": 28.223302359882084,
+                "avg_pnl": -0.5973935487544231
+            },
+            "ADA": {
+                "trades": 5,
+                "total_pnl": 0.6076893675798469,
+                "wins": 4,
+                "losses": 1,
+                "win_rate": 57.55294359369013,
+                "avg_pnl": 0.12153787351596938
+            },
+            "LINK": {
+                "trades": 2,
+                "total_pnl": 1.2672177524733503,
+                "wins": 2,
+                "losses": 0,
+                "win_rate": 100.0,
+                "avg_pnl": 0.6336088762366752
+            }
+        },
+        "recommendations": [
+            "[INFO] Coins with cumulative negative PnL: ASTER, DOGE, XRP, SOL"
+        ]
+    }
+]

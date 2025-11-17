@@ -115,5 +115,18 @@
         "exit_time": "2025-11-16T19:56:53.388412",
         "leverage": 10,
         "close_reason": "AI close_position signal"
+    },
+    {
+        "symbol": "SOL",
+        "direction": "short",
+        "entry_price": 136.23,
+        "exit_price": 135.41,
+        "quantity": 1.0486311590198023,
+        "notional_usd": 142.85502279326766,
+        "pnl": 0.8598775503962307,
+        "entry_time": "2025-11-16T19:30:51.912616",
+        "exit_time": "2025-11-16T20:04:00.313332",
+        "leverage": 10,
+        "close_reason": "Position margin $14.29 <= maximum limit $15.00"
     }
 ]

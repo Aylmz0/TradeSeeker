@@ -3270,7 +3270,7 @@ class PortfolioManager:
                     dominant_direction = 'short'
 
                 # Coin bazlı cooldown kontrolü (öncelikli - zararlı trade'den sonra aynı coin'i engelle)
-                coin_cooldowns = getattr(self, 'coin_cooldowns', {})
+                coin_cooldowns = self.coin_cooldowns
                 coin_upper = coin.upper()
                 coin_cooldown_remaining = coin_cooldowns.get(coin_upper, 0)
                 if coin_cooldown_remaining > 0:
@@ -3284,7 +3284,7 @@ class PortfolioManager:
                     continue
 
                 # Cooldown kontrolü: PortfolioManager'dan cooldown durumunu al
-                cooldowns = getattr(self, 'directional_cooldowns', {'long': 0, 'short': 0})
+                cooldowns = self.directional_cooldowns
                 cooldown_remaining = cooldowns.get(direction, 0)
                 print(f"🔍 Cooldown check for {coin} {direction.upper()}: cooldown_remaining={cooldown_remaining}, cooldowns={cooldowns}")
                 if cooldown_remaining > 0:
@@ -3420,16 +3420,16 @@ class PortfolioManager:
                     
                     if is_counter_trend:
                         # Check counter-trend cooldown
-                        counter_trend_cooldown = getattr(self, 'counter_trend_cooldown', 0)
+                        counter_trend_cooldown = self.counter_trend_cooldown
                         if counter_trend_cooldown > 0:
                             print(f"🚫 Counter-trend cooldown active: Blocking {coin} {signal} ({counter_trend_cooldown} cycles remaining).")
                             execution_report['blocked'].append({'coin': coin, 'reason': 'counter_trend_cooldown', 'classification': trend_classification})
                             trade['runtime_decision'] = 'blocked_counter_trend_cooldown'
                             continue
                         
-                        relaxed_countertrend = getattr(self, 'relaxed_countertrend_cycles', 0) > 0
+                        relaxed_countertrend = self.relaxed_countertrend_cycles > 0
                         if relaxed_countertrend:
-                            remaining_relax = getattr(self, 'relaxed_countertrend_cycles', 0)
+                            remaining_relax = self.relaxed_countertrend_cycles
                             print(f"⚡ RELAXED COUNTER-TREND MODE: {coin} - skipping flip guard & validation ({remaining_relax} cycles remaining).")
                         else:
                             guard_active = guard_cycles_since_flip is not None and guard_cycles_since_flip <= guard_window
@@ -3818,7 +3818,7 @@ class AlphaArenaDeepSeek:
             'long': directional_counts.get('long', 0) >= limit,
             'short': directional_counts.get('short', 0) >= limit
         }
-        cooldowns = getattr(self.portfolio, 'directional_cooldowns', {'long': 0, 'short': 0})
+        cooldowns = self.portfolio.directional_cooldowns
         if (
             not blocked['long'] and not blocked['short'] and
             cooldowns.get('long', 0) == 0 and cooldowns.get('short', 0) == 0
@@ -5045,7 +5045,7 @@ class AlphaArenaDeepSeek:
         bias_section = "\n".join(bias_lines) if bias_lines else "  • No directional trades recorded"
 
         # Get cooldown status
-        cooldowns = getattr(self.portfolio, 'directional_cooldowns', {'long': 0, 'short': 0})
+        cooldowns = self.portfolio.directional_cooldowns
         cooldown_lines = []
         for side in ('long', 'short'):
             cycles_remaining = cooldowns.get(side, 0)
@@ -5067,7 +5067,7 @@ class AlphaArenaDeepSeek:
         cooldown_section = "\n".join(cooldown_lines) if cooldown_lines else "  • No cooldowns active"
 
         # Get coin cooldown status
-        coin_cooldowns = getattr(self.portfolio, 'coin_cooldowns', {})
+        coin_cooldowns = self.portfolio.coin_cooldowns
         coin_cooldown_lines = []
         if coin_cooldowns:
             for coin, cycles in sorted(coin_cooldowns.items()):
@@ -5503,10 +5503,10 @@ Current live positions & performance:"""
         )
         
         # Get cooldown status
-        directional_cooldowns = getattr(self.portfolio, 'directional_cooldowns', {'long': 0, 'short': 0})
-        coin_cooldowns = getattr(self.portfolio, 'coin_cooldowns', {})
-        counter_trend_cooldown = getattr(self.portfolio, 'counter_trend_cooldown', 0)
-        relaxed_countertrend_cycles = getattr(self.portfolio, 'relaxed_countertrend_cycles', 0)
+        directional_cooldowns = self.portfolio.directional_cooldowns
+        coin_cooldowns = self.portfolio.coin_cooldowns
+        counter_trend_cooldown = self.portfolio.counter_trend_cooldown
+        relaxed_countertrend_cycles = self.portfolio.relaxed_countertrend_cycles
         
         # Get trading context
         trading_context = self.get_trading_context()
