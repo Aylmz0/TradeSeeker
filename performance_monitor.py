@@ -440,12 +440,14 @@ class PerformanceMonitor:
             if indicators_cache and coin in indicators_cache:
                 coin_indicators = indicators_cache[coin]
                 indicators_3m = coin_indicators.get('3m', {})
+                indicators_15m = coin_indicators.get('15m', {})
                 indicators_htf = coin_indicators.get(HTF_INTERVAL, {})
             else:
                 # Fallback: fetch indicators (legacy behavior)
                 from alpha_arena_deepseek import RealMarketData
                 market_data = RealMarketData()
                 indicators_3m = market_data.get_technical_indicators(coin, '3m')
+                indicators_15m = market_data.get_technical_indicators(coin, '15m')
                 indicators_htf = market_data.get_technical_indicators(coin, HTF_INTERVAL)
             
             if 'error' in indicators_3m or 'error' in indicators_htf:
@@ -470,6 +472,17 @@ class PerformanceMonitor:
             macd_signal_3m = indicators_3m.get('macd_signal', 0)
             macd_htf = indicators_htf.get('macd', 0)
             macd_signal_htf = indicators_htf.get('macd_signal', 0)
+            
+            # Extract 15m indicators (if available)
+            price_15m = None
+            ema20_15m = None
+            trend_15m = None
+            has_15m = indicators_15m and 'error' not in indicators_15m
+            if has_15m:
+                price_15m = indicators_15m.get('current_price')
+                ema20_15m = indicators_15m.get('ema_20')
+                if price_15m is not None and ema20_15m is not None:
+                    trend_15m = "BULLISH" if price_15m > ema20_15m else "BEARISH"
             
             # Determine current trend direction
             trend_htf = "BULLISH" if price_htf > ema20_htf else "BEARISH"
@@ -530,7 +543,7 @@ class PerformanceMonitor:
                 signal_strength = "NO_LOSS_RISK"
                 recommendation = f"[INFO] No loss-risk signals detected for {coin}; trend classification intact"
             
-            return {
+            result = {
                 "coin": coin,
                 "reversal_detected": reversal_signals > 0,
                 "signal_strength": signal_strength,
@@ -542,6 +555,12 @@ class PerformanceMonitor:
                 "recommendation": recommendation,
                 "note": "INFORMATION ONLY - Final decision remains with AI"
             }
+            
+            # Add 15m trend if available
+            if trend_15m:
+                result["current_trend_15m"] = trend_15m
+            
+            return result
             
         except Exception as e:
             print(f"⚠️ Trend reversal detection error for {coin}: {e}")
@@ -605,6 +624,7 @@ class PerformanceMonitor:
             summary["recommendations"] = recommendations
             
             # Create loss risk signals for AI prompt format
+            from alpha_arena_deepseek import HTF_INTERVAL
             loss_risk_signals = {}
             for coin, result in reversal_results.items():
                 signals = []
@@ -616,7 +636,8 @@ class PerformanceMonitor:
                     })
                 loss_risk_signals[coin] = {
                     'loss_risk_signals': signals,
-                    'current_trend_4h': result.get('current_trend_4h', 'UNKNOWN'),
+                    'current_trend_4h': result.get('current_trend_4h', result.get(f'current_trend_{HTF_INTERVAL}', 'UNKNOWN')),
+                    'current_trend_15m': result.get('current_trend_15m', None),  # ✅ 15m trend eklendi
                     'current_trend_3m': result.get('current_trend_3m', 'UNKNOWN'),
                     'signal_strength': result.get('signal_strength', 'NO_LOSS_RISK')
                 }

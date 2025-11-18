@@ -95,14 +95,14 @@ RISK MANAGEMENT:
 
 SYMMETRIC STRATEGY GUIDANCE:
 - Evaluate both LONG and SHORT paths for every asset. Bullish regimes support longs; bearish regimes support shorts.
-- NEUTRAL regime: When a coin's market regime is NEUTRAL (1h trend doesn't align with 3m/15m), you can still take LONG or SHORT positions. NEUTRAL indicates counter-trend opportunities or mixed signals - evaluate technical conditions and take the direction with the best quantified edge. Both LONG and SHORT trades are valid in NEUTRAL conditions.
+- NEUTRAL regime: When a coin's market regime is NEUTRAL (1h trend doesn't align with BOTH 3m AND 15m). Specifically: 1h bullish but both 3m and 15m are bearish, OR 1h bearish but both 3m and 15m are bullish. In NEUTRAL conditions, you can take LONG or SHORT positions based on the best quantified edge. NEUTRAL indicates counter-trend opportunities or mixed signals - evaluate technical conditions and take the direction with the best quantified edge. Both LONG and SHORT trades are valid in NEUTRAL conditions.
 - Counter-trend trades are a valid and valuable strategy; use them when the pre-computed checklist (in the prompt) shows >2/5 conditions and you can rationalize the edge. Counter-trend opportunities often provide excellent risk/reward ratios.
-- Counter-trend trades require moderate confidence (>0.65). If you see a strong counter-trend setup, don't hesitate to take it even if confidence is above 0.60.
+- Counter-trend trades require confidence ≥0.65 for standard setups. For exceptionally strong counter-trend setups (STRONG alignment, 3+ conditions met, LOW_RISK rating), confidence ≥0.60 is acceptable.
 - Only label a setup as counter-trend when your proposed trade direction is opposite the {HTF_LABEL} trend. If {HTF_LABEL} trend and trade direction align but 3m is temporarily opposing, treat it as trend-following.
 - Prioritize trades with quantified momentum, participation, and risk/reward advantages.
 - When regime, momentum, and participation align in your favor, favor committing capital decisively instead of waiting for perfect confirmation.
 - Execute trend-following setups promptly when {HTF_LABEL} + 3m structures point the same way and volume/liquidity is supportive.
-- IMPORTANT: When {HTF_LABEL} + 15m + 3m all align in the same direction, be cautious - this alignment alone does not guarantee a strong trend-following opportunity; evaluate trend duration, statistics, and market context before entering.
+- IMPORTANT: When {HTF_LABEL} + 15m + 3m all align in the same direction, this is a STRONG trend-following signal. Evaluate trend duration and market context, but this alignment indicates high-probability trend continuation.
 
 DATA CONTEXT:
 - You receive 3m (entry/exit) and {HTF_LABEL} (trend) series plus historical indicators.
@@ -167,8 +167,16 @@ TREND & COUNTER-TREND GUIDELINES:
 - When price is below {HTF_LABEL} EMA20 with bearish momentum, short setups merit priority.
 - When price is above {HTF_LABEL} EMA20 with bullish momentum, long setups merit priority.
 - Counter-trend trades (long or short) are encouraged when technical conditions support them. Look for oversold/overbought conditions, divergences, or reversal patterns that suggest a counter-trend move. Confidence above 0.65 is sufficient for counter-trend entries.
-- Counter-trend opportunities arise when both 3m and 15m momentum align against the 1h structural trend. 
-  For example: 1h bullish, but 15m bearish AND 3m bearish = counter-trend short opportunity.
+- Counter-trend opportunities arise when both 3m and 15m momentum align against the 1h structural trend.
+  Examples:
+    - 1h BULLISH, but 15m BEARISH AND 3m BEARISH = counter-trend SHORT opportunity
+    - 1h BEARISH, but 15m BULLISH AND 3m BULLISH = counter-trend LONG opportunity
+  CRITICAL: To determine counter-trend direction:
+    - Look at 15m and 3m trends (NOT 1h trend)
+    - If 15m+3m are BULLISH → Counter-trend LONG
+    - If 15m+3m are BEARISH → Counter-trend SHORT
+    - The 1h trend is OPPOSITE to your trade direction
+    - Remember: Counter-trend direction = 15m+3m direction, NOT 1h direction
 - If volume ratio is ≤0.20× average, call out the weakness, reduce confidence materially, and consider skipping the trade unless another data point overwhelmingly compensates.
 
 TREND REVERSAL DETECTION:
@@ -176,16 +184,28 @@ TREND REVERSAL DETECTION:
 - Multi-timeframe analysis: {HTF_LABEL} (1h) provides structural trend, 15m provides medium-term momentum confirmation, and 3m provides short-term entry/exit timing.
 - 15m momentum provides important confirmation between {HTF_LABEL} trend and 3m momentum. When 15m aligns with {HTF_LABEL}, it strengthens the trend signal. When 15m aligns with 3m but opposes {HTF_LABEL}, it suggests potential reversal.
 - 3m momentum provides supplementary context alongside {HTF_LABEL} trend analysis. Use it as one data point among many, not as a primary decision driver. Short-term 3m momentum changes are normal market noise.
+- CRITICAL: Reversal signals ONLY apply to EXISTING positions.
+    - If you have NO position, reversal signals are NOT relevant
+    - Reversal = momentum moving AGAINST your current position
+    - For new entries, use counter-trend analysis, NOT reversal
 - IMPORTANT: Reversal means momentum is moving AGAINST the position direction. This is an EXIT WARNING, not an entry signal. For example:
   * LONG position: Reversal = bearish momentum (price < EMA20, RSI < 50, MACD < 0) → Consider closing LONG
   * SHORT position: Reversal = bullish momentum (price > EMA20, RSI > 50, MACD > 0) → Consider closing SHORT
 - Reversal signal strength (based on how many timeframes show reversal AGAINST position):
-  * "STRONG": 15m + 3m BOTH show reversal against position (but {HTF_LABEL} doesn't) - strong reversal signal. This can be a COUNTER-TREND OPPORTUNITY: if {HTF_LABEL} trend is still in position's favor but 15m+3m reversed, consider opening a counter-trend position in the reversal direction (e.g., LONG position with 15m+3m bearish reversal = consider SHORT counter-trend entry, or close LONG and evaluate)
-  * "MEDIUM": Only 3m shows reversal against position - medium reversal signal, continue monitoring
+  * "STRONG": 15m + 3m BOTH show reversal against position (but {HTF_LABEL} doesn't) - strong reversal signal. Consider closing the position if it's losing money or the thesis is invalidated.
+  * "MEDIUM": Only 3m shows reversal against position - medium reversal signal, continue monitoring. 3m momentum changes are normal market noise; don't overreact.
   * "INFORMATIONAL": Only 15m shows reversal against position - informational context, continue monitoring, prioritize {HTF_LABEL} trend
   * NOTE: If {HTF_LABEL} + 15m + 3m ALL show the same direction, this is NOT a reversal - this is the trend itself continuing. Reversal only occurs when shorter timeframes (15m+3m) oppose the position while {HTF_LABEL} may still be in favor.
-- When you see reversal signals, evaluate the full context including position duration, profit/loss status, and original thesis before making any changes. Prioritize {HTF_LABEL} trend confirmation and your systematic exit plan.
-- NOTE: STRONG reversal (15m+3m against position, but {HTF_LABEL} still in favor) can indicate counter-trend opportunities. Evaluate if the reversal momentum is strong enough for a counter-trend entry, but remember counter-trend trades require higher confidence (≥0.65) and proper technical conditions.
+- IMPORTANT: Reversal signals are EXIT warnings for existing positions. Counter-trend opportunities are ENTRY signals for new positions. These are SEPARATE decisions:
+  1. If you see reversal signals against an existing position:
+     - Evaluate position duration, PnL, and original thesis
+     - Consider closing if reversal is STRONG and position is losing
+     - Don't close immediately due to 3m momentum changes alone
+  2. After closing a position (or for new entries):
+     - If 15m+3m align against 1h trend, this is a counter-trend opportunity in the 15m+3m direction
+     - Use counter-trend analysis, NOT reversal signals, for new entries
+  3. Do NOT mix reversal and counter-trend in the same decision. Reversal = exit, Counter-trend = entry (separate evaluations)
+
 
 ACTION FORMAT:
 - Use signals: `buy_to_enter`, `sell_to_enter`, `hold`, `close_position`.
@@ -1022,6 +1042,7 @@ class PortfolioManager:
                 if abs(old_total - self.total_value) > 0.01:
                     print(f"📊 Total value updated: ${old_total:.2f} → ${self.total_value:.2f}")
                     print(f"   (Available cash: ${self.current_balance:.2f} + Margin used: ${total_margin_used:.2f} + Unrealized PnL: ${total_unrealized_pnl:.2f})")
+                    print(f"   ℹ️ Unrealized PnL from Binance (includes funding fees)")
                     
                     # Debug: Also show what Binance says for comparison
                     if overview:
@@ -1030,6 +1051,10 @@ class PortfolioManager:
                         if total_wb:
                             wallet_b_str = f"${wallet_b:.2f}" if wallet_b else "N/A"
                             print(f"   (Binance totalWalletBalance: ${total_wb:.2f}, walletBalance: {wallet_b_str})")
+                            # Validate our calculation against Binance
+                            diff = abs(self.total_value - total_wb)
+                            if diff > 0.10:  # More than 10 cents difference
+                                print(f"   ⚠️ Warning: Calculated total_value differs from Binance totalWalletBalance by ${diff:.2f}")
             else:
                 self.positions = {}
                 # No positions, total value = totalWalletBalance (or available cash if not available)
@@ -1558,7 +1583,7 @@ class PortfolioManager:
         
         Returns:
             {
-                'strength': 'STRONG' | 'MEDIUM_15M' | 'MEDIUM_3M' | 'WEAK' | None,
+                'strength': 'STRONG' | 'MEDIUM' | 'WEAK' | None,
                 'alignment_info': str,
                 'trends': {
                     '1h': str,
@@ -1566,6 +1591,11 @@ class PortfolioManager:
                     '3m': str
                 }
             }
+        
+        Mantık:
+        - STRONG: 1h+15m+3m hepsi aynı yönde
+        - MEDIUM: 1h+15m aynı yönde (3m farklı) VEYA 1h+3m aynı yönde (15m farklı)
+        - WEAK: Sadece 1h aynı yönde (15m ve 3m farklı)
         """
         try:
             indicators_htf = self.market_data.get_technical_indicators(coin, HTF_INTERVAL)
@@ -1599,6 +1629,7 @@ class PortfolioManager:
                 return None
             
             # Trend-following güç seviyesi belirleme
+            # Mantık: 1h+15m+3m = STRONG, 1h+15m = MEDIUM, 1h+3m = MEDIUM, sadece 1h = WEAK
             if trend_1h == trend_15m == trend_3m == signal_direction:
                 # STRONG: 1h + 15m + 3m hepsi aynı yönde
                 return {
@@ -1611,10 +1642,10 @@ class PortfolioManager:
                     }
                 }
             elif trend_1h == trend_15m == signal_direction:
-                # MEDIUM_15M: 1h + 15m aynı (3m farklı)
+                # MEDIUM_15: 1h + 15m aynı (3m farklı)
                 return {
-                    'strength': 'MEDIUM_15M',
-                    'alignment_info': f"Strong: {HTF_LABEL}+15m {signal_direction} (3m {trend_3m})",
+                    'strength': 'MEDIUM_15',
+                    'alignment_info': f"Moderate: {HTF_LABEL}+15m {signal_direction} (3m {trend_3m})",
                     'trends': {
                         '1h': trend_1h,
                         '15m': trend_15m,
@@ -1622,9 +1653,9 @@ class PortfolioManager:
                     }
                 }
             elif trend_1h == trend_3m == signal_direction:
-                # MEDIUM_3M: 1h + 3m aynı (15m farklı)
+                # MEDIUM_3: 1h + 3m aynı (15m farklı)
                 return {
-                    'strength': 'MEDIUM_3M',
+                    'strength': 'MEDIUM_3',
                     'alignment_info': f"Moderate: {HTF_LABEL}+3m {signal_direction} (15m {trend_15m})",
                     'trends': {
                         '1h': trend_1h,
@@ -1878,17 +1909,62 @@ class PortfolioManager:
         total_unrealized_pnl = 0.0
         for coin, price in new_prices.items():
             if coin in self.positions and isinstance(price, (int, float)) and price > 0:
-                pos = self.positions[coin]; pos['current_price'] = price
-                entry = pos['entry_price']; qty = pos['quantity']; direction = pos.get('direction', 'long')
-                pnl = (price - entry) * qty if direction == 'long' else (entry - price) * qty
-                pos['unrealized_pnl'] = pnl; total_unrealized_pnl += pnl
+                pos = self.positions[coin]
+                
+                # Update current_price (use Spot price, but in live mode markPrice from Binance is preferred)
+                # For live mode, current_price should already be set from sync_live_account() (markPrice)
+                # We update it with Spot price only if it's significantly different (fallback)
+                if self.is_live_trading:
+                    # In live mode, prefer keeping Binance markPrice if available
+                    existing_price = pos.get('current_price', 0)
+                    if existing_price > 0:
+                        # Keep Binance markPrice, but update if Spot price is significantly different (>0.1%)
+                        price_diff_pct = abs(price - existing_price) / existing_price if existing_price > 0 else 1.0
+                        if price_diff_pct > 0.001:  # More than 0.1% difference
+                            # Use Spot price as fallback if markPrice seems stale
+                            pos['current_price'] = price
+                        # else: keep existing markPrice
+                    else:
+                        # No existing price, use Spot price
+                        pos['current_price'] = price
+                else:
+                    # Simulation mode: always use Spot price
+                    pos['current_price'] = price
+                
+                # CRITICAL FIX: In live mode, preserve Binance unrealized_pnl (includes funding fees)
+                # In simulation mode, calculate manually
+                if self.is_live_trading:
+                    # Live mode: Keep Binance unrealized_pnl if available (includes funding fees, commissions, etc.)
+                    existing_pnl = pos.get('unrealized_pnl', 0.0)
+                    if isinstance(existing_pnl, (int, float)) and existing_pnl != 0.0:
+                        # Use Binance value (more accurate, includes funding fees)
+                        pnl = existing_pnl
+                        pos['unrealized_pnl'] = pnl
+                    else:
+                        # Fallback: calculate manually if Binance value not available
+                        entry = pos['entry_price']
+                        qty = pos['quantity']
+                        direction = pos.get('direction', 'long')
+                        pnl = (price - entry) * qty if direction == 'long' else (entry - price) * qty
+                        pos['unrealized_pnl'] = pnl
+                else:
+                    # Simulation mode: calculate manually
+                    entry = pos['entry_price']
+                    qty = pos['quantity']
+                    direction = pos.get('direction', 'long')
+                    pnl = (price - entry) * qty if direction == 'long' else (entry - price) * qty
+                    pos['unrealized_pnl'] = pnl
+                
+                total_unrealized_pnl += pos.get('unrealized_pnl', 0.0)
+                
                 if increment_loss_counters:
                     direction = pos.get('direction', 'unknown')
-                    if pnl <= 0:
+                    pnl_for_counter = pos.get('unrealized_pnl', 0.0)
+                    if pnl_for_counter <= 0:
                         pos['loss_cycle_count'] = pos.get('loss_cycle_count', 0) + 1
                         new_count = pos['loss_cycle_count']
                         if new_count in (5, 8, 10):
-                            print(f"⏳ LOSS CYCLE WATCH: {coin} {direction} negative for {new_count} cycles (PnL ${pnl:.2f}).")
+                            print(f"⏳ LOSS CYCLE WATCH: {coin} {direction} negative for {new_count} cycles (PnL ${pnl_for_counter:.2f}).")
                     else:
                         pos['loss_cycle_count'] = 0
             elif coin in self.positions: print(f"⚠️ Invalid price for {coin}: {price}. PnL skip.")
@@ -1912,29 +1988,57 @@ class PortfolioManager:
                 self.total_value = self.current_balance
         else:
             # With positions: Calculate margin used (for cross margin, calculate from notional/leverage)
-            total_margin_used = 0.0
-            total_unrealized_pnl = 0.0
-            
-            for pos in self.positions.values():
-                # Get unrealized PnL
-                pnl = pos.get('unrealized_pnl', 0.0)
-                if isinstance(pnl, (int, float)):
-                    total_unrealized_pnl += pnl
+            # OPTIMIZATION: In live mode, total_value was already calculated in sync_live_account()
+            # Only recalculate in simulation mode or if sync_live_account() wasn't called
+            if self.is_live_trading and self.order_executor and self.order_executor.is_live():
+                # In live mode, total_value should already be set by sync_live_account()
+                # But we recalculate here to ensure consistency after price updates
+                # Use the unrealized_pnl values we just updated (which preserve Binance values)
+                total_margin_used = 0.0
+                total_unrealized_pnl = 0.0
                 
-                # Get margin (for cross margin, margin_usd might be 0, so calculate from notional/leverage)
-                margin = pos.get('margin_usd', 0.0)
-                if margin <= 0:
-                    notional = pos.get('notional_usd', 0.0)
-                    leverage = pos.get('leverage', 1)
-                    if notional > 0 and leverage > 0:
-                        margin = notional / leverage
-                if isinstance(margin, (int, float)) and margin > 0:
-                    total_margin_used += margin
-            
-            # Total value = Available cash + Margin used + Unrealized PnL
-            # This works for both live and simulation mode
-            # Unrealized PnL must be included to reflect true portfolio value
-            self.total_value = self.current_balance + total_margin_used + total_unrealized_pnl
+                for pos in self.positions.values():
+                    # Get unrealized PnL (should be Binance value in live mode)
+                    pnl = pos.get('unrealized_pnl', 0.0)
+                    if isinstance(pnl, (int, float)):
+                        total_unrealized_pnl += pnl
+                    
+                    # Get margin (for cross margin, margin_usd might be 0, so calculate from notional/leverage)
+                    margin = pos.get('margin_usd', 0.0)
+                    if margin <= 0:
+                        notional = pos.get('notional_usd', 0.0)
+                        leverage = pos.get('leverage', 1)
+                        if notional > 0 and leverage > 0:
+                            margin = notional / leverage
+                    if isinstance(margin, (int, float)) and margin > 0:
+                        total_margin_used += margin
+                
+                # Total value = Available cash + Margin used + Unrealized PnL
+                # In live mode, unrealized_pnl should be from Binance (includes funding fees)
+                self.total_value = self.current_balance + total_margin_used + total_unrealized_pnl
+            else:
+                # Simulation mode: calculate manually
+                total_margin_used = 0.0
+                total_unrealized_pnl = 0.0
+                
+                for pos in self.positions.values():
+                    # Get unrealized PnL (manually calculated in simulation mode)
+                    pnl = pos.get('unrealized_pnl', 0.0)
+                    if isinstance(pnl, (int, float)):
+                        total_unrealized_pnl += pnl
+                    
+                    # Get margin (for cross margin, margin_usd might be 0, so calculate from notional/leverage)
+                    margin = pos.get('margin_usd', 0.0)
+                    if margin <= 0:
+                        notional = pos.get('notional_usd', 0.0)
+                        leverage = pos.get('leverage', 1)
+                        if notional > 0 and leverage > 0:
+                            margin = notional / leverage
+                    if isinstance(margin, (int, float)) and margin > 0:
+                        total_margin_used += margin
+                
+                # Total value = Available cash + Margin used + Unrealized PnL
+                self.total_value = self.current_balance + total_margin_used + total_unrealized_pnl
 
         if self.initial_balance > 0: self.total_return = ((self.total_value - self.initial_balance) / self.initial_balance) * 100
         else: self.total_return = 0.0
@@ -2869,10 +2973,16 @@ class PortfolioManager:
             return adjusted_percent
 
     def _is_counter_trend_trade(self, coin: str, signal: str, indicators_3m: Dict, indicators_htf: Dict) -> bool:
-        """Check if trade is counter-trend based on higher timeframe trend vs 3m signal"""
+        """Check if trade is counter-trend based on higher timeframe trend vs 15m+3m signal"""
         try:
             if 'error' in indicators_3m or 'error' in indicators_htf:
                 return False
+            
+            # Get 15m indicators for counter-trend validation
+            indicators_15m = self.market_data.get_technical_indicators(coin, '15m')
+            if 'error' in indicators_15m:
+                # Fallback: use only 3m if 15m unavailable
+                indicators_15m = None
             
             price_htf = indicators_htf.get('current_price')
             ema20_htf = indicators_htf.get('ema_20')
@@ -2885,11 +2995,31 @@ class PortfolioManager:
             # Determine 3m trend direction
             trend_3m = "BULLISH" if price_3m > ema20_3m else "BEARISH"
             
+            # Determine 15m trend direction (if available)
+            trend_15m = None
+            if indicators_15m:
+                price_15m = indicators_15m.get('current_price')
+                ema20_15m = indicators_15m.get('ema_20')
+                if isinstance(price_15m, (int, float)) and isinstance(ema20_15m, (int, float)):
+                    trend_15m = "BULLISH" if price_15m > ema20_15m else "BEARISH"
+            
+            # Determine signal direction
+            signal_direction = "BULLISH" if signal == 'buy_to_enter' else "BEARISH"
+            
             # Check if trade is counter-trend (signal vs higher timeframe trend)
+            is_counter_trend = False
             if signal == 'buy_to_enter' and trend_htf == "BEARISH":
-                return True  # Long against bearish higher timeframe trend
+                is_counter_trend = True  # Long against bearish higher timeframe trend
             elif signal == 'sell_to_enter' and trend_htf == "BULLISH":
-                return True  # Short against bullish higher timeframe trend
+                is_counter_trend = True  # Short against bullish higher timeframe trend
+            
+            # Counter-trend STRONG: 15m + 3m both align with signal direction (against 1h)
+            if is_counter_trend and trend_15m and trend_15m == trend_3m == signal_direction:
+                # STRONG counter-trend: 15m + 3m both support the counter-trend signal
+                return True
+            elif is_counter_trend:
+                # Counter-trend but not STRONG (15m or 3m doesn't align)
+                return True  # Still counter-trend, just not STRONG
             
             return False
             
@@ -2917,13 +3047,18 @@ class PortfolioManager:
             return confidence
 
     def validate_counter_trade(self, coin: str, signal: str, indicators_3m: Dict, indicators_htf: Dict) -> Dict[str, Any]:
-        """Validate counter-trade with multiple technical conditions"""
+        """Validate counter-trade with multiple technical conditions (15m + 3m alignment for STRONG)"""
         try:
             if 'error' in indicators_3m or 'error' in indicators_htf:
                 return {"valid": False, "reason": "Indicator data error"}
+            
+            # Get 15m indicators for counter-trend validation
+            indicators_15m = self.market_data.get_technical_indicators(coin, '15m')
+            has_15m = indicators_15m and 'error' not in indicators_15m
+            
             conditions_met: List[str] = []
             conditions_met_count = 0
-            total_conditions_available = 5
+            total_conditions_available = 6 if has_15m else 5  # 15m+3m alignment is a condition
             score = 0.0
             score_breakdown: List[str] = []
             relaxed_cycles = getattr(self, 'relaxed_countertrend_cycles', 0)
@@ -2937,16 +3072,37 @@ class PortfolioManager:
                     score += weight
                     score_breakdown.append(f"{description} (+{weight:.1f})")
 
-            # Condition 1: 3m momentum supportive of the counter direction
+            # Condition 1: 15m + 3m alignment (STRONG counter-trend requirement)
             price_3m = indicators_3m.get('current_price')
             ema20_3m = indicators_3m.get('ema_20')
-            if isinstance(price_3m, (int, float)) and isinstance(ema20_3m, (int, float)):
-                if signal == 'buy_to_enter':
-                    _register(price_3m > ema20_3m, "3m momentum supportive (price > EMA20)", 0.9)
-                elif signal == 'sell_to_enter':
-                    _register(price_3m < ema20_3m, "3m momentum supportive (price < EMA20)", 0.9)
+            if has_15m:
+                price_15m = indicators_15m.get('current_price')
+                ema20_15m = indicators_15m.get('ema_20')
+                if isinstance(price_3m, (int, float)) and isinstance(ema20_3m, (int, float)) and \
+                   isinstance(price_15m, (int, float)) and isinstance(ema20_15m, (int, float)):
+                    trend_15m = "BULLISH" if price_15m > ema20_15m else "BEARISH"
+                    trend_3m = "BULLISH" if price_3m > ema20_3m else "BEARISH"
+                    signal_direction = "BULLISH" if signal == 'buy_to_enter' else "BEARISH"
+                    
+                    # STRONG counter-trend: 15m + 3m both align with signal direction
+                    if trend_15m == trend_3m == signal_direction:
+                        _register(True, "STRONG: 15m+3m alignment with counter-trend signal", 2.0)
+                    # MEDIUM counter-trend: 15m VEYA 3m tek başına align with signal direction
+                    elif trend_15m == signal_direction:
+                        _register(True, "MEDIUM: 15m alignment with counter-trend signal", 1.2)
+                    elif trend_3m == signal_direction:
+                        _register(True, "MEDIUM: 3m alignment with counter-trend signal", 1.2)
+                    else:
+                        score_breakdown.append(f"15m+3m alignment: 15m={trend_15m}, 3m={trend_3m}, signal={signal_direction} (no boost)")
             
-            # Condition 2: Volume confirmation (>1.5x average)
+            # Condition 2: 3m momentum supportive of the counter direction (if 15m not available)
+            if not has_15m and isinstance(price_3m, (int, float)) and isinstance(ema20_3m, (int, float)):
+                if signal == 'buy_to_enter':
+                    _register(price_3m > ema20_3m, "MEDIUM: 3m momentum supportive (price > EMA20)", 1.2)
+                elif signal == 'sell_to_enter':
+                    _register(price_3m < ema20_3m, "MEDIUM: 3m momentum supportive (price < EMA20)", 1.2)
+            
+            # Condition 3: Volume confirmation (>1.5x average)
             current_volume = indicators_3m.get('volume', 0)
             avg_volume = indicators_3m.get('avg_volume', 1)
             volume_ratio = current_volume / avg_volume if avg_volume > 0 else 0
@@ -2959,20 +3115,20 @@ class PortfolioManager:
             else:
                 score_breakdown.append(f"Volume {volume_ratio:.2f}x average (no boost)")
             
-            # Condition 3: Extreme RSI
+            # Condition 4: Extreme RSI
             rsi_3m = indicators_3m.get('rsi_14', 50)
             if signal == 'buy_to_enter':
                 _register(rsi_3m < 35, f"Extreme RSI ({rsi_3m:.1f})", 1.0)
             elif signal == 'sell_to_enter':
                 _register(rsi_3m > 65, f"Extreme RSI ({rsi_3m:.1f})", 1.0)
             
-            # Condition 4: Price close to EMA20 (< 1%)
+            # Condition 5: Price close to EMA20 (< 1%)
             if isinstance(price_3m, (int, float)) and isinstance(ema20_3m, (int, float)) and price_3m:
                 price_ema_distance = abs(price_3m - ema20_3m) / price_3m * 100
                 ema_distance_threshold = 1.8 if not relax_mode_active else 2.5
                 _register(price_ema_distance < ema_distance_threshold, f"Price within {ema_distance_threshold:.1f}% of EMA20 ({price_ema_distance:.2f}%)", 0.6)
             
-            # Condition 5: MACD divergence supportive
+            # Condition 6: MACD divergence supportive
             macd_3m = indicators_3m.get('macd', 0)
             macd_signal_3m = indicators_3m.get('macd_signal', 0)
             if signal == 'buy_to_enter':
@@ -4696,7 +4852,20 @@ class AlphaArenaDeepSeek:
             return {"error": f"Enhanced context failed: {str(e)}"}
 
     def format_position_context(self, position_context: Dict) -> str:
-        """Format position context for prompt"""
+        """
+        Format position context for prompt.
+        
+        .. deprecated:: 1.0
+            Use :func:`build_position_slot_json` from prompt_json_builders instead.
+            This function is kept for backward compatibility.
+        """
+        import warnings
+        warnings.warn(
+            "format_position_context() is deprecated. "
+            "Use build_position_slot_json() from prompt_json_builders instead.",
+            DeprecationWarning,
+            stacklevel=2
+        )
         if not position_context:
             return "No open positions"
         
@@ -4728,7 +4897,20 @@ class AlphaArenaDeepSeek:
         return formatted
 
     def format_market_regime_context(self, market_regime: Dict) -> str:
-        """Format market regime context for prompt"""
+        """
+        Format market regime context for prompt.
+        
+        .. deprecated:: 1.0
+            Use JSON builders from prompt_json_builders instead.
+            This function is kept for backward compatibility.
+        """
+        import warnings
+        warnings.warn(
+            "format_market_regime_context() is deprecated. "
+            "Use JSON builders from prompt_json_builders instead.",
+            DeprecationWarning,
+            stacklevel=2
+        )
         if not market_regime:
             return "Market regime: Unknown"
         
@@ -4756,7 +4938,20 @@ class AlphaArenaDeepSeek:
         return formatted.rstrip()
 
     def format_performance_insights(self, performance_insights: Dict) -> str:
-        """Format performance insights for prompt"""
+        """
+        Format performance insights for prompt.
+        
+        .. deprecated:: 1.0
+            Use JSON builders from prompt_json_builders instead.
+            This function is kept for backward compatibility.
+        """
+        import warnings
+        warnings.warn(
+            "format_performance_insights() is deprecated. "
+            "Use JSON builders from prompt_json_builders instead.",
+            DeprecationWarning,
+            stacklevel=2
+        )
         if not performance_insights:
             return "No performance insights available"
         
@@ -4770,7 +4965,20 @@ class AlphaArenaDeepSeek:
         return formatted
 
     def format_directional_feedback(self, directional_feedback: Dict) -> str:
-        """Format long/short feedback for prompt"""
+        """
+        Format long/short feedback for prompt.
+        
+        .. deprecated:: 1.0
+            Use JSON builders from prompt_json_builders instead.
+            This function is kept for backward compatibility.
+        """
+        import warnings
+        warnings.warn(
+            "format_directional_feedback() is deprecated. "
+            "Use JSON builders from prompt_json_builders instead.",
+            DeprecationWarning,
+            stacklevel=2
+        )
         if not directional_feedback:
             return "No directional feedback available"
         
@@ -4789,7 +4997,20 @@ class AlphaArenaDeepSeek:
         return "\n".join(lines)
 
     def format_risk_context(self, risk_context: Dict) -> str:
-        """Format risk context for prompt"""
+        """
+        Format risk context for prompt.
+        
+        .. deprecated:: 1.0
+            Use :func:`build_risk_status_json` from prompt_json_builders instead.
+            This function is kept for backward compatibility.
+        """
+        import warnings
+        warnings.warn(
+            "format_risk_context() is deprecated. "
+            "Use build_risk_status_json() from prompt_json_builders instead.",
+            DeprecationWarning,
+            stacklevel=2
+        )
         if not risk_context:
             return "Risk context: Unknown"
         
@@ -4906,7 +5127,20 @@ class AlphaArenaDeepSeek:
         return "\n".join(analysis)
 
     def format_suggestions(self, suggestions: List[str]) -> str:
-        """Format suggestions for prompt"""
+        """
+        Format suggestions for prompt.
+        
+        .. deprecated:: 1.0
+            Use JSON builders from prompt_json_builders instead.
+            This function is kept for backward compatibility.
+        """
+        import warnings
+        warnings.warn(
+            "format_suggestions() is deprecated. "
+            "Use JSON builders from prompt_json_builders instead.",
+            DeprecationWarning,
+            stacklevel=2
+        )
         if not suggestions:
             return "No suggestions at this time"
         
@@ -4916,7 +5150,20 @@ class AlphaArenaDeepSeek:
         return formatted
 
     def format_trend_reversal_analysis(self, trend_reversal_analysis: Dict) -> str:
-        """Format trend reversal analysis for prompt"""
+        """
+        Format trend reversal analysis for prompt.
+        
+        .. deprecated:: 1.0
+            Use :func:`build_trend_reversal_json` from prompt_json_builders instead.
+            This function is kept for backward compatibility.
+        """
+        import warnings
+        warnings.warn(
+            "format_trend_reversal_analysis() is deprecated. "
+            "Use build_trend_reversal_json() from prompt_json_builders instead.",
+            DeprecationWarning,
+            stacklevel=2
+        )
         if not trend_reversal_analysis or 'error' in trend_reversal_analysis:
             return "Trend reversal analysis: No data available"
         
@@ -4942,7 +5189,20 @@ class AlphaArenaDeepSeek:
         return formatted
 
     def format_volume_ratio(self, volume: Any, avg_volume: Any) -> str:
-        """Format volume ratio with guard rails for extremely low values."""
+        """
+        Format volume ratio with guard rails for extremely low values.
+        
+        .. deprecated:: 1.0
+            Use JSON builders from prompt_json_builders instead.
+            This function is kept for backward compatibility.
+        """
+        import warnings
+        warnings.warn(
+            "format_volume_ratio() is deprecated. "
+            "Use JSON builders from prompt_json_builders instead.",
+            DeprecationWarning,
+            stacklevel=2
+        )
         try:
             if not isinstance(volume, (int, float)) or not isinstance(avg_volume, (int, float)):
                 return "N/A"
@@ -4962,7 +5222,20 @@ class AlphaArenaDeepSeek:
             return "N/A"
 
     def format_list(self, lst, precision=4):
-        """Helper function to format lists for prompt display"""
+        """
+        Helper function to format lists for prompt display.
+        
+        .. deprecated:: 1.0
+            Use JSON builders from prompt_json_builders instead.
+            This function is kept for backward compatibility.
+        """
+        import warnings
+        warnings.warn(
+            "format_list() is deprecated. "
+            "Use JSON builders from prompt_json_builders instead.",
+            DeprecationWarning,
+            stacklevel=2
+        )
         if not isinstance(lst, list): return []
         return [format_num(x, precision) if x is not None else 'N/A' for x in lst]
 
@@ -5010,7 +5283,24 @@ class AlphaArenaDeepSeek:
         return all_indicators, all_sentiment
 
     def generate_alpha_arena_prompt(self) -> str:
-        """Generate prompt with enhanced data, indicator history and AI decision context"""
+        """
+        Generate prompt with enhanced data, indicator history and AI decision context
+        
+        .. deprecated:: 1.0
+            Use :meth:`generate_alpha_arena_prompt_json` instead.
+            This function is kept for backward compatibility and fallback scenarios.
+        
+        Returns:
+            str: Text-formatted prompt (legacy format)
+        """
+        import warnings
+        warnings.warn(
+            "generate_alpha_arena_prompt() is deprecated. "
+            "Use generate_alpha_arena_prompt_json() instead. "
+            "This function is kept for backward compatibility and fallback scenarios.",
+            DeprecationWarning,
+            stacklevel=2
+        )
         current_time = datetime.now(); minutes_running = int((current_time - self.portfolio.start_time).total_seconds() / 60)
         # Use internal invocation counter, don't increment here, do it in run_cycle
         # self.invocation_count += 1
@@ -5464,7 +5754,16 @@ Current live positions & performance:"""
     def generate_alpha_arena_prompt_json(self) -> str:
         """
         Generate hybrid JSON prompt with structured data sections.
+        
         Uses JSON for data, plain text for instructions and warnings.
+        This is the recommended method for prompt generation.
+        
+        Returns:
+            str: Hybrid prompt with JSON sections and text instructions
+            
+        Note:
+            Falls back to text format if JSON serialization fails.
+            See :meth:`generate_alpha_arena_prompt` for text-only format (deprecated).
         """
         from prompt_json_builders import (
             build_metadata_json,

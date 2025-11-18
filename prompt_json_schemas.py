@@ -14,20 +14,22 @@ def get_counter_trade_schema() -> Dict[str, Any]:
         "type": "object",
         "properties": {
             "coin": {"type": "string"},
+            "htf_trend": {"type": "string", "enum": ["BULLISH", "BEARISH"]},
+            "15m_trend": {"type": ["string", "null"], "enum": ["BULLISH", "BEARISH", None]},  # ✅ Kısaltıldı: fifteen_m_trend → 15m_trend
+            "3m_trend": {"type": "string", "enum": ["BULLISH", "BEARISH"]},  # ✅ Kısaltıldı: three_m_trend → 3m_trend
+            "alignment_strength": {"type": ["string", "null"], "enum": ["STRONG", "MEDIUM", "WEAK", None]},
             "conditions": {
                 "type": "object",
                 "properties": {
-                    "condition_1": {"type": "boolean"},
-                    "condition_2": {"type": "boolean"},
-                    "condition_3": {"type": "boolean"},
-                    "condition_4": {"type": "boolean"},
-                    "condition_5": {"type": "boolean"},
-                    "total_met": {"type": "integer", "minimum": 0, "maximum": 5}
+                    "total_met": {"type": "integer", "minimum": 0, "maximum": 5}  # ✅ Sadece total_met (condition_1-5 kaldırıldı)
                 },
-                "required": ["condition_1", "condition_2", "condition_3", "condition_4", "condition_5", "total_met"]
-            }
+                "required": ["total_met"]
+            },
+            "risk_level": {"type": "string", "enum": ["LOW_RISK", "MEDIUM_RISK", "HIGH_RISK", "VERY_HIGH_RISK"]},
+            "volume_ratio": {"type": ["number", "null"]},
+            "rsi_3m": {"type": ["number", "null"]}
         },
-        "required": ["coin", "conditions"]
+        "required": ["coin", "htf_trend", "3m_trend", "conditions", "risk_level"]
     }
 
 def get_trend_reversal_schema() -> Dict[str, Any]:
@@ -37,20 +39,22 @@ def get_trend_reversal_schema() -> Dict[str, Any]:
         "properties": {
             "coin": {"type": "string"},
             "has_position": {"type": "boolean"},
-            "position_direction": {"type": "string", "enum": ["long", "short", None]},
+            "position_direction": {"type": ["string", "null"], "enum": ["long", "short", None]},
             "position_duration_minutes": {"type": ["number", "null"]},
             "reversal_signals": {
                 "type": "object",
                 "properties": {
-                    "htf_reversal": {"type": "boolean"},
-                    "fifteen_m_reversal": {"type": "boolean"},
-                    "three_m_reversal": {"type": "boolean"},
+                    "htf_reversal": {"type": "boolean"},  # ✅ Dinamik detection eklendi
+                    "15m_reversal": {"type": "boolean"},  # ✅ Dinamik detection eklendi (fifteen_m → 15m)
+                    "3m_reversal": {"type": "boolean"},  # ✅ Kısaltıldı: three_m → 3m
                     "strength": {"type": "string", "enum": ["STRONG", "MEDIUM", "INFORMATIONAL", "NONE"]}
                 }
             },
-            "loss_risk_signal": {"type": "string", "enum": ["HIGH", "MEDIUM", "LOW", "NONE"]}
+            "loss_risk_signal": {"type": "string", "enum": ["HIGH_LOSS_RISK", "MEDIUM_LOSS_RISK", "LOW_LOSS_RISK", "NO_LOSS_RISK"]},
+            "current_trend_htf": {"type": "string"},
+            "current_trend_3m": {"type": "string"}
         },
-        "required": ["coin", "has_position"]
+        "required": ["coin", "has_position", "loss_risk_signal", "current_trend_htf", "current_trend_3m"]
     }
 
 def get_enhanced_context_schema() -> Dict[str, Any]:
@@ -264,6 +268,7 @@ def get_market_data_schema() -> Dict[str, Any]:
                 "type": ["object", "null"],
                 "properties": {
                     "symbol": {"type": "string"},
+                    "direction": {"type": "string", "enum": ["long", "short"]},
                     "quantity": {"type": "number"},
                     "entry_price": {"type": "number"},
                     "current_price": {"type": "number"},
@@ -302,6 +307,7 @@ def get_portfolio_schema() -> Dict[str, Any]:
                     "type": "object",
                     "properties": {
                         "symbol": {"type": "string"},
+                        "direction": {"type": "string", "enum": ["long", "short"]},
                         "quantity": {"type": "number"},
                         "entry_price": {"type": "number"},
                         "current_price": {"type": "number"},

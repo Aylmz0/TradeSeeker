@@ -293,6 +293,15 @@ Sistem artık AI'a gönderilen prompt'ları JSON formatında sunabilir. Bu özel
 - **Kolay Validation**: JSON schema validation ile veri doğrulama
 - **Series Compression**: Büyük seriler otomatik olarak sıkıştırılır (%79 token tasarrufu)
 
+#### Deprecated Functions
+
+The following functions are deprecated and will be removed in a future version:
+
+- `generate_alpha_arena_prompt()` - Use `generate_alpha_arena_prompt_json()` instead
+- `format_*()` functions - Use JSON builders from `prompt_json_builders` instead
+
+These functions are kept for backward compatibility and fallback scenarios. See `MIGRATION_GUIDE.md` for migration instructions.
+
 #### JSON Prompt Kullanımı
 
 ```bash

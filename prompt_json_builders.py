@@ -44,17 +44,20 @@ def build_counter_trade_json(
         htf_interval: Higher timeframe interval (e.g., '1h')
     
     Returns:
-        List of counter-trade analysis objects
+        List of counter-trade analysis objects with 15m+3m alignment information
     """
     analysis_list = []
     
     for coin in available_coins:
         try:
             indicators_3m = all_indicators.get(coin, {}).get('3m', {})
+            indicators_15m = all_indicators.get(coin, {}).get('15m', {})
             indicators_htf = all_indicators.get(coin, {}).get(htf_interval, {})
             
             if 'error' in indicators_3m or 'error' in indicators_htf:
                 continue
+            
+            has_15m = indicators_15m and 'error' not in indicators_15m
             
             # Extract key indicators
             price_htf = format_number_for_json(indicators_htf.get('current_price'))
@@ -67,6 +70,16 @@ def build_counter_trade_json(
             macd_3m = format_number_for_json(indicators_3m.get('macd', 0))
             macd_signal_3m = format_number_for_json(indicators_3m.get('macd_signal', 0))
             
+            # Extract 15m indicators (if available)
+            price_15m = None
+            ema20_15m = None
+            trend_15m = None
+            if has_15m:
+                price_15m = format_number_for_json(indicators_15m.get('current_price'))
+                ema20_15m = format_number_for_json(indicators_15m.get('ema_20'))
+                if price_15m is not None and ema20_15m is not None:
+                    trend_15m = "BULLISH" if price_15m > ema20_15m else "BEARISH"
+            
             if price_htf is None or ema20_htf is None or price_3m is None or ema20_3m is None:
                 continue
             
@@ -74,19 +87,42 @@ def build_counter_trade_json(
             trend_htf = "BULLISH" if price_htf > ema20_htf else "BEARISH"
             trend_3m = "BULLISH" if price_3m > ema20_3m else "BEARISH"
             
-            # Evaluate conditions
-            conditions = {
-                "condition_1": (trend_htf == "BULLISH" and trend_3m == "BEARISH") or (trend_htf == "BEARISH" and trend_3m == "BULLISH"),
-                "condition_2": (volume_3m or 0) / (avg_volume_3m or 1) > 1.5 if avg_volume_3m else False,
-                "condition_3": (trend_htf == "BULLISH" and (rsi_3m or 50) < 25) or (trend_htf == "BEARISH" and (rsi_3m or 50) > 75),
-                "condition_4": abs((price_3m or 0) - (ema20_3m or 0)) / (price_3m or 1) * 100 < 1.0 if price_3m and ema20_3m else False,
-                "condition_5": (trend_htf == "BULLISH" and (macd_3m or 0) > (macd_signal_3m or 0)) or (trend_htf == "BEARISH" and (macd_3m or 0) < (macd_signal_3m or 0))
-            }
+            # Determine alignment strength for counter-trend
+            # STRONG: 15m + 3m both align against 1h
+            # MEDIUM: 15m VEYA 3m align against 1h
+            alignment_strength = None
+            if trend_15m and trend_3m:
+                # Counter-trend: 1h trend vs 3m/15m trend
+                if trend_htf == "BULLISH":
+                    # Counter-trend SHORT: 15m and 3m should be BEARISH
+                    if trend_15m == "BEARISH" and trend_3m == "BEARISH":
+                        alignment_strength = "STRONG"  # 15m+3m both BEARISH (against 1h BULLISH)
+                    elif trend_15m == "BEARISH" or trend_3m == "BEARISH":
+                        alignment_strength = "MEDIUM"  # 15m VEYA 3m BEARISH
+                elif trend_htf == "BEARISH":
+                    # Counter-trend LONG: 15m and 3m should be BULLISH
+                    if trend_15m == "BULLISH" and trend_3m == "BULLISH":
+                        alignment_strength = "STRONG"  # 15m+3m both BULLISH (against 1h BEARISH)
+                    elif trend_15m == "BULLISH" or trend_3m == "BULLISH":
+                        alignment_strength = "MEDIUM"  # 15m VEYA 3m BULLISH
             
-            total_met = sum(1 for v in conditions.values() if v)
+            # Evaluate conditions (calculate total_met without storing individual conditions)
+            condition_1 = (trend_htf == "BULLISH" and trend_3m == "BEARISH") or (trend_htf == "BEARISH" and trend_3m == "BULLISH")
+            condition_2 = (volume_3m or 0) / (avg_volume_3m or 1) > 1.5 if avg_volume_3m else False
+            condition_3 = (trend_htf == "BULLISH" and (rsi_3m or 50) < 25) or (trend_htf == "BEARISH" and (rsi_3m or 50) > 75)
+            condition_4 = abs((price_3m or 0) - (ema20_3m or 0)) / (price_3m or 1) * 100 < 1.0 if price_3m and ema20_3m else False
+            condition_5 = (trend_htf == "BULLISH" and (macd_3m or 0) > (macd_signal_3m or 0)) or (trend_htf == "BEARISH" and (macd_3m or 0) < (macd_signal_3m or 0))
             
-            # Determine risk level
-            if total_met >= 4:
+            total_met = sum([condition_1, condition_2, condition_3, condition_4, condition_5])
+            
+            # Determine risk level (consider alignment strength)
+            if alignment_strength == "STRONG" and total_met >= 3:
+                risk_level = "LOW_RISK"  # STRONG alignment reduces risk
+            elif alignment_strength == "STRONG" and total_met >= 2:
+                risk_level = "MEDIUM_RISK"
+            elif alignment_strength == "MEDIUM" and total_met >= 4:
+                risk_level = "MEDIUM_RISK"
+            elif total_met >= 4:
                 risk_level = "LOW_RISK"
             elif total_met >= 3:
                 risk_level = "MEDIUM_RISK"
@@ -98,10 +134,11 @@ def build_counter_trade_json(
             analysis_list.append({
                 "coin": coin,
                 "htf_trend": trend_htf,
-                "three_m_trend": trend_3m,
+                "15m_trend": trend_15m,  # ✅ Kısaltıldı: fifteen_m_trend → 15m_trend
+                "3m_trend": trend_3m,  # ✅ Kısaltıldı: three_m_trend → 3m_trend
+                "alignment_strength": alignment_strength,  # ✅ Eklendi (STRONG/MEDIUM/WEAK)
                 "conditions": {
-                    **conditions,
-                    "total_met": total_met
+                    "total_met": total_met  # ✅ Sadece total_met (condition_1-5 kaldırıldı)
                 },
                 "risk_level": risk_level,
                 "volume_ratio": format_number_for_json((volume_3m or 0) / (avg_volume_3m or 1)) if avg_volume_3m else None,
@@ -156,6 +193,30 @@ def build_trend_reversal_json(
         loss_risk_signals = analysis.get('loss_risk_signals', [])
         signal_strength = analysis.get('signal_strength', 'NO_LOSS_RISK')
         
+        # Get trend directions for reversal detection
+        trend_htf = analysis.get('current_trend_4h', analysis.get('current_trend_1h', 'UNKNOWN'))
+        trend_3m = analysis.get('current_trend_3m', 'UNKNOWN')
+        trend_15m = analysis.get('current_trend_15m', None)  # May not be available
+        
+        # Detect reversal against position direction
+        htf_reversal = False
+        fifteen_m_reversal = False
+        three_m_reversal = len(loss_risk_signals) > 0
+        
+        if has_position and position_direction:
+            # HTF reversal: HTF trend opposes position
+            if position_direction == 'long' and trend_htf == 'BEARISH':
+                htf_reversal = True
+            elif position_direction == 'short' and trend_htf == 'BULLISH':
+                htf_reversal = True
+            
+            # 15m reversal: 15m trend opposes position (if available)
+            if trend_15m:
+                if position_direction == 'long' and trend_15m == 'BEARISH':
+                    fifteen_m_reversal = True
+                elif position_direction == 'short' and trend_15m == 'BULLISH':
+                    fifteen_m_reversal = True
+        
         # Map signal strength to reversal strength
         if signal_strength == "HIGH_LOSS_RISK":
             strength = "STRONG"
@@ -172,14 +233,14 @@ def build_trend_reversal_json(
             "position_direction": position_direction,
             "position_duration_minutes": format_number_for_json(position_duration_minutes),
             "reversal_signals": {
-                "htf_reversal": False,  # Would need more detailed analysis
-                "fifteen_m_reversal": False,
-                "three_m_reversal": len(loss_risk_signals) > 0,
+                "htf_reversal": htf_reversal,  # ✅ Dinamik detection eklendi
+                "15m_reversal": fifteen_m_reversal,  # ✅ Dinamik detection eklendi (fifteen_m → 15m)
+                "3m_reversal": three_m_reversal,  # ✅ Kısaltıldı: three_m → 3m
                 "strength": strength
             },
             "loss_risk_signal": signal_strength,
-            "current_trend_htf": analysis.get('current_trend_4h', 'UNKNOWN'),
-            "current_trend_3m": analysis.get('current_trend_3m', 'UNKNOWN')
+            "current_trend_htf": trend_htf,
+            "current_trend_3m": trend_3m
         })
     
     return reversal_list
@@ -269,8 +330,9 @@ def build_position_slot_json(
 ) -> Dict[str, Any]:
     """Build position slot status JSON."""
     total_open = len(portfolio_positions)
-    long_slots = sum(1 for p in portfolio_positions.values() if p.get('direction', 'long') == 'long')
-    short_slots = sum(1 for p in portfolio_positions.values() if p.get('direction', 'long') == 'short')
+    # Fix: Check direction without default value to avoid logic error
+    long_slots = sum(1 for p in portfolio_positions.values() if p.get('direction') == 'long')
+    short_slots = sum(1 for p in portfolio_positions.values() if p.get('direction') == 'short')
     
     # Find weakest position
     weakest_position = None
@@ -414,6 +476,7 @@ def build_market_data_json(
     if position:
         market_data["position"] = {
             "symbol": position.get('symbol', coin),
+            "direction": position.get('direction', 'long'),  # ✅ Eklendi
             "quantity": format_number_for_json(position.get('quantity', 0)),
             "entry_price": format_number_for_json(position.get('entry_price', 0)),
             "current_price": format_number_for_json(position.get('current_price', 0)),
@@ -452,6 +515,7 @@ def build_portfolio_json(
         for coin, pos in portfolio.positions.items():
             positions_list.append({
                 "symbol": coin,
+                "direction": pos.get('direction', 'long'),  # ✅ Eklendi
                 "quantity": format_number_for_json(pos.get('quantity', 0)),
                 "entry_price": format_number_for_json(pos.get('entry_price', 0)),
                 "current_price": format_number_for_json(pos.get('current_price', 0)),
