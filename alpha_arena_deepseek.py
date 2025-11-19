@@ -86,6 +86,16 @@ CORE RULES:
 - All entries must use fixed 10x leverage. Submit 10x on every trade; risk sizing is handled via margin rules.
 - Minimum confidence is 0.4; use higher confidence for stronger quantitative edges.
 - Maximum simultaneous positions across assets: 5.
+- SAME-DIRECTION LIMIT: You can open a maximum of {Config.SAME_DIRECTION_LIMIT} positions in the SAME direction (LONG or SHORT).
+  * If you already have {Config.SAME_DIRECTION_LIMIT} LONG positions, you CANNOT open another LONG position.
+  * If you already have {Config.SAME_DIRECTION_LIMIT} SHORT positions, you CANNOT open another SHORT position.
+  * When same-direction limit is reached:
+    - DO NOT propose new entries in that direction
+    - Instead, evaluate exit plans for existing positions in that direction
+    - Look for counter-trend opportunities in the opposite direction
+    - Or hold and wait for better setups
+  * This limit is shown in POSITION_SLOTS JSON as "same_direction_limit", "long_slots_used", "short_slots_used", "long_slots_available", "short_slots_available".
+  * CRITICAL: Always check POSITION_SLOTS JSON before proposing new entries. If "long_slots_available" is 0, do NOT propose LONG entries. If "short_slots_available" is 0, do NOT propose SHORT entries.
 
 RISK MANAGEMENT:
 - Portfolio- and position-level risk caps are enforced automatically; focus on selecting high-quality opportunities.
@@ -178,6 +188,7 @@ TREND & COUNTER-TREND GUIDELINES:
     - The 1h trend is OPPOSITE to your trade direction
     - Remember: Counter-trend direction = 15m+3m direction, NOT 1h direction
 - If volume ratio is ≤0.20× average, call out the weakness, reduce confidence materially, and consider skipping the trade unless another data point overwhelmingly compensates.
+- CRITICAL: If you identify a valid counter-trend opportunity (e.g., LONG) but cannot execute it due to limits (e.g., no LONG slots), you MUST NOT open a trend-following trade in the opposite direction (e.g., SHORT). The existence of a valid counter-trend signal invalidates the trend-following setup. In this case, simply HOLD.
 
 TREND REVERSAL DETECTION:
 - Monitor positions that have been open for extended periods (1+ hours). Extended positions may need review, but don't automatically assume reversal is imminent.
@@ -5053,12 +5064,29 @@ class AlphaArenaDeepSeek:
                 total_conditions = 5
                 conditions_details = []
                 
-                # Condition 1: 3m trend alignment
-                if (trend_htf == "BULLISH" and trend_3m == "BEARISH") or (trend_htf == "BEARISH" and trend_3m == "BULLISH"):
+                # Determine 15m trend if available
+                indicators_15m = all_indicators.get(coin, {}).get('15m', {})
+                price_15m = indicators_15m.get('current_price')
+                ema20_15m = indicators_15m.get('ema_20')
+                trend_15m = None
+                if isinstance(price_15m, (int, float)) and isinstance(ema20_15m, (int, float)):
+                    trend_15m = "BULLISH" if price_15m > ema20_15m else "BEARISH"
+
+                # Condition 1: Trend alignment (15m+3m vs HTF)
+                alignment_strength = "WEAK"
+                if trend_15m and trend_3m:
+                    if trend_htf == "BULLISH":
+                        if trend_15m == "BEARISH" and trend_3m == "BEARISH": alignment_strength = "STRONG"
+                        elif trend_15m == "BEARISH" or trend_3m == "BEARISH": alignment_strength = "MEDIUM"
+                    elif trend_htf == "BEARISH":
+                        if trend_15m == "BULLISH" and trend_3m == "BULLISH": alignment_strength = "STRONG"
+                        elif trend_15m == "BULLISH" or trend_3m == "BULLISH": alignment_strength = "MEDIUM"
+
+                if alignment_strength in ["STRONG", "MEDIUM"]:
                     conditions_met += 1
-                    conditions_details.append("✅ 3m trend alignment")
+                    conditions_details.append(f"✅ Trend alignment ({alignment_strength})")
                 else:
-                    conditions_details.append("❌ 3m trend misalignment")
+                    conditions_details.append("❌ Trend alignment weak")
                 
                 # Condition 2: Volume confirmation (>1.5x average)
                 volume_ratio = volume_3m / avg_volume_3m if avg_volume_3m > 0 else 0
@@ -5069,11 +5097,13 @@ class AlphaArenaDeepSeek:
                     conditions_details.append(f"❌ Volume {volume_ratio:.1f}x average (need >1.5x)")
                 
                 # Condition 3: Extreme RSI
-                if (trend_htf == "BULLISH" and rsi_3m < 25) or (trend_htf == "BEARISH" and rsi_3m > 75):
+                # If Bullish trend, we want to Short -> Need Overbought (>75)
+                # If Bearish trend, we want to Long -> Need Oversold (<25)
+                if (trend_htf == "BULLISH" and rsi_3m > 75) or (trend_htf == "BEARISH" and rsi_3m < 25):
                     conditions_met += 1
                     conditions_details.append(f"✅ Extreme RSI: {rsi_3m:.1f}")
                 else:
-                    conditions_details.append(f"❌ RSI: {rsi_3m:.1f} (need <25 for LONG, >75 for SHORT)")
+                    conditions_details.append(f"❌ RSI: {rsi_3m:.1f} (need >75 for SHORT, <25 for LONG)")
                 
                 # Condition 4: Strong technical levels (price near EMA)
                 price_ema_distance = abs(price_3m - ema20_3m) / price_3m * 100
@@ -5084,7 +5114,9 @@ class AlphaArenaDeepSeek:
                     conditions_details.append(f"❌ Weak technical level ({price_ema_distance:.2f}% from EMA)")
                 
                 # Condition 5: MACD divergence
-                if (trend_htf == "BULLISH" and macd_3m > macd_signal_3m) or (trend_htf == "BEARISH" and macd_3m < macd_signal_3m):
+                # If Bullish trend, we want to Short -> Need Bearish MACD (MACD < Signal)
+                # If Bearish trend, we want to Long -> Need Bullish MACD (MACD > Signal)
+                if (trend_htf == "BULLISH" and macd_3m < macd_signal_3m) or (trend_htf == "BEARISH" and macd_3m > macd_signal_3m):
                     conditions_met += 1
                     conditions_details.append("✅ MACD divergence")
                 else:
@@ -5479,7 +5511,7 @@ REMEMBER: These are suggestions only. You make the final trading decisions based
                 )
             slot_lines.append(
                 "  • Long capacity FULL → System blocks new longs. Provide either (a) a close/trim plan for a current long "
-                "OR (b) a SHORT setup (trend-following if regimes align, otherwise counter-trend with ≥0.75 confidence)."
+                "OR (b) a SHORT setup (ONLY if no counter-trend LONG signal exists). CRITICAL: If a counter-trend LONG signal exists, DO NOT open a SHORT."
             )
         if short_open >= same_direction_limit:
             weakest_short = None
@@ -5493,7 +5525,7 @@ REMEMBER: These are suggestions only. You make the final trading decisions based
                 )
             slot_lines.append(
                 f"  • Short capacity FULL → System blocks new shorts. Provide either (a) a close/trim plan for a current short "
-                f"OR (b) a LONG alternative (trend-following with {HTF_LABEL} alignment or counter-trend with ≥0.75 confidence)."
+                f"OR (b) a LONG alternative (ONLY if no counter-trend SHORT signal exists). CRITICAL: If a counter-trend SHORT signal exists, DO NOT open a LONG."
             )
 
         prompt += f"\n{'='*20} POSITION SLOT STATUS {'='*20}\n" + "\n".join(slot_lines) + "\n"
@@ -5776,8 +5808,7 @@ Current live positions & performance:"""
             build_portfolio_json,
             build_risk_status_json,
             build_historical_context_json,
-            build_directional_bias_json,
-            build_trend_flip_guard_json
+            build_directional_bias_json
         )
         from prompt_json_utils import safe_json_dumps, create_json_section, compare_token_usage
         from prompt_json_schemas import JSON_PROMPT_VERSION
@@ -5890,12 +5921,7 @@ Current live positions & performance:"""
         # Directional bias (performance snapshot)
         directional_bias_json = build_directional_bias_json(bias_metrics)
         
-        # Trend flip guard
-        trend_flip_guard_json = build_trend_flip_guard_json(
-            recent_flips,
-            self.portfolio.trend_flip_cooldown,
-            flip_history_window
-        )
+
         
         # Build hybrid prompt
         prompt = f"""
@@ -5932,12 +5958,13 @@ DIRECTIONAL PERFORMANCE SNAPSHOT (Last 20 trades max):
 
 ⚠️ IMPORTANT: If a coin is in cooldown, you MUST NOT propose any new trades for that coin (LONG or SHORT). The system will block them, but you should avoid proposing them in the first place. Coin cooldown is activated after a loss on that coin and lasts for 1 cycle.
 
-RECENT TREND FLIP GUARD (Cooldown = {self.portfolio.trend_flip_cooldown} cycles | History = {flip_history_window} cycles):
-{create_json_section("TREND_FLIP_GUARD", trend_flip_guard_json, compact=compact)}
 
-{'='*20} POSITION SLOT STATUS {'='*20}
+{'='*20} POSITION_SLOTS {'='*20}
 
 {create_json_section("POSITION_SLOTS", position_slot_json, compact=compact)}
+
+⚠️ CRITICAL: If "long_slots_available" is 0, do NOT propose LONG entries. If "short_slots_available" is 0, do NOT propose SHORT entries.
+⚠️ CRITICAL: If you identify a valid counter-trend opportunity (e.g. LONG) but cannot execute it because slots are full, you MUST NOT open a trend-following trade in the opposite direction (e.g. SHORT). The counter-trend signal invalidates the trend-following setup. Simply HOLD.
 
 {'='*20} MARKET DATA {'='*20}
 
@@ -6172,8 +6199,9 @@ All market data is provided in JSON format below. Each coin contains:
         
         self.current_cycle_number = cycle_number
         self.portfolio.current_cycle_number = cycle_number
-        if hasattr(self.portfolio, 'tick_cooldowns'):
-            self.portfolio.tick_cooldowns()
+        # ✅ FIX: tick_cooldowns() prompt oluşturulduktan SONRA çağrılmalı
+        # Çünkü prompt oluşturulurken cooldown değerlerine ihtiyaç var
+        # tick_cooldowns() cooldown'ları azaltıyor, bu yüzden prompt'tan SONRA çağrılmalı
         self.market_data.clear_preloaded_indicators()
         self.portfolio.cycles_since_history_reset += 1
         self.maybe_reset_history(cycle_number)
@@ -6528,6 +6556,12 @@ All market data is provided in JSON format below. Each coin contains:
                 status=cycle_status,
                 metadata=cycle_metadata if cycle_metadata else None
             )
+            
+            # ✅ FIX: tick_cooldowns() prompt oluşturulduktan SONRA çağrılmalı
+            # Çünkü prompt oluşturulurken cooldown değerlerine ihtiyaç var
+            # tick_cooldowns() cooldown'ları azaltıyor, bu yüzden prompt'tan SONRA çağrılmalı
+            if hasattr(self.portfolio, 'tick_cooldowns'):
+                self.portfolio.tick_cooldowns()
             
             # Enhanced exit strategy control - re-enable after cycle completion
             print("▶️ Enhanced exit strategy re-enabled after cycle completion")

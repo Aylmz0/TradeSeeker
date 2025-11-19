@@ -107,11 +107,17 @@ def build_counter_trade_json(
                         alignment_strength = "MEDIUM"  # 15m VEYA 3m BULLISH
             
             # Evaluate conditions (calculate total_met without storing individual conditions)
-            condition_1 = (trend_htf == "BULLISH" and trend_3m == "BEARISH") or (trend_htf == "BEARISH" and trend_3m == "BULLISH")
+            condition_1 = alignment_strength in ["STRONG", "MEDIUM"]
             condition_2 = (volume_3m or 0) / (avg_volume_3m or 1) > 1.5 if avg_volume_3m else False
-            condition_3 = (trend_htf == "BULLISH" and (rsi_3m or 50) < 25) or (trend_htf == "BEARISH" and (rsi_3m or 50) > 75)
+            # Condition 3: Extreme RSI (Counter-trend)
+            # If Bullish trend, we want to Short -> Need Overbought (>75)
+            # If Bearish trend, we want to Long -> Need Oversold (<25)
+            condition_3 = (trend_htf == "BULLISH" and (rsi_3m or 50) > 75) or (trend_htf == "BEARISH" and (rsi_3m or 50) < 25)
             condition_4 = abs((price_3m or 0) - (ema20_3m or 0)) / (price_3m or 1) * 100 < 1.0 if price_3m and ema20_3m else False
-            condition_5 = (trend_htf == "BULLISH" and (macd_3m or 0) > (macd_signal_3m or 0)) or (trend_htf == "BEARISH" and (macd_3m or 0) < (macd_signal_3m or 0))
+            # Condition 5: MACD divergence (Counter-trend)
+            # If Bullish trend, we want to Short -> Need Bearish MACD (MACD < Signal)
+            # If Bearish trend, we want to Long -> Need Bullish MACD (MACD > Signal)
+            condition_5 = (trend_htf == "BULLISH" and (macd_3m or 0) < (macd_signal_3m or 0)) or (trend_htf == "BEARISH" and (macd_3m or 0) > (macd_signal_3m or 0))
             
             total_met = sum([condition_1, condition_2, condition_3, condition_4, condition_5])
             
@@ -326,13 +332,20 @@ def build_cooldown_status_json(
 
 def build_position_slot_json(
     portfolio_positions: Dict[str, Any],
-    max_positions: int
+    max_positions: int,
+    same_direction_limit: int = None
 ) -> Dict[str, Any]:
     """Build position slot status JSON."""
+    from config import Config
+    
     total_open = len(portfolio_positions)
     # Fix: Check direction without default value to avoid logic error
     long_slots = sum(1 for p in portfolio_positions.values() if p.get('direction') == 'long')
     short_slots = sum(1 for p in portfolio_positions.values() if p.get('direction') == 'short')
+    
+    # Get same direction limit from config if not provided
+    if same_direction_limit is None:
+        same_direction_limit = Config.SAME_DIRECTION_LIMIT
     
     # Find weakest position
     weakest_position = None
@@ -352,6 +365,9 @@ def build_position_slot_json(
         "max_positions": max_positions,
         "long_slots_used": long_slots,
         "short_slots_used": short_slots,
+        "same_direction_limit": same_direction_limit,  # ✅ Eklendi: Aynı yönde maksimum pozisyon limiti
+        "long_slots_available": same_direction_limit - long_slots,  # ✅ Eklendi: Kalan LONG slot sayısı
+        "short_slots_available": same_direction_limit - short_slots,  # ✅ Eklendi: Kalan SHORT slot sayısı
         "available_slots": max_positions - total_open,
         "weakest_position": weakest_position
     }

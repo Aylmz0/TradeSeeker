@@ -488,67 +488,106 @@ class PerformanceMonitor:
             trend_htf = "BULLISH" if price_htf > ema20_htf else "BEARISH"
             trend_3m = "BULLISH" if price_3m > ema20_3m else "BEARISH"
             
-            # Trend reversal detection criteria
-            reversal_signals = 0
-            total_signals = 4
+            # Trend reversal detection criteria (WEIGHTED SCORING)
+            reversal_score = 0.0
+            max_score = 6.0  # Total possible weight
             signal_details = []
             
-            # 1. Multi-timeframe EMA kırılma analizi
+            # Signal 1: Multi-timeframe EMA divergence (Weight: 2.0 - strongest signal)
             htf_label = HTF_INTERVAL.upper()
-            if trend_htf != trend_3m:
-                reversal_signals += 1
-                signal_details.append(f"Multi-timeframe EMA divergence: {htf_label} {trend_htf} vs 3m {trend_3m}")
+            timeframe_divergence = False
             
-            # 2. RSI momentum shift detection
-            rsi_shift_3m = "BULLISH" if rsi_3m > 50 else "BEARISH"
-            rsi_shift_htf = "BULLISH" if rsi_htf > 50 else "BEARISH"
+            if has_15m and trend_15m:
+                # Strong divergence: 1h vs 15m+3m alignment
+                if trend_htf == "BULLISH" and trend_15m == "BEARISH" and trend_3m == "BEARISH":
+                    reversal_score += 2.0
+                    timeframe_divergence = True
+                    signal_details.append(f"STRONG multi-timeframe divergence: {htf_label} BULLISH vs 15m+3m BEARISH")
+                elif trend_htf == "BEARISH" and trend_15m == "BULLISH" and trend_3m == "BULLISH":
+                    reversal_score += 2.0
+                    timeframe_divergence = True
+                    signal_details.append(f"STRONG multi-timeframe divergence: {htf_label} BEARISH vs 15m+3m BULLISH")
+                elif trend_htf != trend_3m:
+                    # Medium divergence: Only 1h vs 3m
+                    reversal_score += 1.0
+                    timeframe_divergence = True
+                    signal_details.append(f"Medium multi-timeframe divergence: {htf_label} {trend_htf} vs 3m {trend_3m}")
+            else:
+                # Fallback: 1h vs 3m only (if 15m not available)
+                if trend_htf != trend_3m:
+                    reversal_score += 1.5
+                    timeframe_divergence = True
+                    signal_details.append(f"Multi-timeframe EMA divergence: {htf_label} {trend_htf} vs 3m {trend_3m}")
             
-            if rsi_shift_3m != trend_3m or rsi_shift_htf != trend_htf:
-                reversal_signals += 1
-                signal_details.append(f"RSI momentum shift: {htf_label} RSI {rsi_htf:.1f} ({rsi_shift_htf}), 3m RSI {rsi_3m:.1f} ({rsi_shift_3m})")
+            # Signal 2: RSI extreme zones (Weight: 1.5 - indicates exhaustion)
+            rsi_extreme = False
+            if trend_htf == "BULLISH" and (rsi_htf > 70 or rsi_3m > 70):
+                reversal_score += 1.5
+                rsi_extreme = True
+                signal_details.append(f"RSI overbought: {htf_label} RSI {rsi_htf:.1f}, 3m RSI {rsi_3m:.1f} (exhaustion)")
+            elif trend_htf == "BEARISH" and (rsi_htf < 30 or rsi_3m < 30):
+                reversal_score += 1.5
+                rsi_extreme = True
+                signal_details.append(f"RSI oversold: {htf_label} RSI {rsi_htf:.1f}, 3m RSI {rsi_3m:.1f} (exhaustion)")
+            elif trend_3m == "BULLISH" and rsi_3m > 65:
+                # Moderate overbought
+                reversal_score += 0.75
+                rsi_extreme = True
+                signal_details.append(f"RSI moderate overbought: 3m RSI {rsi_3m:.1f}")
+            elif trend_3m == "BEARISH" and rsi_3m < 35:
+                # Moderate oversold
+                reversal_score += 0.75
+                rsi_extreme = True
+                signal_details.append(f"RSI moderate oversold: 3m RSI {rsi_3m:.1f}")
             
-            # 3. Volume-price divergence
+            # Signal 3: Volume weakness (Weight: 1.0 - weak trend confirmation)
             volume_ratio = volume_3m / avg_volume_3m if avg_volume_3m > 0 else 0
-            volume_divergence = False
+            volume_weakness = False
             
-            if trend_3m == "BULLISH" and volume_ratio < 0.8:
-                volume_divergence = True
-                signal_details.append(f"Volume divergence: Bullish trend but low volume ({volume_ratio:.1f}x)")
-            elif trend_3m == "BEARISH" and volume_ratio < 0.8:
-                volume_divergence = True
-                signal_details.append(f"Volume divergence: Bearish trend but low volume ({volume_ratio:.1f}x)")
+            # Only flag if volume is VERY low (< 0.5x) indicating trend exhaustion
+            if volume_ratio < 0.5 and timeframe_divergence:
+                reversal_score += 1.0
+                volume_weakness = True
+                signal_details.append(f"Volume exhaustion: {volume_ratio:.2f}x average (trend weakening)")
+            elif volume_ratio < 0.3:
+                # Extremely low volume
+                reversal_score += 0.5
+                volume_weakness = True
+                signal_details.append(f"Extremely low volume: {volume_ratio:.2f}x average")
             
-            if volume_divergence:
-                reversal_signals += 1
-            
-            # 4. MACD signal line crossover
+            # Signal 4: MACD divergence (Weight: 1.5 - momentum shift)
             macd_divergence_3m = (macd_3m > macd_signal_3m and trend_3m == "BEARISH") or (macd_3m < macd_signal_3m and trend_3m == "BULLISH")
             macd_divergence_htf = (macd_htf > macd_signal_htf and trend_htf == "BEARISH") or (macd_htf < macd_signal_htf and trend_htf == "BULLISH")
             
-            if macd_divergence_3m or macd_divergence_htf:
-                reversal_signals += 1
+            if macd_divergence_htf and macd_divergence_3m:
+                reversal_score += 1.5
+                signal_details.append(f"MACD divergence on both {htf_label} and 3m (strong momentum shift)")
+            elif macd_divergence_htf or macd_divergence_3m:
+                reversal_score += 0.75
                 signal_details.append("MACD signal line divergence detected")
             
-            # Determine signal strength
-            if reversal_signals >= 3:
+            # Determine signal strength based on weighted score
+            reversal_percentage = (reversal_score / max_score) * 100
+            
+            if reversal_score >= 4.5:  # 75% of max score
                 signal_strength = "HIGH_LOSS_RISK"
-                recommendation = f"[INFO] Trend break detected for {coin}; loss-risk classification = HIGH"
-            elif reversal_signals >= 2:
+                recommendation = f"[INFO] High probability trend reversal for {coin} (score: {reversal_score:.1f}/{max_score})"
+            elif reversal_score >= 3.0:  # 50% of max score
                 signal_strength = "MEDIUM_LOSS_RISK"
-                recommendation = f"[INFO] Trend weakening signals observed for {coin}; loss-risk classification = MEDIUM"
-            elif reversal_signals >= 1:
+                recommendation = f"[INFO] Moderate reversal signals for {coin} (score: {reversal_score:.1f}/{max_score})"
+            elif reversal_score >= 1.5:  # 25% of max score
                 signal_strength = "LOW_LOSS_RISK"
-                recommendation = f"[INFO] Minor divergence present for {coin}; loss-risk classification = LOW"
+                recommendation = f"[INFO] Minor divergence signals for {coin} (score: {reversal_score:.1f}/{max_score})"
             else:
                 signal_strength = "NO_LOSS_RISK"
-                recommendation = f"[INFO] No loss-risk signals detected for {coin}; trend classification intact"
+                recommendation = f"[INFO] No significant reversal signals for {coin}; trend intact"
             
             result = {
                 "coin": coin,
-                "reversal_detected": reversal_signals > 0,
+                "reversal_detected": reversal_score > 0,
                 "signal_strength": signal_strength,
-                "signals_detected": reversal_signals,
-                "total_signals": total_signals,
+                "reversal_score": round(reversal_score, 2),
+                "max_score": max_score,
                 f"current_trend_{HTF_INTERVAL}": trend_htf,
                 "current_trend_3m": trend_3m,
                 "signal_details": signal_details,

@@ -156,6 +156,9 @@ def get_position_slot_schema() -> Dict[str, Any]:
             "max_positions": {"type": "integer"},
             "long_slots_used": {"type": "integer"},
             "short_slots_used": {"type": "integer"},
+            "same_direction_limit": {"type": "integer"},  # ✅ Eklendi: Aynı yönde maksimum pozisyon limiti
+            "long_slots_available": {"type": "integer"},  # ✅ Eklendi: Kalan LONG slot sayısı
+            "short_slots_available": {"type": "integer"},  # ✅ Eklendi: Kalan SHORT slot sayısı
             "available_slots": {"type": "integer"},
             "weakest_position": {
                 "type": ["object", "null"],
@@ -166,7 +169,7 @@ def get_position_slot_schema() -> Dict[str, Any]:
                 }
             }
         },
-        "required": ["total_open", "max_positions", "available_slots"]
+        "required": ["total_open", "max_positions", "available_slots", "same_direction_limit", "long_slots_used", "short_slots_used", "long_slots_available", "short_slots_available"]
     }
 
 def get_market_data_schema() -> Dict[str, Any]:
