@@ -1,24 +1,28 @@
 {
-    "current_balance": 100.0,
+    "current_balance": 100.9285228353877,
     "positions": {},
-    "total_value": 100.0,
-    "total_return": 0.0,
+    "total_value": 100.9285228353877,
+    "total_return": 0.928522835387696,
     "initial_balance": 100.0,
-    "trade_count": 0,
-    "last_updated": "2025-11-20T00:44:32.110695",
-    "sharpe_ratio": 0.0,
+    "trade_count": 3,
+    "last_updated": "2025-11-20T02:05:08.498173",
+    "sharpe_ratio": 6.203029890740097,
     "directional_bias": {
         "long": {
-            "rolling": [],
-            "net_pnl": 0.0,
-            "trades": 0,
-            "wins": 0,
-            "losses": 0,
+            "rolling": [
+                -0.1972986199761398,
+                0.0005401350337583793,
+                1.1252813203300784
+            ],
+            "net_pnl": 0.9285228353876971,
+            "trades": 3,
+            "wins": 2,
+            "losses": 1,
             "consecutive_losses": 0,
-            "consecutive_wins": 0,
+            "consecutive_wins": 2,
             "caution_active": false,
             "caution_win_progress": 0,
-            "loss_streak_loss_usd": 0.0
+            "loss_streak_loss_usd": 0.1972986199761398
         },
         "short": {
             "rolling": [],
@@ -34,7 +38,7 @@
         }
     },
     "last_history_reset_cycle": 0,
-    "cycles_since_history_reset": 1,
+    "cycles_since_history_reset": 5,
     "directional_cooldowns": {
         "long": 0,
         "short": 0

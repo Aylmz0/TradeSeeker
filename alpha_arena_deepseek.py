@@ -21,6 +21,7 @@ from utils import (
     rate_limiter, RetryManager, DataValidator, performance_monitor
 )
 from backtest import AdvancedRiskManager
+from cache_manager import fetch_all_indicators_parallel, fetch_all_indicators_with_cache
 
 try:
     from binance import BinanceOrderExecutor, BinanceAPIError
@@ -3601,27 +3602,34 @@ class PortfolioManager:
                         else:
                             guard_active = guard_cycles_since_flip is not None and guard_cycles_since_flip <= guard_window
                             if guard_active:
+                                # FIXED: Confidence threshold DECREASES over time (stricter → more relaxed)
                                 if guard_cycles_since_flip == 0:
-                                    min_conf = 0.63
+                                    min_conf = 0.70  # Strictest: same cycle as flip
                                     if confidence < min_conf:
                                         print(f"🚫 Flip guard confidence floor: {coin} {signal} confidence {confidence:.2f} < {min_conf:.2f} in same cycle after flip.")
                                         execution_report['blocked'].append({'coin': coin, 'reason': 'trend_flip_guard_confidence', 'classification': trend_classification})
                                         trade['runtime_decision'] = 'blocked_trend_flip_confidence'
                                         continue
-                                    partial_margin_factor = min(partial_margin_factor, 0.7)
-                                    print(f"⏳ Trend flip guard: {coin} sizing capped at 40% in same-cycle counter-trend attempt (confidence {confidence:.2f}).")
+                                    partial_margin_factor = min(partial_margin_factor, 0.5)
+                                    print(f"⏳ Trend flip guard: {coin} sizing capped at 50% in same-cycle counter-trend attempt (confidence {confidence:.2f}).")
                                 elif guard_cycles_since_flip == 1:
-                                    min_conf = 0.70
+                                    min_conf = 0.65  # More relaxed: one cycle after flip
                                     if confidence < min_conf:
                                         print(f"🚫 Flip guard confidence floor: {coin} {signal} confidence {confidence:.2f} < {min_conf:.2f} one cycle after flip.")
                                         execution_report['blocked'].append({'coin': coin, 'reason': 'trend_flip_guard_confidence', 'classification': trend_classification})
                                         trade['runtime_decision'] = 'blocked_trend_flip_confidence'
                                         continue
-                                    partial_margin_factor = min(partial_margin_factor, 0.8)
-                                    print(f"⏳ Trend flip guard (counter-trend): {coin} sizing capped at 60% one cycle after flip.")
+                                    partial_margin_factor = min(partial_margin_factor, 0.7)
+                                    print(f"⏳ Trend flip guard (counter-trend): {coin} sizing capped at 70% one cycle after flip.")
                                 elif guard_cycles_since_flip == 2:
+                                    min_conf = 0.60  # Most relaxed: two cycles after flip
+                                    if confidence < min_conf:
+                                        print(f"🚫 Flip guard confidence floor: {coin} {signal} confidence {confidence:.2f} < {min_conf:.2f} two cycles after flip.")
+                                        execution_report['blocked'].append({'coin': coin, 'reason': 'trend_flip_guard_confidence', 'classification': trend_classification})
+                                        trade['runtime_decision'] = 'blocked_trend_flip_confidence'
+                                        continue
                                     partial_margin_factor = min(partial_margin_factor, 0.9)
-                                    print(f"⏳ Trend flip guard (counter-trend): {coin} sizing capped at 80% two cycles after flip.")
+                                    print(f"⏳ Trend flip guard (counter-trend): {coin} sizing capped at 90% two cycles after flip.")
                             counter_confidence_floor = 0.65 if not relaxed_countertrend else 0.60
                             if confidence < counter_confidence_floor:
                                 if relaxed_countertrend:
@@ -5272,47 +5280,32 @@ class AlphaArenaDeepSeek:
         return [format_num(x, precision) if x is not None else 'N/A' for x in lst]
 
     def _fetch_all_indicators_parallel(self) -> Dict[str, Dict[str, Dict[str, Any]]]:
-        """Fetch all indicators for all coins in parallel (OPTIMIZATION: Single fetch, shared data)"""
-        print("🔄 Fetching all indicators in parallel...")
-        start_time = time.time()
+        """
+        Fetch all indicators for all coins in parallel with smart caching.
         
-        all_indicators = {}  # {coin: {interval: indicators}}
-        all_sentiment = {}   # {coin: sentiment}
-        
-        def fetch_indicators_for_coin(coin: str) -> tuple:
-            """Fetch all indicators and sentiment for a single coin"""
-            try:
-                indicators_3m = self.market_data.get_technical_indicators(coin, '3m')
-                indicators_15m = self.market_data.get_technical_indicators(coin, '15m')
-                indicators_htf = self.market_data.get_technical_indicators(coin, HTF_INTERVAL)
-                sentiment = self.market_data.get_market_sentiment(coin)
-                return (coin, {
-                    '3m': indicators_3m,
-                    '15m': indicators_15m,
-                    HTF_INTERVAL: indicators_htf
-                }, sentiment)
-            except Exception as e:
-                print(f"⚠️ Error fetching indicators for {coin}: {e}")
-                return (coin, {
-                    '3m': {'error': str(e)},
-                    '15m': {'error': str(e)},
-                    HTF_INTERVAL: {'error': str(e)}
-                }, {})
-        
-        # Fetch all indicators in parallel
-        with ThreadPoolExecutor(max_workers=10) as executor:
-            futures = {executor.submit(fetch_indicators_for_coin, coin): coin 
-                      for coin in self.market_data.available_coins}
-            
-            for future in as_completed(futures):
-                coin, indicators, sentiment = future.result()
-                all_indicators[coin] = indicators
-                all_sentiment[coin] = sentiment
-        
-        elapsed = time.time() - start_time
-        print(f"✅ Fetched all indicators in {elapsed:.2f}s (parallel)")
-        
-        return all_indicators, all_sentiment
+        Note:
+            - Delegates to cache_manager functions for better code organization
+            - Uses SmartIndicatorCache if Config.USE_SMART_CACHE is enabled
+            - Cache strategy:
+                * 3m: Always fresh (NEVER cached)
+                * 15m: Cached with dynamic TTL (~75% hit rate)
+                * HTF: Cached with dynamic TTL (~93% hit rate for 1h)
+        """
+        if Config.USE_SMART_CACHE:
+            # Use cache-aware fetch
+            return fetch_all_indicators_with_cache(
+                self.market_data,
+                self.market_data.available_coins,
+                HTF_INTERVAL,
+                use_cache=True
+            )
+        else:
+            # Fallback to non-cached version
+            return fetch_all_indicators_parallel(
+                self.market_data,
+                self.market_data.available_coins,
+                HTF_INTERVAL
+            )
 
     def generate_alpha_arena_prompt(self) -> str:
         """

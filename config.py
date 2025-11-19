@@ -117,6 +117,11 @@ class Config:
     JSON_CACHE_ENABLED: bool = os.getenv('JSON_CACHE_ENABLED', 'False').lower() == 'true'  # Enable JSON serialization cache
     JSON_CACHE_TTL: int = int(os.getenv('JSON_CACHE_TTL', '240'))  # Cache TTL in seconds (4 minutes = 1 cycle, adjust based on actual cycle duration)
     
+    # Smart Indicator Cache Configuration
+    USE_SMART_CACHE: bool = os.getenv('USE_SMART_CACHE', 'true').lower() == 'true'  # Enable smart TTL cache for 15m and HTF
+    SMART_CACHE_SAFETY_MARGIN: float = float(os.getenv('SMART_CACHE_SAFETY_MARGIN', '0.85'))  # Safety margin for TTL (85% of candle duration)
+    SMART_CACHE_STATS_LOGGING: bool = os.getenv('SMART_CACHE_STATS_LOGGING', 'true').lower() == 'true'  # Print cache stats
+    
     @classmethod
     def validate_config(cls) -> bool:
         """Validate that all required configuration is present."""

@@ -1,0 +1,41 @@
+[
+    {
+        "symbol": "XRP",
+        "direction": "long",
+        "entry_price": 2.0947,
+        "exit_price": 2.0919,
+        "quantity": 70.46379284861794,
+        "notional_usd": 147.60050688,
+        "pnl": -0.1972986199761398,
+        "entry_time": "2025-11-20T01:58:18.308742",
+        "exit_time": "2025-11-20T02:02:09.717635",
+        "leverage": 10,
+        "close_reason": "AI close_position signal"
+    },
+    {
+        "symbol": "LINK",
+        "direction": "long",
+        "entry_price": 13.33,
+        "exit_price": 13.42,
+        "quantity": 0.006001500375093113,
+        "notional_usd": 0.07995735607675027,
+        "pnl": 0.0005401350337583793,
+        "entry_time": "2025-11-20T01:54:32.200023",
+        "exit_time": "2025-11-20T02:04:58.898831",
+        "leverage": 10,
+        "close_reason": "Profit taking at 0.6% gain (0%)"
+    },
+    {
+        "symbol": "LINK",
+        "direction": "long",
+        "entry_price": 13.33,
+        "exit_price": 13.43,
+        "quantity": 11.252813203300825,
+        "notional_usd": 150.0,
+        "pnl": 1.1252813203300784,
+        "entry_time": "2025-11-20T01:54:32.200023",
+        "exit_time": "2025-11-20T02:05:08.497840",
+        "leverage": 10,
+        "close_reason": "Position margin $15.00 <= maximum limit $15.00"
+    }
+]
