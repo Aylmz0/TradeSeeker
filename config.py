@@ -114,8 +114,6 @@ class Config:
     VALIDATE_JSON_PROMPTS: bool = os.getenv('VALIDATE_JSON_PROMPTS', 'False').lower() == 'true'  # Runtime validation
     JSON_PROMPT_VERSION: str = os.getenv('JSON_PROMPT_VERSION', '1.0')  # Format version
     JSON_SERIES_MAX_LENGTH: int = int(os.getenv('JSON_SERIES_MAX_LENGTH', '50'))  # Max series length before compression
-    JSON_CACHE_ENABLED: bool = os.getenv('JSON_CACHE_ENABLED', 'False').lower() == 'true'  # Enable JSON serialization cache
-    JSON_CACHE_TTL: int = int(os.getenv('JSON_CACHE_TTL', '240'))  # Cache TTL in seconds (4 minutes = 1 cycle, adjust based on actual cycle duration)
     
     # Smart Indicator Cache Configuration
     USE_SMART_CACHE: bool = os.getenv('USE_SMART_CACHE', 'true').lower() == 'true'  # Enable smart TTL cache for 15m and HTF
@@ -160,8 +158,6 @@ class Config:
         # Validate JSON prompt settings
         if cls.JSON_SERIES_MAX_LENGTH < 10:
             errors.append("JSON_SERIES_MAX_LENGTH must be at least 10")
-        if cls.JSON_CACHE_TTL < 1:
-            errors.append("JSON_CACHE_TTL must be at least 1 second")
         
         if errors:
             logging.error("Configuration validation failed:")

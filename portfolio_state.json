@@ -1,44 +1,127 @@
 {
-    "current_balance": 100.9285228353877,
-    "positions": {},
-    "total_value": 100.9285228353877,
-    "total_return": 0.928522835387696,
+    "current_balance": 69.8820553788683,
+    "positions": {
+        "XRP": {
+            "symbol": "XRP",
+            "direction": "long",
+            "quantity": 66.40093369413908,
+            "entry_price": 2.114,
+            "entry_time": "2025-11-20T03:20:32.062806",
+            "current_price": 2.1137,
+            "unrealized_pnl": -0.01992028010822479,
+            "notional_usd": 140.37157382941,
+            "margin_usd": 14.037157382941,
+            "leverage": 10,
+            "liquidation_price": 1.92374,
+            "confidence": 0.6900000000000001,
+            "exit_plan": {
+                "stop_loss": 2.08,
+                "profit_target": 2.18,
+                "invalidation_condition": "If 1h price closes below 1h EMA20 (2.1093)"
+            },
+            "risk_usd": 14.037157382941,
+            "loss_cycle_count": 0,
+            "entry_volume": 266829.2,
+            "entry_avg_volume": 372721.22000000003,
+            "entry_volume_ratio": 0.715894844946043,
+            "entry_atr_14": 0.006190432027031302,
+            "trend_alignment": "trend_following",
+            "trend_context": {
+                "trend_at_entry": "bullish",
+                "alignment": "trend_following",
+                "cycle": 24
+            },
+            "trailing": {},
+            "sl_oid": -1,
+            "tp_oid": -1,
+            "entry_oid": -1,
+            "wait_for_fill": false
+        },
+        "LINK": {
+            "symbol": "LINK",
+            "direction": "long",
+            "quantity": 13.136028781278744,
+            "entry_price": 13.55,
+            "entry_time": "2025-11-20T03:20:52.045350",
+            "current_price": 13.53,
+            "unrealized_pnl": -0.26272057562559264,
+            "notional_usd": 177.993189986327,
+            "margin_usd": 17.7993189986327,
+            "leverage": 10,
+            "liquidation_price": 12.3305,
+            "confidence": 0.7249999999999999,
+            "exit_plan": {
+                "stop_loss": 13.35,
+                "profit_target": 13.85,
+                "invalidation_condition": "If 1h price closes below 1h EMA20 (13.3155)"
+            },
+            "risk_usd": 17.7993189986327,
+            "loss_cycle_count": 0,
+            "entry_volume": 11181.51,
+            "entry_avg_volume": 5433.673499999999,
+            "entry_volume_ratio": 2.0578177912235622,
+            "entry_atr_14": 0.03933549521293027,
+            "trend_alignment": "trend_following",
+            "trend_context": {
+                "trend_at_entry": "bullish",
+                "alignment": "trend_following",
+                "cycle": 24
+            },
+            "trailing": {},
+            "sl_oid": -1,
+            "tp_oid": -1,
+            "entry_oid": -1,
+            "wait_for_fill": false
+        }
+    },
+    "total_value": 101.43589090470819,
+    "total_return": 1.435890904708188,
     "initial_balance": 100.0,
-    "trade_count": 3,
-    "last_updated": "2025-11-20T02:05:08.498173",
-    "sharpe_ratio": 6.203029890740097,
+    "trade_count": 12,
+    "last_updated": "2025-11-20T03:22:01.404873",
+    "sharpe_ratio": -3.94283119019341,
     "directional_bias": {
         "long": {
             "rolling": [
                 -0.1972986199761398,
                 0.0005401350337583793,
-                1.1252813203300784
+                1.1252813203300784,
+                0.7009683025476224,
+                0.7702528774969131,
+                1.091814523930945e-16,
+                0.9148084619782675,
+                0.15048318788229156,
+                -0.16779797708651853,
+                -0.6055875748488422,
+                -0.5942027679991856
             ],
-            "net_pnl": 0.9285228353876971,
-            "trades": 3,
-            "wins": 2,
-            "losses": 1,
+            "net_pnl": 2.097447345358245,
+            "trades": 11,
+            "wins": 7,
+            "losses": 4,
             "consecutive_losses": 0,
-            "consecutive_wins": 2,
-            "caution_active": false,
+            "consecutive_wins": 0,
+            "caution_active": true,
             "caution_win_progress": 0,
-            "loss_streak_loss_usd": 0.1972986199761398
+            "loss_streak_loss_usd": 0.0
         },
         "short": {
-            "rolling": [],
-            "net_pnl": 0.0,
-            "trades": 0,
+            "rolling": [
+                -0.37891558491627225
+            ],
+            "net_pnl": -0.37891558491627225,
+            "trades": 1,
             "wins": 0,
-            "losses": 0,
-            "consecutive_losses": 0,
+            "losses": 1,
+            "consecutive_losses": 1,
             "consecutive_wins": 0,
             "caution_active": false,
             "caution_win_progress": 0,
-            "loss_streak_loss_usd": 0.0
+            "loss_streak_loss_usd": 0.37891558491627225
         }
     },
     "last_history_reset_cycle": 0,
-    "cycles_since_history_reset": 5,
+    "cycles_since_history_reset": 24,
     "directional_cooldowns": {
         "long": 0,
         "short": 0

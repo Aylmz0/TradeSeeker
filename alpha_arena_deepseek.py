@@ -5406,19 +5406,13 @@ Timeframes note: Unless stated otherwise in a section title, intraday series are
 
 {'='*20} REAL-TIME COUNTER-TRADE ANALYSIS {'='*20}
 
-We pre-compute the standard 5 counter-trend conditions for every coin. Review these findings first; only recalc if you detect inconsistencies or need extra validation.
-
 {counter_trade_analysis}
 
 {'='*20} TREND REVERSAL DETECTION {'='*20}
 
-All notes below are informational statistics about potential reversals; evaluate them independently before acting.
-
 {self.format_trend_reversal_analysis(trend_reversal_analysis)}
 
 {'='*20} ENHANCED DECISION CONTEXT (Non-binding suggestions) {'='*20}
-
-Metrics and remarks in this section are informational only. You must weigh them yourself before making any trading decision.
 
 POSITION MANAGEMENT CONTEXT:
 {self.format_position_context(enhanced_context.get('position_context', {}))}
@@ -5926,19 +5920,20 @@ Timeframes note: Unless stated otherwise in a section title, intraday series are
 
 {'='*20} REAL-TIME COUNTER-TRADE ANALYSIS {'='*20}
 
-We pre-compute the standard 5 counter-trend conditions for every coin. Review these findings first; only recalc if you detect inconsistencies or need extra validation.
-
 {create_json_section("COUNTER_TRADE_ANALYSIS", counter_trade_json, compact=compact)}
-
+""" 
+        
+        # OPTIMIZATION: Only include TREND_REVERSAL_DATA if positions exist
+        if any(self.portfolio.positions.values()):
+            prompt += f"""
 {'='*20} TREND REVERSAL DETECTION {'='*20}
-
-All notes below are informational statistics about potential reversals; evaluate them independently before acting.
 
 {create_json_section("TREND_REVERSAL_DATA", trend_reversal_json, compact=compact)}
 
-{'='*20} ENHANCED DECISION CONTEXT (Non-binding suggestions) {'='*20}
-
-Metrics and remarks in this section are informational only. You must weigh them yourself before making any trading decision.
+"""
+        
+        prompt += f"""
+{'='*20} ENHANCED DECISION CONTEXT {'='*20}
 
 {create_json_section("ENHANCED_CONTEXT", enhanced_context_json, compact=compact)}
 
