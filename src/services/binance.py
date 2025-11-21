@@ -20,7 +20,7 @@ from typing import Any, Dict, List, Optional, Tuple
 
 import requests
 
-from config import Config
+from config.config import Config
 
 # Increase decimal precision for quantity rounding
 getcontext().prec = 18

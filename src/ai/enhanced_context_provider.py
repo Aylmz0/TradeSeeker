@@ -4,7 +4,7 @@ from datetime import datetime, timedelta
 from typing import Dict, List, Any
 import pandas as pd
 import numpy as np
-from config import Config
+from config.config import Config
 
 HTF_INTERVAL = getattr(Config, 'HTF_INTERVAL', '1h') or '1h'
 HTF_LABEL = HTF_INTERVAL
@@ -107,7 +107,7 @@ class EnhancedContextProvider:
     def get_market_regime_context(self) -> Dict[str, Any]:
         """Market regime detection based on objective price/EMA relationships"""
         try:
-            from alpha_arena_deepseek import RealMarketData
+            from src.core.market_data import RealMarketData
         except ImportError:
             return {"current_regime": "unknown", "regime_strength": 0, "coin_regimes": {}}
         

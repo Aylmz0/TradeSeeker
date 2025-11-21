@@ -4,14 +4,13 @@ Converts data structures to JSON format for hybrid prompt.
 """
 from typing import Dict, Any, List, Optional
 from datetime import datetime
-from prompt_json_utils import (
+from src.ai.prompt_json_utils import (
     safe_json_dumps,
-    format_number_for_json,
-    compress_series,
-    create_json_section
+    create_json_section,
+    format_number_for_json
 )
-from prompt_json_schemas import JSON_PROMPT_VERSION
-from config import Config
+from src.ai.prompt_json_schemas import JSON_PROMPT_VERSION
+from config.config import Config
 import math
 
 
@@ -336,7 +335,7 @@ def build_position_slot_json(
     same_direction_limit: int = None
 ) -> Dict[str, Any]:
     """Build position slot status JSON."""
-    from config import Config
+    from config.config import Config
     
     total_open = len(portfolio_positions)
     # Fix: Check direction without default value to avoid logic error

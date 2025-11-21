@@ -10,8 +10,8 @@ from datetime import datetime, timedelta
 from typing import Dict, List, Any, Optional
 import logging
 
-from config import Config
-from utils import format_num, safe_file_write, safe_file_read
+from config.config import Config
+from src.utils import format_num, safe_file_write, safe_file_read
 
 class BacktestEngine:
     """Backtesting engine for historical strategy testing."""
@@ -297,7 +297,7 @@ class AdvancedRiskManager:
     
     def __init__(self, max_portfolio_risk: float = None, max_position_risk: float = None):
         # Set risk parameters based on configuration
-        from config import Config
+        from config.config import Config
         
         risk_level = Config.RISK_LEVEL.lower()
         
@@ -386,7 +386,7 @@ class AdvancedRiskManager:
         
         # Set concentration limit based on risk level
         if max_concentration is None:
-            from config import Config
+            from config.config import Config
             risk_level = Config.RISK_LEVEL.lower()
             
             if risk_level == 'low':

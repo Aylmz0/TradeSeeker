@@ -6,38 +6,7 @@ import pandas as pd
 import numpy as np
 import requests
 
-def safe_file_read(file_path: str, default_data=None):
-    """Safely read JSON file with error handling - handles empty files gracefully"""
-    try:
-        if os.path.exists(file_path):
-            # Check if file is empty (0 bytes)
-            if os.path.getsize(file_path) == 0:
-                print(f"ℹ️ Empty file detected: {file_path} - returning default data")
-                return default_data if default_data is not None else []
-            
-            with open(file_path, 'r', encoding='utf-8') as f:
-                content = f.read().strip()
-                # Check if file contains only whitespace
-                if not content:
-                    print(f"ℹ️ Empty content in {file_path} - returning default data")
-                    return default_data if default_data is not None else []
-                
-                return json.loads(content)
-    except json.JSONDecodeError as e:
-        print(f"⚠️ Invalid JSON in {file_path}: {e}")
-    except Exception as e:
-        print(f"⚠️ Error reading {file_path}: {e}")
-    return default_data if default_data is not None else []
-
-def safe_file_write(file_path: str, data):
-    """Safely write JSON file with error handling"""
-    try:
-        with open(file_path, 'w', encoding='utf-8') as f:
-            json.dump(data, f, indent=2, ensure_ascii=False)
-        return True
-    except Exception as e:
-        print(f"❌ Error writing {file_path}: {e}")
-        return False
+from src.utils import safe_file_read, safe_file_write
 
 class PerformanceMonitor:
     """Performance monitoring system for Alpha Arena DeepSeek"""
@@ -118,6 +87,7 @@ class PerformanceMonitor:
             else:
                 win_rate = 0
                 avg_pnl = 0
+                total_pnl = 0
                 profit_factor = 0
                 largest_win = 0
                 largest_loss = 0
@@ -434,7 +404,8 @@ class PerformanceMonitor:
         """
         try:
             # Get HTF_INTERVAL from alpha_arena_deepseek
-            from alpha_arena_deepseek import HTF_INTERVAL
+            from config.config import Config
+            HTF_INTERVAL = getattr(Config, 'HTF_INTERVAL', '1h') or '1h'
             
             # Use cached indicators if provided (OPTIMIZATION: No re-fetch)
             if indicators_cache and coin in indicators_cache:
@@ -444,7 +415,7 @@ class PerformanceMonitor:
                 indicators_htf = coin_indicators.get(HTF_INTERVAL, {})
             else:
                 # Fallback: fetch indicators (legacy behavior)
-                from alpha_arena_deepseek import RealMarketData
+                from src.core.market_data import RealMarketData
                 market_data = RealMarketData()
                 indicators_3m = market_data.get_technical_indicators(coin, '3m')
                 indicators_15m = market_data.get_technical_indicators(coin, '15m')
@@ -663,7 +634,8 @@ class PerformanceMonitor:
             summary["recommendations"] = recommendations
             
             # Create loss risk signals for AI prompt format
-            from alpha_arena_deepseek import HTF_INTERVAL
+            from config.config import Config
+            HTF_INTERVAL = getattr(Config, 'HTF_INTERVAL', '1h') or '1h'
             loss_risk_signals = {}
             for coin, result in reversal_results.items():
                 signals = []
