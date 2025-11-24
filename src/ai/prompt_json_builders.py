@@ -146,7 +146,8 @@ def build_counter_trade_json(
                     "total_met": total_met  # ✅ Sadece total_met (condition_1-5 kaldırıldı)
                 },
                 "risk_level": risk_level,
-                "volume_ratio": format_number_for_json((volume_3m or 0) / (avg_volume_3m or 1)) if avg_volume_3m else None,
+                "volume_ratio": format_number_for_json((volume_3m or 0) / avg_volume_3m) if avg_volume_3m and avg_volume_3m > 0 else 0.0,
+                "volume_strength": "STRONG" if (avg_volume_3m and avg_volume_3m > 0 and ((volume_3m or 0) / avg_volume_3m) > 1.5) else "WEAK" if (avg_volume_3m and avg_volume_3m > 0 and ((volume_3m or 0) / avg_volume_3m) < 0.5) else "NORMAL",
                 "rsi_3m": rsi_3m
             })
         
@@ -416,7 +417,13 @@ def build_market_data_json(
         if has_atr:
             current["atr"] = format_number_for_json(indicators.get('atr_14'))
         if has_volume:
-            current["volume"] = format_number_for_json(indicators.get('volume'))
+            vol = indicators.get('volume')
+            avg_vol = indicators.get('avg_volume')
+            current["volume"] = format_number_for_json(vol)
+            if avg_vol:
+                ratio = (vol or 0) / (avg_vol or 1)
+                current["volume_ratio"] = format_number_for_json(ratio)
+                current["volume_strength"] = "STRONG" if ratio > 1.5 else "WEAK" if ratio < 0.5 else "NORMAL"
         
         # Build series with compression if needed
         price_series = indicators.get('price_series', [])

@@ -1,69 +1,9 @@
 [
   {
     "cycle": 1,
-    "timestamp": "2025-11-21T23:05:16.254358",
-    "user_prompt_summary": "N/A",
-    "chain_of_thoughts": "CRITICAL CYCLE ERROR: name 'HTF_INTERVAL' is not defined\nTraceback (most recent call last):\n  File \"/home/yilmaz/projects/AlphaArena/src/main.py\", line 2359, in run_trading_cycle\n    prompt = self.generate_alpha_arena_prompt_json()\n  File \"/home/yilmaz/projects/AlphaArena/src/main.py\", line 1872, in generate_alpha_arena_prompt_json\n    from prompt_json_builders import (\n    ...<11 lines>...\n    )\nModuleNotFoundError: No module named 'prompt_json_builders'\n\nDuring handling of the above exception, another exception occurred:\n\nTraceback (most recent call last):\n  File \"/home/yilmaz/projects/AlphaArena/src/main.py\", line 2366, in run_trading_cycle\n    prompt = self.generate_alpha_arena_prompt()\n  File \"/home/yilmaz/projects/AlphaArena/src/main.py\", line 1419, in generate_alpha_arena_prompt\n    all_indicators, all_sentiment = self._fetch_all_indicators_parallel()\n                                    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^\n  File \"/home/yilmaz/projects/AlphaArena/src/main.py\", line 1384, in _fetch_all_indicators_parallel\n    HTF_INTERVAL,\n    ^^^^^^^^^^^^\nNameError: name 'HTF_INTERVAL' is not defined\n",
-    "decisions": {},
-    "status": "error",
-    "cooldown_status": {
-      "directional_cooldowns": {
-        "long": 0,
-        "short": 0
-      },
-      "relaxed_countertrend_cycles": 0,
-      "counter_trend_cooldown": 0,
-      "coin_cooldowns": {}
-    },
-    "metadata": {
-      "exception": "name 'HTF_INTERVAL' is not defined"
-    }
-  },
-  {
-    "cycle": 2,
-    "timestamp": "2025-11-21T23:06:53.172828",
-    "user_prompt_summary": "N/A",
-    "chain_of_thoughts": "CRITICAL CYCLE ERROR: No module named 'performance_monitor'\nTraceback (most recent call last):\n  File \"/home/yilmaz/projects/AlphaArena/src/main.py\", line 2363, in run_trading_cycle\n    prompt = self.generate_alpha_arena_prompt_json()\n  File \"/home/yilmaz/projects/AlphaArena/src/main.py\", line 1876, in generate_alpha_arena_prompt_json\n    from src.ai.prompt_json_builders import (\n    ...<11 lines>...\n    )\n  File \"/home/yilmaz/projects/AlphaArena/src/ai/prompt_json_builders.py\", line 7, in <module>\n    from prompt_json_utils import (\n    ...<4 lines>...\n    )\nModuleNotFoundError: No module named 'prompt_json_utils'\n\nDuring handling of the above exception, another exception occurred:\n\nTraceback (most recent call last):\n  File \"/home/yilmaz/projects/AlphaArena/src/main.py\", line 2370, in run_trading_cycle\n    prompt = self.generate_alpha_arena_prompt()\n  File \"/home/yilmaz/projects/AlphaArena/src/main.py\", line 1433, in generate_alpha_arena_prompt\n    from performance_monitor import PerformanceMonitor\nModuleNotFoundError: No module named 'performance_monitor'\n",
-    "decisions": {},
-    "status": "error",
-    "cooldown_status": {
-      "directional_cooldowns": {
-        "long": 0,
-        "short": 0
-      },
-      "relaxed_countertrend_cycles": 0,
-      "counter_trend_cooldown": 0,
-      "coin_cooldowns": {}
-    },
-    "metadata": {
-      "exception": "No module named 'performance_monitor'"
-    }
-  },
-  {
-    "cycle": 3,
-    "timestamp": "2025-11-21T23:08:40.728099",
-    "user_prompt_summary": "N/A",
-    "chain_of_thoughts": "CRITICAL CYCLE ERROR: No module named 'performance_monitor'\nTraceback (most recent call last):\n  File \"/home/yilmaz/projects/AlphaArena/src/main.py\", line 2363, in run_trading_cycle\n    prompt = self.generate_alpha_arena_prompt_json()\n  File \"/home/yilmaz/projects/AlphaArena/src/main.py\", line 1876, in generate_alpha_arena_prompt_json\n    from src.ai.prompt_json_builders import (\n    ...<11 lines>...\n    )\n  File \"/home/yilmaz/projects/AlphaArena/src/ai/prompt_json_builders.py\", line 7, in <module>\n    from prompt_json_utils import (\n    ...<4 lines>...\n    )\nModuleNotFoundError: No module named 'prompt_json_utils'\n\nDuring handling of the above exception, another exception occurred:\n\nTraceback (most recent call last):\n  File \"/home/yilmaz/projects/AlphaArena/src/main.py\", line 2370, in run_trading_cycle\n    prompt = self.generate_alpha_arena_prompt()\n  File \"/home/yilmaz/projects/AlphaArena/src/main.py\", line 1433, in generate_alpha_arena_prompt\n    from performance_monitor import PerformanceMonitor\nModuleNotFoundError: No module named 'performance_monitor'\n",
-    "decisions": {},
-    "status": "error",
-    "cooldown_status": {
-      "directional_cooldowns": {
-        "long": 0,
-        "short": 0
-      },
-      "relaxed_countertrend_cycles": 0,
-      "counter_trend_cooldown": 0,
-      "coin_cooldowns": {}
-    },
-    "metadata": {
-      "exception": "No module named 'performance_monitor'"
-    }
-  },
-  {
-    "cycle": 4,
-    "timestamp": "2025-11-21T23:12:55.705094",
-    "user_prompt_summary": "\nUSER_PROMPT:\nIt has been 0 minutes since you started trading. The current time is 2025-11-21 23:12:20.896133 and you've been invoked 4 times. Below, we are providing you with a variety of state data, price data, and predictive signals so you can discover alpha. Below that is your current account in...",
-    "chain_of_thoughts": "CRITICAL CYCLE ERROR: cannot access local variable 'indicators_3m' where it is not associated with a value\nTraceback (most recent call last):\n  File \"/home/yilmaz/projects/AlphaArena/src/main.py\", line 2570, in run_trading_cycle\n    self.portfolio._execute_normal_decisions(\n    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^\n        decisions,\n        ^^^^^^^^^^\n    ...<3 lines>...\n        indicator_cache=self.latest_indicator_cache\n        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n    )\n    ^\n  File \"/home/yilmaz/projects/AlphaArena/src/core/portfolio_manager.py\", line 2214, in _execute_normal_decisions\n    self.execute_decision(decisions_to_execute, valid_prices, indicator_cache=indicator_cache)\n    ~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/home/yilmaz/projects/AlphaArena/src/core/portfolio_manager.py\", line 3141, in execute_decision\n    'entry_volume': indicators_3m.get('volume') if isinstance(indicators_3m, dict) else None,\n                                                              ^^^^^^^^^^^^^\nUnboundLocalError: cannot access local variable 'indicators_3m' where it is not associated with a value\n",
+    "timestamp": "2025-11-22T14:51:59.536208",
+    "user_prompt_summary": "JSON Format (9 sections): Counter-trade analysis, Enhanced context, Directional bias + 6 more | \nUSER_PROMPT:\nIt has been 0 minutes since you started trading. The current time is 2025-11-22 14:51:01.942770 and you've been invoked 1 times. Below, we are providing you with a variety of state data,...",
+    "chain_of_thoughts": "I'm analyzing all 6 assets using multi-timeframe analysis (1h for structural trend, 15m for medium-term momentum, 3m for entry timing) in this bearish global market regime.\n\n**XRP**: 1h BEARISH (price=1.921 < EMA20=1.9377, RSI 44.4), 15m BEARISH (price=1.921 < EMA20=1.9215, RSI 48.1), 3m BULLISH (price=1.921 > EMA20=1.9162, RSI 59.8). Mixed signals with weak volume. Counter-trade analysis shows MEDIUM alignment for LONG but volume ratio is extremely weak at 0.0025x.\n\n**DOGE**: 1h BEARISH (price=0.13853 < EMA20=0.1393, RSI 46.0), 15m BULLISH (price=0.13853 > EMA20=0.1379, RSI 53.3), 3m BULLISH (price=0.13853 > EMA20=0.1380, RSI 61.7). STRONG counter-trend LONG setup with 3 conditions met and LOW_RISK rating, though volume is weak at 0.0086x.\n\n**ASTER**: 1h BEARISH (price=1.181 < EMA20=1.1996, RSI 44.6), 15m BEARISH (price=1.181 < EMA20=1.1886, RSI 43.1), 3m BEARISH (price=1.181 < EMA20=1.1827, RSI 46.8). All timeframes bearish with HIGH_RISK rating and zero volume - avoid.\n\n**ADA**: 1h BEARISH (price=0.4025 < EMA20=0.4062, RSI 43.5), 15m BULLISH (price=0.4025 > EMA20=0.4016, RSI 51.3), 3m BULLISH (price=0.4025 > EMA20=0.4016, RSI 58.1). STRONG counter-trend LONG setup with 3 conditions met and LOW_RISK rating, though volume is extremely weak at 0.0011x.\n\n**LINK**: 1h BEARISH (price=11.99 < EMA20=12.0632, RSI 44.4), 15m BULLISH (price=11.99 > EMA20=11.9234, RSI 54.8), 3m BULLISH (price=11.99 > EMA20=11.9437, RSI 64.7). STRONG counter-trend LONG setup with 3 conditions met and LOW_RISK rating, volume ratio 0.0163x is the strongest among all coins.\n\n**SOL**: 1h BEARISH (price=127.01 < EMA20=127.5934, RSI 46.2), 15m BULLISH (price=127.01 > EMA20=126.7308, RSI 51.6), 3m BULLISH (price=127.01 > EMA20=126.6705, RSI 60.1). STRONG counter-trend LONG setup with 3 conditions met and LOW_RISK rating, though volume is weak at 0.0013x.\n\n**MARKET CONTEXT**: Global regime is bearish (6/6 coins bearish), but multiple coins show strong counter-trend LONG opportunities. Volume is weak across all assets, which reduces conviction. Position slots: 2 LONG slots available, 2 SHORT slots available. No cooldowns active.\n\n**DECISION RATIONALE**: LINK presents the strongest counter-trend LONG opportunity with the highest volume ratio (0.0163x) among all coins, STRONG alignment, and LOW_RISK rating. All three timeframes show bullish momentum (15m+3m) against the 1h bearish structure. DOGE and ADA also show strong setups but with weaker volume. Given this is cycle 1, I'll start with the highest conviction setup.",
     "decisions": {
       "XRP": {
         "signal": "hold",
@@ -74,226 +14,25 @@
         "runtime_decision": "hold"
       },
       "ASTER": {
+        "signal": "hold",
+        "runtime_decision": "hold"
+      },
+      "ADA": {
+        "signal": "hold",
+        "runtime_decision": "hold"
+      },
+      "LINK": {
         "signal": "buy_to_enter",
         "leverage": 10,
-        "confidence": 0.65,
-        "profit_target": 1.28,
-        "stop_loss": 1.21,
-        "risk_usd": 30.0,
-        "invalidation_condition": "If 1h price closes below 1h EMA20 (1.2124)"
-      },
-      "ADA": {
-        "signal": "hold"
-      },
-      "LINK": {
-        "signal": "hold"
-      },
-      "SOL": {
-        "signal": "hold"
-      }
-    },
-    "status": "error",
-    "cooldown_status": {
-      "directional_cooldowns": {
-        "long": 0,
-        "short": 0
-      },
-      "relaxed_countertrend_cycles": 0,
-      "counter_trend_cooldown": 0,
-      "coin_cooldowns": {}
-    },
-    "metadata": {
-      "exception": "cannot access local variable 'indicators_3m' where it is not associated with a value"
-    }
-  },
-  {
-    "cycle": 5,
-    "timestamp": "2025-11-21T23:16:42.082854",
-    "user_prompt_summary": "N/A",
-    "chain_of_thoughts": "CRITICAL CYCLE ERROR: No module named 'performance_monitor'\nTraceback (most recent call last):\n  File \"/home/yilmaz/projects/AlphaArena/src/main.py\", line 2301, in run_trading_cycle\n    from performance_monitor import PerformanceMonitor\nModuleNotFoundError: No module named 'performance_monitor'\n",
-    "decisions": {},
-    "status": "error",
-    "cooldown_status": {
-      "directional_cooldowns": {
-        "long": 0,
-        "short": 0
-      },
-      "relaxed_countertrend_cycles": 0,
-      "counter_trend_cooldown": 0,
-      "coin_cooldowns": {}
-    },
-    "metadata": {
-      "exception": "No module named 'performance_monitor'"
-    }
-  },
-  {
-    "cycle": 6,
-    "timestamp": "2025-11-21T23:20:26.207177",
-    "user_prompt_summary": "\nUSER_PROMPT:\nIt has been 0 minutes since you started trading. The current time is 2025-11-21 23:19:37.635822 and you've been invoked 6 times. Below, we are providing you with a variety of state data, price data, and predictive signals so you can discover alpha. Below that is your current account in...",
-    "chain_of_thoughts": "Analyzing all 6 assets systematically using multi-timeframe analysis (1h structural trend, 15m momentum confirmation, 3m entry timing):\n\n**XRP**: 1h BEARISH (price=1.93 < EMA20=1.9570, RSI=43.095), 15m BEARISH (price=1.93 < EMA20=1.9473, RSI=45.790), 3m BEARISH (price=1.93 < EMA20=1.9476, RSI=31.350). All timeframes aligned bearish with weak volume (0.184x on 1h, 0.235x on 15m). Counter-trade analysis shows 1/5 conditions - NO counter-trade setup. Strong bearish alignment suggests trend-following SHORT opportunity.\n\n**DOGE**: 1h BEARISH (price=0.14 < EMA20=0.1423, RSI=37.337), 15m BEARISH (price=0.14 < EMA20=0.1401, RSI=42.672), 3m BEARISH (price=0.14 < EMA20=0.1398, RSI=27.292). All timeframes aligned bearish with decent 3m volume (2.50x) but weak longer-term volume. Counter-trade shows 2/5 conditions - WEAK counter-trade setup. Strong bearish alignment supports trend-following SHORT.\n\n**ASTER**: 1h BULLISH (price=1.23 > EMA20=1.2112, RSI=52.642), 15m BULLISH (price=1.23 > EMA20=1.2215, RSI=56.007), 3m BEARISH (price=1.23 < EMA20=1.2319, RSI=43.726). Mixed signals: 1h+15m bullish but 3m bearish. Counter-trade analysis shows 3/5 conditions for counter-trade SHORT (since 15m+3m direction = BEARISH). This presents a valid counter-trend SHORT opportunity with MEDIUM_RISK rating.\n\n**ADA**: 1h BEARISH (price=0.40 < EMA20=0.4153, RSI=37.425), 15m BEARISH (price=0.40 < EMA20=0.4091, RSI=43.621), 3m BEARISH (price=0.40 < EMA20=0.4090, RSI=24.018). All timeframes aligned bearish with weak volume. Counter-trade shows 0/5 conditions - NO counter-trade setup. Strong bearish alignment supports trend-following SHORT.\n\n**LINK**: 1h BEARISH (price=12.00 < EMA20=12.3474, RSI=36.182), 15m BEARISH (price=12.00 < EMA20=12.1210, RSI=43.884), 3m BEARISH (price=12.00 < EMA20=12.1076, RSI=30.876). All timeframes aligned bearish with decent 3m volume (2.23x). Counter-trade shows 2/5 conditions - WEAK counter-trade setup. Strong bearish alignment supports trend-following SHORT.\n\n**SOL**: 1h BEARISH (price=127.06 < EMA20=129.2421, RSI=41.124), 15m BEARISH (price=127.06 < EMA20=128.0198, RSI=45.741), 3m BEARISH (price=127.07 < EMA20=128.0690, RSI=30.520). All timeframes aligned bearish with weak volume. Counter-trade shows 1/5 conditions - NO counter-trade setup. Strong bearish alignment supports trend-following SHORT.\n\n**MARKET CONTEXT**: Global regime unknown, no positions open, all slots available (0/2 long, 0/2 short). Multiple strong bearish alignments across assets. ASTER presents the only counter-trend opportunity with 3/5 conditions met for SHORT against 1h bullish trend.\n\n**PRIORITIZATION**: Given multiple bearish alignments and limited short slots (2 available), I'll focus on the strongest bearish setups. ASTER counter-trend SHORT offers excellent risk/reward with 3/5 conditions met. DOGE and LINK show strong bearish alignment with volume confirmation. Will use 2 short slots strategically.",
-    "decisions": {
-      "XRP": {
-        "signal": "hold",
-        "runtime_decision": "hold"
-      },
-      "DOGE": {
-        "signal": "sell_to_enter",
-        "leverage": 10,
-        "confidence": 0.7899999999999999,
-        "profit_target": 0.135,
-        "stop_loss": 0.145,
-        "risk_usd": 25.0,
-        "invalidation_condition": "If 1h price closes above 1h EMA20 (0.1423)",
-        "volume_quality_score": 90.0,
-        "volume_ratio_runtime": 2.5049,
-        "trend_runtime": "bearish",
-        "trend_alignment": "trend_following",
-        "runtime_decision": "executed"
-      },
-      "ASTER": {
-        "signal": "sell_to_enter",
-        "leverage": 10,
-        "confidence": 0.6300000000000001,
-        "profit_target": 1.2,
-        "stop_loss": 1.26,
-        "risk_usd": 25.0,
-        "invalidation_condition": "If 1h price closes above 1h EMA20 (1.2112)",
+        "confidence": 0.603,
+        "profit_target": 12.35,
+        "stop_loss": 11.75,
+        "invalidation_condition": "If 1h price closes below 1h EMA20 (12.0632)",
         "volume_quality_score": 20.0,
-        "volume_ratio_runtime": 0.4765,
-        "trend_runtime": "bullish",
+        "volume_ratio_runtime": 0.1711,
+        "trend_runtime": "neutral",
         "trend_alignment": "counter_trend",
         "runtime_decision": "blocked_trend_flip_confidence"
-      },
-      "ADA": {
-        "signal": "hold",
-        "runtime_decision": "hold"
-      },
-      "LINK": {
-        "signal": "hold",
-        "runtime_decision": "hold"
-      },
-      "SOL": {
-        "signal": "hold",
-        "runtime_decision": "hold"
-      }
-    },
-    "status": "ai_decision",
-    "cooldown_status": {
-      "directional_cooldowns": {
-        "long": 0,
-        "short": 0
-      },
-      "relaxed_countertrend_cycles": 0,
-      "counter_trend_cooldown": 0,
-      "coin_cooldowns": {}
-    },
-    "metadata": {
-      "positions_closed_by_tp_sl": false,
-      "manual_override": false,
-      "cooldown_status": {
-        "directional_cooldowns": {
-          "long": 0,
-          "short": 0
-        },
-        "relaxed_countertrend_cycles": 0,
-        "counter_trend_cooldown": 0
-      },
-      "prompt_format": "json_fallback",
-      "json_serialization_error": "name 'format_number_for_json' is not defined",
-      "execution_report": {
-        "executed": [
-          {
-            "coin": "DOGE",
-            "signal": "sell_to_enter",
-            "confidence": 0.7899999999999999,
-            "classification": "trend_following",
-            "volume_ratio": 2.5049258771367855,
-            "margin_usd": 15.249527999999998
-          }
-        ],
-        "blocked": [
-          {
-            "coin": "ASTER",
-            "reason": "trend_flip_guard_confidence",
-            "classification": "counter_trend"
-          }
-        ],
-        "skipped": [],
-        "holds": [
-          {
-            "coin": "XRP",
-            "has_position": false
-          },
-          {
-            "coin": "ADA",
-            "has_position": false
-          },
-          {
-            "coin": "LINK",
-            "has_position": false
-          },
-          {
-            "coin": "SOL",
-            "has_position": false
-          }
-        ],
-        "notes": [],
-        "timestamp": "2025-11-21T23:20:22.193060"
-      },
-      "performance": {
-        "market_data_ms": 871.94,
-        "ai_ms": 50712.43,
-        "execution_ms": 4013.87
-      }
-    }
-  },
-  {
-    "cycle": 7,
-    "timestamp": "2025-11-21T23:23:55.471891",
-    "user_prompt_summary": "JSON Format (10 sections): Counter-trade analysis, Trend reversal, Enhanced context + 7 more | \nUSER_PROMPT:\nIt has been 0 minutes since you started trading. The current time is 2025-11-21 23:22:49.321037 and you've been invoked 7 times. Below, we are providing you with a variety of state data,...",
-    "chain_of_thoughts": "Analyzing all 6 assets using multi-timeframe analysis (1h structural trend, 15m momentum confirmation, 3m entry timing):\n\n**XRP**: 1h BEARISH (price=1.9308 < EMA20=1.9568, RSI 42.8), 15m BEARISH (price=1.9309 < EMA20=1.9471, RSI 45.3), 3m BEARISH (price=1.9309 < EMA20=1.9460, RSI 34.5). All timeframes aligned bearish with volume ratio 0.61x average. No counter-trade conditions met (1/5). Strong bearish momentum across all timeframes.\n\n**DOGE**: 1h BEARISH (price=0.13823 < EMA20=0.14232, RSI 37.0), 15m BEARISH (price=0.1382 < EMA20=0.14004, RSI 41.8), 3m BEARISH (price=0.13824 < EMA20=0.13962, RSI 31.1). All timeframes aligned bearish with volume ratio 0.69x average. Existing short position performing well (+$0.21 PnL). Only 3m reversal signal (INFORMATIONAL) - normal market noise, continue holding.\n\n**ASTER**: 1h BULLISH (price=1.228 > EMA20=1.2111, RSI 52.4), 15m BULLISH (price=1.228 > EMA20=1.2214, RSI 55.5), 3m BEARISH (price=1.228 < EMA20=1.2314, RSI 45.8). Counter-trade opportunity: 3 conditions met, MEDIUM_RISK. However, volume ratio extremely weak at 0.20x average - reduces confidence significantly. 3m bearish momentum but weak participation.\n\n**ADA**: 1h BEARISH (price=0.4041 < EMA20=0.4152, RSI 37.1), 15m BEARISH (price=0.4041 < EMA20=0.4090, RSI 42.9), 3m BEARISH (price=0.4041 < EMA20=0.4085, RSI 29.7). All timeframes aligned bearish with very weak volume ratio 0.18x average - avoid due to low participation.\n\n**LINK**: 1h BEARISH (price=11.97 < EMA20=12.3445, RSI 35.6), 15m BEARISH (price=11.97 < EMA20=12.1182, RSI 42.7), 3m BEARISH (price=11.97 < EMA20=12.0928, RSI 33.2). All timeframes aligned bearish with good volume ratio 1.07x average. Strong bearish momentum with participation.\n\n**SOL**: 1h BEARISH (price=126.93 < EMA20=129.23, RSI 40.8), 15m BEARISH (price=126.91 < EMA20=128.01, RSI 45.1), 3m BEARISH (price=126.91 < EMA20=127.96, RSI 33.5). All timeframes aligned bearish with volume ratio 0.42x average. Bearish momentum but weaker participation.\n\n**POSITION SLOTS ANALYSIS**: Currently 1 SHORT position (DOGE), 1 short slot available, 2 long slots available. Global regime strongly bearish (5 bearish, 1 bullish).\n\n**TRADE OPPORTUNITIES**: \n- LINK offers strongest bearish setup with volume confirmation\n- ASTER counter-trade opportunity but weak volume reduces confidence\n- Continue holding DOGE short as all timeframes remain bearish",
-    "decisions": {
-      "XRP": {
-        "signal": "hold",
-        "runtime_decision": "hold"
-      },
-      "DOGE": {
-        "signal": "hold",
-        "leverage": 10,
-        "quantity_usd": 15.249527999999998,
-        "confidence": 0.7899999999999999,
-        "profit_target": 0.135,
-        "stop_loss": 0.145,
-        "risk_usd": 15.249527999999998,
-        "invalidation_condition": "If 1h price closes above 1h EMA20 (0.1423)",
-        "entry_price": 0.13845,
-        "current_price": 0.13826,
-        "unrealized_pnl": 0.20927485157095954,
-        "notional_usd": 152.49527999999998,
-        "direction": "short",
-        "runtime_decision": "hold"
-      },
-      "ASTER": {
-        "signal": "hold",
-        "runtime_decision": "hold"
-      },
-      "ADA": {
-        "signal": "hold",
-        "runtime_decision": "hold"
-      },
-      "LINK": {
-        "signal": "sell_to_enter",
-        "leverage": 10,
-        "confidence": 0.76,
-        "profit_target": 11.65,
-        "stop_loss": 12.25,
-        "risk_usd": 15.0,
-        "invalidation_condition": "If 1h price closes above 1h EMA20 (12.34)",
-        "volume_quality_score": 60.0,
-        "volume_ratio_runtime": 1.3661,
-        "trend_runtime": "bearish",
-        "trend_alignment": "trend_following",
-        "runtime_decision": "executed"
       },
       "SOL": {
         "signal": "hold",
@@ -324,17 +63,14 @@
       "prompt_format": "json",
       "json_serialization_error": null,
       "execution_report": {
-        "executed": [
+        "executed": [],
+        "blocked": [
           {
             "coin": "LINK",
-            "signal": "sell_to_enter",
-            "confidence": 0.76,
-            "classification": "trend_following",
-            "volume_ratio": 1.366137756367017,
-            "margin_usd": 10.44430435328
+            "reason": "trend_flip_guard_confidence",
+            "classification": "counter_trend"
           }
         ],
-        "blocked": [],
         "skipped": [],
         "holds": [
           {
@@ -343,7 +79,7 @@
           },
           {
             "coin": "DOGE",
-            "has_position": true
+            "has_position": false
           },
           {
             "coin": "ASTER",
@@ -359,12 +95,476 @@
           }
         ],
         "notes": [],
-        "timestamp": "2025-11-21T23:23:42.261849"
+        "timestamp": "2025-11-22T14:51:55.233856"
       },
       "performance": {
-        "market_data_ms": 793.27,
-        "ai_ms": 52944.58,
-        "execution_ms": 13209.78
+        "market_data_ms": 378.76,
+        "ai_ms": 53300.32,
+        "execution_ms": 4302.1
+      }
+    }
+  },
+  {
+    "cycle": 2,
+    "timestamp": "2025-11-22T14:55:55.486395",
+    "user_prompt_summary": "JSON Format (9 sections): Counter-trade analysis, Enhanced context, Directional bias + 6 more | \nUSER_PROMPT:\nIt has been 4 minutes since you started trading. The current time is 2025-11-22 14:54:58.809757 and you've been invoked 2 times. Below, we are providing you with a variety of state data,...",
+    "chain_of_thoughts": "Analyzing all 6 assets using multi-timeframe analysis (1h structural trend, 15m momentum confirmation, 3m entry timing) in a predominantly bearish market regime (6/6 coins bearish 1h trends). Position slots available: 2 LONG, 2 SHORT. No existing positions. Volume conditions generally weak across most assets except SOL.\n\n**XRP**: 1h BEARISH (price=1.921 < EMA20=1.9377, RSI 44.4), 15m BEARISH (price=1.921 < EMA20=1.9215, RSI 48.1), 3m BULLISH (price=1.9204 > EMA20=1.9168, RSI 57.2). Mixed signals with 1h+15m bearish but 3m bullish. Counter-trade analysis shows MEDIUM alignment for LONG (3 conditions met) but volume weak (0.26x). Not compelling enough for counter-trend entry.\n\n**DOGE**: 1h BEARISH (price=0.13853 < EMA20=0.1393, RSI 46.0), 15m BULLISH (price=0.13853 > EMA20=0.1379, RSI 53.3), 3m BULLISH (price=0.13838 > EMA20=0.1380, RSI 58.2). STRONG counter-trend LONG setup with 15m+3m bullish against 1h bearish. Volume weak (0.29x) but RSI supportive. Risk level LOW_RISK with 3 conditions met.\n\n**ASTER**: 1h BEARISH (price=1.181 < EMA20=1.1996, RSI 44.6), 15m BEARISH (price=1.181 < EMA20=1.1886, RSI 43.1), 3m BEARISH (price=1.182 < EMA20=1.1828, RSI 48.3). All timeframes bearish - trend-following SHORT opportunity. However, volume weak (0.30x) and HIGH_RISK rating in counter-trade analysis.\n\n**ADA**: 1h BEARISH (price=0.4025 < EMA20=0.4062, RSI 43.5), 15m BULLISH (price=0.4025 > EMA20=0.4016, RSI 51.3), 3m BULLISH (price=0.4019 > EMA20=0.4017, RSI 53.7). STRONG counter-trend LONG setup with 15m+3m bullish against 1h bearish. Volume extremely weak (0.20x) - concerning for conviction.\n\n**LINK**: 1h BEARISH (price=11.99 < EMA20=12.0632, RSI 44.4), 15m BULLISH (price=11.99 > EMA20=11.9234, RSI 54.8), 3m BULLISH (price=11.97 > EMA20=11.9462, RSI 58.9). STRONG counter-trend LONG setup with 15m+3m bullish against 1h bearish. However, volume critically weak (0.04x) - insufficient participation for reliable trade.\n\n**SOL**: 1h BEARISH (price=127.01 < EMA20=127.5934, RSI 46.2), 15m BULLISH (price=127.01 > EMA20=126.7308, RSI 51.6), 3m BULLISH (price=126.89 > EMA20=126.6914, RSI 56.7). STRONG counter-trend LONG setup with 15m+3m bullish against 1h bearish. Volume NORMAL (1.08x) - strongest volume participation among all coins. RSI supportive across timeframes.\n\nBest opportunities: DOGE and SOL for counter-trend LONG entries. DOGE has LOW_RISK rating and supportive RSI, SOL has NORMAL volume and strong technical alignment. Both meet counter-trend criteria with confidence >0.65.",
+    "decisions": {
+      "XRP": {
+        "signal": "hold",
+        "runtime_decision": "hold"
+      },
+      "DOGE": {
+        "signal": "buy_to_enter",
+        "leverage": 10,
+        "confidence": 0.6300000000000001,
+        "profit_target": 0.142,
+        "stop_loss": 0.135,
+        "invalidation_condition": "If 1h price closes below 1h EMA20",
+        "volume_quality_score": 20.0,
+        "volume_ratio_runtime": 0.3359,
+        "trend_runtime": "bearish",
+        "trend_alignment": "counter_trend",
+        "runtime_decision": "blocked_trend_flip_confidence"
+      },
+      "ASTER": {
+        "signal": "hold",
+        "runtime_decision": "hold"
+      },
+      "ADA": {
+        "signal": "hold",
+        "runtime_decision": "hold"
+      },
+      "LINK": {
+        "signal": "hold",
+        "runtime_decision": "hold"
+      },
+      "SOL": {
+        "signal": "buy_to_enter",
+        "leverage": 10,
+        "confidence": 0.684,
+        "profit_target": 130.5,
+        "stop_loss": 124.5,
+        "invalidation_condition": "If 1h price closes below 1h EMA20",
+        "volume_quality_score": 40.0,
+        "volume_ratio_runtime": 1.1687,
+        "trend_runtime": "bearish",
+        "trend_alignment": "counter_trend",
+        "runtime_decision": "blocked_trend_flip_confidence"
+      }
+    },
+    "status": "ai_decision",
+    "cooldown_status": {
+      "directional_cooldowns": {
+        "long": 0,
+        "short": 0
+      },
+      "relaxed_countertrend_cycles": 0,
+      "counter_trend_cooldown": 0,
+      "coin_cooldowns": {}
+    },
+    "metadata": {
+      "positions_closed_by_tp_sl": false,
+      "manual_override": false,
+      "cooldown_status": {
+        "directional_cooldowns": {
+          "long": 0,
+          "short": 0
+        },
+        "relaxed_countertrend_cycles": 0,
+        "counter_trend_cooldown": 0
+      },
+      "prompt_format": "json",
+      "json_serialization_error": null,
+      "execution_report": {
+        "executed": [],
+        "blocked": [
+          {
+            "coin": "DOGE",
+            "reason": "trend_flip_guard_confidence",
+            "classification": "counter_trend"
+          },
+          {
+            "coin": "SOL",
+            "reason": "trend_flip_guard_confidence",
+            "classification": "counter_trend"
+          }
+        ],
+        "skipped": [],
+        "holds": [
+          {
+            "coin": "XRP",
+            "has_position": false
+          },
+          {
+            "coin": "ASTER",
+            "has_position": false
+          },
+          {
+            "coin": "ADA",
+            "has_position": false
+          },
+          {
+            "coin": "LINK",
+            "has_position": false
+          }
+        ],
+        "notes": [],
+        "timestamp": "2025-11-22T14:55:53.291305"
+      },
+      "performance": {
+        "market_data_ms": 417.38,
+        "ai_ms": 54481.45,
+        "execution_ms": 2194.68
+      }
+    }
+  },
+  {
+    "cycle": 3,
+    "timestamp": "2025-11-22T14:59:48.224622",
+    "user_prompt_summary": "JSON Format (9 sections): Counter-trade analysis, Enhanced context, Directional bias + 6 more | \nUSER_PROMPT:\nIt has been 8 minutes since you started trading. The current time is 2025-11-22 14:58:58.836585 and you've been invoked 3 times. Below, we are providing you with a variety of state data,...",
+    "chain_of_thoughts": "Analyzing all 6 assets systematically using multi-timeframe analysis (1h structural trend, 15m momentum confirmation, 3m entry timing). Global market regime is strongly bearish (6/6 coins bearish), but several coins show NEUTRAL regimes with counter-trend opportunities. Volume is weak across all assets (ratios 0.13-0.45x), reducing conviction for trend-following entries. Position slots: 2 LONG and 2 SHORT available.\n\n**XRP**: 1h BEARISH (price=1.9185 < EMA20=1.9374, RSI 43.8), 15m BEARISH (price < EMA20, RSI 46.9), 3m BULLISH (price > EMA20, RSI 54.0). Mixed signals - 1h+15m bearish but 3m bullish. Counter-trade analysis shows MEDIUM alignment for LONG (3 conditions met). Weak volume (0.45x). Not compelling enough for counter-trend entry.\n\n**DOGE**: 1h BEARISH (price=0.1383 < EMA20=0.1393, RSI 45.4), 15m BULLISH (price > EMA20, RSI 51.9), 3m BULLISH (price > EMA20, RSI 56.4). NEUTRAL regime with STRONG counter-trend LONG alignment (3 conditions met, LOW_RISK). However, extremely weak volume (0.13x) significantly reduces conviction.\n\n**ASTER**: 1h BEARISH (price=1.178 < EMA20=1.1993, RSI 43.9), 15m BEARISH (price < EMA20, RSI 41.6), 3m BEARISH (price < EMA20, RSI 42.9). All timeframes aligned bearish. No counter-trade conditions met (VERY_HIGH_RISK). Weak volume (0.19x). Avoid.\n\n**ADA**: 1h BEARISH (price=0.4022 < EMA20=0.4062, RSI 43.2), 15m BULLISH (price > EMA20, RSI 50.6), 3m BULLISH (price > EMA20, RSI 55.2). NEUTRAL regime with STRONG counter-trend LONG alignment (2 conditions met, MEDIUM_RISK). Weak volume (0.21x) but better RSI momentum than DOGE.\n\n**LINK**: 1h BEARISH (price=11.98 < EMA20=12.0622, RSI 44.1), 15m BULLISH (price > EMA20, RSI 54.0), 3m BULLISH (price > EMA20, RSI 61.7). NEUTRAL regime with STRONG counter-trend LONG alignment (3 conditions met, LOW_RISK). Strongest RSI momentum (61.7 on 3m) and decent volume ratio (0.32x) among counter-trend candidates.\n\n**SOL**: 1h BEARISH (price=126.78 < EMA20=127.57, RSI 45.5), 15m BULLISH (price > EMA20, RSI 49.8), 3m BULLISH (price > EMA20, RSI 53.3). NEUTRAL regime with STRONG counter-trend LONG alignment (3 conditions met, LOW_RISK). Volume weak (0.29x) but better than DOGE/ADA.\n\n**DECISION RATIONALE**: LINK presents the strongest counter-trend LONG opportunity with the best technical alignment (strong RSI momentum across timeframes, good counter-trade conditions). Despite weak overall volume, LINK shows relative strength. ADA and SOL are secondary options but LINK has superior momentum characteristics. Given weak volume environment, starting with one high-conviction position is prudent.",
+    "decisions": {
+      "XRP": {
+        "signal": "hold",
+        "runtime_decision": "hold"
+      },
+      "DOGE": {
+        "signal": "hold",
+        "runtime_decision": "hold"
+      },
+      "ASTER": {
+        "signal": "hold",
+        "runtime_decision": "hold"
+      },
+      "ADA": {
+        "signal": "hold",
+        "runtime_decision": "hold"
+      },
+      "LINK": {
+        "signal": "buy_to_enter",
+        "leverage": 10,
+        "confidence": 0.558,
+        "profit_target": 12.25,
+        "stop_loss": 11.75,
+        "invalidation_condition": "If 1h price closes below 1h EMA20 (12.0622)",
+        "volume_quality_score": 20.0,
+        "volume_ratio_runtime": 0.1711,
+        "trend_runtime": "neutral",
+        "trend_alignment": "counter_trend",
+        "runtime_decision": "blocked_trend_flip_confidence"
+      },
+      "SOL": {
+        "signal": "hold",
+        "runtime_decision": "hold"
+      }
+    },
+    "status": "ai_decision",
+    "cooldown_status": {
+      "directional_cooldowns": {
+        "long": 0,
+        "short": 0
+      },
+      "relaxed_countertrend_cycles": 0,
+      "counter_trend_cooldown": 0,
+      "coin_cooldowns": {}
+    },
+    "metadata": {
+      "positions_closed_by_tp_sl": false,
+      "manual_override": false,
+      "cooldown_status": {
+        "directional_cooldowns": {
+          "long": 0,
+          "short": 0
+        },
+        "relaxed_countertrend_cycles": 0,
+        "counter_trend_cooldown": 0
+      },
+      "prompt_format": "json",
+      "json_serialization_error": null,
+      "execution_report": {
+        "executed": [],
+        "blocked": [
+          {
+            "coin": "LINK",
+            "reason": "trend_flip_guard_confidence",
+            "classification": "counter_trend"
+          }
+        ],
+        "skipped": [],
+        "holds": [
+          {
+            "coin": "XRP",
+            "has_position": false
+          },
+          {
+            "coin": "DOGE",
+            "has_position": false
+          },
+          {
+            "coin": "ASTER",
+            "has_position": false
+          },
+          {
+            "coin": "ADA",
+            "has_position": false
+          },
+          {
+            "coin": "SOL",
+            "has_position": false
+          }
+        ],
+        "notes": [],
+        "timestamp": "2025-11-22T14:59:48.223907"
+      },
+      "performance": {
+        "market_data_ms": 443.69,
+        "ai_ms": 49387.19,
+        "execution_ms": 0.48
+      }
+    }
+  },
+  {
+    "cycle": 4,
+    "timestamp": "2025-11-22T15:03:53.124009",
+    "user_prompt_summary": "JSON Format (9 sections): Counter-trade analysis, Enhanced context, Directional bias + 6 more | \nUSER_PROMPT:\nIt has been 12 minutes since you started trading. The current time is 2025-11-22 15:02:58.862466 and you've been invoked 4 times. Below, we are providing you with a variety of state data...",
+    "chain_of_thoughts": "Analyzing all 6 assets using multi-timeframe analysis (1h structural trend, 15m momentum confirmation, 3m entry timing) in a predominantly bearish market regime (6 bearish, 0 bullish, 0 neutral):\n\n**XRP**: 1h BEARISH (price=1.9157 < EMA20=1.9352, RSI 43.2), 15m BEARISH (price=1.9157 < EMA20=1.9206, RSI 45.5), 3m BEARISH (price=1.9157 < EMA20=1.9168, RSI 49.8). All timeframes aligned bearish with normal volume. Strong trend-following SHORT opportunity.\n\n**DOGE**: 1h BEARISH (price=0.1381 < EMA20=0.1392, RSI 45.0), 15m BULLISH (price=0.1381 > EMA20=0.1379, RSI 50.6), 3m BULLISH (price=0.1381 > EMA20=0.1381, RSI 52.6). NEUTRAL regime with 15m+3m bullish against 1h bearish - STRONG counter-trend LONG opportunity with MEDIUM_RISK rating.\n\n**ASTER**: 1h BEARISH (price=1.176 < EMA20=1.1970, RSI 43.5), 15m BEARISH (price=1.176 < EMA20=1.1870, RSI 40.5), 3m BEARISH (price=1.176 < EMA20=1.1816, RSI 40.5). All timeframes aligned bearish with normal volume. Strong trend-following SHORT opportunity.\n\n**ADA**: 1h BEARISH (price=0.401 < EMA20=0.4057, RSI 42.1), 15m BEARISH (price=0.401 < EMA20=0.4015, RSI 47.6), 3m BEARISH (price=0.401 < EMA20=0.4017, RSI 47.3). All timeframes aligned bearish with normal volume. Strong trend-following SHORT opportunity.\n\n**LINK**: 1h BEARISH (price=11.95 < EMA20=12.0498, RSI 43.0), 15m BULLISH (price=11.95 > EMA20=11.9234, RSI 51.5), 3m BULLISH (price=11.95 > EMA20=11.9486, RSI 53.4). NEUTRAL regime with 15m+3m bullish against 1h bearish - STRONG counter-trend LONG opportunity but WEAK volume (0.38x) reduces conviction.\n\n**SOL**: 1h BEARISH (price=126.59 < EMA20=127.4694, RSI 44.9), 15m BEARISH (price=126.59 < EMA20=126.6890, RSI 48.4), 3m BEARISH (price=126.58 < EMA20=126.6853, RSI 48.8). All timeframes aligned bearish with normal volume. Strong trend-following SHORT opportunity.\n\n**PRIORITIZATION**: DOGE offers the strongest counter-trend LONG opportunity with STRONG alignment, MEDIUM_RISK, and normal volume. LINK counter-trend is weaker due to poor volume participation. For trend-following SHORTS, XRP, ASTER, ADA, and SOL all show strong bearish alignment.\n\n**POSITION SLOTS**: 2 LONG slots and 2 SHORT slots available - no constraints.",
+    "decisions": {
+      "XRP": {
+        "signal": "sell_to_enter",
+        "leverage": 10,
+        "confidence": 0.6699999999999999,
+        "profit_target": 1.88,
+        "stop_loss": 1.94,
+        "invalidation_condition": "If 1h price closes above 1h EMA20 (1.9352)",
+        "volume_quality_score": 20.0,
+        "volume_ratio_runtime": 0.1899,
+        "trend_runtime": "bearish",
+        "trend_alignment": "trend_following",
+        "runtime_decision": "executed"
+      },
+      "DOGE": {
+        "signal": "buy_to_enter",
+        "leverage": 10,
+        "confidence": 0.6300000000000001,
+        "profit_target": 0.142,
+        "stop_loss": 0.135,
+        "invalidation_condition": "If 1h price closes below 1h EMA20 (0.1392)",
+        "volume_quality_score": 20.0,
+        "volume_ratio_runtime": 0.3359,
+        "trend_runtime": "bearish",
+        "trend_alignment": "counter_trend",
+        "runtime_decision": "executed"
+      },
+      "ASTER": {
+        "signal": "sell_to_enter",
+        "leverage": 10,
+        "confidence": 0.6599999999999999,
+        "profit_target": 1.15,
+        "stop_loss": 1.2,
+        "invalidation_condition": "If 1h price closes above 1h EMA20 (1.1970)",
+        "volume_quality_score": 20.0,
+        "volume_ratio_runtime": 0.1862,
+        "trend_runtime": "bearish",
+        "trend_alignment": "trend_following",
+        "runtime_decision": "executed"
+      },
+      "ADA": {
+        "signal": "sell_to_enter",
+        "leverage": 10,
+        "confidence": 0.7,
+        "profit_target": 0.392,
+        "stop_loss": 0.408,
+        "invalidation_condition": "If 1h price closes above 1h EMA20 (0.4057)",
+        "runtime_decision": "blocked_same_direction_limit"
+      },
+      "LINK": {
+        "signal": "hold",
+        "runtime_decision": "hold"
+      },
+      "SOL": {
+        "signal": "sell_to_enter",
+        "leverage": 10,
+        "confidence": 0.73,
+        "profit_target": 124.5,
+        "stop_loss": 128.5,
+        "invalidation_condition": "If 1h price closes above 1h EMA20 (127.47)"
+      }
+    },
+    "status": "ai_decision",
+    "cooldown_status": {
+      "directional_cooldowns": {
+        "long": 0,
+        "short": 0
+      },
+      "relaxed_countertrend_cycles": 0,
+      "counter_trend_cooldown": 0,
+      "coin_cooldowns": {}
+    },
+    "metadata": {
+      "positions_closed_by_tp_sl": false,
+      "manual_override": false,
+      "cooldown_status": {
+        "directional_cooldowns": {
+          "long": 0,
+          "short": 0
+        },
+        "relaxed_countertrend_cycles": 0,
+        "counter_trend_cooldown": 0
+      },
+      "prompt_format": "json",
+      "json_serialization_error": null,
+      "execution_report": {
+        "executed": [
+          {
+            "coin": "XRP",
+            "signal": "sell_to_enter",
+            "confidence": 0.6699999999999999,
+            "classification": "trend_following",
+            "volume_ratio": 0.1899133349940699,
+            "margin_usd": 15.008
+          },
+          {
+            "coin": "DOGE",
+            "signal": "buy_to_enter",
+            "confidence": 0.6300000000000001,
+            "classification": "counter_trend",
+            "volume_ratio": 0.3359365695794025,
+            "margin_usd": 15.420948480000003
+          },
+          {
+            "coin": "ASTER",
+            "signal": "sell_to_enter",
+            "confidence": 0.6599999999999999,
+            "classification": "trend_following",
+            "volume_ratio": 0.18618567887140355,
+            "margin_usd": 10.2853842567168
+          }
+        ],
+        "blocked": [
+          {
+            "coin": "ADA",
+            "reason": "same_direction_limit",
+            "direction": "short",
+            "current": 2,
+            "limit": 2
+          }
+        ],
+        "skipped": [],
+        "holds": [
+          {
+            "coin": "LINK",
+            "has_position": false
+          }
+        ],
+        "notes": [],
+        "timestamp": "2025-11-22T15:03:50.284898"
+      },
+      "performance": {
+        "market_data_ms": 468.98,
+        "ai_ms": 51422.32,
+        "execution_ms": 2838.73
+      }
+    }
+  },
+  {
+    "cycle": 5,
+    "timestamp": "2025-11-22T15:07:46.234496",
+    "user_prompt_summary": "JSON Format (10 sections): Counter-trade analysis, Trend reversal, Enhanced context + 7 more | \nUSER_PROMPT:\nIt has been 16 minutes since you started trading. The current time is 2025-11-22 15:06:58.787148 and you've been invoked 5 times. Below, we are providing you with a variety of state data...",
+    "chain_of_thoughts": "Analyzing all assets systematically using multi-timeframe analysis:\n\n**MARKET CONTEXT**: Global bearish regime (6/6 coins bearish) with weak volume across most assets. Position slots: 1 LONG available, 1 SHORT available. Current positions: XRP (SHORT +0.28 PnL), DOGE (LONG -0.44 PnL).\n\n**XRP**: 1h BEARISH (price=1.9157 < EMA20=1.9352, RSI 43.2), 15m BEARISH (price=1.9157 < EMA20=1.9206, RSI 45.5), 3m BEARISH (price=1.9122 < EMA20=1.9159, RSI 45.2). All timeframes aligned bearish with weak volume (0.41x). SHORT position performing well, continue holding.\n\n**DOGE**: 1h BEARISH (price=0.1381 < EMA20=0.1392, RSI 45.0), 15m BULLISH (price=0.1381 > EMA20=0.1379, RSI 50.6), 3m BEARISH (price=0.13771 < EMA20=0.1380, RSI 46.0). Mixed signals - LONG position struggling against 1h bearish trend. Counter-trade analysis shows MEDIUM alignment (2/5 conditions) but VERY WEAK volume (0.15x). Consider closing due to weak conviction.\n\n**ASTER**: 1h BEARISH (price=1.176 < EMA20=1.197, RSI 43.5), 15m BEARISH (price=1.176 < EMA20=1.187, RSI 40.5), 3m BEARISH (price=1.166 < EMA20=1.179, RSI 30.8). All timeframes aligned bearish with STRONG volume (1.91x). Oversold RSI 30.8 suggests potential bounce, but trend remains bearish. No counter-trade opportunity (all bearish alignment).\n\n**ADA**: 1h BEARISH (price=0.401 < EMA20=0.4057, RSI 42.1), 15m BEARISH (price=0.401 < EMA20=0.4015, RSI 47.6), 3m BEARISH (price=0.3995 < EMA20=0.4013, RSI 39.5). All timeframes aligned bearish with weak volume (0.41x). Strong bearish momentum, good SHORT candidate.\n\n**LINK**: 1h BEARISH (price=11.95 < EMA20=12.0498, RSI 43.0), 15m BULLISH (price=11.95 > EMA20=11.9234, RSI 51.5), 3m BEARISH (price=11.89 < EMA20=11.9388, RSI 40.8). Mixed signals - counter-trade analysis shows MEDIUM alignment (2/5 conditions) but weak volume (0.31x). Not compelling enough for counter-trade entry.\n\n**SOL**: 1h BEARISH (price=126.59 < EMA20=127.47, RSI 44.9), 15m BEARISH (price=126.59 < EMA20=126.69, RSI 48.4), 3m BEARISH (price=126.24 < EMA20=126.61, RSI 41.6). All timeframes aligned bearish with very weak volume (0.15x). Strong bearish structure but weak participation.\n\n**DECISION RATIONALE**: Close DOGE LONG due to weak volume and fighting 1h bearish trend. Open ADA SHORT as strongest bearish setup with good risk/reward. Maintain XRP SHORT as it continues performing well.",
+    "decisions": {
+      "XRP": {
+        "signal": "hold",
+        "leverage": 10,
+        "quantity_usd": 15.008,
+        "confidence": 0.6699999999999999,
+        "profit_target": 1.88,
+        "stop_loss": 1.94,
+        "risk_usd": 15.008,
+        "invalidation_condition": "If 1h price closes above 1h EMA20 (1.9352)",
+        "entry_price": 1.9158,
+        "current_price": 1.9122,
+        "unrealized_pnl": 0.28201691199499274,
+        "notional_usd": 150.07999999999998,
+        "direction": "short"
+      },
+      "DOGE": {
+        "signal": "close_position",
+        "leverage": 10,
+        "confidence": 0.63,
+        "profit_target": null,
+        "stop_loss": null,
+        "invalidation_condition": "Position closed due to weak volume and fighting 1h bearish trend"
+      },
+      "ASTER": {
+        "signal": "hold"
+      },
+      "ADA": {
+        "signal": "sell_to_enter",
+        "leverage": 10,
+        "confidence": 0.72,
+        "profit_target": 0.388,
+        "stop_loss": 0.408,
+        "invalidation_condition": "If 1h price closes above 1h EMA20 (0.4057)",
+        "volume_quality_score": 20.0,
+        "volume_ratio_runtime": 0.643,
+        "trend_runtime": "bearish",
+        "trend_alignment": "trend_following",
+        "runtime_decision": "executed"
+      },
+      "LINK": {
+        "signal": "hold"
+      },
+      "SOL": {
+        "signal": "hold"
+      }
+    },
+    "status": "ai_decision",
+    "cooldown_status": {
+      "directional_cooldowns": {
+        "long": 0,
+        "short": 0
+      },
+      "relaxed_countertrend_cycles": 0,
+      "counter_trend_cooldown": 0,
+      "coin_cooldowns": {
+        "DOGE": 1
+      }
+    },
+    "metadata": {
+      "positions_closed_by_tp_sl": false,
+      "manual_override": false,
+      "cooldown_status": {
+        "directional_cooldowns": {
+          "long": 0,
+          "short": 0
+        },
+        "relaxed_countertrend_cycles": 0,
+        "counter_trend_cooldown": 0
+      },
+      "prompt_format": "json",
+      "json_serialization_error": null,
+      "execution_report": {
+        "executed": [
+          {
+            "coin": "ADA",
+            "signal": "sell_to_enter",
+            "confidence": 0.72,
+            "classification": "trend_following",
+            "volume_ratio": 0.6430385290233598,
+            "margin_usd": 10.0
+          }
+        ],
+        "blocked": [],
+        "skipped": [],
+        "holds": [],
+        "notes": [],
+        "timestamp": "2025-11-22T15:07:45.379378"
+      },
+      "performance": {
+        "market_data_ms": 393.03,
+        "ai_ms": 46591.35,
+        "execution_ms": 855.48
       }
     }
   }

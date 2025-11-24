@@ -113,7 +113,7 @@ class Config:
     JSON_PROMPT_COMPACT: bool = os.getenv('JSON_PROMPT_COMPACT', 'False').lower() == 'true'  # Compact JSON (indent=None)
     VALIDATE_JSON_PROMPTS: bool = os.getenv('VALIDATE_JSON_PROMPTS', 'False').lower() == 'true'  # Runtime validation
     JSON_PROMPT_VERSION: str = os.getenv('JSON_PROMPT_VERSION', '1.0')  # Format version
-    JSON_SERIES_MAX_LENGTH: int = int(os.getenv('JSON_SERIES_MAX_LENGTH', '50'))  # Max series length before compression
+    JSON_SERIES_MAX_LENGTH: int = int(os.getenv('JSON_SERIES_MAX_LENGTH', '30'))  # Max series length before compression (optimized for performance)
     
     # Smart Indicator Cache Configuration
     USE_SMART_CACHE: bool = os.getenv('USE_SMART_CACHE', 'true').lower() == 'true'  # Enable smart TTL cache for 15m and HTF

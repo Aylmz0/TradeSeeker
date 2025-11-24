@@ -195,7 +195,6 @@ DECISIONS
     "confidence": 0.75,
     "profit_target": 0.56,
     "stop_loss": 0.48,
-    "risk_usd": 45.0,
     "invalidation_condition": "If {HTF_LABEL} price closes below {HTF_LABEL} EMA20"
   }},
   "SOL": {{
@@ -204,7 +203,6 @@ DECISIONS
     "confidence": 0.75,
     "profit_target": 185.0,
     "stop_loss": 198.0,
-    "risk_usd": 45.0,
     "invalidation_condition": "If {HTF_LABEL} price closes above {HTF_LABEL} EMA20"
   }},
   "ADA": {{
@@ -213,7 +211,6 @@ DECISIONS
     "confidence": 0.75,
     "profit_target": 0.52,
     "stop_loss": 0.48,
-    "risk_usd": 45.0,
     "invalidation_condition": "If {HTF_LABEL} price closes below {HTF_LABEL} EMA20"
   }},
   "DOGE": {{
@@ -222,7 +219,6 @@ DECISIONS
     "confidence": 0.75,
     "profit_target": 0.145,
     "stop_loss": 0.165,
-    "risk_usd": 45.0,
     "invalidation_condition": "If {HTF_LABEL} price closes above {HTF_LABEL} EMA20"
   }},
   "LINK": {{ "signal": "hold" }},
