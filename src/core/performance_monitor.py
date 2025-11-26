@@ -12,10 +12,10 @@ class PerformanceMonitor:
     """Performance monitoring system for Alpha Arena DeepSeek"""
     
     def __init__(self):
-        self.cycle_history_file = "cycle_history.json"
-        self.trade_history_file = "trade_history.json"
-        self.portfolio_state_file = "portfolio_state.json"
-        self.performance_file = "performance_report.json"
+        self.cycle_history_file = "data/cycle_history.json"
+        self.trade_history_file = "data/trade_history.json"
+        self.portfolio_state_file = "data/portfolio_state.json"
+        self.performance_file = "data/performance_report.json"
         
     def analyze_performance(self, last_n_cycles: int = 10) -> Dict[str, Any]:
         """Analyze performance for the last N cycles"""

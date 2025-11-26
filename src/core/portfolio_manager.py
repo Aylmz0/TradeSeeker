@@ -28,7 +28,7 @@ class PortfolioManager:
         # Dinamik initial balance - eğer verilmediyse gerçek balance'dan al veya $200 kullan
         if initial_balance is None:
             # Önce saved state'den dene, yoksa Config'den al
-            saved_state = safe_file_read("portfolio_state.json", default_data={})
+            saved_state = safe_file_read("data/portfolio_state.json", default_data={})
             if 'initial_balance' in saved_state:
                 self.initial_balance = saved_state['initial_balance']
             else:
@@ -36,8 +36,8 @@ class PortfolioManager:
         else:
             self.initial_balance = initial_balance
             
-        self.state_file = "portfolio_state.json"; self.history_file = "trade_history.json"
-        self.override_file = "manual_override.json"; self.cycle_history_file = "cycle_history.json"
+        self.state_file = "data/portfolio_state.json"; self.history_file = "data/trade_history.json"
+        self.override_file = "data/manual_override.json"; self.cycle_history_file = "data/cycle_history.json"
         self.max_cycle_history = 50; self.maintenance_margin_rate = 0.01
 
         self.current_balance = self.initial_balance; self.positions = {}
@@ -632,8 +632,8 @@ class PortfolioManager:
         files_to_backup = [
             (self.history_file, []),
             (self.cycle_history_file, []),
-            ("performance_history.json", []),
-            ("performance_report.json", [])  # Changed from {} to [] - now array format
+            ("data/performance_history.json", []),
+            ("data/performance_report.json", [])  # Changed from {} to [] - now array format
         ]
 
         try:
@@ -684,9 +684,9 @@ class PortfolioManager:
         self.cycle_history = []
         safe_file_write(self.history_file, [])
         safe_file_write(self.cycle_history_file, [])
-        safe_file_write("performance_history.json", [])
+        safe_file_write("data/performance_history.json", [])
         # Preserve existing performance reports, just add a reset marker
-        existing_reports = safe_file_read("performance_report.json", [])
+        existing_reports = safe_file_read("data/performance_report.json", [])
         if isinstance(existing_reports, dict):
             # Old format - convert to array
             if "reset_reason" not in existing_reports:
@@ -708,7 +708,7 @@ class PortfolioManager:
         if len(existing_reports) > 50:
             existing_reports = existing_reports[-50:]
         
-        safe_file_write("performance_report.json", existing_reports)
+        safe_file_write("data/performance_report.json", existing_reports)
         self.portfolio_values_history = [self.total_value]
         for pos in self.positions.values():
             pos['loss_cycle_count'] = 0

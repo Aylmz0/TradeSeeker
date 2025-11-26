@@ -120,19 +120,15 @@ def build_counter_trade_json(
             
             total_met = sum([condition_1, condition_2, condition_3, condition_4, condition_5])
             
-            # Determine risk level (consider alignment strength)
+            # Determine risk level (Stricter Logic)
             if alignment_strength == "STRONG" and total_met >= 3:
-                risk_level = "LOW_RISK"  # STRONG alignment reduces risk
+                risk_level = "LOW_RISK"  # STRONG alignment + High Confluence
             elif alignment_strength == "STRONG" and total_met >= 2:
                 risk_level = "MEDIUM_RISK"
-            elif alignment_strength == "MEDIUM" and total_met >= 4:
+            elif alignment_strength == "MEDIUM" and total_met >= 3:
                 risk_level = "MEDIUM_RISK"
-            elif total_met >= 4:
-                risk_level = "LOW_RISK"
-            elif total_met >= 3:
-                risk_level = "MEDIUM_RISK"
-            elif total_met >= 2:
-                risk_level = "HIGH_RISK"
+            elif alignment_strength == "MEDIUM":
+                risk_level = "HIGH_RISK"  # Medium alignment is always at least High Risk
             else:
                 risk_level = "VERY_HIGH_RISK"
             
@@ -346,6 +342,9 @@ def build_position_slot_json(
     # Get same direction limit from config if not provided
     if same_direction_limit is None:
         same_direction_limit = Config.SAME_DIRECTION_LIMIT
+
+    long_slots_available = same_direction_limit - long_slots
+    short_slots_available = same_direction_limit - short_slots
     
     # Find weakest position
     weakest_position = None
@@ -360,16 +359,27 @@ def build_position_slot_json(
             "confidence": format_number_for_json(weakest[1].get('confidence', 0))
         }
     
+    # Check for forced rotation/constraint conditions
+    constraint_mode = "NORMAL"
+    if long_slots_available <= 0 and short_slots_available > 0:
+        constraint_mode = "LONG_FULL_SHORT_AVAILABLE"
+    elif short_slots_available <= 0 and long_slots_available > 0:
+        constraint_mode = "SHORT_FULL_LONG_AVAILABLE"
+    elif long_slots_available <= 0 and short_slots_available <= 0:
+        constraint_mode = "ALL_SLOTS_FULL"
+
     return {
         "total_open": total_open,
         "max_positions": max_positions,
         "long_slots_used": long_slots,
         "short_slots_used": short_slots,
-        "same_direction_limit": same_direction_limit,  # ✅ Eklendi: Aynı yönde maksimum pozisyon limiti
-        "long_slots_available": same_direction_limit - long_slots,  # ✅ Eklendi: Kalan LONG slot sayısı
-        "short_slots_available": same_direction_limit - short_slots,  # ✅ Eklendi: Kalan SHORT slot sayısı
+        "same_direction_limit": same_direction_limit,
+        "long_slots_available": long_slots_available,
+        "short_slots_available": short_slots_available,
         "available_slots": max_positions - total_open,
-        "weakest_position": weakest_position
+        "weakest_position": weakest_position,
+        "constraint_mode": constraint_mode,
+        "constraint_instruction": "If a direction is FULL, do NOT force trades in the other direction unless they are LOW_RISK or MEDIUM_RISK (High Confidence alone is NOT enough)."
     }
 
 

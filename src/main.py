@@ -1486,9 +1486,25 @@ class AlphaArenaDeepSeek:
         else:
             trend_flip_section = f"  • No trend flips in last {flip_history_window} cycles"
         
+        # Use JSON builder for prompt generation (Enables new features like slot constraint instructions)
+        from src.ai.prompt_json_builders import build_position_slot_json
+        
+        # Calculate slot status for prompt context
+        position_slots = build_position_slot_json(
+            self.portfolio.positions, 
+            self.get_max_positions_for_cycle(self.current_cycle_number)
+        )
+        
+        # Add slot constraint instruction to the prompt if applicable
+        slot_instruction = ""
+        if position_slots.get('constraint_mode') != "NORMAL":
+            slot_instruction = f"\nIMPORTANT CONSTRAINT: {position_slots.get('constraint_instruction')}\n"
+
         prompt = f"""
 USER_PROMPT:
 It has been {minutes_running} minutes since you started trading. The current time is {current_time} and you've been invoked {self.invocation_count} times. Below, we are providing you with a variety of state data, price data, and predictive signals so you can discover alpha. Below that is your current account information, value, performance, positions, etc.
+
+{slot_instruction}
 
 ALL OF THE PRICE OR SIGNAL DATA BELOW IS ORDERED: OLDEST → NEWEST
 Timeframes note: Unless stated otherwise in a section title, intraday series are provided at 3‑minute intervals. If a coin uses a different interval, it is explicitly stated in that coin's section.
