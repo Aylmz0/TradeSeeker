@@ -1,0 +1,139 @@
+[
+  {
+    "analysis_period": "Last 9 cycles (Total: 9)",
+    "timestamp": "2025-11-26T17:27:30.861097",
+    "trading_activity": {
+      "total_decisions": 54,
+      "entry_signals": 11,
+      "hold_signals": 43,
+      "close_signals": 0,
+      "decision_rate": 20.37037037037037
+    },
+    "trade_performance": {
+      "total_trades": 4,
+      "winning_trades": 2,
+      "losing_trades": 2,
+      "break_even_trades": 0,
+      "win_rate": 36.32,
+      "total_pnl": -1.4,
+      "average_pnl": -0.35,
+      "profit_factor": 0.57,
+      "largest_win": 1.05,
+      "largest_loss": -1.93
+    },
+    "portfolio_performance": {
+      "initial_balance": 100.0,
+      "current_balance": 98.5996311614569,
+      "total_value": 98.5996311614569,
+      "total_return": -1.4,
+      "sharpe_ratio": -1.858,
+      "open_positions": 0
+    },
+    "coin_performance": {
+      "ASTER": {
+        "trades": 1,
+        "total_pnl": -1.927611940298485,
+        "wins": 0,
+        "losses": 1,
+        "win_rate": 0.0,
+        "avg_pnl": -1.927611940298485
+      },
+      "SOL": {
+        "trades": 1,
+        "total_pnl": -1.332462219715137,
+        "wins": 0,
+        "losses": 1,
+        "win_rate": 0.0,
+        "avg_pnl": -1.332462219715137
+      },
+      "LINK": {
+        "trades": 1,
+        "total_pnl": 1.0453990468870065,
+        "wins": 1,
+        "losses": 0,
+        "win_rate": 100.0,
+        "avg_pnl": 1.0453990468870065
+      },
+      "ADA": {
+        "trades": 1,
+        "total_pnl": 0.8143062745835339,
+        "wins": 1,
+        "losses": 0,
+        "win_rate": 100.0,
+        "avg_pnl": 0.8143062745835339
+      }
+    },
+    "recommendations": [
+      "[INFO] Recorded return -1.40% within analysis window; below growth target",
+      "[INFO] Coins with cumulative negative PnL: ASTER, SOL"
+    ]
+  },
+  {
+    "analysis_period": "Last 10 cycles (Total: 19)",
+    "timestamp": "2025-11-26T18:05:53.854584",
+    "trading_activity": {
+      "total_decisions": 60,
+      "entry_signals": 9,
+      "hold_signals": 51,
+      "close_signals": 0,
+      "decision_rate": 15.0
+    },
+    "trade_performance": {
+      "total_trades": 14,
+      "winning_trades": 12,
+      "losing_trades": 2,
+      "break_even_trades": 0,
+      "win_rate": 72.49,
+      "total_pnl": 5.33,
+      "average_pnl": 0.38,
+      "profit_factor": 2.64,
+      "largest_win": 1.37,
+      "largest_loss": -1.93
+    },
+    "portfolio_performance": {
+      "initial_balance": 100.0,
+      "current_balance": 84.74476429827548,
+      "total_value": 105.70123997639041,
+      "total_return": 5.7,
+      "sharpe_ratio": 6.769,
+      "open_positions": 1
+    },
+    "coin_performance": {
+      "ASTER": {
+        "trades": 3,
+        "total_pnl": -0.23764326208265718,
+        "wins": 2,
+        "losses": 1,
+        "win_rate": 46.71543930677827,
+        "avg_pnl": -0.07921442069421906
+      },
+      "SOL": {
+        "trades": 5,
+        "total_pnl": 0.9415978325053203,
+        "wins": 4,
+        "losses": 1,
+        "win_rate": 63.05409701518316,
+        "avg_pnl": 0.18831956650106405
+      },
+      "LINK": {
+        "trades": 3,
+        "total_pnl": 2.72129971995688,
+        "wins": 3,
+        "losses": 0,
+        "win_rate": 100.0,
+        "avg_pnl": 0.9070999066522933
+      },
+      "ADA": {
+        "trades": 3,
+        "total_pnl": 1.9057299319806231,
+        "wins": 3,
+        "losses": 0,
+        "win_rate": 100.0,
+        "avg_pnl": 0.6352433106602077
+      }
+    },
+    "recommendations": [
+      "[INFO] Coins with cumulative negative PnL: ASTER"
+    ]
+  }
+]

@@ -1,0 +1,41 @@
+[
+  {
+    "symbol": "ASTER",
+    "direction": "short",
+    "entry_price": 1.097,
+    "exit_price": 1.091,
+    "quantity": 114.37707298862189,
+    "notional_usd": 125.47164906851822,
+    "pnl": 0.6862624379317319,
+    "entry_time": "2025-11-26T19:46:21.645914",
+    "exit_time": "2025-11-26T20:06:21.863521",
+    "leverage": 10,
+    "close_reason": "Position margin $12.55 <= maximum limit $15.00"
+  },
+  {
+    "symbol": "DOGE",
+    "direction": "long",
+    "entry_price": 0.15631,
+    "exit_price": 0.15586,
+    "quantity": 1075.1955975789367,
+    "notional_usd": 168.06382385756362,
+    "pnl": -0.4838380189105279,
+    "entry_time": "2025-11-26T18:51:12.585194",
+    "exit_time": "2025-11-26T20:21:34.071615",
+    "leverage": 10,
+    "close_reason": "Position negative for 10 cycles"
+  },
+  {
+    "symbol": "SOL",
+    "direction": "short",
+    "entry_price": 143.44,
+    "exit_price": 143.05,
+    "quantity": 0.8178131131503364,
+    "notional_usd": 117.30711295028426,
+    "pnl": 0.31894711412862004,
+    "entry_time": "2025-11-26T20:18:12.309487",
+    "exit_time": "2025-11-26T20:22:20.092735",
+    "leverage": 10,
+    "close_reason": "AI close_position signal"
+  }
+]
