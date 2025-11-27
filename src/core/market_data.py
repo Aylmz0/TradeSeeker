@@ -332,7 +332,7 @@ class RealMarketData:
         # Method 3: Use cached price from previous cycle
         try:
             from src.utils import safe_file_read
-            cached_prices = safe_file_read("portfolio_state.json", default_data={})
+            cached_prices = safe_file_read("data/portfolio_state.json", default_data={})
             if 'positions' in cached_prices:
                 for pos_coin, position in cached_prices['positions'].items():
                     if pos_coin == coin and 'current_price' in position:

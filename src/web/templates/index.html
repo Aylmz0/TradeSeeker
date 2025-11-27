@@ -906,74 +906,8 @@
             });
         }
 
-        // --- Enhanced Data Fetching ---
-        async function fetchData() {
-            try {
-                const stateResponse = await fetch('portfolio_state.json?t=' + Date.now());
-                if (!stateResponse.ok) throw new Error('portfolio_state.json fetch failed.');
-                const stateData = await stateResponse.json();
-                if (typeof stateData !== 'object' || stateData === null) throw new Error('Invalid state data.');
-                updateDashboard(stateData);
+        // --- Enhanced Data Fetching (Removed duplicate/incorrect function) ---
 
-                const tradeHistoryResponse = await fetch('trade_history.json?t=' + Date.now());
-                let tradeHistoryData = [];
-                if (tradeHistoryResponse.ok) {
-                    tradeHistoryData = await tradeHistoryResponse.json();
-                    if (!Array.isArray(tradeHistoryData)) throw new Error('Invalid trade history data.');
-                    updateTradeHistory(tradeHistoryData);
-                } else {
-                    console.warn('Could not fetch trade_history.json');
-                    updateTradeHistory([]);
-                }
-
-                const cycleHistoryResponse = await fetch('cycle_history.json?t=' + Date.now());
-                if (cycleHistoryResponse.ok) {
-                    const cycleHistoryData = await cycleHistoryResponse.json();
-                    if (!Array.isArray(cycleHistoryData)) throw new Error('Invalid cycle history data.');
-                    updateCycleHistory(cycleHistoryData);
-                } else {
-                    console.warn('Could not fetch cycle_history.json');
-                    updateCycleHistory([]);
-                }
-
-                // Fetch alerts
-                try {
-                    const alertsResponse = await fetch('alerts.json?t=' + Date.now());
-                    if (alertsResponse.ok) {
-                        const alertsData = await alertsResponse.json();
-                        if (Array.isArray(alertsData)) {
-                            updateAlerts(alertsData);
-                        }
-                    }
-                } catch (alertError) {
-                    console.warn('Could not fetch alerts.json:', alertError.message);
-                }
-
-                // Update performance metrics
-                const metrics = calculatePerformanceMetrics(tradeHistoryData);
-                winRateEl.textContent = formatPercent(metrics.winRate, '0%');
-                riskLevelEl.textContent = metrics.riskLevel;
-                riskLevelEl.className = `text-xl sm:text-2xl font-bold mt-1 ${
-                    metrics.riskLevel === 'High' ? 'text-negative' : 
-                    metrics.riskLevel === 'Medium' ? 'text-yellow-500' : 'text-positive'
-                }`;
-
-                statusDot.classList.remove('status-down');
-                statusDot.classList.add('status-live');
-                const lastUpdatedTime = stateData.last_updated ? new Date(stateData.last_updated).toLocaleTimeString() : 'N/A';
-                statusText.textContent = `LIVE (Updated: ${lastUpdatedTime})`;
-                statusText.classList.remove('text-negative', 'text-secondary');
-                statusText.classList.add('text-positive');
-
-            } catch (error) {
-                console.error("Fetch data error:", error.message);
-                statusDot.classList.remove('status-live');
-                statusDot.classList.add('status-down');
-                statusText.textContent = 'DISCONNECTED';
-                statusText.classList.remove('text-positive');
-                statusText.classList.add('text-negative', 'text-secondary');
-            }
-        }
 
         // --- Bot Control Functions ---
         let botControlInterval;

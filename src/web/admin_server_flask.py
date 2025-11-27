@@ -79,31 +79,31 @@ def serve_index():
 @app.route('/api/portfolio')
 def get_portfolio():
     """Get current portfolio state."""
-    data = safe_file_read('portfolio_state.json', {})
+    data = safe_file_read('data/portfolio_state.json', {})
     return jsonify(data)
 
 @app.route('/api/trades')
 def get_trades():
     """Get trade history."""
-    data = safe_file_read('trade_history.json', [])
+    data = safe_file_read('data/trade_history.json', [])
     return jsonify(data)
 
 @app.route('/api/cycles')
 def get_cycles():
     """Get AI cycle history."""
-    data = safe_file_read('cycle_history.json', [])
+    data = safe_file_read('data/cycle_history.json', [])
     return jsonify(data)
 
 @app.route('/api/alerts')
 def get_alerts():
     """Get system alerts."""
-    data = safe_file_read('alerts.json', [])
+    data = safe_file_read('data/alerts.json', [])
     return jsonify(data)
 
 @app.route('/api/performance')
 def get_performance():
     """Get performance analysis report."""
-    reports = safe_file_read('performance_report.json', [])
+    reports = safe_file_read('data/performance_report.json', [])
     
     if isinstance(reports, dict):
         return jsonify(reports)
@@ -160,7 +160,7 @@ def force_close_position():
             }
         }
         
-        safe_file_write("manual_override.json", override_command)
+        safe_file_write("data/manual_override.json", override_command)
         
         return jsonify({
             "status": "success", 
@@ -195,7 +195,7 @@ def set_bot_control():
             "action": action
         }
         
-        safe_file_write("bot_control.json", control_data)
+        safe_file_write("data/bot_control.json", control_data)
         logger.info(f"🔔 Bot control: {action.upper()} command sent successfully")
         
         return jsonify({
@@ -212,7 +212,7 @@ def set_bot_control():
 def get_bot_control():
     """Get current bot control status."""
     try:
-        control = safe_file_read("bot_control.json", {"status": "unknown", "last_updated": None})
+        control = safe_file_read("data/bot_control.json", {"status": "unknown", "last_updated": None})
         return jsonify(control)
     except Exception as e:
         logger.error(f"Error reading bot control: {e}")

@@ -37,7 +37,7 @@ class DeepSeekAPI:
                         "content": f"""You are a zero-shot systematic trading model participating in Alpha Arena.
 Your goal is to maximize PnL (profit and loss) by trading perpetual futures on 6 assets: XRP, DOGE, ASTER, ADA, LINK, SOL.
 
-You are given $200 starting capital and must process numerical market data to discover alpha.
+You are given ${Config.INITIAL_BALANCE} starting capital and must process numerical market data to discover alpha.
 Your Sharpe ratio is provided to help normalize for risky behavior.
 
 CORE RULES:
@@ -279,7 +279,7 @@ DECISIONS
     def get_cached_decisions(self) -> str:
         """Get cached decisions from recent successful cycles"""
         try:
-            cached_cycles = safe_file_read("cycle_history.json", default_data=[])
+            cached_cycles = safe_file_read("data/cycle_history.json", default_data=[])
             if not cached_cycles:
                 return self.get_safe_hold_decisions()
             

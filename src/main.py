@@ -33,6 +33,7 @@ from src.core.market_data import RealMarketData
 from src.core.portfolio_manager import PortfolioManager
 from src.ai.deepseek_api import DeepSeekAPI
 from src.services.binance import BinanceOrderExecutor, BinanceAPIError
+from src.ai.enhanced_context_provider import EnhancedContextProvider
 
 # Define constants
 HTF_INTERVAL = getattr(Config, 'HTF_INTERVAL', '1h') or '1h'
@@ -952,7 +953,7 @@ class AlphaArenaDeepSeek:
     def get_enhanced_context(self) -> Dict[str, Any]:
         """Get enhanced context for AI decision making"""
         try:
-            from src.ai.enhanced_context_provider import EnhancedContextProvider
+            # from src.ai.enhanced_context_provider import EnhancedContextProvider
             provider = EnhancedContextProvider()
             return provider.generate_enhanced_context()
         except Exception as e:
@@ -2254,9 +2255,9 @@ All market data is provided in JSON format below. Each coin contains:
             }
             
             # Performance history dosyasına kaydet
-            performance_history = safe_file_read("performance_history.json", [])
+            performance_history = safe_file_read("data/performance_history.json", [])
             performance_history.append(metrics)
-            safe_file_write("performance_history.json", performance_history[-100:])  # Son 100 cycle
+            safe_file_write("data/performance_history.json", performance_history[-100:])  # Son 100 cycle
             
         except Exception as e:
             print(f"⚠️ Performance tracking error: {e}")
@@ -2849,7 +2850,7 @@ All market data is provided in JSON format below. Each coin contains:
         self.invocation_count = start_cycle - 1; current_cycle_number = start_cycle - 1
 
         # Initialize bot control file
-        bot_control_file = "bot_control.json"
+        bot_control_file = "data/bot_control.json"
         self._write_bot_control({"status": "running", "last_updated": datetime.now().isoformat()})
         
         try:
@@ -2962,7 +2963,7 @@ All market data is provided in JSON format below. Each coin contains:
     def _read_bot_control(self) -> Dict[str, Any]:
         """Read bot control file to check for pause/stop commands."""
         try:
-            return safe_file_read("bot_control.json", {"status": "running", "last_updated": datetime.now().isoformat()})
+            return safe_file_read("data/bot_control.json", {"status": "running", "last_updated": datetime.now().isoformat()})
         except Exception as e:
             print(f"⚠️ Failed to read bot_control.json: {e}")
             # Return default running state if file read fails (fail-safe)
@@ -2970,7 +2971,7 @@ All market data is provided in JSON format below. Each coin contains:
     
     def _write_bot_control(self, data: Dict[str, Any]):
         """Write bot control file."""
-        safe_file_write("bot_control.json", data)
+        safe_file_write("data/bot_control.json", data)
 
     def apply_directional_bias(self, signal: str, confidence: float, bias_metrics: Dict[str, Dict[str, Any]], current_trend: str) -> float:
         return self.portfolio.apply_directional_bias(signal, confidence, bias_metrics, current_trend)

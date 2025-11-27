@@ -16,7 +16,7 @@ from src.utils import format_num, safe_file_write, safe_file_read
 class BacktestEngine:
     """Backtesting engine for historical strategy testing."""
     
-    def __init__(self, initial_balance: float = 200.0):
+    def __init__(self, initial_balance: float = Config.INITIAL_BALANCE):
         self.initial_balance = initial_balance
         self.current_balance = initial_balance
         self.positions = {}
@@ -399,7 +399,7 @@ class AdvancedRiskManager:
         # Check if any single position is too concentrated
         # Use dynamic balance calculation (current_balance + total_margin)
         total_margin = sum(pos.get('margin_usd', 0) for pos in current_positions.values())
-        total_balance = 200.0  # Initial balance
+        total_balance = Config.INITIAL_BALANCE  # Initial balance
         current_available_balance = total_balance - total_margin
         
         # Dynamic total balance = available balance + used margin
@@ -451,7 +451,7 @@ class AdvancedRiskManager:
         return portfolio_risk
     
     def should_enter_trade(self, symbol: str, current_positions: Dict, current_prices: Dict, 
-                          confidence: float, proposed_notional: float, current_balance: float = 200.0, 
+                          confidence: float, proposed_notional: float, current_balance: float = Config.INITIAL_BALANCE, 
                           ai_risk_usd: float = None) -> Dict[str, Any]:
         """Determine if a trade should be entered based on position limits only."""
         decision = {

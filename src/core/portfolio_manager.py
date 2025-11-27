@@ -1,4 +1,5 @@
 import json
+import os
 import time
 import copy
 import numpy as np
@@ -1708,7 +1709,7 @@ class PortfolioManager:
 
     def get_profit_levels_by_notional(self, notional_usd: float) -> Dict[str, float]:
         """Get dynamic profit levels based on notional size"""
-        if notional_usd < 200:
+        if notional_usd < Config.INITIAL_BALANCE:
             # Small positions: aggressive profit taking
             return {
                 'level1': 0.006,  # %0.7

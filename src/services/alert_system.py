@@ -238,7 +238,7 @@ class AlertManager:
                                         all_positions: Dict[str, Any]) -> float:
         """Calculate position concentration in portfolio using dynamic margin/balance-based calculation."""
         total_margin = sum(pos.get('margin_usd', 0) for pos in all_positions.values())
-        total_balance = 200.0  # Initial balance
+        total_balance = Config.INITIAL_BALANCE  # Initial balance
         current_available_balance = total_balance - total_margin
         
         # Dynamic total balance = available balance + used margin
@@ -288,7 +288,7 @@ class ConsoleAlertHandler:
 class FileAlertHandler:
     """File-based alert handler for logging."""
     
-    def __init__(self, filename: str = "alerts.json"):
+    def __init__(self, filename: str = "data/alerts.json"):
         self.filename = filename
     
     def __call__(self, alert: Alert) -> None:
