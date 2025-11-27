@@ -140,10 +140,5 @@
     "reset_reason": "periodic_bias_control",
     "reset_at_cycle": 34,
     "timestamp": "2025-11-26T19:45:35.824735"
-  },
-  {
-    "reset_reason": "periodic_bias_control",
-    "reset_at_cycle": 69,
-    "timestamp": "2025-11-26T22:05:33.807513"
   }
 ]
