@@ -15,10 +15,10 @@ class EnhancedContextProvider:
     """
     
     def __init__(self):
-        self.cycle_history_file = "cycle_history.json"
-        self.trade_history_file = "trade_history.json"
-        self.portfolio_state_file = "portfolio_state.json"
-        self.performance_file = "performance_report.json"
+        self.cycle_history_file = "data/cycle_history.json"
+        self.trade_history_file = "data/trade_history.json"
+        self.portfolio_state_file = "data/portfolio_state.json"
+        self.performance_file = "data/performance_report.json"
         
     def safe_file_read(self, file_path: str, default_data=None):
         """Safely read JSON file with error handling"""

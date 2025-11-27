@@ -96,7 +96,7 @@ class PerformanceMonitor:
                 break_even_trades = []
             
             # Portfolio performance
-            initial_balance = portfolio.get('initial_balance', 200.0)
+            initial_balance = portfolio.get('initial_balance', Config.INITIAL_BALANCE)
             current_balance = portfolio.get('current_balance', 0.0)
             total_value = portfolio.get('total_value', 0.0)
             total_return = portfolio.get('total_return', 0.0)
@@ -226,7 +226,7 @@ class PerformanceMonitor:
         # Get current portfolio data for dynamic values
         portfolio = safe_file_read(self.portfolio_state_file, {})
         current_balance = portfolio.get('current_balance', 0.0)
-        initial_balance = portfolio.get('initial_balance', 200.0)
+        initial_balance = portfolio.get('initial_balance', Config.INITIAL_BALANCE)
         total_return = portfolio.get('total_return', 0.0)
         
         # Dynamic cash balance warning
