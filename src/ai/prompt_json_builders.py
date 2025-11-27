@@ -120,15 +120,15 @@ def build_counter_trade_json(
             
             total_met = sum([condition_1, condition_2, condition_3, condition_4, condition_5])
             
-            # Determine risk level (Stricter Logic)
-            if alignment_strength == "STRONG" and total_met >= 3:
-                risk_level = "LOW_RISK"  # STRONG alignment + High Confluence
-            elif alignment_strength == "STRONG" and total_met >= 2:
-                risk_level = "MEDIUM_RISK"
-            elif alignment_strength == "MEDIUM" and total_met >= 3:
-                risk_level = "MEDIUM_RISK"
+            # Determine risk level (Stricter Logic - Updated User Request)
+            if alignment_strength == "STRONG" and total_met >= 4:
+                risk_level = "LOW_RISK"  # STRONG alignment + Very High Confluence
+            elif alignment_strength == "STRONG" and total_met >= 3:
+                risk_level = "MEDIUM_RISK"  # STRONG alignment + High Confluence
+            elif alignment_strength == "MEDIUM" and total_met >= 4:
+                risk_level = "MEDIUM_RISK"  # MEDIUM alignment + Very High Confluence
             elif alignment_strength == "MEDIUM":
-                risk_level = "HIGH_RISK"  # Medium alignment is always at least High Risk
+                risk_level = "HIGH_RISK"  # Medium alignment with < 4 conditions is High Risk
             else:
                 risk_level = "VERY_HIGH_RISK"
             

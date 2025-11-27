@@ -2378,9 +2378,18 @@ class PortfolioManager:
                     score += weight
                     score_breakdown.append(f"{description} (+{weight:.1f})")
 
-            # Condition 1: 15m + 3m alignment (STRONG counter-trend requirement)
+            # --- STRICT 5-CRITERIA VALIDATION WITH DYNAMIC THRESHOLD ---
+            # 1. Trend Alignment (15m+3m) -> Determines Threshold (Strong=2, Medium=3)
+            # 2. Volume (> 1.5x average)
+            # 3. RSI (Extreme levels: >75 Short / <25 Long)
+            # 4. Technical Level (Price near EMA20 < 1%)
+            # 5. MACD Divergence
+
+            # Condition 1: Trend Alignment & Threshold Determination
             price_3m = indicators_3m.get('current_price')
             ema20_3m = indicators_3m.get('ema_20')
+            alignment_strength = "WEAK"
+            
             if has_15m:
                 price_15m = indicators_15m.get('current_price')
                 ema20_15m = indicators_15m.get('ema_20')
@@ -2390,59 +2399,68 @@ class PortfolioManager:
                     trend_3m = "BULLISH" if price_3m > ema20_3m else "BEARISH"
                     signal_direction = "BULLISH" if signal == 'buy_to_enter' else "BEARISH"
                     
-                    # STRONG counter-trend: 15m + 3m both align with signal direction
                     if trend_15m == trend_3m == signal_direction:
-                        _register(True, "STRONG: 15m+3m alignment with counter-trend signal", 2.0)
-                    # MEDIUM counter-trend: 15m VEYA 3m tek başına align with signal direction
-                    elif trend_15m == signal_direction:
-                        _register(True, "MEDIUM: 15m alignment with counter-trend signal", 1.2)
-                    elif trend_3m == signal_direction:
-                        _register(True, "MEDIUM: 3m alignment with counter-trend signal", 1.2)
-                    else:
-                        score_breakdown.append(f"15m+3m alignment: 15m={trend_15m}, 3m={trend_3m}, signal={signal_direction} (no boost)")
-            
-            # Condition 2: 3m momentum supportive of the counter direction (if 15m not available)
-            if not has_15m and isinstance(price_3m, (int, float)) and isinstance(ema20_3m, (int, float)):
-                if signal == 'buy_to_enter':
-                    _register(price_3m > ema20_3m, "MEDIUM: 3m momentum supportive (price > EMA20)", 1.2)
-                elif signal == 'sell_to_enter':
-                    _register(price_3m < ema20_3m, "MEDIUM: 3m momentum supportive (price < EMA20)", 1.2)
-            
-            # Condition 3: Volume confirmation (>1.5x average)
+                        alignment_strength = "STRONG"
+                        _register(True, "STRONG Alignment (15m+3m)", 1.0)
+                    elif trend_15m == signal_direction or trend_3m == signal_direction:
+                        alignment_strength = "MEDIUM"
+                        _register(True, f"MEDIUM Alignment (15m={trend_15m}, 3m={trend_3m})", 1.0)
+            elif isinstance(price_3m, (int, float)) and isinstance(ema20_3m, (int, float)):
+                 # Fallback to 3m only
+                 trend_3m = "BULLISH" if price_3m > ema20_3m else "BEARISH"
+                 signal_direction = "BULLISH" if signal == 'buy_to_enter' else "BEARISH"
+                 if trend_3m == signal_direction:
+                     alignment_strength = "MEDIUM"
+                     _register(True, f"MEDIUM Alignment (3m={trend_3m})", 1.0)
+
+            if alignment_strength == "WEAK":
+                score_breakdown.append("Trend Alignment: WEAK")
+
+            # Condition 2: Volume confirmation (>1.5x average)
             current_volume = indicators_3m.get('volume', 0)
             avg_volume = indicators_3m.get('avg_volume', 1)
             volume_ratio = current_volume / avg_volume if avg_volume > 0 else 0
             if volume_ratio > 1.5:
-                _register(True, f"Volume {volume_ratio:.1f}x average", 1.1)
-            elif volume_ratio > 1.0:
-                _register(True, f"Volume {volume_ratio:.1f}x average", 0.9)
-            elif volume_ratio > 0.8:
-                _register(True, f"Volume {volume_ratio:.1f}x average", 0.8)
+                _register(True, f"Volume {volume_ratio:.1f}x average", 1.0)
             else:
-                score_breakdown.append(f"Volume {volume_ratio:.2f}x average (no boost)")
+                score_breakdown.append(f"Volume {volume_ratio:.2f}x average (need >1.5x)")
             
-            # Condition 4: Extreme RSI
+            # Condition 3: Extreme RSI
             rsi_3m = indicators_3m.get('rsi_14', 50)
             if signal == 'buy_to_enter':
-                _register(rsi_3m < 35, f"Extreme RSI ({rsi_3m:.1f})", 1.0)
+                if rsi_3m < 25:
+                    _register(True, f"Extreme RSI ({rsi_3m:.1f} < 25)", 1.0)
+                else:
+                    score_breakdown.append(f"RSI {rsi_3m:.1f} (need < 25)")
             elif signal == 'sell_to_enter':
-                _register(rsi_3m > 65, f"Extreme RSI ({rsi_3m:.1f})", 1.0)
+                if rsi_3m > 75:
+                    _register(True, f"Extreme RSI ({rsi_3m:.1f} > 75)", 1.0)
+                else:
+                    score_breakdown.append(f"RSI {rsi_3m:.1f} (need > 75)")
             
-            # Condition 5: Price close to EMA20 (< 1%)
+            # Condition 4: Price close to EMA20 (< 1%)
             if isinstance(price_3m, (int, float)) and isinstance(ema20_3m, (int, float)) and price_3m:
                 price_ema_distance = abs(price_3m - ema20_3m) / price_3m * 100
-                ema_distance_threshold = 1.8 if not relax_mode_active else 2.5
-                _register(price_ema_distance < ema_distance_threshold, f"Price within {ema_distance_threshold:.1f}% of EMA20 ({price_ema_distance:.2f}%)", 0.6)
+                if price_ema_distance < 1.0:
+                    _register(True, f"Price within 1% of EMA20 ({price_ema_distance:.2f}%)", 1.0)
+                else:
+                    score_breakdown.append(f"EMA Distance {price_ema_distance:.2f}% (need < 1.0%)")
             
-            # Condition 6: MACD divergence supportive
+            # Condition 5: MACD divergence supportive
             macd_3m = indicators_3m.get('macd', 0)
             macd_signal_3m = indicators_3m.get('macd_signal', 0)
             if signal == 'buy_to_enter':
-                _register(macd_3m > macd_signal_3m, "MACD divergence supportive", 0.8)
+                if macd_3m > macd_signal_3m:
+                    _register(True, "MACD divergence supportive (Bullish)", 1.0)
+                else:
+                    score_breakdown.append("MACD not supportive")
             elif signal == 'sell_to_enter':
-                _register(macd_3m < macd_signal_3m, "MACD divergence supportive", 0.8)
+                if macd_3m < macd_signal_3m:
+                    _register(True, "MACD divergence supportive (Bearish)", 1.0)
+                else:
+                    score_breakdown.append("MACD not supportive")
 
-            # Volume safety rail: reject extremely illiquid environments
+            # Volume safety rail
             if volume_ratio is not None:
                 volume_safety_floor = 0.15
                 if relax_mode_active:
@@ -2452,44 +2470,34 @@ class PortfolioManager:
                         "valid": False,
                         "conditions_met": conditions_met,
                         "total_conditions": conditions_met_count,
-                        "conditions_required": total_conditions_available,
+                        "conditions_required": 5,
                         "score": score,
-                        "score_threshold": None,
+                        "score_threshold": 3.0,
                         "score_breakdown": score_breakdown,
-                        "reason": (
-                            f"Volume ratio {volume_ratio:.2f}x is below {volume_safety_floor:.2f}x minimum for counter-trend entries"
-                            if not relax_mode_active else
-                            f"Volume ratio {volume_ratio:.2f}x is below relaxed minimum {volume_safety_floor:.2f}x while cooldown active"
-                        )
+                        "reason": f"Volume ratio {volume_ratio:.2f}x is below {volume_safety_floor:.2f}x minimum"
                     }
 
-            # Dynamic score threshold based on liquidity context
-            score_threshold = 2.3
-            if volume_ratio is not None:
-                if volume_ratio >= 1.5:
-                    score_threshold = 2.0
-                elif volume_ratio >= 1.0:
-                    score_threshold = 2.1
-                elif volume_ratio >= 0.8:
-                    score_threshold = 2.2
-                else:
-                    score_threshold = 2.3
-            if relax_mode_active:
-                score_threshold = max(1.8, score_threshold - 0.3)
-
-            valid = score >= score_threshold
+            # DYNAMIC THRESHOLD LOGIC (Matches prompt_json_builders.py)
+            # STRONG Alignment (15m+3m) -> Needs 3 conditions (Alignment + 2 more)
+            # MEDIUM Alignment (15m OR 3m) -> Needs 4 conditions (Alignment + 3 more)
+            required_conditions = 4
+            if alignment_strength == "STRONG":
+                required_conditions = 3
+            
+            valid = conditions_met_count >= required_conditions
+            
             return {
                 "valid": valid,
                 "conditions_met": conditions_met,
                 "total_conditions": conditions_met_count,
-                "conditions_required": total_conditions_available,
+                "conditions_required": 5,
                 "score": round(score, 2),
-                "score_threshold": round(score_threshold, 2),
+                "score_threshold": float(required_conditions),
                 "score_breakdown": score_breakdown,
                 "reason": (
-                    f"Counter-trend score {score:.2f} ≥ threshold {score_threshold:.2f} ({conditions_met_count}/{total_conditions_available} signals)"
+                    f"Counter-trend criteria met: {conditions_met_count}/5 conditions (Threshold: {required_conditions} for {alignment_strength})"
                     if valid else
-                    f"Counter-trend score {score:.2f} < threshold {score_threshold:.2f} ({conditions_met_count}/{total_conditions_available} signals)"
+                    f"Counter-trend criteria FAILED: {conditions_met_count}/5 conditions met (Need {required_conditions}+ for {alignment_strength})"
                 ),
                 "relax_mode_active": relax_mode_active,
                 "relaxed_cycles_remaining": relaxed_cycles if relax_mode_active else 0
