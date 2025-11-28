@@ -142,7 +142,7 @@ class DeepSeekAPI:
                     "style": "NOF1AI Advanced Style",
                     "input_context": "Market data showing mixed signals...",
                     "output_example": {
-                        "CHAIN_OF_THOUGHTS": f"Advanced systematic analysis of all assets using {HTF_LABEL} (1h) trends, 15m momentum confirmation, and 3m entry timing. XRP: 1h bullish (price > EMA20, RSI 62.5), 15m bullish momentum (price > EMA20, RSI 58), 3m bullish (price > EMA20, RSI 60). All three timeframes aligned bullish with volume confirmation. Open Interest increasing suggests institutional interest. Targeting $0.56 with stop below $0.48. Invalidation if {HTF_LABEL} price closes below EMA20.",
+                        "CHAIN_OF_THOUGHTS": f"Advanced systematic analysis of all assets using {HTF_LABEL} (1h) trends, 15m momentum confirmation, and 3m entry timing.\n\nXRP: 1h bullish (price > EMA20, RSI 62.5), 15m bullish momentum (price > EMA20, RSI 58), 3m bullish (price > EMA20, RSI 60). All three timeframes aligned bullish with volume confirmation. Open Interest increasing suggests institutional interest. Targeting $0.56 with stop below $0.48. Invalidation if {HTF_LABEL} price closes below EMA20.\n\nSOL: 1h bearish, 15m bearish, 3m bearish. Strong trend-following SHORT setup.\n\nADA: Mixed signals, holding.\n\nDOGE: Bullish trend but overextended, waiting for pullback.\n\nLINK: Low volume, skipping.\n\nASTER: Range bound, no clear edge.",
                         "DECISIONS": {
                             "XRP": {
                                 "signal": "buy_to_enter",
@@ -211,7 +211,35 @@ class DeepSeekAPI:
             if not result.get('choices') or not result['choices'][0].get('message'):
                 raise ValueError("DeepSeek API returned unexpected structure.")
             
-            return result['choices'][0]['message']['content']
+            content = result['choices'][0]['message']['content']
+            
+            # Robust JSON extraction using JSONDecoder
+            try:
+                # Find the first '{'
+                start_index = content.find('{')
+                if start_index != -1:
+                    # Slice from the first '{' to the end
+                    json_candidate = content[start_index:]
+                    
+                    # Use raw_decode to parse the JSON object and ignore trailing data
+                    decoder = json.JSONDecoder()
+                    obj, end_index = decoder.raw_decode(json_candidate)
+                    
+                    # Re-serialize to ensure valid JSON string is returned
+                    # This effectively strips all extra text before and after the JSON
+                    content = json.dumps(obj, indent=2)
+                else:
+                    print("⚠️ No JSON object found in response")
+                    
+            except Exception as e:
+                print(f"⚠️ JSON extraction warning: {e}")
+                # Fallback: try stripping markdown if extraction failed
+                if "```json" in content:
+                    content = content.replace("```json", "").replace("```", "")
+                elif "```" in content:
+                    content = content.replace("```", "")
+            
+            return content.strip()
 
         except requests.exceptions.Timeout:
              print("❌ DeepSeek API request timed out.")

@@ -359,3 +359,74 @@ class RealMarketData:
             'open_interest_avg': avg_oi,
             'funding_rate': funding_rate
         }
+
+    def detect_trend_reversal_signals(self, coin: str, indicators_3m: Dict[str, Any], indicators_htf: Dict[str, Any]) -> Dict[str, Any]:
+        """
+        Detect potential trend reversal signals based on multi-timeframe analysis.
+        Centralized logic to be used by both PerformanceMonitor and AI Prompt Builder.
+        
+        Args:
+            coin: Coin symbol
+            indicators_3m: 3m indicators
+            indicators_htf: HTF indicators (1h/4h)
+            
+        Returns:
+            Dictionary containing reversal signals and strength
+        """
+        signals = []
+        
+        if not indicators_3m or not indicators_htf:
+            return {'signals': [], 'strength': 'NONE'}
+            
+        # Extract indicators
+        price_3m = indicators_3m.get('current_price')
+        ema20_3m = indicators_3m.get('ema_20')
+        rsi_3m = indicators_3m.get('rsi_14')
+        macd_3m = indicators_3m.get('macd')
+        macd_signal_3m = indicators_3m.get('macd_signal')
+        
+        price_htf = indicators_htf.get('current_price')
+        ema20_htf = indicators_htf.get('ema_20')
+        
+        if None in [price_3m, ema20_3m, rsi_3m, macd_3m, macd_signal_3m, price_htf, ema20_htf]:
+            return {'signals': [], 'strength': 'NONE'}
+            
+        # Determine trends
+        trend_3m = "BULLISH" if price_3m > ema20_3m else "BEARISH"
+        trend_htf = "BULLISH" if price_htf > ema20_htf else "BEARISH"
+        
+        # 1. Trend Conflict (HTF vs 3m)
+        if trend_htf != trend_3m:
+            signals.append(f"Trend Conflict: HTF {trend_htf} vs 3m {trend_3m}")
+            
+        # 2. RSI Extremes (Counter to HTF trend)
+        # If HTF Bullish, look for Overbought (potential top)
+        if trend_htf == "BULLISH" and rsi_3m > Config.RSI_OVERBOUGHT_THRESHOLD:
+            signals.append(f"RSI Overbought ({rsi_3m:.1f}) in Bullish Trend")
+        # If HTF Bearish, look for Oversold (potential bottom)
+        elif trend_htf == "BEARISH" and rsi_3m < Config.RSI_OVERSOLD_THRESHOLD:
+            signals.append(f"RSI Oversold ({rsi_3m:.1f}) in Bearish Trend")
+            
+        # 3. MACD Divergence (Counter to HTF trend)
+        # If HTF Bullish, look for Bearish MACD Cross
+        if trend_htf == "BULLISH" and macd_3m < macd_signal_3m:
+            signals.append("MACD Bearish Cross in Bullish Trend")
+        # If HTF Bearish, look for Bullish MACD Cross
+        elif trend_htf == "BEARISH" and macd_3m > macd_signal_3m:
+            signals.append("MACD Bullish Cross in Bearish Trend")
+            
+        # Determine Signal Strength
+        strength = "NONE"
+        if len(signals) >= 3:
+            strength = "HIGH_LOSS_RISK"
+        elif len(signals) >= 2:
+            strength = "MEDIUM_LOSS_RISK"
+        elif len(signals) >= 1:
+            strength = "LOW_LOSS_RISK"
+            
+        return {
+            'signals': signals,
+            'strength': strength,
+            'trend_htf': trend_htf,
+            'trend_3m': trend_3m
+        }

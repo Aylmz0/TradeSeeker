@@ -38,18 +38,31 @@ def safe_file_read(file_path: str, default_data=None):
     return default_data if default_data is not None else []
 
 def safe_file_write(file_path: str, data):
-    """Safely write JSON file with error handling"""
+    """Safely write JSON file with error handling and atomicity"""
     try:
         # Ensure directory exists
         directory = os.path.dirname(file_path)
         if directory and not os.path.exists(directory):
             os.makedirs(directory)
             
-        with open(file_path, 'w', encoding='utf-8') as f:
+        # Write to a temporary file first
+        temp_file_path = f"{file_path}.tmp"
+        with open(temp_file_path, 'w', encoding='utf-8') as f:
             json.dump(data, f, indent=2, ensure_ascii=False)
+            f.flush()
+            os.fsync(f.fileno()) # Ensure data is written to disk
+            
+        # Atomic replace
+        os.replace(temp_file_path, file_path)
         return True
     except Exception as e:
         logger.error(f"❌ Error writing {file_path}: {e}")
+        # Clean up temp file if it exists
+        if 'temp_file_path' in locals() and os.path.exists(temp_file_path):
+            try:
+                os.remove(temp_file_path)
+            except:
+                pass
         return False
 
 def format_num(num: float, precision: int = 2) -> str:

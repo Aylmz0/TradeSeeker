@@ -1,0 +1,83 @@
+{
+  "current_balance": 86.868859134043,
+  "positions": {
+    "DOGE": {
+      "symbol": "DOGE",
+      "direction": "long",
+      "quantity": 1010.0651230220044,
+      "entry_price": 0.1508,
+      "entry_time": "2025-11-28T06:03:19.737226",
+      "current_price": 0.15076,
+      "unrealized_pnl": -0.04040260492086451,
+      "notional_usd": 152.31782055171826,
+      "margin_usd": 15.231782055171825,
+      "leverage": 10,
+      "liquidation_price": 0.137228,
+      "confidence": 0.666,
+      "exit_plan": {
+        "stop_loss": 0.148,
+        "profit_target": 0.155,
+        "invalidation_condition": "If 1h price closes below 1h EMA20 (0.15263)"
+      },
+      "risk_usd": 15.231782055171825,
+      "loss_cycle_count": 0,
+      "entry_volume": 8304697.0,
+      "entry_avg_volume": 1990430.7,
+      "entry_volume_ratio": 4.172311550459908,
+      "entry_atr_14": 0.0002794902753773335,
+      "trend_alignment": "counter_trend",
+      "trend_context": {
+        "trend_at_entry": "neutral",
+        "alignment": "counter_trend",
+        "cycle": 3
+      },
+      "trailing": {},
+      "sl_oid": -1,
+      "tp_oid": -1,
+      "entry_oid": -1,
+      "wait_for_fill": false
+    }
+  },
+  "total_value": 102.06023858429396,
+  "total_return": 2.0602385842939555,
+  "initial_balance": 100.0,
+  "trade_count": 0,
+  "last_updated": "2025-11-28T06:13:13.805945",
+  "sharpe_ratio": 4.654036730491742,
+  "directional_bias": {
+    "long": {
+      "rolling": [],
+      "net_pnl": 0.0,
+      "trades": 0,
+      "wins": 0,
+      "losses": 0,
+      "consecutive_losses": 0,
+      "consecutive_wins": 0,
+      "caution_active": false,
+      "caution_win_progress": 0,
+      "loss_streak_loss_usd": 0.0
+    },
+    "short": {
+      "rolling": [],
+      "net_pnl": 0.0,
+      "trades": 0,
+      "wins": 0,
+      "losses": 0,
+      "consecutive_losses": 0,
+      "consecutive_wins": 0,
+      "caution_active": false,
+      "caution_win_progress": 0,
+      "loss_streak_loss_usd": 0.0
+    }
+  },
+  "last_history_reset_cycle": 35,
+  "cycles_since_history_reset": 4,
+  "directional_cooldowns": {
+    "long": 0,
+    "short": 0
+  },
+  "relaxed_countertrend_cycles": 0,
+  "counter_trend_cooldown": 0,
+  "counter_trend_consecutive_losses": 0,
+  "coin_cooldowns": {}
+}

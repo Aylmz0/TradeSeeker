@@ -107,11 +107,11 @@ def build_counter_trade_json(
             
             # Evaluate conditions (calculate total_met without storing individual conditions)
             condition_1 = alignment_strength in ["STRONG", "MEDIUM"]
-            condition_2 = (volume_3m or 0) / (avg_volume_3m or 1) > 1.5 if avg_volume_3m else False
+            condition_2 = (volume_3m or 0) / (avg_volume_3m or 1) > Config.VOLUME_RATIO_HIGH_THRESHOLD if avg_volume_3m else False
             # Condition 3: Extreme RSI (Counter-trend)
             # If Bullish trend, we want to Short -> Need Overbought (>75)
             # If Bearish trend, we want to Long -> Need Oversold (<25)
-            condition_3 = (trend_htf == "BULLISH" and (rsi_3m or 50) > 75) or (trend_htf == "BEARISH" and (rsi_3m or 50) < 25)
+            condition_3 = (trend_htf == "BULLISH" and (rsi_3m or 50) > Config.RSI_OVERBOUGHT_THRESHOLD) or (trend_htf == "BEARISH" and (rsi_3m or 50) < Config.RSI_OVERSOLD_THRESHOLD)
             condition_4 = abs((price_3m or 0) - (ema20_3m or 0)) / (price_3m or 1) * 100 < 1.0 if price_3m and ema20_3m else False
             # Condition 5: MACD divergence (Counter-trend)
             # If Bullish trend, we want to Short -> Need Bearish MACD (MACD < Signal)
@@ -143,7 +143,7 @@ def build_counter_trade_json(
                 },
                 "risk_level": risk_level,
                 "volume_ratio": format_number_for_json((volume_3m or 0) / avg_volume_3m) if avg_volume_3m and avg_volume_3m > 0 else 0.0,
-                "volume_strength": "STRONG" if (avg_volume_3m and avg_volume_3m > 0 and ((volume_3m or 0) / avg_volume_3m) > 1.5) else "WEAK" if (avg_volume_3m and avg_volume_3m > 0 and ((volume_3m or 0) / avg_volume_3m) < 0.5) else "NORMAL",
+                "volume_strength": "STRONG" if (avg_volume_3m and avg_volume_3m > 0 and ((volume_3m or 0) / avg_volume_3m) > Config.VOLUME_RATIO_HIGH_THRESHOLD) else "WEAK" if (avg_volume_3m and avg_volume_3m > 0 and ((volume_3m or 0) / avg_volume_3m) < Config.VOLUME_RATIO_LOW_THRESHOLD) else "NORMAL",
                 "rsi_3m": rsi_3m
             })
         
@@ -288,18 +288,18 @@ def build_enhanced_context_json(
         "performance_insights": {
             "total_return": format_number_for_json(performance_insights.get('total_return', 0)),
             "sharpe_ratio": format_number_for_json(performance_insights.get('sharpe_ratio')),
-            "win_rate": format_number_for_json(performance_insights.get('win_rate'))
+            "profitability_index": format_number_for_json(performance_insights.get('profitability_index'))
         },
         "directional_feedback": {
             "long_performance": {
                 "net_pnl": format_number_for_json(directional_feedback.get('long', {}).get('total_pnl', 0)),
                 "trades": directional_feedback.get('long', {}).get('trades', 0),
-                "win_rate": format_number_for_json(directional_feedback.get('long', {}).get('win_rate', 0))
+                "profitability_index": format_number_for_json(directional_feedback.get('long', {}).get('profitability_index', 0))
             },
             "short_performance": {
                 "net_pnl": format_number_for_json(directional_feedback.get('short', {}).get('total_pnl', 0)),
                 "trades": directional_feedback.get('short', {}).get('trades', 0),
-                "win_rate": format_number_for_json(directional_feedback.get('short', {}).get('win_rate', 0))
+                "profitability_index": format_number_for_json(directional_feedback.get('short', {}).get('profitability_index', 0))
             }
         },
         "risk_context": {
@@ -621,7 +621,7 @@ def build_directional_bias_json(
             "trades": stats.get('trades', 0),
             "wins": stats.get('wins', 0),
             "losses": stats.get('losses', 0),
-            "win_rate": format_number_for_json(stats.get('win_rate', 0.0)),
+            "profitability_index": format_number_for_json(stats.get('profitability_index', 0.0)),
             "rolling_avg": format_number_for_json(stats.get('rolling_avg', 0.0)),
             "consecutive_losses": stats.get('consecutive_losses', 0),
             "consecutive_wins": stats.get('consecutive_wins', 0),

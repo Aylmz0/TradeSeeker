@@ -50,6 +50,13 @@ class Config:
         'fair': 1.2,       # >1.2x average volume
         'poor': 0.7        # >0.7x average volume
     }
+    
+    # AI Logic Thresholds
+    RSI_OVERBOUGHT_THRESHOLD: float = float(os.getenv('RSI_OVERBOUGHT_THRESHOLD', '75.0'))
+    RSI_OVERSOLD_THRESHOLD: float = float(os.getenv('RSI_OVERSOLD_THRESHOLD', '25.0'))
+    VOLUME_RATIO_HIGH_THRESHOLD: float = float(os.getenv('VOLUME_RATIO_HIGH_THRESHOLD', '1.5'))
+    VOLUME_RATIO_LOW_THRESHOLD: float = float(os.getenv('VOLUME_RATIO_LOW_THRESHOLD', '0.5'))
+
     SAME_DIRECTION_LIMIT: int = int(os.getenv('SAME_DIRECTION_LIMIT', '4'))
     EMA_NEUTRAL_BAND_PCT: float = float(os.getenv('EMA_NEUTRAL_BAND_PCT', '0.0015'))  # ±0.15% bant
     INTRADAY_NEUTRAL_RSI_HIGH: float = float(os.getenv('INTRADAY_NEUTRAL_RSI_HIGH', '60.0'))
@@ -119,6 +126,20 @@ class Config:
     USE_SMART_CACHE: bool = os.getenv('USE_SMART_CACHE', 'true').lower() == 'true'  # Enable smart TTL cache for 15m and HTF
     SMART_CACHE_SAFETY_MARGIN: float = float(os.getenv('SMART_CACHE_SAFETY_MARGIN', '0.85'))  # Safety margin for TTL (85% of candle duration)
     SMART_CACHE_STATS_LOGGING: bool = os.getenv('SMART_CACHE_STATS_LOGGING', 'true').lower() == 'true'  # Print cache stats
+    
+    # Performance Monitor Thresholds
+    PERFORMANCE_PROFITABILITY_HIGH: float = float(os.getenv('PERFORMANCE_PROFITABILITY_HIGH', '50.0'))
+    PERFORMANCE_PROFITABILITY_LOW: float = float(os.getenv('PERFORMANCE_PROFITABILITY_LOW', '40.0'))
+    PERFORMANCE_PROFIT_FACTOR_LOW: float = float(os.getenv('PERFORMANCE_PROFIT_FACTOR_LOW', '1.2'))
+    PERFORMANCE_PROFIT_FACTOR_HIGH: float = float(os.getenv('PERFORMANCE_PROFIT_FACTOR_HIGH', '1.5'))
+    PERFORMANCE_DECISION_RATE_HIGH: float = float(os.getenv('PERFORMANCE_DECISION_RATE_HIGH', '60.0'))
+    PERFORMANCE_DECISION_RATE_LOW: float = float(os.getenv('PERFORMANCE_DECISION_RATE_LOW', '30.0'))
+    PERFORMANCE_RETURN_HIGH: float = float(os.getenv('PERFORMANCE_RETURN_HIGH', '5.0'))
+    PERFORMANCE_RETURN_LOW: float = float(os.getenv('PERFORMANCE_RETURN_LOW', '0.0'))
+    PERFORMANCE_DRAWDOWN_THRESHOLD: float = float(os.getenv('PERFORMANCE_DRAWDOWN_THRESHOLD', '-10.0'))
+    PERFORMANCE_SHARPE_HIGH: float = float(os.getenv('PERFORMANCE_SHARPE_HIGH', '1.0'))
+    PERFORMANCE_SHARPE_LOW: float = float(os.getenv('PERFORMANCE_SHARPE_LOW', '0.0'))
+    PERFORMANCE_PROFIT_FACTOR_CRITICAL: float = float(os.getenv('PERFORMANCE_PROFIT_FACTOR_CRITICAL', '0.8'))
     
     @classmethod
     def validate_config(cls) -> bool:
