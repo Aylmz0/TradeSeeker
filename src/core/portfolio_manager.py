@@ -1031,22 +1031,22 @@ class PortfolioManager:
             rolling_sum = sum(rolling_list)
             rolling_avg = (rolling_sum / len(rolling_list)) if rolling_list else 0.0
             
-            # Calculate win rate based on profit/loss amounts (not trade counts)
-            # Win Rate = Total Profit / (|Total Profit| + |Total Loss|) * 100
+            # Calculate profitability index based on profit/loss amounts (not trade counts)
+            # Profitability Index = Total Profit / (|Total Profit| + |Total Loss|) * 100
             total_profit = sum(pnl for pnl in rolling_list if pnl > 0)
             total_loss = abs(sum(pnl for pnl in rolling_list if pnl < 0))
             
             if total_profit + total_loss > 0:
-                win_rate = (total_profit / (total_profit + total_loss)) * 100
+                profitability_index = (total_profit / (total_profit + total_loss)) * 100
             else:
-                win_rate = 0.0
+                profitability_index = 0.0
             
             metrics[side] = {
                 'net_pnl': stats['net_pnl'],
                 'trades': stats['trades'],
                 'wins': stats['wins'],
                 'losses': stats['losses'],
-                'win_rate': win_rate,  # Added win_rate based on profit/loss amounts
+                'profitability_index': profitability_index,  # Added profitability_index based on profit/loss amounts
                 'rolling_sum': rolling_sum,
                 'rolling_avg': rolling_avg,
                 'consecutive_losses': stats['consecutive_losses'],

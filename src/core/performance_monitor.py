@@ -25,8 +25,13 @@ class PerformanceMonitor:
             trades = safe_file_read(self.trade_history_file, [])
             portfolio = safe_file_read(self.portfolio_state_file, {})
             
-            if not cycles:
-                return {"info": "No trading data available yet. Run Alpha Arena DeepSeek to generate performance data."}
+            if not cycles or not isinstance(cycles, list):
+                return {"info": "No valid trading data available yet. Run Alpha Arena DeepSeek to generate performance data."}
+            
+            # Validate data structure
+            valid_cycles = [c for c in cycles if isinstance(c, dict) and 'decisions' in c]
+            if not valid_cycles:
+                return {"info": "No valid cycle data found."}
             
             # Get last N cycles
             recent_cycles = cycles[-last_n_cycles:] if len(cycles) > last_n_cycles else cycles
@@ -66,12 +71,12 @@ class PerformanceMonitor:
                 total_profit = sum(t.get('pnl', 0) for t in winning_trades)
                 total_loss = abs(sum(t.get('pnl', 0) for t in losing_trades))
                 
-                # Win rate = Total Profit / (|Total Profit| + |Total Loss|) * 100
+                # Profitability Index = Total Profit / (|Total Profit| + |Total Loss|) * 100
                 # This gives a more accurate picture than trade count ratio
                 if total_profit + total_loss > 0:
-                    win_rate = (total_profit / (total_profit + total_loss)) * 100
+                    profitability_index = (total_profit / (total_profit + total_loss)) * 100
                 else:
-                    win_rate = 0
+                    profitability_index = 0
                 
                 # Calculate average PnL
                 total_pnl = sum(t.get('pnl', 0) for t in trades)
@@ -85,7 +90,7 @@ class PerformanceMonitor:
                 largest_loss = min(t.get('pnl', 0) for t in trades) if trades else 0
                 
             else:
-                win_rate = 0
+                profitability_index = 0
                 avg_pnl = 0
                 total_pnl = 0
                 profit_factor = 0
@@ -100,7 +105,14 @@ class PerformanceMonitor:
             current_balance = portfolio.get('current_balance', 0.0)
             total_value = portfolio.get('total_value', 0.0)
             total_return = portfolio.get('total_return', 0.0)
+            total_return = portfolio.get('total_return', 0.0)
             sharpe_ratio = portfolio.get('sharpe_ratio', 0.0)
+            
+            # Calculate Max Drawdown
+            max_drawdown = self._calculate_max_drawdown(portfolio.get('total_value_history', []))
+            
+            # Calculate Sortino Ratio
+            sortino_ratio = self._calculate_sortino_ratio(portfolio.get('total_value_history', []))
             
             # Position analysis
             positions = portfolio.get('positions', {})
@@ -129,11 +141,11 @@ class PerformanceMonitor:
                 coin_profit = sum(t.get('pnl', 0) for t in coin_trades if t.get('pnl', 0) > 0)
                 coin_loss = abs(sum(t.get('pnl', 0) for t in coin_trades if t.get('pnl', 0) < 0))
                 
-                # Win rate = Total Profit / (|Total Profit| + |Total Loss|) * 100
+                # Profitability Index = Total Profit / (|Total Profit| + |Total Loss|) * 100
                 if coin_profit + coin_loss > 0:
-                    stats['win_rate'] = (coin_profit / (coin_profit + coin_loss)) * 100
+                    stats['profitability_index'] = (coin_profit / (coin_profit + coin_loss)) * 100
                 else:
-                    stats['win_rate'] = 0
+                    stats['profitability_index'] = 0
                 stats['avg_pnl'] = stats['total_pnl'] / stats['trades'] if stats['trades'] > 0 else 0
             
             # Compile performance report
@@ -156,7 +168,7 @@ class PerformanceMonitor:
                     "winning_trades": len(winning_trades),
                     "losing_trades": len(losing_trades),
                     "break_even_trades": len(break_even_trades),
-                    "win_rate": round(win_rate, 2),
+                    "profitability_index": round(profitability_index, 2),
                     "total_pnl": round(total_pnl, 2),
                     "average_pnl": round(avg_pnl, 2),
                     "profit_factor": round(profit_factor, 2),
@@ -170,7 +182,10 @@ class PerformanceMonitor:
                     "current_balance": current_balance,
                     "total_value": total_value,
                     "total_return": round(total_return, 2),
+                    "total_return": round(total_return, 2),
                     "sharpe_ratio": round(sharpe_ratio, 3),
+                    "sortino_ratio": round(sortino_ratio, 3),
+                    "max_drawdown": round(max_drawdown, 2),
                     "open_positions": open_positions_count
                 },
                 
@@ -179,7 +194,7 @@ class PerformanceMonitor:
                 
                 # Recommendations
                 "recommendations": self._generate_recommendations(
-                    win_rate, profit_factor, coin_performance, open_positions_count
+                    profitability_index, profit_factor, coin_performance, open_positions_count
                 )
             }
             
@@ -217,8 +232,49 @@ class PerformanceMonitor:
         except Exception as e:
             print(f"❌ Performance analysis error: {e}")
             return {"error": f"Performance analysis failed: {str(e)}"}
+
+    def _calculate_max_drawdown(self, value_history: List[float]) -> float:
+        """Calculate Maximum Drawdown from value history"""
+        if not value_history or len(value_history) < 2:
+            return 0.0
+        
+        peak = value_history[0]
+        max_dd = 0.0
+        
+        for value in value_history:
+            if value > peak:
+                peak = value
+            dd = (peak - value) / peak * 100
+            if dd > max_dd:
+                max_dd = dd
+                
+        return -max_dd
+
+    def _calculate_sortino_ratio(self, value_history: List[float], risk_free_rate: float = 0.0) -> float:
+        """Calculate Sortino Ratio (downside risk only)"""
+        if not value_history or len(value_history) < 2:
+            return 0.0
+            
+        returns = pd.Series(value_history).pct_change().dropna()
+        if len(returns) < 2:
+            return 0.0
+            
+        avg_return = returns.mean()
+        downside_returns = returns[returns < 0]
+        
+        if len(downside_returns) == 0:
+            return float('inf')
+            
+        downside_deviation = downside_returns.std()
+        
+        if downside_deviation == 0:
+            return float('inf')
+            
+        # Annualize (assuming 2-minute cycles -> 720 cycles/day * 365)
+        # Using a simpler scaling for now or just returning raw ratio
+        return (avg_return - risk_free_rate) / downside_deviation
     
-    def _generate_recommendations(self, win_rate: float, profit_factor: float, 
+    def _generate_recommendations(self, profitability_index: float, profit_factor: float, 
                                 coin_performance: Dict, open_positions: int) -> List[str]:
         """Generate honest performance-based recommendations in English"""
         recommendations = []
@@ -280,7 +336,7 @@ class PerformanceMonitor:
         trade_perf = report.get('trade_performance', {})
         print(f"\n💰 TRADE PERFORMANCE:")
         print(f"   Total Trades: {trade_perf.get('total_trades', 0)}")
-        print(f"   Win Rate: {trade_perf.get('win_rate', 0):.1f}%")
+        print(f"   Profitability Index: {trade_perf.get('profitability_index', 0):.1f}%")
         print(f"   Total PnL: ${trade_perf.get('total_pnl', 0):.2f}")
         print(f"   Avg PnL/Trade: ${trade_perf.get('average_pnl', 0):.2f}")
         print(f"   Profit Factor: {trade_perf.get('profit_factor', 0):.2f}")
@@ -290,6 +346,8 @@ class PerformanceMonitor:
         print(f"\n📈 PORTFOLIO PERFORMANCE:")
         print(f"   Total Return: {portfolio_perf.get('total_return', 0):.2f}%")
         print(f"   Sharpe Ratio: {portfolio_perf.get('sharpe_ratio', 0):.3f}")
+        print(f"   Sortino Ratio: {portfolio_perf.get('sortino_ratio', 0):.3f}")
+        print(f"   Max Drawdown: {portfolio_perf.get('max_drawdown', 0):.2f}%")
         print(f"   Open Positions: {portfolio_perf.get('open_positions', 0)}")
         
         # Coin Performance
@@ -297,10 +355,10 @@ class PerformanceMonitor:
         if coin_perf:
             print(f"\n🪙 COIN PERFORMANCE:")
             for coin, stats in coin_perf.items():
-                win_rate = stats.get('win_rate', 0)
+                profitability_index = stats.get('profitability_index', 0)
                 total_pnl = stats.get('total_pnl', 0)
                 trades = stats.get('trades', 0)
-                print(f"   {coin}: {trades} trades, {win_rate:.1f}% win rate, PnL: ${total_pnl:.2f}")
+                print(f"   {coin}: {trades} trades, {profitability_index:.1f}% prof. index, PnL: ${total_pnl:.2f}")
         
         # Recommendations
         recommendations = report.get('recommendations', [])
@@ -329,7 +387,7 @@ class PerformanceMonitor:
         activity = report.get('trading_activity', {})
         coin_perf = report.get('coin_performance', {})
         
-        win_rate = trade_perf.get('win_rate', 0)
+        profitability_index = trade_perf.get('profitability_index', 0)
         profit_factor = trade_perf.get('profit_factor', 0)
         total_return = portfolio_perf.get('total_return', 0)
         sharpe_ratio = portfolio_perf.get('sharpe_ratio', 0)
@@ -338,27 +396,27 @@ class PerformanceMonitor:
         
         # Strategy suggestions based on performance patterns
         
-        # High win rate but low profit factor (small wins, big losses)
-        if win_rate > 50 and profit_factor < 1.2:
-            suggestions.append("[INFO] Win rate >50% alongside profit factor <1.2; average gains are relatively small versus losses")
+        # High profitability index but low profit factor (small wins, big losses)
+        if profitability_index > Config.PERFORMANCE_PROFITABILITY_HIGH and profit_factor < Config.PERFORMANCE_PROFIT_FACTOR_LOW:
+            suggestions.append(f"[INFO] Profitability Index >{Config.PERFORMANCE_PROFITABILITY_HIGH}% alongside profit factor <{Config.PERFORMANCE_PROFIT_FACTOR_LOW}; average gains are relatively small versus losses")
         
-        # Low win rate but positive profit factor (big wins, small losses)
-        elif win_rate < 40 and profit_factor > 1.5:
-            suggestions.append("[INFO] Win rate <40% with profit factor >1.5; outsized winners offset low hit rate")
+        # Low profitability index but positive profit factor (big wins, small losses)
+        elif profitability_index < Config.PERFORMANCE_PROFITABILITY_LOW and profit_factor > Config.PERFORMANCE_PROFIT_FACTOR_HIGH:
+            suggestions.append(f"[INFO] Profitability Index <{Config.PERFORMANCE_PROFITABILITY_LOW}% with profit factor >{Config.PERFORMANCE_PROFIT_FACTOR_HIGH}; outsized winners offset low hit rate")
         
         # High decision rate but poor performance
-        if decision_rate > 60 and total_return < 0:
-            suggestions.append("[INFO] Decision rate above 60% coincides with negative total return in the sample window")
+        if decision_rate > Config.PERFORMANCE_DECISION_RATE_HIGH and total_return < Config.PERFORMANCE_RETURN_LOW:
+            suggestions.append(f"[INFO] Decision rate above {Config.PERFORMANCE_DECISION_RATE_HIGH}% coincides with negative total return in the sample window")
         
         # Low decision rate with good performance
-        elif decision_rate < 30 and total_return > 5:
-            suggestions.append("[INFO] Decision rate below 30% with positive return observed; selective participation linked to gains")
+        elif decision_rate < Config.PERFORMANCE_DECISION_RATE_LOW and total_return > Config.PERFORMANCE_RETURN_HIGH:
+            suggestions.append(f"[INFO] Decision rate below {Config.PERFORMANCE_DECISION_RATE_LOW}% with positive return observed; selective participation linked to gains")
         
         # Sharpe ratio analysis
-        if sharpe_ratio < 0:
-            suggestions.append("[INFO] Sharpe ratio <0; risk-adjusted performance trails baseline")
-        elif sharpe_ratio > 1.0:
-            suggestions.append("[INFO] Sharpe ratio >1.0; risk-adjusted performance classified as strong")
+        if sharpe_ratio < Config.PERFORMANCE_SHARPE_LOW:
+            suggestions.append(f"[INFO] Sharpe ratio <{Config.PERFORMANCE_SHARPE_LOW}; risk-adjusted performance trails baseline")
+        elif sharpe_ratio > Config.PERFORMANCE_SHARPE_HIGH:
+            suggestions.append(f"[INFO] Sharpe ratio >{Config.PERFORMANCE_SHARPE_HIGH}; risk-adjusted performance classified as strong")
         
         # Position management suggestions
         if open_positions >= 4 and total_return < 0:
@@ -379,8 +437,8 @@ class PerformanceMonitor:
                 if best_pnl > 0:
                     suggestions.append(f"[INFO] Strong performer: {best_coin} (${best_pnl:.2f}); positive contribution noted")
                 
-                if worst_pnl < -10:  # Significant loss
-                    suggestions.append(f"[INFO] Weak performer: {worst_coin} (${worst_pnl:.2f}); drawdown exceeds -$10 threshold")
+                if worst_pnl < Config.PERFORMANCE_DRAWDOWN_THRESHOLD:  # Significant loss
+                    suggestions.append(f"[INFO] Weak performer: {worst_coin} (${worst_pnl:.2f}); drawdown exceeds {Config.PERFORMANCE_DRAWDOWN_THRESHOLD} threshold")
         
         # Market regime suggestions
         if total_return > 10:
@@ -389,208 +447,21 @@ class PerformanceMonitor:
             suggestions.append("[INFO] Portfolio return below -5%; drawdown environment observed")
         
         # Risk management suggestions
-        if profit_factor < 0.8:
-            suggestions.append("[INFO] Profit factor <0.8; indicates unfavorable reward-to-risk ratio")
+        if profit_factor < Config.PERFORMANCE_PROFIT_FACTOR_CRITICAL:
+            suggestions.append(f"[INFO] Profit factor <{Config.PERFORMANCE_PROFIT_FACTOR_CRITICAL}; indicates unfavorable reward-to-risk ratio")
         
         return suggestions
 
-    def detect_trend_reversal_signals(self, coin: str, indicators_cache: Dict[str, Dict[str, Dict[str, Any]]] = None) -> Dict[str, Any]:
-        """Detect trend reversal signals for a specific coin (Information Only - Decision Remains With AI)
-        
-        Args:
-            coin: Coin symbol to analyze
-            indicators_cache: Optional pre-fetched indicators dict {coin: {interval: indicators}}
-                            If provided, uses cached data instead of fetching new data
-        """
+    def detect_trend_reversal_for_all_coins(self, coins: List[str], indicators_cache: Dict[str, Dict[str, Dict[str, Any]]] = None) -> Dict[str, Any]:
+        """Detect trend break signals for all specified coins (Loss Risk Information Only)"""
         try:
-            # Get HTF_INTERVAL from alpha_arena_deepseek
+            from src.core.market_data import RealMarketData
             from config.config import Config
+            
+            # Instantiate market data to access centralized logic
+            market_data = RealMarketData()
             HTF_INTERVAL = getattr(Config, 'HTF_INTERVAL', '1h') or '1h'
             
-            # Use cached indicators if provided (OPTIMIZATION: No re-fetch)
-            if indicators_cache and coin in indicators_cache:
-                coin_indicators = indicators_cache[coin]
-                indicators_3m = coin_indicators.get('3m', {})
-                indicators_15m = coin_indicators.get('15m', {})
-                indicators_htf = coin_indicators.get(HTF_INTERVAL, {})
-            else:
-                # Fallback: fetch indicators (legacy behavior)
-                from src.core.market_data import RealMarketData
-                market_data = RealMarketData()
-                indicators_3m = market_data.get_technical_indicators(coin, '3m')
-                indicators_15m = market_data.get_technical_indicators(coin, '15m')
-                indicators_htf = market_data.get_technical_indicators(coin, HTF_INTERVAL)
-            
-            if 'error' in indicators_3m or 'error' in indicators_htf:
-                return {
-                    "coin": coin,
-                    "reversal_detected": False,
-                    "signal_strength": "NO_DATA",
-                    "details": "Unable to fetch indicator data",
-                    "recommendation": "No trend reversal analysis available"
-                }
-            
-            # Extract key indicators
-            price_htf = indicators_htf.get('current_price')
-            ema20_htf = indicators_htf.get('ema_20')
-            price_3m = indicators_3m.get('current_price')
-            ema20_3m = indicators_3m.get('ema_20')
-            rsi_3m = indicators_3m.get('rsi_14', 50)
-            rsi_htf = indicators_htf.get('rsi_14', 50)
-            volume_3m = indicators_3m.get('volume', 0)
-            avg_volume_3m = indicators_3m.get('avg_volume', 1)
-            macd_3m = indicators_3m.get('macd', 0)
-            macd_signal_3m = indicators_3m.get('macd_signal', 0)
-            macd_htf = indicators_htf.get('macd', 0)
-            macd_signal_htf = indicators_htf.get('macd_signal', 0)
-            
-            # Extract 15m indicators (if available)
-            price_15m = None
-            ema20_15m = None
-            trend_15m = None
-            has_15m = indicators_15m and 'error' not in indicators_15m
-            if has_15m:
-                price_15m = indicators_15m.get('current_price')
-                ema20_15m = indicators_15m.get('ema_20')
-                if price_15m is not None and ema20_15m is not None:
-                    trend_15m = "BULLISH" if price_15m > ema20_15m else "BEARISH"
-            
-            # Determine current trend direction
-            trend_htf = "BULLISH" if price_htf > ema20_htf else "BEARISH"
-            trend_3m = "BULLISH" if price_3m > ema20_3m else "BEARISH"
-            
-            # Trend reversal detection criteria (WEIGHTED SCORING)
-            reversal_score = 0.0
-            max_score = 6.0  # Total possible weight
-            signal_details = []
-            
-            # Signal 1: Multi-timeframe EMA divergence (Weight: 2.0 - strongest signal)
-            htf_label = HTF_INTERVAL.upper()
-            timeframe_divergence = False
-            
-            if has_15m and trend_15m:
-                # Strong divergence: 1h vs 15m+3m alignment
-                if trend_htf == "BULLISH" and trend_15m == "BEARISH" and trend_3m == "BEARISH":
-                    reversal_score += 2.0
-                    timeframe_divergence = True
-                    signal_details.append(f"STRONG multi-timeframe divergence: {htf_label} BULLISH vs 15m+3m BEARISH")
-                elif trend_htf == "BEARISH" and trend_15m == "BULLISH" and trend_3m == "BULLISH":
-                    reversal_score += 2.0
-                    timeframe_divergence = True
-                    signal_details.append(f"STRONG multi-timeframe divergence: {htf_label} BEARISH vs 15m+3m BULLISH")
-                elif trend_htf != trend_3m:
-                    # Medium divergence: Only 1h vs 3m
-                    reversal_score += 1.0
-                    timeframe_divergence = True
-                    signal_details.append(f"Medium multi-timeframe divergence: {htf_label} {trend_htf} vs 3m {trend_3m}")
-            else:
-                # Fallback: 1h vs 3m only (if 15m not available)
-                if trend_htf != trend_3m:
-                    reversal_score += 1.5
-                    timeframe_divergence = True
-                    signal_details.append(f"Multi-timeframe EMA divergence: {htf_label} {trend_htf} vs 3m {trend_3m}")
-            
-            # Signal 2: RSI extreme zones (Weight: 1.5 - indicates exhaustion)
-            rsi_extreme = False
-            if trend_htf == "BULLISH" and (rsi_htf > 70 or rsi_3m > 70):
-                reversal_score += 1.5
-                rsi_extreme = True
-                signal_details.append(f"RSI overbought: {htf_label} RSI {rsi_htf:.1f}, 3m RSI {rsi_3m:.1f} (exhaustion)")
-            elif trend_htf == "BEARISH" and (rsi_htf < 30 or rsi_3m < 30):
-                reversal_score += 1.5
-                rsi_extreme = True
-                signal_details.append(f"RSI oversold: {htf_label} RSI {rsi_htf:.1f}, 3m RSI {rsi_3m:.1f} (exhaustion)")
-            elif trend_3m == "BULLISH" and rsi_3m > 65:
-                # Moderate overbought
-                reversal_score += 0.75
-                rsi_extreme = True
-                signal_details.append(f"RSI moderate overbought: 3m RSI {rsi_3m:.1f}")
-            elif trend_3m == "BEARISH" and rsi_3m < 35:
-                # Moderate oversold
-                reversal_score += 0.75
-                rsi_extreme = True
-                signal_details.append(f"RSI moderate oversold: 3m RSI {rsi_3m:.1f}")
-            
-            # Signal 3: Volume weakness (Weight: 1.0 - weak trend confirmation)
-            volume_ratio = volume_3m / avg_volume_3m if avg_volume_3m > 0 else 0
-            volume_weakness = False
-            
-            # Only flag if volume is VERY low (< 0.5x) indicating trend exhaustion
-            if volume_ratio < 0.5 and timeframe_divergence:
-                reversal_score += 1.0
-                volume_weakness = True
-                signal_details.append(f"Volume exhaustion: {volume_ratio:.2f}x average (trend weakening)")
-            elif volume_ratio < 0.3:
-                # Extremely low volume
-                reversal_score += 0.5
-                volume_weakness = True
-                signal_details.append(f"Extremely low volume: {volume_ratio:.2f}x average")
-            
-            # Signal 4: MACD divergence (Weight: 1.5 - momentum shift)
-            macd_divergence_3m = (macd_3m > macd_signal_3m and trend_3m == "BEARISH") or (macd_3m < macd_signal_3m and trend_3m == "BULLISH")
-            macd_divergence_htf = (macd_htf > macd_signal_htf and trend_htf == "BEARISH") or (macd_htf < macd_signal_htf and trend_htf == "BULLISH")
-            
-            if macd_divergence_htf and macd_divergence_3m:
-                reversal_score += 1.5
-                signal_details.append(f"MACD divergence on both {htf_label} and 3m (strong momentum shift)")
-            elif macd_divergence_htf or macd_divergence_3m:
-                reversal_score += 0.75
-                signal_details.append("MACD signal line divergence detected")
-            
-            # Determine signal strength based on weighted score
-            reversal_percentage = (reversal_score / max_score) * 100
-            
-            if reversal_score >= 4.5:  # 75% of max score
-                signal_strength = "HIGH_LOSS_RISK"
-                recommendation = f"[INFO] High probability trend reversal for {coin} (score: {reversal_score:.1f}/{max_score})"
-            elif reversal_score >= 3.0:  # 50% of max score
-                signal_strength = "MEDIUM_LOSS_RISK"
-                recommendation = f"[INFO] Moderate reversal signals for {coin} (score: {reversal_score:.1f}/{max_score})"
-            elif reversal_score >= 1.5:  # 25% of max score
-                signal_strength = "LOW_LOSS_RISK"
-                recommendation = f"[INFO] Minor divergence signals for {coin} (score: {reversal_score:.1f}/{max_score})"
-            else:
-                signal_strength = "NO_LOSS_RISK"
-                recommendation = f"[INFO] No significant reversal signals for {coin}; trend intact"
-            
-            result = {
-                "coin": coin,
-                "reversal_detected": reversal_score > 0,
-                "signal_strength": signal_strength,
-                "reversal_score": round(reversal_score, 2),
-                "max_score": max_score,
-                f"current_trend_{HTF_INTERVAL}": trend_htf,
-                "current_trend_3m": trend_3m,
-                "signal_details": signal_details,
-                "recommendation": recommendation,
-                "note": "INFORMATION ONLY - Final decision remains with AI"
-            }
-            
-            # Add 15m trend if available
-            if trend_15m:
-                result["current_trend_15m"] = trend_15m
-            
-            return result
-            
-        except Exception as e:
-            print(f"⚠️ Trend reversal detection error for {coin}: {e}")
-            return {
-                "coin": coin,
-                "reversal_detected": False,
-                "signal_strength": "ERROR",
-                "details": f"Detection error: {str(e)}",
-                "recommendation": "Unable to analyze trend reversal"
-            }
-
-    def detect_trend_reversal_for_all_coins(self, coins: List[str], indicators_cache: Dict[str, Dict[str, Dict[str, Any]]] = None) -> Dict[str, Any]:
-        """Detect trend break signals for all specified coins (Loss Risk Information Only)
-        
-        Args:
-            coins: List of coin symbols to analyze
-            indicators_cache: Optional pre-fetched indicators dict {coin: {interval: indicators}}
-                            If provided, uses cached data instead of fetching new data (OPTIMIZATION)
-        """
-        try:
             reversal_results = {}
             high_risk_coins = []
             medium_risk_coins = []
@@ -600,11 +471,24 @@ class PerformanceMonitor:
             print(f"🔍 Analyzing trend break signals for {len(coins)} coins...")
             
             for coin in coins:
-                reversal_result = self.detect_trend_reversal_signals(coin, indicators_cache=indicators_cache)
+                # Get indicators (from cache or fetch)
+                if indicators_cache and coin in indicators_cache:
+                    coin_indicators = indicators_cache[coin]
+                    indicators_3m = coin_indicators.get('3m', {})
+                    indicators_htf = coin_indicators.get(HTF_INTERVAL, {})
+                    # Note: 15m is not strictly required by the centralized logic currently, 
+                    # but we can pass it if we update the method signature later.
+                    # For now, we stick to 3m vs HTF as the core check.
+                else:
+                    indicators_3m = market_data.get_technical_indicators(coin, '3m')
+                    indicators_htf = market_data.get_technical_indicators(coin, HTF_INTERVAL)
+                
+                # Call centralized logic
+                reversal_result = market_data.detect_trend_reversal_signals(coin, indicators_3m, indicators_htf)
                 reversal_results[coin] = reversal_result
                 
                 # Categorize coins by signal strength
-                signal_strength = reversal_result.get('signal_strength', 'NO_LOSS_RISK')
+                signal_strength = reversal_result.get('strength', 'NONE')
                 if signal_strength == "HIGH_LOSS_RISK":
                     high_risk_coins.append(coin)
                 elif signal_strength == "MEDIUM_LOSS_RISK":
@@ -634,23 +518,22 @@ class PerformanceMonitor:
             summary["recommendations"] = recommendations
             
             # Create loss risk signals for AI prompt format
-            from config.config import Config
-            HTF_INTERVAL = getattr(Config, 'HTF_INTERVAL', '1h') or '1h'
             loss_risk_signals = {}
             for coin, result in reversal_results.items():
                 signals = []
-                if result.get('reversal_detected', False):
+                # Convert list of signal strings to dicts for AI prompt
+                for sig in result.get('signals', []):
                     signals.append({
                         'type': 'LOSS_RISK',
-                        'strength': result.get('signal_strength', 'UNKNOWN'),
-                        'description': f"{coin}: {result.get('recommendation', 'No description')}"
+                        'strength': result.get('strength', 'UNKNOWN'),
+                        'description': f"{coin}: {sig}"
                     })
+                    
                 loss_risk_signals[coin] = {
                     'loss_risk_signals': signals,
-                    'current_trend_4h': result.get('current_trend_4h', result.get(f'current_trend_{HTF_INTERVAL}', 'UNKNOWN')),
-                    'current_trend_15m': result.get('current_trend_15m', None),  # ✅ 15m trend eklendi
-                    'current_trend_3m': result.get('current_trend_3m', 'UNKNOWN'),
-                    'signal_strength': result.get('signal_strength', 'NO_LOSS_RISK')
+                    'current_trend_4h': result.get('trend_htf', 'UNKNOWN'), # Mapping trend_htf to current_trend_4h/1h
+                    'current_trend_3m': result.get('trend_3m', 'UNKNOWN'),
+                    'signal_strength': result.get('strength', 'NO_LOSS_RISK')
                 }
             
             return loss_risk_signals
@@ -665,10 +548,10 @@ class PerformanceMonitor:
         """Generate recommendations based on trend reversal analysis"""
         recommendations = []
         
-        strong_count = len(summary.get('strong_reversal_coins', []))
-        moderate_count = len(summary.get('moderate_reversal_coins', []))
-        weak_count = len(summary.get('weak_reversal_coins', []))
-        reversal_percentage = summary.get('reversal_percentage', 0)
+        strong_count = len(summary.get('high_loss_risk_coins', []))
+        moderate_count = len(summary.get('medium_loss_risk_coins', []))
+        weak_count = len(summary.get('low_loss_risk_coins', []))
+        reversal_percentage = summary.get('loss_risk_percentage', 0)
         
         # Market-wide reversal signals
         if strong_count >= 3:
@@ -682,7 +565,7 @@ class PerformanceMonitor:
             recommendations.append("[INFO] Reversal signal percentage above 30%; moderate reversal frequency observed")
         
         # Specific coin recommendations
-        strong_coins = summary.get('strong_reversal_coins', [])
+        strong_coins = summary.get('high_loss_risk_coins', [])
         if strong_coins:
             recommendations.append(f"[INFO] Strong reversal readings detected in: {', '.join(strong_coins)}")
         

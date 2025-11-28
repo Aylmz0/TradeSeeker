@@ -5,7 +5,7 @@ Modern web interface with RESTful API endpoints
 import os
 import sys
 import json
-import fcntl
+
 import logging
 from datetime import datetime
 from typing import Dict, Any, Optional
@@ -51,7 +51,7 @@ def safe_file_read(filename: str, default_data: Any = None) -> Any:
             return default_data
             
         with open(file_path, 'r') as f:
-            fcntl.flock(f, fcntl.LOCK_SH)  # Shared lock for reading
+
             data = json.load(f)
             return data
     except Exception as e:
@@ -63,7 +63,7 @@ def safe_file_write(filename: str, data: Any):
     file_path = get_file_path(filename)
     try:
         with open(file_path, 'w') as f:
-            fcntl.flock(f, fcntl.LOCK_EX)  # Exclusive lock for writing
+
             json.dump(data, f, indent=4)
     except Exception as e:
         logger.error(f"Error writing file {file_path}: {e}")

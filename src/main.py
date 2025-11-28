@@ -1871,9 +1871,7 @@ Current live positions & performance:"""
 
         if not self.portfolio.positions: 
             prompt += " No open positions. (100% cash)"
-        else:
-            for coin, pos in self.portfolio.positions.items():
-                prompt += f"\n{{'symbol': '{coin}', 'quantity': {format_num(pos.get('quantity', 0), 4)}, 'entry_price': {format_num(pos.get('entry_price', 0))}, 'current_price': {format_num(pos.get('current_price', 0))}, 'liquidation_price': {format_num(pos.get('liquidation_price', 0))}, 'unrealized_pnl': {format_num(pos.get('unrealized_pnl', 0), 2)}, 'leverage': {pos.get('leverage', 1)}, 'exit_plan': {json.dumps(pos.get('exit_plan', {}))}, 'confidence': {pos.get('confidence', 0.5)}, 'risk_usd': {pos.get('risk_usd', 'N/A')}, 'sl_oid': -1, 'tp_oid': -1, 'wait_for_fill': False, 'entry_oid': -1, 'notional_usd': {format_num(pos.get('notional_usd', 0), 2)}}}"
+        
         return prompt
 
     def generate_alpha_arena_prompt_json(self) -> str:
@@ -2015,14 +2013,13 @@ Current live positions & performance:"""
         directional_bias_json = build_directional_bias_json(bias_metrics)
         
 
-        
         # Build hybrid prompt
         prompt = f"""
 USER_PROMPT:
 It has been {minutes_running} minutes since you started trading. The current time is {current_time} and you've been invoked {self.invocation_count} times. Below, we are providing you with a variety of state data, price data, and predictive signals so you can discover alpha. Below that is your current account information, value, performance, positions, etc.
 
-ALL OF THE PRICE OR SIGNAL DATA BELOW IS ORDERED: OLDEST → NEWEST
-Timeframes note: Unless stated otherwise in a section title, intraday series are provided at 3‑minute intervals. If a coin uses a different interval, it is explicitly stated in that coin's section.
+ALL OF THE PRICE OR SIGNAL DATA BELOW IS ORDERED: OLDEST -> NEWEST
+Timeframes note: Unless stated otherwise in a section title, intraday series are provided at 3-minute intervals. If a coin uses a different interval, it is explicitly stated in that coin's section.
 
 {'='*20} REAL-TIME COUNTER-TRADE ANALYSIS {'='*20}
 
@@ -2085,33 +2082,26 @@ All market data is provided in JSON format below. Each coin contains:
         
         # Validate JSON if enabled
         if Config.VALIDATE_JSON_PROMPTS:
-            from prompt_json_schemas import validate_json_against_schema, get_full_prompt_schema
-            # Note: Full validation would require building the complete JSON structure
-            # For now, we validate individual sections
+            from prompt_json_schemas import validate_json_against_schema
             pass
         
         return prompt
 
-    def parse_ai_response(self, response: str) -> Dict:
-        """Parse the AI response and clean up hold decisions"""
-        thoughts = "Error: Could not parse AI response."; decisions = {}
+    def parse_ai_response(self, response: str) -> Dict[str, Any]:
+        """Parse AI response - expects clean JSON string from DeepSeekAPI"""
         try:
-            parts = response.split("DECISIONS", 1)
-            if len(parts) == 2: thoughts_raw = parts[0].replace("CHAIN_OF_THOUGHTS", "").strip(); json_part = parts[1].strip(); thoughts = thoughts_raw if thoughts_raw else "No thoughts."
-            else: print("⚠️ AI response keywords missing."); json_part = response; thoughts = "Keywords missing."
-            start_idx = json_part.find('{'); end_idx = json_part.rfind('}') + 1
-            if start_idx != -1 and end_idx > start_idx:
-                json_str = json_part[start_idx:end_idx]
-                try:
-                    parsed_json = json.loads(json_str)
-                    if isinstance(parsed_json, dict): 
-                        # Clean up hold decisions - remove unnecessary 0 values
-                        decisions = self._clean_ai_decisions(parsed_json)
-                    else: print(f"❌ Parsed JSON not dict: {type(parsed_json)}"); thoughts += f"\nError: Parsed JSON not dict."
-                except json.JSONDecodeError as json_e: print(f"❌ JSON decode error: {json_e}"); print(f"   Invalid JSON: {json_str}"); thoughts = f"JSON Error: {json_e}\nRaw:\n{response}"
-            else: print("⚠️ No valid JSON block found."); thoughts += f"\nError: No JSON block."
-        except Exception as e: print(f"❌ General parse error: {e}"); thoughts = f"Parse Error: {e}\nRaw:\n{response}"
-        return {"chain_of_thoughts": thoughts, "decisions": decisions}
+            parsed_json = json.loads(response)
+            if not isinstance(parsed_json, dict):
+                print(f"❌ Parsed JSON not dict: {type(parsed_json)}")
+                return {"chain_of_thoughts": "Error: Parsed JSON not dict.", "decisions": {}}
+            
+            thoughts = parsed_json.get("CHAIN_OF_THOUGHTS", "No thoughts provided.")
+            decisions = parsed_json.get("DECISIONS", {})
+            decisions = self._clean_ai_decisions(decisions)
+            return {"chain_of_thoughts": thoughts, "decisions": decisions}
+        except Exception as e:
+            print(f"❌ General parse error: {e}")
+            return {"chain_of_thoughts": f"Parse Error: {e}", "decisions": {}}
 
     def _clean_ai_decisions(self, decisions: Dict) -> Dict:
         """Clean up AI decisions - preserve position data for hold signals"""
@@ -2120,13 +2110,9 @@ All market data is provided in JSON format below. Each coin contains:
             if not isinstance(trade, dict):
                 cleaned_decisions[coin] = trade
                 continue
-                
             signal = trade.get('signal')
             if signal == 'hold':
-                # For hold signals, preserve all position data for risk management
                 cleaned_trade = {'signal': 'hold'}
-                
-                # If there's an open position, preserve ALL position data
                 if coin in self.portfolio.positions:
                     position = self.portfolio.positions[coin]
                     cleaned_trade.update({
@@ -2145,14 +2131,11 @@ All market data is provided in JSON format below. Each coin contains:
                     })
                 cleaned_decisions[coin] = cleaned_trade
             else:
-                # For other signals, keep all data as is
                 cleaned_decisions[coin] = trade
-                
         return cleaned_decisions
 
     def check_coin_rotation(self, coin: str) -> bool:
         """Coin rotation disabled - always allow trading"""
-        # Coin rotation system disabled - always return True to allow trading
         return True
 
     def detect_market_regime_overall(self) -> str:
@@ -2241,7 +2224,7 @@ All market data is provided in JSON format below. Each coin contains:
             return base_size * 0.8  # %20 daha küçük counter-trend
 
     def track_performance_metrics(self, cycle_number: int):
-        """Her cycle'da temel performans metriklerini kaydet"""
+        """Record basic performance metrics for each cycle"""
         try:
             metrics = {
                 "cycle": cycle_number,
@@ -2263,7 +2246,7 @@ All market data is provided in JSON format below. Each coin contains:
             print(f"⚠️ Performance tracking error: {e}")
 
     def should_run_performance_analysis(self, cycle_number: int) -> bool:
-        """10 cycle'da bir veya kritik durumlarda analiz çalıştır"""
+        """Run analysis every 10 cycles or in critical situations"""
         # Her 10 cycle'da bir
         if cycle_number % 10 == 0:
             return True
