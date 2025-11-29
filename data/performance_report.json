@@ -2,6 +2,31 @@
   {
     "reset_reason": "periodic_bias_control",
     "reset_at_cycle": 35,
-    "timestamp": "2025-11-28T05:56:01.470247"
+    "timestamp": "2025-11-28T23:13:23.411273"
+  },
+  {
+    "reset_reason": "periodic_bias_control",
+    "reset_at_cycle": 70,
+    "timestamp": "2025-11-29T01:33:23.462569"
+  },
+  {
+    "reset_reason": "periodic_bias_control",
+    "reset_at_cycle": 105,
+    "timestamp": "2025-11-29T03:53:23.489201"
+  },
+  {
+    "reset_reason": "periodic_bias_control",
+    "reset_at_cycle": 140,
+    "timestamp": "2025-11-29T06:13:23.524077"
+  },
+  {
+    "reset_reason": "periodic_bias_control",
+    "reset_at_cycle": 175,
+    "timestamp": "2025-11-29T08:33:23.552913"
+  },
+  {
+    "reset_reason": "periodic_bias_control",
+    "reset_at_cycle": 210,
+    "timestamp": "2025-11-29T10:53:23.581040"
   }
 ]

@@ -2630,32 +2630,95 @@ class PortfolioManager:
             print(f"⚠️ Market regime detection error: {e}")
             return "NEUTRAL"
 
-    def should_enhance_short_sizing(self, coin: str) -> bool:
-        """Check if short position should be enhanced (%15 daha büyük)"""
+    def get_market_regime_strength(self) -> float:
+        """Calculate market regime strength (0.0 to 1.0) based on coin alignment"""
         try:
-            # Use existing market_data instance
-            indicators_3m = self.market_data.get_technical_indicators(coin, '3m')
-            indicators_htf = self.market_data.get_technical_indicators(coin, HTF_INTERVAL)
+            bullish_count = 0
+            bearish_count = 0
+            total_valid = 0
             
-            if 'error' in indicators_3m or 'error' in indicators_htf:
-                return False
+            for coin in self.market_data.available_coins:
+                indicators_htf = self.market_data.get_technical_indicators(coin, HTF_INTERVAL)
+                if 'error' in indicators_htf: continue
+                
+                price = indicators_htf.get('current_price')
+                ema20 = indicators_htf.get('ema_20')
+                
+                if isinstance(price, (int, float)) and isinstance(ema20, (int, float)) and ema20 > 0:
+                    total_valid += 1
+                    if price > ema20: bullish_count += 1
+                    else: bearish_count += 1
             
-            # Enhanced short conditions:
-            # 1. 3m RSI > 70 (aşırı alım)
-            rsi_3m = indicators_3m.get('rsi_14', 50)
-            # 2. Volume > 1.5x average
-            volume_ratio = indicators_3m.get('volume', 0) / indicators_3m.get('avg_volume', 1)
-            # 3. Higher timeframe trend bearish
-            price_htf = indicators_htf.get('current_price')
-            ema20_htf = indicators_htf.get('ema_20')
-            trend_bearish = price_htf < ema20_htf
+            if total_valid == 0: return 0.0
             
-            # All conditions must be met
-            return rsi_3m > 70 and volume_ratio > 1.5 and trend_bearish
+            # Strength = max(bullish, bearish) / total
+            return max(bullish_count, bearish_count) / total_valid
             
         except Exception as e:
-            print(f"⚠️ Enhanced short sizing check error for {coin}: {e}")
+            print(f"⚠️ Market regime strength error: {e}")
+            return 0.0
+
+    def validate_exit_signal(self, coin: str, position: Dict, indicators_3m: Dict) -> bool:
+        """
+        Validate exit signal (Reversal Desensitization).
+        Requires: STRONG 3m reversal OR 15m confirmation OR PnL thresholds.
+        """
+        try:
+            # 1. PnL Check (Profit Protection / Stop Loss)
+            current_price = indicators_3m.get('current_price')
+            entry_price = position.get('entry_price')
+            quantity = position.get('quantity')
+            direction = position.get('direction')
+            
+            if not all(isinstance(x, (int, float)) for x in [current_price, entry_price, quantity]):
+                return True # Default to allow exit if data missing
+                
+            pnl_usd = (current_price - entry_price) * quantity if direction == 'long' else (entry_price - current_price) * quantity
+            margin = position.get('margin_usd', 1.0)
+            pnl_pct = (pnl_usd / margin) * 100 if margin > 0 else 0
+            
+            # Allow exit if PnL is good (>2%) or bad (<-1.5%)
+            if pnl_pct > 2.0 or pnl_pct < -1.5:
+                print(f"✅ Exit validated by PnL: {pnl_pct:.2f}%")
+                return True
+                
+            # 2. 15m Confirmation
+            indicators_15m = self.market_data.get_technical_indicators(coin, '15m')
+            if 'error' not in indicators_15m:
+                price_15m = indicators_15m.get('current_price')
+                ema20_15m = indicators_15m.get('ema_20')
+                # Check if 15m trend opposes position
+                is_15m_reversal = (direction == 'long' and price_15m < ema20_15m) or \
+                                  (direction == 'short' and price_15m > ema20_15m)
+                if is_15m_reversal:
+                    print(f"✅ Exit validated by 15m reversal")
+                    return True
+
+            # 3. Strong 3m Reversal (Check MACD/RSI intensity)
+            # This is a heuristic since we don't have explicit "strength" flag from AI here easily
+            # We assume if AI called close, it saw a reversal. We check if it's "strong".
+            # Strong = Price crossed EMA20 AND (RSI extreme or MACD cross)
+            price_3m = indicators_3m.get('current_price')
+            ema20_3m = indicators_3m.get('ema_20')
+            rsi_3m = indicators_3m.get('rsi_14', 50)
+            
+            is_price_crossed = (direction == 'long' and price_3m < ema20_3m) or \
+                               (direction == 'short' and price_3m > ema20_3m)
+                               
+            is_rsi_extreme = (direction == 'long' and rsi_3m > 70) or \
+                             (direction == 'short' and rsi_3m < 30) # Overbought/sold reversal
+                             
+            if is_price_crossed and is_rsi_extreme:
+                 print(f"✅ Exit validated by Strong 3m Reversal (Price+RSI)")
+                 return True
+                 
+            print(f"🛑 Exit blocked: Weak 3m reversal without confirmation (PnL: {pnl_pct:.2f}%)")
             return False
+            
+        except Exception as e:
+            print(f"⚠️ Exit validation error: {e}")
+            return True # Fail safe: allow exit
+
 
     def execute_decision(
         self,
@@ -2766,17 +2829,25 @@ class PortfolioManager:
                 # Check SAME_DIRECTION_LIMIT for ALL directions (not just dominant)
                 directional_counts = self.count_positions_by_direction()
                 current_same_direction = directional_counts.get(direction, 0)
-                if current_same_direction >= Config.SAME_DIRECTION_LIMIT:
+                
+                # DYNAMIC SLOT LIMIT LOGIC
+                regime_strength = self.get_market_regime_strength()
+                effective_limit = Config.SAME_DIRECTION_LIMIT
+                if regime_strength > 0.7:
+                    effective_limit = Config.DYNAMIC_DIRECTION_LIMIT
+                    print(f"🌊 Dynamic Slot Limit Active: Strength {regime_strength:.2f} > 0.7 -> Limit increased to {effective_limit}")
+                
+                if current_same_direction >= effective_limit:
                     print(
                         f"🚫 SAME-DIRECTION LIMIT: {coin} {signal} blocked. "
-                        f"{current_same_direction}/{Config.SAME_DIRECTION_LIMIT} {direction.upper()} positions already open."
+                        f"{current_same_direction}/{effective_limit} {direction.upper()} positions already open."
                     )
                     execution_report['blocked'].append({
                         'coin': coin,
                         'reason': 'same_direction_limit',
                         'direction': direction,
                         'current': current_same_direction,
-                        'limit': Config.SAME_DIRECTION_LIMIT
+                        'limit': effective_limit
                     })
                     trade['runtime_decision'] = 'blocked_same_direction_limit'
                     continue
@@ -2845,8 +2916,16 @@ class PortfolioManager:
                                     print(f"🚫 Low volume block: {coin} confidence {confidence:.2f} below minimum after penalty.")
                                     execution_report['blocked'].append({'coin': coin, 'reason': 'low_volume', 'volume_ratio': volume_ratio, 'confidence': confidence})
                                     trade['runtime_decision'] = 'blocked_low_volume'
+                                    trade['runtime_decision'] = 'blocked_low_volume'
                                     continue
                                 trade['confidence'] = confidence
+                        
+                        # HARD VOLUME FILTER (< 0.2)
+                        if volume_ratio < 0.2:
+                            print(f"🚫 HARD VOLUME FILTER: {coin} volume ratio {volume_ratio:.2f} < 0.2. Trade blocked.")
+                            execution_report['blocked'].append({'coin': coin, 'reason': 'hard_volume_filter', 'volume_ratio': volume_ratio})
+                            trade['runtime_decision'] = 'blocked_hard_volume_filter'
+                            continue
                     trend_info = self.update_trend_state(coin, indicators_htf, indicators_3m)
                     current_trend = trend_info.get('trend', 'unknown')
                     flip_cycle = trend_info.get('last_flip_cycle')
@@ -2939,12 +3018,10 @@ class PortfolioManager:
                             validation_result = self.validate_counter_trade(coin, signal, indicators_3m, indicators_htf)
                             
                             if validation_result['valid']:
-                                print(f"✅ COUNTER-TRADE STRONG: {validation_result['reason']}")
-                                print(f"   Conditions met: {validation_result.get('conditions_met', [])}")
-                            else:
-                                print(f"⚠️ COUNTER-TRADE WEAK: {validation_result['reason']}")
-                                print(f"   Conditions met: {validation_result.get('conditions_met', [])}")
-                                print(f"⚠️ WARNING: Counter-trend validation shows weak conditions - proceeding with AI decision")
+                                print(f"🚫 Counter-trend confidence {confidence:.2f} < {min_ct_conf}. Blocked for discipline.")
+                                execution_report['blocked'].append({'coin': coin, 'reason': 'counter_trend_confidence', 'confidence': confidence})
+                                trade['runtime_decision'] = 'blocked_counter_trend_confidence'
+                                continue
                     else:
                         guard_active = guard_cycles_since_flip is not None and guard_cycles_since_flip <= guard_window
                         if guard_active and last_flip_direction:
@@ -3179,6 +3256,49 @@ class PortfolioManager:
                     execution_report['skipped'].append({'coin': coin, 'reason': 'no_position_to_close'})
                     trade['runtime_decision'] = 'skipped_no_position'
                     continue
+
+                # 5. Exit Strategy Desensitization
+                justification = trade.get('justification', '').lower()
+                
+                # Bypass desensitization if it's a Profit Target, Stop Loss, or Invalidation
+                is_pnl_exit = any(k in justification for k in ['profit', 'target', 'stop', 'loss', 'invalidation'])
+                
+                if 'reversal' in justification and not is_pnl_exit:
+                    # Require stronger confirmation for reversal exits ONLY if it's not a PnL exit
+                    indicators_15m = self.market_data.get_technical_indicators(coin, '15m') or {}
+                    indicators_3m = self.market_data.get_technical_indicators(coin, '3m') or {}
+                    
+                    # Check if 15m trend is still supporting the position
+                    direction = position.get('direction', 'long')
+                    trend_15m = 'bullish' if indicators_15m.get('current_price', 0) > indicators_15m.get('ema_20', 0) else 'bearish'
+                    
+                    strong_reversal = False
+                    if direction == 'long':
+                        # Strong reversal for long: 15m turns bearish OR 3m shows strong breakdown (Price << EMA)
+                        price_3m = indicators_3m.get('current_price', 0)
+                        ema_3m = indicators_3m.get('ema_20', 0)
+                        if trend_15m == 'bearish':
+                            strong_reversal = True
+                        elif price_3m < ema_3m * 0.998: # 0.2% below EMA
+                            strong_reversal = True
+                    else: # short
+                        # Strong reversal for short: 15m turns bullish OR 3m shows strong breakout (Price >> EMA)
+                        price_3m = indicators_3m.get('current_price', 0)
+                        ema_3m = indicators_3m.get('ema_20', 0)
+                        if trend_15m == 'bullish':
+                            strong_reversal = True
+                        elif price_3m > ema_3m * 1.002: # 0.2% above EMA
+                            strong_reversal = True
+                            
+                    if not strong_reversal:
+                        print(f"🛡️ Exit Desensitization: Blocking {coin} exit. Weak reversal signal.")
+                        execution_report['holds'].append({
+                            'coin': coin,
+                            'reason': 'exit_desensitization',
+                            'justification': justification
+                        })
+                        trade['runtime_decision'] = 'blocked_exit_desensitization'
+                        continue
 
                 if live_trading:
                     live_result = self.execute_live_close(

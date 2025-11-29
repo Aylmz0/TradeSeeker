@@ -45,7 +45,8 @@ class DeepSeekAPI:
                         "limit": Config.SAME_DIRECTION_LIMIT,
                         "rule": f"If you have {Config.SAME_DIRECTION_LIMIT} LONGs, you CANNOT open another LONG. Same for SHORTs."
                     },
-                    "min_confidence": 0.4
+                    "min_confidence": 0.4,
+                    "discipline": "Do not force trades. Holding cash is a valid and often superior position when no clear edge exists."
                 },
                 "risk_management": {
                     "risk_reward_ratio": "Maintain at least 1:1.3",
@@ -68,14 +69,15 @@ class DeepSeekAPI:
                     "counter_trend": {
                         "priority": "Conditional",
                         "confidence_threshold": 0.65,
-                        "strong_setup_confidence": 0.60,
+                        "strong_setup_confidence": 0.70,
                         "definition": f"Trade direction is OPPOSITE to {HTF_LABEL} trend.",
                         "condition": "15m AND 3m momentum align against 1h structural trend.",
                         "direction_rule": "Counter-trend direction = 15m+3m direction (NOT 1h direction).",
-                        "restriction": "If a valid counter-trend signal exists but cannot be executed (e.g. limits), DO NOT open a trend-following trade in the opposite direction."
+                        "restriction": "REQUIRE HIGH CONFIDENCE. If volume is low or signal is weak, DO NOT TRADE."
                     },
                     "volume_rules": {
-                         "weakness_warning": "If volume ratio is <= 0.20x average, call out weakness, reduce confidence materially, and consider skipping unless other data overwhelmingly compensates."
+                         "weakness_warning": "If volume ratio is <= 0.20x average, DO NOT TRADE. This is a hard rule.",
+                         "low_volume_caution": "If volume ratio is 0.20-0.50x, reduce confidence significantly."
                     }
                 },
                 "exit_logic": {
@@ -83,7 +85,7 @@ class DeepSeekAPI:
                         "applicability": "Applies ONLY to EXISTING positions. Do NOT use for entries.",
                         "definition": "Momentum moving AGAINST your current position.",
                         "strong_signal": "15m + 3m BOTH show reversal against position.",
-                        "action": "Consider closing if PnL is negative or thesis invalidated."
+                        "action": "Consider closing ONLY if PnL is negative or thesis invalidated. Do NOT exit on weak 3m reversals alone."
                     },
                     "reversal_strength_definitions": {
                         "STRONG": f"15m + 3m BOTH show reversal against position (but {HTF_LABEL} doesn't). Consider closing.",
