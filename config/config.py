@@ -51,20 +51,6 @@ class Config:
         'poor': 0.7        # >0.7x average volume
     }
     
-    # AI Logic Thresholds
-    RSI_OVERBOUGHT_THRESHOLD: float = float(os.getenv('RSI_OVERBOUGHT_THRESHOLD', '75.0'))
-    RSI_OVERSOLD_THRESHOLD: float = float(os.getenv('RSI_OVERSOLD_THRESHOLD', '25.0'))
-    VOLUME_RATIO_HIGH_THRESHOLD: float = float(os.getenv('VOLUME_RATIO_HIGH_THRESHOLD', '1.5'))
-    VOLUME_RATIO_LOW_THRESHOLD: float = float(os.getenv('VOLUME_RATIO_LOW_THRESHOLD', '0.5'))
-
-    SAME_DIRECTION_LIMIT: int = int(os.getenv('SAME_DIRECTION_LIMIT', '4'))
-    EMA_NEUTRAL_BAND_PCT: float = float(os.getenv('EMA_NEUTRAL_BAND_PCT', '0.0015'))  # ±0.15% bant
-    INTRADAY_NEUTRAL_RSI_HIGH: float = float(os.getenv('INTRADAY_NEUTRAL_RSI_HIGH', '60.0'))
-    INTRADAY_NEUTRAL_RSI_LOW: float = float(os.getenv('INTRADAY_NEUTRAL_RSI_LOW', '40.0'))
-    TREND_SHORT_RSI_THRESHOLD: float = float(os.getenv('TREND_SHORT_RSI_THRESHOLD', '45.0'))
-    TREND_LONG_RSI_THRESHOLD: float = float(os.getenv('TREND_LONG_RSI_THRESHOLD', '55.0'))
-    GLOBAL_NEUTRAL_STRENGTH_THRESHOLD: float = float(os.getenv('GLOBAL_NEUTRAL_STRENGTH_THRESHOLD', '0.34'))
-    DIRECTIONAL_NEUTRAL_MULTIPLIER: float = float(os.getenv('DIRECTIONAL_NEUTRAL_MULTIPLIER', '0.90'))
     DIRECTIONAL_BULLISH_LONG_MULTIPLIER: float = float(os.getenv('DIRECTIONAL_BULLISH_LONG_MULTIPLIER', '1.00'))
     DIRECTIONAL_BULLISH_SHORT_MULTIPLIER: float = float(os.getenv('DIRECTIONAL_BULLISH_SHORT_MULTIPLIER', '0.90'))
     DIRECTIONAL_BEARISH_LONG_MULTIPLIER: float = float(os.getenv('DIRECTIONAL_BEARISH_LONG_MULTIPLIER', '0.90'))
