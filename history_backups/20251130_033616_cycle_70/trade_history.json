@@ -1,0 +1,93 @@
+[
+  {
+    "symbol": "SOL",
+    "direction": "short",
+    "entry_price": 136.02,
+    "exit_price": 136.3,
+    "quantity": 1.1357279706698877,
+    "notional_usd": 154.48171857051815,
+    "pnl": -0.31800383178756986,
+    "entry_time": "2025-11-30T00:33:17.395492",
+    "exit_time": "2025-11-30T01:52:16.690299",
+    "leverage": 10,
+    "close_reason": "Position negative for 10 cycles"
+  },
+  {
+    "symbol": "ASTER",
+    "direction": "long",
+    "entry_price": 1.044,
+    "exit_price": 1.046,
+    "quantity": 200.88593023873554,
+    "notional_usd": 209.7249111692399,
+    "pnl": 0.40177186047747143,
+    "entry_time": "2025-11-30T01:53:05.629917",
+    "exit_time": "2025-11-30T02:05:00.353348",
+    "leverage": 10,
+    "close_reason": "AI close_position signal"
+  },
+  {
+    "symbol": "ADA",
+    "direction": "short",
+    "entry_price": 0.4148,
+    "exit_price": 0.4173,
+    "quantity": 192.86403085824494,
+    "notional_usd": 80.0,
+    "pnl": -0.48216007714561276,
+    "entry_time": "2025-11-30T00:01:05.273829",
+    "exit_time": "2025-11-30T02:05:00.360627",
+    "leverage": 10,
+    "close_reason": "AI close_position signal"
+  },
+  {
+    "symbol": "SOL",
+    "direction": "short",
+    "entry_price": 136.55,
+    "exit_price": 136.59,
+    "quantity": 1.1038661533975143,
+    "notional_usd": 150.73292324643057,
+    "pnl": -0.04415464613589178,
+    "entry_time": "2025-11-30T02:29:05.563798",
+    "exit_time": "2025-11-30T02:29:06.235731",
+    "leverage": 10,
+    "close_reason": "Profit Target (140.0) hit"
+  },
+  {
+    "symbol": "XRP",
+    "direction": "long",
+    "entry_price": 2.2119,
+    "exit_price": 2.2012,
+    "quantity": 110.2233665833347,
+    "notional_usd": 243.803064545678,
+    "pnl": -1.1793900224416738,
+    "entry_time": "2025-11-30T02:08:57.402831",
+    "exit_time": "2025-11-30T02:48:16.706369",
+    "leverage": 10,
+    "close_reason": "Position negative for 10 cycles"
+  },
+  {
+    "symbol": "LINK",
+    "direction": "long",
+    "entry_price": 13.11,
+    "exit_price": 13.01,
+    "quantity": 9.287786027525353,
+    "notional_usd": 121.76287482085738,
+    "pnl": -0.928778602752532,
+    "entry_time": "2025-11-30T02:17:07.372164",
+    "exit_time": "2025-11-30T02:55:23.845751",
+    "leverage": 10,
+    "close_reason": "Margin-based loss cut $0.93 ≥ $0.85"
+  },
+  {
+    "symbol": "ASTER",
+    "direction": "short",
+    "entry_price": 1.043,
+    "exit_price": 1.036,
+    "quantity": 113.40424372303218,
+    "notional_usd": 118.28062620312255,
+    "pnl": 0.7938297060612134,
+    "entry_time": "2025-11-30T02:49:10.473766",
+    "exit_time": "2025-11-30T03:07:51.444413",
+    "leverage": 10,
+    "close_reason": "Position margin $11.83 <= maximum limit $15.00"
+  }
+]

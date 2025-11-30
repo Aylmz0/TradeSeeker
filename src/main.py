@@ -1972,7 +1972,8 @@ Current live positions & performance:"""
         
         # Position slot status
         max_positions = self.get_max_positions_for_cycle(max(1, getattr(self, 'current_cycle_number', 1)))
-        position_slot_json = build_position_slot_json(self.portfolio.positions, max_positions)
+        effective_limit = self.portfolio.get_effective_same_direction_limit()
+        position_slot_json = build_position_slot_json(self.portfolio.positions, max_positions, same_direction_limit=effective_limit)
         
         # Market data (per coin)
         market_data_json = []

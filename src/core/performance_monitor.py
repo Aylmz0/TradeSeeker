@@ -7,6 +7,7 @@ import numpy as np
 import requests
 
 from src.utils import safe_file_read, safe_file_write
+from config.config import Config
 
 class PerformanceMonitor:
     """Performance monitoring system for Alpha Arena DeepSeek"""

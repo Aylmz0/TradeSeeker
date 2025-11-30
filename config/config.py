@@ -42,6 +42,16 @@ class Config:
     BINANCE_DEFAULT_LEVERAGE: int = int(os.getenv('BINANCE_DEFAULT_LEVERAGE', '10'))
     BINANCE_RECV_WINDOW: int = int(os.getenv('BINANCE_RECV_WINDOW', '5000'))
     
+    # Position Limits
+    SAME_DIRECTION_LIMIT: int = int(os.getenv('SAME_DIRECTION_LIMIT', '2'))
+    DYNAMIC_DIRECTION_LIMIT: int = int(os.getenv('DYNAMIC_DIRECTION_LIMIT', '2'))
+    
+    # Market Analysis Thresholds
+    GLOBAL_NEUTRAL_STRENGTH_THRESHOLD: float = float(os.getenv('GLOBAL_NEUTRAL_STRENGTH_THRESHOLD', '0.4'))
+    RSI_OVERBOUGHT_THRESHOLD: float = float(os.getenv('RSI_OVERBOUGHT_THRESHOLD', '70.0'))
+    RSI_OVERSOLD_THRESHOLD: float = float(os.getenv('RSI_OVERSOLD_THRESHOLD', '30.0'))
+    EMA_NEUTRAL_BAND_PCT: float = float(os.getenv('EMA_NEUTRAL_BAND_PCT', '0.001'))  # 0.1% band around EMA
+    
     # Enhanced Trading Settings
     SHORT_ENHANCEMENT_MULTIPLIER: float = float(os.getenv('SHORT_ENHANCEMENT_MULTIPLIER', '1.15'))  # %15 daha büyük short
     VOLUME_QUALITY_THRESHOLDS: dict = {
@@ -77,7 +87,7 @@ class Config:
     }
     
     # Minimum Position Size Configuration (Margin-based)
-    MIN_POSITION_MARGIN_USD: float = float(os.getenv('MIN_POSITION_MARGIN_USD', '15.0'))  # Minimum $15 margin ile pozisyon açılabilir
+    MIN_POSITION_MARGIN_USD: float = float(os.getenv('MIN_POSITION_MARGIN_USD', '10.0'))  # Minimum $8 margin ile pozisyon açılabilir
     MIN_POSITION_CLEANUP_THRESHOLD: float = float(os.getenv('MIN_POSITION_CLEANUP_THRESHOLD', '5.0'))  # $5 altındakileri temizle
     
     # Partial Profit Taking Configuration (Margin-based)

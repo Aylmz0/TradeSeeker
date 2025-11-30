@@ -227,8 +227,21 @@ class RealMarketData:
                  atr_3_series = self.calculate_atr_series(df['high'], df['low'], df['close'], 3)
                  indicators['atr_3'] = atr_3_series.iloc[-1]
 
-            indicators['volume'] = df['volume'].iloc[-1]; avg_vol = df['volume'].rolling(window=20, min_periods=1).mean().iloc[-1]
-            indicators['avg_volume'] = avg_vol if pd.notna(avg_vol) else 0.0
+            # Volume Analysis (CRITICAL FIX: Use last CLOSED candle for consistent ratio)
+            # iloc[-1] is current incomplete candle. iloc[-2] is last closed candle.
+            current_vol = df['volume'].iloc[-1]
+            last_closed_vol = df['volume'].iloc[-2]
+            
+            # Calculate average volume based on LAST 20 CLOSED candles (excluding current partial)
+            # We take slice [-21:-1] which gives 20 candles ending at iloc[-2]
+            avg_vol_closed = df['volume'].iloc[-21:-1].mean()
+            
+            indicators['volume'] = current_vol # Keep current volume for AI context
+            indicators['last_closed_volume'] = last_closed_vol
+            indicators['avg_volume'] = avg_vol_closed if pd.notna(avg_vol_closed) and avg_vol_closed > 0 else 1.0
+            
+            # Pre-calculate ratio for consistency
+            indicators['volume_ratio'] = last_closed_vol / indicators['avg_volume']
             indicators['price_series'] = close_prices.iloc[-hist_len:].round(4).where(pd.notna, None).tolist()
 
             for key, value in indicators.items():

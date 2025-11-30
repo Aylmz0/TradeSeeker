@@ -581,7 +581,7 @@ def build_risk_status_json(
         "total_margin_used": format_number_for_json(total_margin_used),
         "available_cash": format_number_for_json(available_cash),
         "trading_limits": {
-            "min_position": 10.0,  # $10 minimum
+            "min_position": Config.MIN_POSITION_MARGIN_USD,
             "max_positions": max_positions,
             "available_cash_protection": format_number_for_json(available_cash * 0.10),
             "position_sizing_pct": 40.0  # Up to 40% of available cash
