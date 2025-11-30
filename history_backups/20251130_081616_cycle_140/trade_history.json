@@ -1,0 +1,80 @@
+[
+  {
+    "symbol": "ASTER",
+    "direction": "long",
+    "entry_price": 1.049,
+    "exit_price": 1.063,
+    "quantity": 31.926879351266184,
+    "notional_usd": 27.37838013793053,
+    "pnl": 0.446976310917727,
+    "entry_time": "2025-11-30T06:33:14.342251",
+    "exit_time": "2025-11-30T06:34:46.248070",
+    "leverage": 10,
+    "close_reason": "Profit taking at 0.7% gain (18%)"
+  },
+  {
+    "symbol": "ASTER",
+    "direction": "long",
+    "entry_price": 1.049,
+    "exit_price": 1.061,
+    "quantity": 142.99332697807435,
+    "notional_usd": 150.0,
+    "pnl": 1.7159199237368936,
+    "entry_time": "2025-11-30T06:33:14.342251",
+    "exit_time": "2025-11-30T06:35:16.548655",
+    "leverage": 10,
+    "close_reason": "Position margin $15.00 <= maximum limit $15.00"
+  },
+  {
+    "symbol": "ASTER",
+    "direction": "long",
+    "entry_price": 1.062,
+    "exit_price": 1.059,
+    "quantity": 148.89603588964758,
+    "notional_usd": 158.12759011480574,
+    "pnl": -0.44668810766895967,
+    "entry_time": "2025-11-30T06:41:13.303394",
+    "exit_time": "2025-11-30T06:49:18.760334",
+    "leverage": 10,
+    "close_reason": "AI close_position signal"
+  },
+  {
+    "symbol": "LINK",
+    "direction": "long",
+    "entry_price": 13.07,
+    "exit_price": 13.05,
+    "quantity": 6.12088752869166,
+    "notional_usd": 80.0,
+    "pnl": -0.12241775057383059,
+    "entry_time": "2025-11-30T06:33:14.347207",
+    "exit_time": "2025-11-30T06:49:18.767793",
+    "leverage": 10,
+    "close_reason": "AI close_position signal"
+  },
+  {
+    "symbol": "SOL",
+    "direction": "short",
+    "entry_price": 136.28,
+    "exit_price": 136.39,
+    "quantity": 0.6071604034607089,
+    "notional_usd": 82.74381978362541,
+    "pnl": -0.066787644380669,
+    "entry_time": "2025-11-30T04:45:13.694174",
+    "exit_time": "2025-11-30T07:08:16.771100",
+    "leverage": 10,
+    "close_reason": "Position negative for 10 cycles"
+  },
+  {
+    "symbol": "LINK",
+    "direction": "short",
+    "entry_price": 13.01,
+    "exit_price": 13.05,
+    "quantity": 15.752902398562059,
+    "notional_usd": 204.94526020529239,
+    "pnl": -0.6301160959424968,
+    "entry_time": "2025-11-30T07:09:03.608378",
+    "exit_time": "2025-11-30T07:48:16.780632",
+    "leverage": 10,
+    "close_reason": "Position negative for 10 cycles"
+  }
+]

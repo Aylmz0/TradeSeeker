@@ -1,0 +1,31 @@
+Analyzing Overnight Run Data...
+
+--- Performance Report Summary ---
+Error reading performance_report.json: 'list' object has no attribute 'get'
+--- Trade History Analysis (1 trades) ---
+[WIN] ASTER short | PnL: $0.57 | Reason: Position margin $10.00 <= maximum limit $15.00
+      Entry: 2025-11-29T21:48:03.254207 | Exit: 2025-11-29T22:16:04.441256
+
+Total Realized PnL: $0.57
+------------------------------
+
+--- Cycle History Analysis (Last 10 Cycles) ---
+Cycle 210 (2025-11-30T12:57:06.862011):
+Thoughts: Advanced systematic analysis of all assets using 1h (htf) trends, 15m momentum confirmation, and 3m entry timing. Global regime is neutral with 5 neutral coins, 1 bearish, and 0 bullish, indicating low directional bias. Position slots: 1 long used (DOGE), 1 long slot available, 2 short slots availab...
+  -> ACTION: ASTER - buy_to_enter (Conf: 0.75)
+     Reasoning: If 1h price closes below 1h EMA20 (1.0584)
+  -> ACTION: SOL - buy_to_enter (Conf: 0.75)
+     Reasoning: If 1h price closes below 1h EMA20 (136.6139)
+------------------------------
+Cycle 211 (2025-11-30T13:01:14.564495):
+Thoughts: Advanced systematic analysis of all assets using 1h (htf) trends, 15m momentum confirmation, and 3m entry timing.
+
+XRP: 1h BEARISH (price=2.1967 < EMA20=2.1969, RSI 49.65 < 50, MACD negative), 15m NEUTRAL (price=2.1967 â‰ˆ EMA20=2.1937, RSI 53.78, MACD negative but improving), 3m BULLISH (price=2.19...
+  -> No new actions (HOLD/WAIT)
+------------------------------
+Cycle 212 (2025-11-30T13:05:05.693434):
+Thoughts: Advanced systematic analysis of all assets using 1h (htf) trends, 15m momentum confirmation, and 3m entry timing.
+
+XRP: 1h BEARISH (price=2.1967 < EMA20=2.1969, RSI=49.65 < 50), 15m neutral (price=2.1967 > EMA20=2.1937 but RSI=53.78 < 60, MACD negative), 3m BULLISH (price=2.198 > EMA20=2.1942, RSI=6...
+  -> No new actions (HOLD/WAIT)
+------------------------------

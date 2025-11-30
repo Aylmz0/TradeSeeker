@@ -76,6 +76,11 @@ def serve_index():
     """Serve the main admin panel interface."""
     return send_from_directory(str(TEMPLATE_DIR), 'index.html')
 
+@app.route('/assets/<path:filename>')
+def serve_custom_static(filename):
+    """Serve static files from src/web/static directory."""
+    return send_from_directory(str(WEB_DIR / 'static'), filename)
+
 @app.route('/api/portfolio')
 def get_portfolio():
     """Get current portfolio state."""
@@ -216,6 +221,22 @@ def get_bot_control():
         return jsonify(control)
     except Exception as e:
         logger.error(f"Error reading bot control: {e}")
+        return jsonify({"status": "error", "message": str(e)}), 500
+
+@app.route('/api/performance/refresh', methods=['POST'])
+def refresh_performance():
+    """
+    Trigger a performance analysis refresh.
+    In a real scenario, this might signal the bot to run analysis immediately.
+    For now, we'll return success to allow the frontend to reload data.
+    """
+    try:
+        # Ideally, we would trigger the bot here. 
+        # For now, just acknowledge the request.
+        logger.info("🔄 Performance refresh requested via API")
+        return jsonify({"status": "success", "message": "Performance refresh requested"})
+    except Exception as e:
+        logger.error(f"Error refreshing performance: {e}")
         return jsonify({"status": "error", "message": str(e)}), 500
 
 @app.route('/<path:filename>', methods=['GET'])

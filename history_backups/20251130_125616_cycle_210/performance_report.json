@@ -1927,10 +1927,5 @@
       "[INFO] Recorded return -7.37% within analysis window; below growth target",
       "[INFO] Coins with cumulative negative PnL: ADA, ASTER"
     ]
-  },
-  {
-    "reset_reason": "periodic_bias_control",
-    "reset_at_cycle": 210,
-    "timestamp": "2025-11-30T12:56:16.644415"
   }
 ]

@@ -2565,10 +2565,13 @@ class PortfolioManager:
             current_volume = indicators_3m.get('volume', 0)
             avg_volume = indicators_3m.get('avg_volume', 0)
             
-            if avg_volume <= 0:
-                return 0.0
-            
-            volume_ratio = current_volume / avg_volume
+            # CRITICAL FIX: Use pre-calculated ratio based on CLOSED candles if available
+            if 'volume_ratio' in indicators_3m:
+                volume_ratio = indicators_3m['volume_ratio']
+            else:
+                if avg_volume <= 0:
+                    return 0.0
+                volume_ratio = current_volume / avg_volume
             
             # Calculate score based on Config thresholds
             if volume_ratio >= Config.VOLUME_QUALITY_THRESHOLDS['excellent']:
@@ -2658,6 +2661,15 @@ class PortfolioManager:
             print(f"⚠️ Market regime strength error: {e}")
             return 0.0
 
+    def get_effective_same_direction_limit(self) -> int:
+        """
+        Calculate the effective same direction limit based on market regime strength.
+        """
+        regime_strength = self.get_market_regime_strength()
+        if regime_strength > 0.7:
+            return Config.DYNAMIC_DIRECTION_LIMIT
+        return Config.SAME_DIRECTION_LIMIT
+
     def validate_exit_signal(self, coin: str, position: Dict, indicators_3m: Dict) -> bool:
         """
         Validate exit signal (Reversal Desensitization).
@@ -2719,6 +2731,35 @@ class PortfolioManager:
             print(f"⚠️ Exit validation error: {e}")
             return True # Fail safe: allow exit
 
+
+    def should_enhance_short_sizing(self, coin: str) -> bool:
+        """
+        Determines if short sizing should be enhanced based on market conditions.
+        Criteria:
+        1. Market Regime is BEARISH
+        2. Coin is in a clear downtrend (Price < EMA20)
+        """
+        try:
+            # 1. Check Market Regime
+            market_regime = self.detect_market_regime_overall()
+            if market_regime != 'BEARISH':
+                return False
+                
+            # 2. Check Coin Trend
+            indicators = self.market_data.get_technical_indicators(coin, '1h')
+            if not indicators:
+                return False
+                
+            current_price = indicators.get('current_price')
+            ema_20 = indicators.get('ema_20')
+            
+            if current_price and ema_20 and current_price < ema_20:
+                return True
+                
+            return False
+        except Exception as e:
+            print(f"⚠️ Error checking enhanced short sizing for {coin}: {e}")
+            return False
 
     def execute_decision(
         self,
@@ -2895,7 +2936,13 @@ class PortfolioManager:
 
                     current_volume = indicators_3m.get('volume', 0)
                     avg_volume = indicators_3m.get('avg_volume', 1)
-                    volume_ratio = current_volume / avg_volume if avg_volume and avg_volume > 0 else 0.0
+                    
+                    # CRITICAL FIX: Use pre-calculated ratio based on CLOSED candles if available
+                    if 'volume_ratio' in indicators_3m:
+                        volume_ratio = indicators_3m['volume_ratio']
+                    else:
+                        volume_ratio = current_volume / avg_volume if avg_volume and avg_volume > 0 else 0.0
+                        
                     trade['volume_ratio_runtime'] = round(volume_ratio, 4)
                     relax_cycles_global = getattr(self, 'relaxed_countertrend_cycles', 0)
                     relax_mode_active_global = relax_cycles_global > 0
