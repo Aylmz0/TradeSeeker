@@ -38,6 +38,7 @@ class PortfolioManager:
             self.initial_balance = initial_balance
             
         self.state_file = "data/portfolio_state.json"; self.history_file = "data/trade_history.json"
+        self.full_history_file = "data/full_trade_history.json"  # New persistent history file
         self.override_file = "data/manual_override.json"; self.cycle_history_file = "data/cycle_history.json"
         self.max_cycle_history = 50; self.maintenance_margin_rate = 0.01
 
@@ -64,6 +65,7 @@ class PortfolioManager:
         self.current_cycle_number = 0
 
         self.trade_history = self.load_trade_history() # Load first
+        self._ensure_full_history_exists()  # Migrate existing history if needed
         self.load_state() # Loads balance, positions, trade_count
         self.cycle_history = self.load_cycle_history()
         self.risk_manager = AdvancedRiskManager()  # Initialize risk manager
@@ -82,6 +84,12 @@ class PortfolioManager:
             print(f"ℹ️ Binance executor unavailable ({BINANCE_IMPORT_ERROR}). Staying in simulation mode.")
 
         self.update_prices({}, increment_loss_counters=False) # Calculate initial value with loaded positions
+
+    def _ensure_full_history_exists(self):
+        """Ensure full trade history exists, copying from active history if needed."""
+        if not os.path.exists(self.full_history_file):
+            print(f"ℹ️ Creating {self.full_history_file} from existing trade history...")
+            safe_file_write(self.full_history_file, self.trade_history)
 
     def _init_directional_bias(self) -> Dict[str, Dict[str, Any]]:
         return {
@@ -748,6 +756,30 @@ class PortfolioManager:
         self.trade_history.append(trade)
         self.trade_count = len(self.trade_history)
         self.save_trade_history()
+        
+        # Also append to full history with robustness check
+        full_history = safe_file_read(self.full_history_file, None)
+        
+        if full_history is None:
+            # Read failed or file doesn't exist
+            if os.path.exists(self.full_history_file) and os.path.getsize(self.full_history_file) > 0:
+                print(f"⚠️ Warning: Could not read {self.full_history_file} (lock/error). Appending to memory only to prevent overwrite.")
+                # Ideally we should retry or abort, but for now let's try to append if possible or just log error
+                # If we write [trade] now, we lose history.
+                # Better strategy: Try to read again? Or just skip writing to full history this time (data gap is better than data wipe)
+                # But we want to persist.
+                # Let's try to read one more time with a small delay
+                time.sleep(0.1)
+                full_history = safe_file_read(self.full_history_file, [])
+                if not full_history and os.path.getsize(self.full_history_file) > 0:
+                     print(f"❌ Critical: Failed to read full history. Skipping write to prevent data loss.")
+                     return
+            else:
+                full_history = []
+        
+        full_history.append(trade)
+        safe_file_write(self.full_history_file, full_history)
+        
         self.update_directional_bias(trade)
         self.save_state()
 
@@ -1351,8 +1383,8 @@ class PortfolioManager:
         
         # Update portfolio history for Sharpe ratio calculation
         self.portfolio_values_history.append(self.total_value)
-        if len(self.portfolio_values_history) > 100:  # Keep last 100 values
-            self.portfolio_values_history = self.portfolio_values_history[-100:]
+        if len(self.portfolio_values_history) > 5000:  # Keep last 5000 values (approx 1 week)
+            self.portfolio_values_history = self.portfolio_values_history[-5000:]
         
         # Calculate Sharpe ratio
         self.sharpe_ratio = self.calculate_sharpe_ratio()
@@ -1384,17 +1416,26 @@ class PortfolioManager:
             excess_returns = [r - risk_free_rate for r in returns]
             
             # Daily return and volatility
-            avg_return = np.mean(excess_returns) * 720  # Daily return (720 cycles per day)
-            std_return = np.std(excess_returns) * np.sqrt(720)  # Daily volatility
+            avg_return_per_cycle = np.mean(excess_returns)
+            std_return_per_cycle = np.std(excess_returns)
             
-            if std_return == 0:
+            # Annualize metrics
+            # Assuming 2-minute cycles -> 720 cycles/day
+            cycles_per_day = 720
+            
+            avg_daily_return = avg_return_per_cycle * cycles_per_day
+            std_daily_return = std_return_per_cycle * np.sqrt(cycles_per_day)
+            
+            if std_daily_return == 0:
                 return 0.0
             
-            # Daily Sharpe ratio
-            sharpe = avg_return / std_return
+            # Daily Sharpe Ratio
+            daily_sharpe = avg_daily_return / std_daily_return
             
-            # Return as float (not annualized for simplicity)
-            return float(sharpe)
+            # Annualized Sharpe Ratio (Daily Sharpe * sqrt(365))
+            annualized_sharpe = daily_sharpe * np.sqrt(365)
+            
+            return float(annualized_sharpe)
             
         except Exception as e:
             print(f"⚠️ Sharpe ratio calculation error: {e}")
@@ -2219,16 +2260,26 @@ class PortfolioManager:
             self.execute_decision(decisions_to_execute, valid_prices, indicator_cache=indicator_cache)
 
     def _calculate_maximum_limit(self) -> float:
-        """Calculate maximum limit: $15 fixed OR 15% of available cash, whichever is larger"""
+        """Calculate maximum limit: Configured value OR 15% of available cash, whichever is larger"""
         max_from_percentage = self.current_balance * 0.15
-        max_limit = max(15.0, max_from_percentage)
-        print(f"📊 Maximum limit: ${max_limit:.2f} (${15.0} fixed vs ${max_from_percentage:.2f} 15% of ${self.current_balance:.2f} available cash)")
+        # Use configured value instead of hardcoded 15.0
+        min_limit = Config.MIN_PARTIAL_PROFIT_MARGIN_REMAINING_USD
+        max_limit = max(min_limit, max_from_percentage)
+        print(f"📊 Maximum limit: ${max_limit:.2f} (${min_limit} fixed vs ${max_from_percentage:.2f} 15% of ${self.current_balance:.2f} available cash)")
         return max_limit
 
 
     def _adjust_partial_sale_for_max_limit(self, position: Dict, proposed_percent: float) -> Tuple[float, bool, Optional[str]]:
         """Adjust partial sale percentage to ensure position doesn't go below maximum limit"""
         current_margin = position.get('margin_usd', 0)
+        if current_margin <= 0:
+            # Fallback: Calculate from notional/leverage if margin_usd is missing/zero
+            notional = position.get('notional_usd', 0)
+            leverage = position.get('leverage', 1)
+            if notional > 0 and leverage > 0:
+                current_margin = notional / leverage
+            elif position.get('entry_price', 0) > 0 and position.get('quantity', 0) > 0:
+                 current_margin = (position['entry_price'] * position['quantity']) / position.get('leverage', 10)
         
         # Calculate maximum limit: $15 fixed OR 15% of available cash, whichever is larger
         max_limit = self._calculate_maximum_limit()
@@ -2255,6 +2306,14 @@ class PortfolioManager:
     def _adjust_partial_sale_for_min_limit(self, position: Dict, proposed_percent: float) -> float:
         """Adjust partial sale percentage to ensure minimum limit remains after sale"""
         current_margin = position.get('margin_usd', 0)
+        if current_margin <= 0:
+             # Fallback: Calculate from notional/leverage if margin_usd is missing/zero
+            notional = position.get('notional_usd', 0)
+            leverage = position.get('leverage', 1)
+            if notional > 0 and leverage > 0:
+                current_margin = notional / leverage
+            elif position.get('entry_price', 0) > 0 and position.get('quantity', 0) > 0:
+                 current_margin = (position['entry_price'] * position['quantity']) / position.get('leverage', 10)
         
         # Calculate dynamic minimum limit: $15 fixed OR 10% of available cash, whichever is larger
         min_remaining = self._calculate_dynamic_minimum_limit()
@@ -2946,6 +3005,18 @@ class PortfolioManager:
                     trade['volume_ratio_runtime'] = round(volume_ratio, 4)
                     relax_cycles_global = getattr(self, 'relaxed_countertrend_cycles', 0)
                     relax_mode_active_global = relax_cycles_global > 0
+
+                    # HARD VOLUME FILTER (< 0.20)
+                    if volume_ratio < 0.20:
+                        print(f"🚫 HARD VOLUME FILTER: {coin} volume ratio {volume_ratio:.2f} < 0.20. Trade blocked.")
+                        execution_report['blocked'].append({
+                            'coin': coin,
+                            'reason': 'hard_volume_filter',
+                            'volume_ratio': volume_ratio
+                        })
+                        trade['runtime_decision'] = 'blocked_hard_volume_filter'
+                        continue
+
                     if volume_ratio is not None:
                         low_volume_threshold = 0.20 if not relax_mode_active_global else 0.15
                         if volume_ratio < low_volume_threshold:
@@ -2963,16 +3034,9 @@ class PortfolioManager:
                                     print(f"🚫 Low volume block: {coin} confidence {confidence:.2f} below minimum after penalty.")
                                     execution_report['blocked'].append({'coin': coin, 'reason': 'low_volume', 'volume_ratio': volume_ratio, 'confidence': confidence})
                                     trade['runtime_decision'] = 'blocked_low_volume'
-                                    trade['runtime_decision'] = 'blocked_low_volume'
                                     continue
                                 trade['confidence'] = confidence
-                        
-                        # HARD VOLUME FILTER (< 0.2)
-                        if volume_ratio < 0.2:
-                            print(f"🚫 HARD VOLUME FILTER: {coin} volume ratio {volume_ratio:.2f} < 0.2. Trade blocked.")
-                            execution_report['blocked'].append({'coin': coin, 'reason': 'hard_volume_filter', 'volume_ratio': volume_ratio})
-                            trade['runtime_decision'] = 'blocked_hard_volume_filter'
-                            continue
+
                     trend_info = self.update_trend_state(coin, indicators_htf, indicators_3m)
                     current_trend = trend_info.get('trend', 'unknown')
                     flip_cycle = trend_info.get('last_flip_cycle')

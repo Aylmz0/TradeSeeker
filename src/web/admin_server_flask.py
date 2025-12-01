@@ -89,8 +89,14 @@ def get_portfolio():
 
 @app.route('/api/trades')
 def get_trades():
-    """Get trade history."""
-    data = safe_file_read('data/trade_history.json', [])
+    """Get trade history (prefer full history for persistent graph)."""
+    # Try to read full history first (persistent across resets)
+    data = safe_file_read('data/full_trade_history.json', None)
+    
+    # Fallback to active history if full history doesn't exist yet
+    if data is None:
+        data = safe_file_read('data/trade_history.json', [])
+        
     return jsonify(data)
 
 @app.route('/api/cycles')
@@ -223,21 +229,7 @@ def get_bot_control():
         logger.error(f"Error reading bot control: {e}")
         return jsonify({"status": "error", "message": str(e)}), 500
 
-@app.route('/api/performance/refresh', methods=['POST'])
-def refresh_performance():
-    """
-    Trigger a performance analysis refresh.
-    In a real scenario, this might signal the bot to run analysis immediately.
-    For now, we'll return success to allow the frontend to reload data.
-    """
-    try:
-        # Ideally, we would trigger the bot here. 
-        # For now, just acknowledge the request.
-        logger.info("🔄 Performance refresh requested via API")
-        return jsonify({"status": "success", "message": "Performance refresh requested"})
-    except Exception as e:
-        logger.error(f"Error refreshing performance: {e}")
-        return jsonify({"status": "error", "message": str(e)}), 500
+
 
 @app.route('/<path:filename>', methods=['GET'])
 def serve_static_files(filename):
@@ -273,7 +265,7 @@ def internal_error(error):
 # --- Main Application ---
 
 if __name__ == '__main__':
-    PORT = 8002
+    PORT = 8082
     HOST = '0.0.0.0'
     
     logger.info(f"🚀 Flask Admin Panel Server starting on {HOST}:{PORT}...")

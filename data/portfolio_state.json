@@ -1,101 +1,59 @@
 {
-  "current_balance": 64.08732517606845,
+  "current_balance": 76.32134615,
   "positions": {
     "DOGE": {
       "symbol": "DOGE",
-      "direction": "long",
-      "quantity": 937.2590363991002,
-      "entry_price": 0.14958,
-      "entry_time": "2025-11-30T12:45:19.417012",
-      "current_price": 0.14963,
-      "unrealized_pnl": 0.046862951819975865,
-      "notional_usd": 140.1952066645774,
-      "margin_usd": 14.01952066645774,
+      "direction": "short",
+      "quantity": 1336.0,
+      "entry_price": 0.13261,
+      "current_price": 0.13255401,
+      "unrealized_pnl": 0.07480264,
+      "notional_usd": 177.09215736,
+      "margin_usd": 0.0,
       "leverage": 10,
-      "liquidation_price": 0.13611779999999998,
-      "confidence": 0.77,
+      "entry_time": 1764609517211,
+      "liquidation_price": 0.20161943,
+      "confidence": 0.0,
       "exit_plan": {
-        "stop_loss": 0.148,
-        "profit_target": 0.152,
-        "invalidation_condition": "If 1h price closes above 1h EMA20 (0.1490)"
+        "stop_loss": 0.136,
+        "profit_target": 0.128,
+        "invalidation_condition": "If 1h price closes above 1h EMA20 (0.1379)"
       },
-      "risk_usd": 14.01952066645774,
       "loss_cycle_count": 0,
-      "entry_volume": 88484.0,
-      "entry_avg_volume": 410285.65,
-      "entry_volume_ratio": 0.6350429267999015,
-      "entry_atr_14": 0.00020102804251739798,
-      "trend_alignment": "unknown",
-      "trend_context": {
-        "trend_at_entry": "unknown",
-        "alignment": "unknown",
-        "cycle": 207
-      },
-      "trailing": {},
-      "sl_oid": -1,
-      "tp_oid": -1,
-      "entry_oid": -1,
-      "wait_for_fill": false
-    },
-    "ASTER": {
-      "symbol": "ASTER",
-      "direction": "long",
-      "quantity": 140.31805425631433,
-      "entry_price": 1.069,
-      "entry_time": "2025-11-30T12:57:06.854156",
-      "current_price": 1.076,
-      "unrealized_pnl": 1.27138519494217,
-      "notional_usd": 150.0,
-      "margin_usd": 15.0,
-      "leverage": 10,
-      "liquidation_price": 0.9727899999999999,
-      "confidence": 0.77,
-      "exit_plan": {
-        "stop_loss": 1.05,
-        "profit_target": 1.09,
-        "invalidation_condition": "If 1h price closes below 1h EMA20 (1.0584)"
-      },
-      "risk_usd": 19.415868191330812,
-      "loss_cycle_count": 0,
-      "entry_volume": 169131.28,
-      "entry_avg_volume": 61442.00699999998,
-      "entry_volume_ratio": 0.3407136423782512,
-      "entry_atr_14": 0.0024602125514185526,
-      "trend_alignment": "unknown",
-      "trend_context": {
-        "trend_at_entry": "unknown",
-        "alignment": "unknown",
-        "cycle": 210
-      },
-      "trailing": {},
-      "sl_oid": -1,
-      "tp_oid": -1,
-      "entry_oid": -1,
-      "wait_for_fill": false
+      "risk_usd": 0.0,
+      "exchange_metadata": {
+        "symbol": "DOGEUSDT",
+        "raw": {
+          "symbol": "DOGEUSDT",
+          "positionAmt": "-1336",
+          "entryPrice": "0.13261",
+          "breakEvenPrice": "0.132543695",
+          "markPrice": "0.13255401",
+          "unRealizedProfit": "0.07480264",
+          "liquidationPrice": "0.20161943",
+          "leverage": "10",
+          "maxNotionalValue": "20000000",
+          "marginType": "cross",
+          "isolatedMargin": "0.00000000",
+          "isAutoAddMargin": "false",
+          "positionSide": "BOTH",
+          "notional": "-177.09215736",
+          "isolatedWallet": "0",
+          "updateTime": 1764609517211,
+          "isolated": false,
+          "adlQuantile": 1
+        }
+      }
     }
   },
-  "total_value": 94.13593517414037,
-  "total_return": -5.864064825859629,
+  "total_value": 94.10536452599999,
+  "total_return": -5.894635474000012,
   "initial_balance": 100.0,
-  "trade_count": 1,
-  "last_updated": "2025-11-30T13:14:27.582399",
-  "sharpe_ratio": 4.690970064358116,
+  "trade_count": 11,
+  "last_updated": "2025-12-01T17:26:45.865842",
+  "sharpe_ratio": 2.3708235357676974,
   "directional_bias": {
     "long": {
-      "rolling": [
-        0.2891588151479533
-      ],
-      "net_pnl": 0.2891588151479533,
-      "trades": 1,
-      "wins": 1,
-      "losses": 0,
-      "consecutive_losses": 0,
-      "consecutive_wins": 1,
-      "caution_active": false,
-      "caution_win_progress": 0,
-      "loss_streak_loss_usd": 0.0
-    },
-    "short": {
       "rolling": [],
       "net_pnl": 0.0,
       "trades": 0,
@@ -106,10 +64,34 @@
       "caution_active": false,
       "caution_win_progress": 0,
       "loss_streak_loss_usd": 0.0
+    },
+    "short": {
+      "rolling": [
+        -1.6526399999999848,
+        0.6470300000000013,
+        0.23430000000000265,
+        0.1700000000000017,
+        0.6004000000000047,
+        -1.047959999999983,
+        0.2263000000000026,
+        0.5513004000000001,
+        0.5821999999999996,
+        0.7241999999999995,
+        -0.36167999999999667
+      ],
+      "net_pnl": 0.6734504000000479,
+      "trades": 11,
+      "wins": 8,
+      "losses": 3,
+      "consecutive_losses": 1,
+      "consecutive_wins": 0,
+      "caution_active": false,
+      "caution_win_progress": 0,
+      "loss_streak_loss_usd": 3.0622799999999644
     }
   },
-  "last_history_reset_cycle": 210,
-  "cycles_since_history_reset": 2,
+  "last_history_reset_cycle": 211,
+  "cycles_since_history_reset": 16,
   "directional_cooldowns": {
     "long": 0,
     "short": 0
