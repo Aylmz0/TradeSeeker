@@ -5,76 +5,83 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>DeepSeek Bot Admin Panel</title>
+    <script>
+        // Ensure trailing slash for relative paths to work with proxy
+        if (!window.location.href.endsWith('/') && !window.location.href.includes('.')) {
+            window.history.replaceState(null, '', window.location.href + '/');
+            window.location.reload();
+        }
+    </script>
     <link rel="icon" href="data:,">
     <script src="https://cdn.tailwindcss.com"></script>
-    <script src="/assets/js/lightweight-charts.js"></script>
-    <link rel="stylesheet" href="/assets/css/style.css">
+    <script src="./assets/js/lightweight-charts.js"></script>
+    <link rel="stylesheet" href="./assets/css/style.css">
 </head>
 
-<body class="p-4 md:p-8">
-    <div class="container mx-auto max-w-7xl space-y-6">
+<body class="bg-gray-900 text-gray-100 font-sans antialiased">
+    <div class="container mx-auto px-4 py-6 max-w-7xl">
 
         <!-- Header -->
         <div class="flex flex-wrap justify-between items-center gap-4 mb-6">
-            <h1 class="text-2xl sm:text-3xl font-bold text-main">DeepSeek Bot Admin Panel</h1>
+            <h1 class="text-2xl sm:text-3xl font-bold text-indigo-400">DeepSeek Bot Admin Panel</h1>
             <div class="flex items-center space-x-4">
                 <div id="statusIndicator" class="flex items-center space-x-2">
-                    <span class="status-dot status-down"></span>
-                    <span class="text-sm font-medium text-secondary">DISCONNECTED</span>
+                    <span class="w-3 h-3 rounded-full bg-red-500"></span>
+                    <span class="text-sm font-medium text-gray-400">DISCONNECTED</span>
                 </div>
                 <div class="flex items-center space-x-2">
                     <button id="botControlBtn" onclick="toggleBotControl()"
                         class="px-4 py-2 rounded font-medium text-sm transition-colors bg-indigo-600 hover:bg-indigo-700 text-white">
                         <span id="botControlText">⏸️ PAUSE</span>
                     </button>
-                    <span id="botStatusText" class="text-xs text-secondary">Checking...</span>
+                    <span id="botStatusText" class="text-xs text-gray-400">Checking...</span>
                 </div>
             </div>
         </div>
 
         <!-- Key Stats -->
-        <div class="grid grid-cols-2 md:grid-cols-6 gap-4">
-            <div class="card p-4">
-                <h2 class="text-xs sm:text-sm font-medium text-secondary uppercase">Total Value</h2>
-                <p id="totalValue" class="text-xl sm:text-2xl font-bold text-main mt-1">$...</p>
+        <div class="grid grid-cols-2 md:grid-cols-6 gap-4 mb-6">
+            <div class="bg-gray-800 rounded-lg p-4 shadow-lg border border-gray-700">
+                <h2 class="text-xs sm:text-sm font-medium text-gray-400 uppercase">Total Value</h2>
+                <p id="totalValue" class="text-xl sm:text-2xl font-bold text-indigo-400 mt-1">$...</p>
             </div>
-            <div class="card p-4">
-                <h2 class="text-xs sm:text-sm font-medium text-secondary uppercase">Total PNL (%)</h2>
+            <div class="bg-gray-800 rounded-lg p-4 shadow-lg border border-gray-700">
+                <h2 class="text-xs sm:text-sm font-medium text-gray-400 uppercase">Total PNL (%)</h2>
                 <p id="totalReturn" class="text-xl sm:text-2xl font-bold mt-1">...</p>
             </div>
-            <div class="card p-4">
-                <h2 class="text-xs sm:text-sm font-medium text-secondary uppercase">Available Cash</h2>
-                <p id="availableCash" class="text-xl sm:text-2xl font-bold text-main mt-1">$...</p>
+            <div class="bg-gray-800 rounded-lg p-4 shadow-lg border border-gray-700">
+                <h2 class="text-xs sm:text-sm font-medium text-gray-400 uppercase">Available Cash</h2>
+                <p id="availableCash" class="text-xl sm:text-2xl font-bold text-indigo-400 mt-1">$...</p>
             </div>
-            <div class="card p-4">
-                <h2 class="text-xs sm:text-sm font-medium text-secondary uppercase">Closed Trades</h2>
-                <p id="tradeCount" class="text-xl sm:text-2xl font-bold text-main mt-1">...</p>
+            <div class="bg-gray-800 rounded-lg p-4 shadow-lg border border-gray-700">
+                <h2 class="text-xs sm:text-sm font-medium text-gray-400 uppercase">Closed Trades</h2>
+                <p id="tradeCount" class="text-xl sm:text-2xl font-bold text-indigo-400 mt-1">...</p>
             </div>
-            <div class="card p-4">
-                <h2 class="text-xs sm:text-sm font-medium text-secondary uppercase">Win Rate</h2>
-                <p id="winRate" class="text-xl sm:text-2xl font-bold text-main mt-1">...</p>
+            <div class="bg-gray-800 rounded-lg p-4 shadow-lg border border-gray-700">
+                <h2 class="text-xs sm:text-sm font-medium text-gray-400 uppercase">Win Rate</h2>
+                <p id="winRate" class="text-xl sm:text-2xl font-bold text-indigo-400 mt-1">...</p>
             </div>
-            <div class="card p-4">
-                <h2 class="text-xs sm:text-sm font-medium text-secondary uppercase">Risk Level</h2>
-                <p id="riskLevel" class="text-xl sm:text-2xl font-bold text-main mt-1">...</p>
+            <div class="bg-gray-800 rounded-lg p-4 shadow-lg border border-gray-700">
+                <h2 class="text-xs sm:text-sm font-medium text-gray-400 uppercase">Risk Level</h2>
+                <p id="riskLevel" class="text-xl sm:text-2xl font-bold text-indigo-400 mt-1">...</p>
             </div>
-            <div class="card p-4">
-                <h2 class="text-xs sm:text-sm font-medium text-secondary uppercase">Sharpe Ratio</h2>
-                <p id="sharpeRatio" class="text-xl sm:text-2xl font-bold text-main mt-1">...</p>
+            <div class="bg-gray-800 rounded-lg p-4 shadow-lg border border-gray-700">
+                <h2 class="text-xs sm:text-sm font-medium text-gray-400 uppercase">Sharpe Ratio</h2>
+                <p id="sharpeRatio" class="text-xl sm:text-2xl font-bold text-indigo-400 mt-1">...</p>
             </div>
         </div>
 
         <!-- PnL Chart Section -->
-        <div class="card p-4">
-            <h2 class="text-lg font-bold text-main mb-4">Portfolio PnL History</h2>
+        <div class="bg-gray-800 rounded-lg p-4 shadow-lg border border-gray-700 mb-6">
+            <h2 class="text-lg font-bold text-indigo-400 mb-4">Portfolio PnL History</h2>
             <div id="pnlChartContainer" class="w-full h-64"></div>
         </div>
 
         <!-- Alerts Section -->
-        <div class="card">
-            <h2 class="text-lg font-bold text-main p-4 border-b border-divider">Recent Alerts</h2>
+        <div class="bg-gray-800 rounded-lg shadow-lg border border-gray-700 mb-6">
+            <h2 class="text-lg font-bold text-indigo-400 p-4 border-b border-gray-700">Recent Alerts</h2>
             <div id="alertsContainer" class="p-4 space-y-3 max-h-64 overflow-y-auto">
-                <p class="text-secondary text-center p-4">Loading alerts...</p>
+                <p class="text-gray-400 text-center p-4">Loading alerts...</p>
             </div>
         </div>
 
@@ -82,17 +89,17 @@
         <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
 
             <!-- Column 1: Active Positions -->
-            <div class="card lg:col-span-1">
-                <h2 class="text-lg font-bold text-main p-4 border-b border-divider">Active Positions</h2>
+            <div class="bg-gray-800 rounded-lg shadow-lg border border-gray-700 lg:col-span-1">
+                <h2 class="text-lg font-bold text-indigo-400 p-4 border-b border-gray-700">Active Positions</h2>
                 <div id="positionsGrid" class="p-4 space-y-4 max-h-[70vh] overflow-y-auto">
                     <!-- Positions loaded here -->
-                    <p class="text-secondary text-center p-4">Loading positions...</p>
+                    <p class="text-gray-400 text-center p-4">Loading positions...</p>
                 </div>
             </div>
 
             <!-- Column 2: Trade History & AI Cycle History (Tabbed Interface) -->
-            <div class="card lg:col-span-2">
-                <div class="border-b border-divider">
+            <div class="bg-gray-800 rounded-lg shadow-lg border border-gray-700 lg:col-span-2">
+                <div class="border-b border-gray-700">
                     <nav class="-mb-px flex space-x-4 sm:space-x-8 px-4 overflow-x-auto" aria-label="Tabs">
                         <button id="tab-ai-history" onclick="switchTab('ai-history')"
                             class="whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm border-indigo-500 text-indigo-400"
@@ -112,48 +119,48 @@
 
                 <!-- AI Cycle History Content -->
                 <div id="content-ai-history" class="p-4 space-y-4 max-h-[70vh] overflow-y-auto">
-                    <p class="text-secondary text-center p-4">Loading AI cycle history...</p>
+                    <p class="text-gray-400 text-center p-4">Loading AI cycle history...</p>
                 </div>
 
                 <!-- Trade History Content (Hidden by default) -->
                 <div id="content-trade-history" class="hidden overflow-x-auto max-h-[70vh]">
-                    <div class="p-4 border-b border-divider">
+                    <div class="p-4 border-b border-gray-700">
                         <input type="text" id="tradeSearchInput" placeholder="Search coin..."
                             class="bg-gray-700 text-white px-3 py-2 rounded text-sm w-full sm:w-64 focus:outline-none focus:ring-2 focus:ring-indigo-500">
                     </div>
                     <table class="min-w-full divide-y divide-gray-700">
-                        <thead class="sticky top-0 bg-[#1f2937]">
+                        <thead class="sticky top-0 bg-gray-900">
                             <tr>
                                 <th scope="col"
-                                    class="px-4 py-3 text-left text-xs font-medium text-secondary uppercase tracking-wider">
+                                    class="px-4 py-3 text-left text-xs font-medium text-gray-400 uppercase tracking-wider">
                                     Coin</th>
                                 <th scope="col"
-                                    class="px-4 py-3 text-left text-xs font-medium text-secondary uppercase tracking-wider">
+                                    class="px-4 py-3 text-left text-xs font-medium text-gray-400 uppercase tracking-wider">
                                     Direction</th>
                                 <th scope="col"
-                                    class="px-4 py-3 text-left text-xs font-medium text-secondary uppercase tracking-wider">
+                                    class="px-4 py-3 text-left text-xs font-medium text-gray-400 uppercase tracking-wider">
                                     Amount (USD)</th>
                                 <th scope="col"
-                                    class="px-4 py-3 text-left text-xs font-medium text-secondary uppercase tracking-wider">
+                                    class="px-4 py-3 text-left text-xs font-medium text-gray-400 uppercase tracking-wider">
                                     Entry/Exit Price</th>
                                 <th scope="col"
-                                    class="px-4 py-3 text-left text-xs font-medium text-secondary uppercase tracking-wider">
+                                    class="px-4 py-3 text-left text-xs font-medium text-gray-400 uppercase tracking-wider">
                                     PnL</th>
                                 <th scope="col"
-                                    class="px-4 py-3 text-left text-xs font-medium text-secondary uppercase tracking-wider">
+                                    class="px-4 py-3 text-left text-xs font-medium text-gray-400 uppercase tracking-wider">
                                     Date</th>
                                 <th scope="col"
-                                    class="px-4 py-3 text-left text-xs font-medium text-secondary uppercase tracking-wider">
+                                    class="px-4 py-3 text-left text-xs font-medium text-gray-400 uppercase tracking-wider">
                                     Time</th>
                                 <th scope="col"
-                                    class="px-4 py-3 text-left text-xs font-medium text-secondary uppercase tracking-wider">
+                                    class="px-4 py-3 text-left text-xs font-medium text-gray-400 uppercase tracking-wider">
                                     Close Reason</th>
                             </tr>
                         </thead>
                         <tbody id="historyTableBody" class="divide-y divide-gray-800">
                             <!-- Trade history loaded here -->
                             <tr>
-                                <td colspan="8" class="px-4 py-4 text-center text-secondary">Loading trade history...
+                                <td colspan="8" class="px-4 py-4 text-center text-gray-400">Loading trade history...
                                 </td>
                             </tr>
                         </tbody>
@@ -163,7 +170,7 @@
                 <!-- Performance Dashboard Content (Hidden by default) -->
                 <div id="content-performance" class="hidden p-4 space-y-6 max-h-[70vh] overflow-y-auto">
                     <div class="flex justify-between items-center">
-                        <h3 class="text-lg font-bold text-main">Performance Analysis</h3>
+                        <h3 class="text-lg font-bold text-indigo-400">Performance Analysis</h3>
                         <button id="refreshPerformanceBtn" onclick="refreshPerformance()"
                             class="bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded text-sm font-medium transition-colors">
                             🔄 Refresh Analysis
@@ -172,43 +179,43 @@
 
                     <!-- Performance Summary Cards -->
                     <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
-                        <div class="card p-4">
-                            <h4 class="text-xs font-medium text-secondary uppercase">Win Rate</h4>
-                            <p id="performanceWinRate" class="text-xl font-bold text-main mt-1">...</p>
+                        <div class="bg-gray-700 rounded p-4">
+                            <h4 class="text-xs font-medium text-gray-400 uppercase">Win Rate</h4>
+                            <p id="performanceWinRate" class="text-xl font-bold text-indigo-400 mt-1">...</p>
                         </div>
-                        <div class="card p-4">
-                            <h4 class="text-xs font-medium text-secondary uppercase">Profit Factor</h4>
-                            <p id="performanceProfitFactor" class="text-xl font-bold text-main mt-1">...</p>
+                        <div class="bg-gray-700 rounded p-4">
+                            <h4 class="text-xs font-medium text-gray-400 uppercase">Profit Factor</h4>
+                            <p id="performanceProfitFactor" class="text-xl font-bold text-indigo-400 mt-1">...</p>
                         </div>
-                        <div class="card p-4">
-                            <h4 class="text-xs font-medium text-secondary uppercase">Total PnL</h4>
-                            <p id="performanceTotalPnl" class="text-xl font-bold text-main mt-1">...</p>
+                        <div class="bg-gray-700 rounded p-4">
+                            <h4 class="text-xs font-medium text-gray-400 uppercase">Total PnL</h4>
+                            <p id="performanceTotalPnl" class="text-xl font-bold text-indigo-400 mt-1">...</p>
                         </div>
-                        <div class="card p-4">
-                            <h4 class="text-xs font-medium text-secondary uppercase">Avg PnL/Trade</h4>
-                            <p id="performanceAvgPnl" class="text-xl font-bold text-main mt-1">...</p>
+                        <div class="bg-gray-700 rounded p-4">
+                            <h4 class="text-xs font-medium text-gray-400 uppercase">Avg PnL/Trade</h4>
+                            <p id="performanceAvgPnl" class="text-xl font-bold text-indigo-400 mt-1">...</p>
                         </div>
                     </div>
 
                     <!-- Trading Activity -->
-                    <div class="card p-4">
-                        <h4 class="text-lg font-bold text-main mb-4">Trading Activity</h4>
+                    <div class="bg-gray-700 rounded p-4">
+                        <h4 class="text-lg font-bold text-indigo-400 mb-4">Trading Activity</h4>
                         <div id="tradingActivityStats" class="grid grid-cols-2 md:grid-cols-4 gap-4">
                             <!-- Trading activity stats will be populated here -->
                         </div>
                     </div>
 
                     <!-- Coin Performance -->
-                    <div class="card p-4">
-                        <h4 class="text-lg font-bold text-main mb-4">Coin Performance</h4>
+                    <div class="bg-gray-700 rounded p-4">
+                        <h4 class="text-lg font-bold text-indigo-400 mb-4">Coin Performance</h4>
                         <div id="coinPerformanceTable" class="overflow-x-auto">
                             <!-- Coin performance table will be populated here -->
                         </div>
                     </div>
 
                     <!-- Recommendations -->
-                    <div class="card p-4">
-                        <h4 class="text-lg font-bold text-main mb-4">AI Recommendations</h4>
+                    <div class="bg-gray-700 rounded p-4">
+                        <h4 class="text-lg font-bold text-indigo-400 mb-4">AI Recommendations</h4>
                         <div id="performanceRecommendations" class="space-y-2">
                             <!-- Recommendations will be populated here -->
                         </div>
@@ -219,7 +226,7 @@
 
     </div> <!-- End Container -->
 
-    <script src="/assets/js/app.js"></script>
+    <script src="./assets/js/app.js"></script>
 </body>
 
 </html>

@@ -52,7 +52,8 @@ document.addEventListener('DOMContentLoaded', () => {
 
 // --- Helper Functions ---
 function apiUrl(path) {
-    return path;
+    // Remove leading slash to make path relative to current URL (handles proxy paths)
+    return path.startsWith('/') ? path.substring(1) : path;
 }
 
 function formatCurrency(value, defaultVal = 'N/A') {
@@ -124,8 +125,9 @@ function switchTab(activeTabId) {
 // --- Data Fetching ---
 async function fetchData() {
     try {
-        const stateResponse = await fetch(apiUrl('/api/portfolio') + '?t=' + Date.now());
-        if (!stateResponse.ok) throw new Error('portfolio_state.json fetch failed.');
+        const portfolioUrl = apiUrl('/api/portfolio');
+        const stateResponse = await fetch(portfolioUrl + '?t=' + Date.now());
+        if (!stateResponse.ok) throw new Error(`Portfolio fetch failed (${stateResponse.status}) at ${portfolioUrl}`);
         const stateData = await stateResponse.json();
         if (typeof stateData !== 'object' || stateData === null) throw new Error('Invalid state data.');
         updateDashboard(stateData);
@@ -187,6 +189,7 @@ async function fetchData() {
 
     } catch (error) {
         console.error("Fetch data error:", error.message);
+        showErrorNotification(`Data Fetch Error: ${error.message}`); // Show visual error
         if (statusDot) {
             statusDot.classList.remove('status-live');
             statusDot.classList.add('status-down');
@@ -197,6 +200,35 @@ async function fetchData() {
             statusText.classList.add('text-negative', 'text-secondary');
         }
     }
+}
+
+// --- Error Notification System ---
+function showErrorNotification(message) {
+    let errorContainer = document.getElementById('error-notification-container');
+    if (!errorContainer) {
+        errorContainer = document.createElement('div');
+        errorContainer.id = 'error-notification-container';
+        errorContainer.className = 'fixed bottom-4 right-4 z-50 space-y-2';
+        document.body.appendChild(errorContainer);
+    }
+
+    const errorToast = document.createElement('div');
+    errorToast.className = 'bg-red-600 text-white px-4 py-3 rounded shadow-lg flex items-center justify-between min-w-[300px] animate-bounce';
+    errorToast.innerHTML = `
+        <span class="text-sm font-medium">${escapeHtml(message)}</span>
+        <button onclick="this.parentElement.remove()" class="ml-4 text-white hover:text-gray-200 focus:outline-none">
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
+        </button>
+    `;
+
+    errorContainer.appendChild(errorToast);
+
+    // Auto remove after 5 seconds
+    setTimeout(() => {
+        if (errorToast.parentElement) {
+            errorToast.remove();
+        }
+    }, 10000);
 }
 
 function updateDashboard(data) {
@@ -653,6 +685,12 @@ let areaSeries;
 function initChart() {
     const chartContainer = document.getElementById('pnlChartContainer');
     if (!chartContainer) return;
+
+    if (typeof LightweightCharts === 'undefined') {
+        console.error("LightweightCharts library is not loaded! Check network tab for 404s.");
+        chartContainer.innerHTML = '<p class="text-red-500 p-4">Error: Chart library could not be loaded.</p>';
+        return;
+    }
 
     chart = LightweightCharts.createChart(chartContainer, {
         width: chartContainer.clientWidth,

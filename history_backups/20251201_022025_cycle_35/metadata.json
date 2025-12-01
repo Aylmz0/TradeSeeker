@@ -1,0 +1,22 @@
+{
+  "cycle_number": 35,
+  "backed_up_at": "2025-12-01T02:20:25.503348",
+  "files": [
+    {
+      "file": "data/trade_history.json",
+      "items": 11
+    },
+    {
+      "file": "data/cycle_history.json",
+      "items": 34
+    },
+    {
+      "file": "data/performance_history.json",
+      "items": 34
+    },
+    {
+      "file": "data/performance_report.json",
+      "items": 3
+    }
+  ]
+}

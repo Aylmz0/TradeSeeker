@@ -51,7 +51,8 @@ class DeepSeekAPI:
                 "risk_management": {
                     "risk_reward_ratio": "Maintain at least 1:1.3",
                     "stop_loss_basis": f"{HTF_LABEL} ATR or Swing High/Low",
-                    "invalidation_requirement": "Must be explicit (e.g., 'Close below EMA20')"
+                    "invalidation_requirement": "Must be explicit (e.g., 'Close below EMA20')",
+                    "CRITICAL_WARNING": "System has a HARD MARGIN STOP LOSS at 3-7% loss. Do NOT rely on wider stops. If trade hits -3% PnL, it WILL be closed automatically."
                 }
             },
             "strategy": {
@@ -71,9 +72,15 @@ class DeepSeekAPI:
                         "confidence_threshold": 0.65,
                         "strong_setup_confidence": 0.70,
                         "definition": f"Trade direction is OPPOSITE to {HTF_LABEL} trend.",
-                        "condition": "15m AND 3m momentum align against 1h structural trend.",
+                        "condition": "Evaluate 'risk_level' provided in counter_trade_analysis.",
+                        "risk_level_rules": {
+                            "LOW_RISK": "STRONG SIGNAL (Tier 1). 15m+3m alignment + High Confluence. EXECUTE.",
+                            "MEDIUM_RISK": "VALID SIGNAL (Tier 2). 3m alignment + Strong Volume/RSI. EXECUTE if confidence > 0.65.",
+                            "HIGH_RISK": "WEAK SIGNAL. Do NOT trade.",
+                            "VERY_HIGH_RISK": "Do NOT trade."
+                        },
                         "direction_rule": "Counter-trend direction = 15m+3m direction (NOT 1h direction).",
-                        "restriction": "REQUIRE HIGH CONFIDENCE. If volume is low or signal is weak, DO NOT TRADE."
+                        "restriction": "Do NOT trade if risk_level is HIGH_RISK or VERY_HIGH_RISK."
                     },
                     "volume_rules": {
                          "weakness_warning": "If volume ratio is <= 0.20x average, DO NOT TRADE. This is a hard rule.",
