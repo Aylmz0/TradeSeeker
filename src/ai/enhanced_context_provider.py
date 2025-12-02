@@ -169,7 +169,7 @@ class EnhancedContextProvider:
         else:
             dominant = max(overall_bull, overall_bear)
             strength = round(dominant / coin_count, 2)
-            neutral_majority = neutral_count >= (coin_count // 2 + coin_count % 2)
+            neutral_majority = neutral_count >= 4
             if strength < Config.GLOBAL_NEUTRAL_STRENGTH_THRESHOLD or neutral_majority:
                 current_regime = "neutral"
             elif overall_bull > overall_bear:

@@ -1,0 +1,65 @@
+
+--------------------------------------------------
+Analyzing Loss: SOL | PnL: $-0.31 | Reason: AI close_position signal
+Exit Time: 2025-12-02T03:40:48.917358
+No matching cycle found within 5 minutes before exit.
+
+--------------------------------------------------
+Analyzing Loss: DOGE | PnL: $-0.67 | Reason: Stop Loss (0.13612186) hit
+Exit Time: 2025-12-02T03:43:53.105405
+No matching cycle found within 5 minutes before exit.
+
+--------------------------------------------------
+Analyzing Loss: ASTER | PnL: $-0.13 | Reason: Stop Loss (0.97639) hit
+Exit Time: 2025-12-02T04:03:22.934788
+No matching cycle found within 5 minutes before exit.
+
+--------------------------------------------------
+Analyzing Loss: XRP | PnL: $-0.03 | Reason: AI close_position signal
+Exit Time: 2025-12-02T04:16:38.155844
+No matching cycle found within 5 minutes before exit.
+
+--------------------------------------------------
+Analyzing Loss: SOL | PnL: $-0.35 | Reason: AI close_position signal
+Exit Time: 2025-12-02T04:56:51.069773
+No matching cycle found within 5 minutes before exit.
+
+--------------------------------------------------
+Analyzing Loss: LINK | PnL: $-0.03 | Reason: AI close_position signal
+Exit Time: 2025-12-02T05:08:50.668286
+No matching cycle found within 5 minutes before exit.
+
+--------------------------------------------------
+Analyzing Loss: ASTER | PnL: $-0.51 | Reason: Stop Loss (0.978096) hit
+Exit Time: 2025-12-02T05:36:53.919080
+No matching cycle found within 5 minutes before exit.
+
+--------------------------------------------------
+Analyzing Loss: ASTER | PnL: $-0.30 | Reason: AI close_position signal
+Exit Time: 2025-12-02T06:08:51.697682
+Found relevant cycle: 73 (Timestamp: 2025-12-02T06:04:55.709466)
+AI Reasoning for ASTER:
+ASTER: 1h BULLISH (price=0.979 > EMA20=0.9681, RSI 52.3), 15m BULLISH (price=0.979 > EMA20=0.974, RSI 62.5), 3m BEARISH (price=0.979 < EMA20=0.9807, RSI 46.0). Mixed signals: 1h+15m bullish but 3m bearish. Volume ratio 0.293x (WEAK). Existing LONG position with unrealized PnL -0.0986. TREND_REVERSAL_DATA shows 3m reversal (strength: MEDIUM) against LONG position with MEDIUM_LOSS_RISK. According to exit_logic reversal_warning: 15m+3m BOTH show reversal? 15m is bullish (no reversal), 3m is bearish (reversal). Strength MEDIUM (only 3m shows reversal). Continue monitoring, don't overreact to noise...
+
+--------------------------------------------------
+Analyzing Loss: SOL | PnL: $-0.32 | Reason: Stop Loss (127.39984) hit
+Exit Time: 2025-12-02T06:34:59.363447
+Found relevant cycle: 80 (Timestamp: 2025-12-02T06:32:56.045907)
+AI Reasoning for SOL:
+SOL: 1h NEUTRAL (price=126.6 < EMA20=126.8912, RSI 43.9), 15m bullish (price=127.32 > EMA20=126.977, RSI 56.1), 3m bullish (price=127.32 > EMA20=126.9139, RSI 64.2). Mixed signals: 1h neutral/bearish, 15m and 3m bullish. Volume ratio 0.83x (NORMAL). TREND_REVERSAL_DATA shows 3m reversal strength MEDIUM against short position. Position: short with unrealized loss -0.2829. Invalidation condition: 1h price closes above EMA20 (126.8912). Short slots full, cannot open new shorts. Counter-trend LONG opportunity exists (15m and 3m bullish), but cannot execute due to slot constraint. According to rule...
+
+--------------------------------------------------
+Analyzing Loss: XRP | PnL: $-0.63 | Reason: Stop Loss (2.0235689999999997) hit
+Exit Time: 2025-12-02T06:51:54.408047
+Found relevant cycle: 84 (Timestamp: 2025-12-02T06:48:52.068485)
+AI Reasoning for XRP:
+XRP: Currently in SHORT position with unrealized loss of -0.50904. 1h BEARISH (price=2.0136 < EMA20=2.028, RSI 37.99), 15m NEUTRAL (price=2.0213 > EMA20=2.0185, RSI 52.28), 3m BULLISH (price=2.0213 > EMA20=2.0169, RSI 61.11). TREND REVERSAL shows 3m reversal against position with MEDIUM strength. Volume ratio 3.54x (STRONG). Position invalidation condition not met (1h price=2.0136 still below EMA20=2.028). Continue holding SHORT as 1h trend remains bearish and 3m reversal is only MEDIUM strength.
+
+DOGE: 1h BEARISH (price=0.13574 < EMA20=0.13614, RSI 41.36), 15m BULLISH (price=0.13613 > EMA20=0...
+
+--------------------------------------------------
+Analyzing Loss: LINK | PnL: $-0.33 | Reason: Stop Loss (12.09698) hit
+Exit Time: 2025-12-02T07:35:25.812510
+Found relevant cycle: 95 (Timestamp: 2025-12-02T07:33:22.904734)
+AI Reasoning for LINK:
+LINK: 1h BULLISH (price=12.16 > EMA20=12.1167, RSI=49.08, MACD negative but improving), 15m bullish (price=12.11 > EMA20=12.1059, RSI=52.37, MACD positive), 3m bearish (price=12.11 < EMA20=12.1293, RSI=43.38, MACD negative). Mixed signals: 1h and 15m bullish, 3m bearish. Volume ratio=0.24x (WEAK but above 0.20x). Open Interest low, funding positive. Existing LONG position with unrealized PnL negative. TREND_REVERSAL_DATA: current_trend_htf=BULLISH, current_trend_3m=BEARISH, 3m reversal=MEDIUM (loss_risk_signal=MEDIUM_LOSS_RISK). POSITION_SLOTS: long_slots_available=0. Counter-trade analysis: 3...

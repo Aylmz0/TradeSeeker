@@ -265,7 +265,7 @@ def internal_error(error):
 # --- Main Application ---
 
 if __name__ == '__main__':
-    PORT = 8082
+    PORT = 8002
     HOST = '0.0.0.0'
     
     logger.info(f"🚀 Flask Admin Panel Server starting on {HOST}:{PORT}...")

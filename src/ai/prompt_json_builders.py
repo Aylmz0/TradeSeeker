@@ -489,9 +489,22 @@ def build_market_data_json(
             "series": series
         }
     
+    
+    # Extract Efficiency Ratio from 3m indicators for choppy detection
+    efficiency_ratio = indicators_3m.get('efficiency_ratio', 0.5) if indicators_3m and 'error' not in indicators_3m else 0.5
+    
+    # Determine market condition based on ER
+    from config.config import Config
+    if efficiency_ratio < Config.CHOPPY_ER_THRESHOLD:
+        market_condition = "CHOPPY"
+    else:
+        market_condition = "TRENDING"
+    
     market_data = {
         "coin": coin,
         "market_regime": market_regime,
+        "efficiency_ratio": format_number_for_json(efficiency_ratio),  # NEW: ER for choppy detection
+        "market_condition": market_condition,  # NEW: CHOPPY vs TRENDING
         "sentiment": {
             "open_interest": format_number_for_json(sentiment.get('open_interest')),
             "funding_rate": format_number_for_json(sentiment.get('funding_rate')),

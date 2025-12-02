@@ -242,6 +242,11 @@ class RealMarketData:
             
             # Pre-calculate ratio for consistency
             indicators['volume_ratio'] = last_closed_vol / indicators['avg_volume']
+            
+            # Efficiency Ratio (ER) Calculation for Choppy Regime Detection
+            # Using 10 periods (30 mins for 3m interval)
+            indicators['efficiency_ratio'] = self.calculate_efficiency_ratio(close_prices, period=10)
+            
             indicators['price_series'] = close_prices.iloc[-hist_len:].round(4).where(pd.notna, None).tolist()
 
             for key, value in indicators.items():
@@ -252,6 +257,30 @@ class RealMarketData:
             print(f"❌ Indicator error {coin} ({interval}): {e}")
             traceback.print_exc()
             return {'current_price': current_price, 'error': str(e)}
+
+    def calculate_efficiency_ratio(self, prices: pd.Series, period: int = 10) -> float:
+        """
+        Calculate Kaufman Efficiency Ratio (ER) to detect Choppy vs Trending markets.
+        ER = Change / Volatility
+        Change = |Price(t) - Price(t-n)|
+        Volatility = Sum(|Price(i) - Price(i-1)|) for n periods
+        
+        Returns:
+            float: 0.0 to 1.0 (Higher = Trending, Lower = Choppy)
+        """
+        if len(prices) < period + 1: 
+            return 0.5 # Default neutral if insufficient data
+        
+        # Net change over the period
+        change = abs(prices.iloc[-1] - prices.iloc[-period-1])
+        
+        # Sum of absolute period-to-period changes (Volatility)
+        volatility = prices.diff().abs().iloc[-period:].sum()
+        
+        if volatility == 0: 
+            return 1.0 # Theoretical max efficiency (straight line)
+            
+        return change / volatility
 
     def get_all_real_prices(self) -> Dict[str, float]:
         """Get real prices for all coins from Spot with enhanced error handling"""
