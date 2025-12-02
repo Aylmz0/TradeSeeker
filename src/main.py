@@ -2320,7 +2320,6 @@ All market data is provided in JSON format below. Each coin contains:
                 print(f"🛑 Cycle {cycle_number} STOPPED - Bot STOP command received")
                 self.cycle_active = False
                 return
-            
             if self.portfolio.is_live_trading:
                 self.portfolio.sync_live_account()
             self.portfolio.update_prices(valid_prices, increment_loss_counters=True) # Update PnL before checking TP/SL
@@ -2328,6 +2327,31 @@ All market data is provided in JSON format below. Each coin contains:
             # --- Auto TP/SL Check ---
             positions_closed_by_tp_sl = self.portfolio.check_and_execute_tp_sl(valid_prices)
             # --- End Auto TP/SL Check ---
+
+            # --- Flash Exit Check (V-Reversal Protection) ---
+            # Checks for RSI Spike + Volume Surge in losing positions
+            flash_exits_triggered = False
+            for coin, position in list(self.portfolio.positions.items()):
+                if coin in valid_prices:
+                    if self.portfolio.check_flash_exit_conditions(coin, position):
+                        print(f"🚨 EXECUTING FLASH EXIT for {coin}...")
+                        current_price = valid_prices[coin]
+                        
+                        # Close position immediately
+                        if self.portfolio.is_live_trading:
+                            result = self.portfolio.execute_live_close(coin, position, current_price, reason="Flash Exit (V-Reversal)")
+                            if result.get('success'):
+                                flash_exits_triggered = True
+                                if coin in self.portfolio.positions:
+                                    del self.portfolio.positions[coin] 
+                        else:
+                            # Paper trading close
+                            self.portfolio.close_position(coin, current_price, reason="Flash Exit (V-Reversal)")
+                            flash_exits_triggered = True
+            
+            if flash_exits_triggered:
+                print("ℹ️ Flash Exits triggered. Continuing cycle...")
+            # --- End Flash Exit Check ---
 
             manual_override = self.portfolio.get_manual_override()
             auto_exit_triggered = bool(positions_closed_by_tp_sl)

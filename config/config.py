@@ -34,6 +34,10 @@ class Config:
     MIN_CONFIDENCE: float = float(os.getenv('MIN_CONFIDENCE', '0.4'))  # Nof1ai blog: medium risk
     MAX_POSITIONS: int = int(os.getenv('MAX_POSITIONS', '5'))  # Nof1ai blog: 2-3 positions, but system uses 5
     
+    # Smart Cooldown Settings
+    SMART_COOLDOWN_LOSS: int = int(os.getenv('SMART_COOLDOWN_LOSS', '4'))
+    SMART_COOLDOWN_WIN: int = int(os.getenv('SMART_COOLDOWN_WIN', '2'))
+    
     # Risk Level Configuration
     RISK_LEVEL: str = os.getenv('RISK_LEVEL', 'medium').lower()
     TRADING_MODE: str = os.getenv('TRADING_MODE', 'simulation').lower()  # simulation | live
@@ -67,9 +71,32 @@ class Config:
     DIRECTIONAL_BEARISH_SHORT_MULTIPLIER: float = float(os.getenv('DIRECTIONAL_BEARISH_SHORT_MULTIPLIER', '1.00'))
     MARKET_REGIME_MULTIPLIERS: dict = {
         'BULLISH': 1.0,
-        'BEARISH': 0.8,
-        'NEUTRAL': 0.9
+        'BEARISH': 1.0,
+        'NEUTRAL': 0.9,
+        'CHOPPY': 0.8  # Reduced risk for choppy/sideways markets
     }
+    
+    # Choppy Regime Detection Settings
+    CHOPPY_ER_THRESHOLD: float = float(os.getenv('CHOPPY_ER_THRESHOLD', '0.30'))  # ER < 0.30 = Choppy
+    CHOPPY_COIN_RATIO_MIN: float = float(os.getenv('CHOPPY_COIN_RATIO_MIN', '0.5'))  # >50% coins choppy
+    CHOPPY_LEVERAGE: int = int(os.getenv('CHOPPY_LEVERAGE', '5'))  # Reduced leverage in choppy markets
+    CHOPPY_TP_LONG_MULTIPLIER: float = float(os.getenv('CHOPPY_TP_LONG_MULTIPLIER', '1.004'))  # 0.4% TP for longs
+    CHOPPY_TP_SHORT_MULTIPLIER: float = float(os.getenv('CHOPPY_TP_SHORT_MULTIPLIER', '0.996'))  # 0.4% TP for shorts
+    CHOPPY_SL_LONG_MULTIPLIER: float = float(os.getenv('CHOPPY_SL_LONG_MULTIPLIER', '0.994'))  # 0.6% SL for longs
+    CHOPPY_SL_SHORT_MULTIPLIER: float = float(os.getenv('CHOPPY_SL_SHORT_MULTIPLIER', '1.006'))  # 0.6% SL for shorts
+    CHOPPY_TP_SL_MULTIPLIER: float = float(os.getenv('CHOPPY_TP_SL_MULTIPLIER', '0.004')) # 0.4% base multiplier
+    CHOPPY_HIGH_ER_EXCEPTION: float = float(os.getenv('CHOPPY_HIGH_ER_EXCEPTION', '0.45'))  # ER > 0.45 bypasses global choppy
+    
+    # Dynamic Volatility Scaling (ATR) Settings
+    ATR_TP_MULTIPLIER: float = float(os.getenv('ATR_TP_MULTIPLIER', '2.0'))  # Target = Entry +/- (ATR * 2.0)
+    ATR_SL_MULTIPLIER: float = float(os.getenv('ATR_SL_MULTIPLIER', '1.5'))  # Stop = Entry +/- (ATR * 1.5)
+    
+    # Flash Exit Settings (V-Reversal Protection)
+    FLASH_EXIT_ENABLED: bool = os.getenv('FLASH_EXIT_ENABLED', 'true').lower() == 'true'
+    FLASH_EXIT_RSI_DELTA_MIN: float = float(os.getenv('FLASH_EXIT_RSI_DELTA_MIN', '15.0'))  # RSI spike threshold
+    FLASH_EXIT_VOLUME_SURGE_MIN: float = float(os.getenv('FLASH_EXIT_VOLUME_SURGE_MIN', '3.0'))  # Volume surge multiplier
+    FLASH_EXIT_LOSS_TRIGGER_MULTIPLIER: float = float(os.getenv('FLASH_EXIT_LOSS_TRIGGER_MULTIPLIER', '1.002'))  # 0.2% loss trigger
+    
     COIN_SPECIFIC_STOP_LOSS_MULTIPLIERS: dict = {
         'SOL': 1.0,   # AI'nın SL değerine saygı duy
         'ADA': 1.0,   # AI'nın SL değerine saygı duy

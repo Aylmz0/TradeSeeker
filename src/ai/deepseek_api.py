@@ -34,8 +34,7 @@ class DeepSeekAPI:
                 "objective": "Maximize PnL via perpetual futures trading",
                 "assets": ["XRP", "DOGE", "ASTER", "ADA", "LINK", "SOL"],
                 "capital_settings": {
-                    "initial_balance": Config.INITIAL_BALANCE,
-                    "leverage": "10x (FIXED for all trades)"
+                    "initial_balance": Config.INITIAL_BALANCE
                 }
             },
             "constraints": {
@@ -49,10 +48,10 @@ class DeepSeekAPI:
                     "discipline": "Do not force trades. Holding cash is a valid and often superior position when no clear edge exists."
                 },
                 "risk_management": {
-                    "risk_reward_ratio": "Maintain at least 1:1.3",
-                    "stop_loss_basis": f"{HTF_LABEL} ATR or Swing High/Low",
+                    "risk_reward_ratio": "Maintain a positive risk/reward ratio.",
+                    "stop_loss_basis": "Logical technical level (e.g., recent support/resistance or ATR-based).",
                     "invalidation_requirement": "Must be explicit (e.g., 'Close below EMA20')",
-                    "CRITICAL_WARNING": "System has a HARD MARGIN STOP LOSS at 3-7% loss. Do NOT rely on wider stops. If trade hits -3% PnL, it WILL be closed automatically."
+                    "CRITICAL_WARNING": "System has a HARD MARGIN STOP LOSS. Do NOT rely on wider stops."
                 }
             },
             "strategy": {
@@ -109,7 +108,7 @@ class DeepSeekAPI:
                 "Apply long and short strategies across all coins; choose the direction that offers the superior quantified edge.",
                 "Monitor volume vs. average volume, Open Interest, and Funding to measure conviction.",
                 "Employ multi-timeframe technical analysis (EMA, RSI, MACD, ATR, etc.).",
-                "Keep take-profit/stop-loss targets responsive (e.g. 2-4% TP, 1-2% SL) when volatility supports it.",
+                "Keep take-profit/stop-loss targets responsive and logical.",
                 "Manage exits proactively; do not wait for targets if data invalidates the thesis.",
                 "High-confidence setups (0.7-0.8+) justify higher exposure within risk limits.",
                 "Consider both trend-following and counter-trend opportunities equally; choose the setup with the best quantified edge.",

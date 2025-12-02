@@ -802,6 +802,12 @@ class PortfolioManager:
             stats['wins'] += 1
             stats['consecutive_losses'] = 0
             stats['consecutive_wins'] = stats.get('consecutive_wins', 0) + 1
+            
+            # Smart Cooldown (WIN): Kâr durumunda kısa cooldown (Config.SMART_COOLDOWN_WIN)
+            coin_symbol = trade.get('symbol', '').upper()
+            if coin_symbol:
+                self.coin_cooldowns[coin_symbol] = Config.SMART_COOLDOWN_WIN
+                print(f"🛡️ Smart Cooldown (WIN) ACTIVATED for {coin_symbol}: {Config.SMART_COOLDOWN_WIN} cycles (win: ${pnl:.2f})")
             if stats.get('caution_active'):
                 stats['caution_win_progress'] = stats.get('caution_win_progress', 0) + 1
                 if stats['caution_win_progress'] >= 3:
@@ -820,11 +826,12 @@ class PortfolioManager:
             current_loss_streak = stats.get('loss_streak_loss_usd', 0.0)
             stats['loss_streak_loss_usd'] = current_loss_streak + abs(pnl)
             
-            # Coin bazlı cooldown: Zararla kapandığında o coin için 1 cycle cooldown
+            # Coin bazlı cooldown: Smart Cooldown
+            # Zarar durumunda daha uzun cooldown (Config.SMART_COOLDOWN_LOSS)
             coin_symbol = trade.get('symbol', '').upper()
             if coin_symbol:
-                self.coin_cooldowns[coin_symbol] = 1
-                print(f"🛡️ Coin cooldown ACTIVATED for {coin_symbol}: 1 cycle (loss: ${pnl:.2f})")
+                self.coin_cooldowns[coin_symbol] = Config.SMART_COOLDOWN_LOSS
+                print(f"🛡️ Smart Cooldown (LOSS) ACTIVATED for {coin_symbol}: {Config.SMART_COOLDOWN_LOSS} cycles (loss: ${pnl:.2f})")
             
             if stats['consecutive_losses'] >= 3:
                 stats['caution_active'] = True
@@ -2649,24 +2656,34 @@ class PortfolioManager:
             return 0.0
 
     def detect_market_regime_overall(self) -> str:
-        """Detect overall market regime across all coins"""
+        """Detect overall market regime across all coins (BULLISH, BEARISH, NEUTRAL, CHOPPY)"""
         try:
             # Use existing market_data instance
             bullish_count = 0
             bearish_count = 0
             neutral_count = 0
+            choppy_count = 0
+            total_valid = 0
             
             for coin in self.market_data.available_coins:
                 indicators_htf = self.market_data.get_technical_indicators(coin, HTF_INTERVAL)
+                indicators_3m = self.market_data.get_technical_indicators(coin, '3m')
+                
                 if 'error' in indicators_htf:
                     continue
+                
+                # Check Efficiency Ratio for Choppy Detection
+                er = indicators_3m.get('efficiency_ratio', 0.5)
+                if er < Config.CHOPPY_ER_THRESHOLD:
+                    choppy_count += 1
                 
                 price = indicators_htf.get('current_price')
                 ema20 = indicators_htf.get('ema_20')
                 
                 if not isinstance(price, (int, float)) or not isinstance(ema20, (int, float)) or ema20 == 0:
                     continue
-
+                
+                total_valid += 1
                 delta = (price - ema20) / ema20
                 if abs(delta) <= Config.EMA_NEUTRAL_BAND_PCT:
                     neutral_count += 1
@@ -2674,6 +2691,11 @@ class PortfolioManager:
                     bullish_count += 1
                 else:
                     bearish_count += 1
+            
+            # Priority 1: Choppy Regime (if 3 or more coins are choppy)
+            if choppy_count >= 3:
+                print(f"🌪️ Market Regime: CHOPPY (ER < {Config.CHOPPY_ER_THRESHOLD} in {choppy_count}/{total_valid} coins)")
+                return "CHOPPY"
             
             if bullish_count >= 4:
                 return "BULLISH"
@@ -2686,11 +2708,62 @@ class PortfolioManager:
                 return "BULLISH" if bullish_count >= 3 else "NEUTRAL"
             if bearish_count > bullish_count:
                 return "BEARISH" if bearish_count >= 3 else "NEUTRAL"
-                return "NEUTRAL"
+                
+            return "NEUTRAL"
                 
         except Exception as e:
             print(f"⚠️ Market regime detection error: {e}")
             return "NEUTRAL"
+
+    def check_flash_exit_conditions(self, coin: str, position: Dict) -> bool:
+        """
+        Check for Flash Exit conditions (V-Reversal).
+        Trigger: RSI Spike + Volume Surge + Price moving against position.
+        """
+        if not Config.FLASH_EXIT_ENABLED:
+            return False
+            
+        try:
+            indicators_3m = self.market_data.get_technical_indicators(coin, '3m')
+            if 'error' in indicators_3m: return False
+            
+            direction = position.get('direction')
+            entry_price = position.get('entry_price')
+            current_price = indicators_3m.get('current_price')
+            
+            # 1. Price Check (Must be moving against us)
+            if direction == 'short':
+                if current_price <= entry_price * Config.FLASH_EXIT_LOSS_TRIGGER_MULTIPLIER:
+                    return False
+            elif direction == 'long':
+                if current_price >= entry_price * (2 - Config.FLASH_EXIT_LOSS_TRIGGER_MULTIPLIER):
+                    return False
+            
+            # 2. RSI Spike Check
+            rsi_current = indicators_3m.get('rsi_14', 50)
+            rsi_series = indicators_3m.get('rsi_14_series', [])
+            if len(rsi_series) < 4: return False
+            
+            rsi_prev = rsi_series[-4] # 3 candles ago
+            rsi_delta = abs(rsi_current - rsi_prev)
+            
+            # Spike threshold from config
+            if rsi_delta < Config.FLASH_EXIT_RSI_DELTA_MIN: return False
+            
+            # Directional check for RSI
+            if direction == 'short' and rsi_current < rsi_prev: return False # RSI falling is good for short
+            if direction == 'long' and rsi_current > rsi_prev: return False # RSI rising is good for long
+            
+            # 3. Volume Surge Check
+            volume_ratio = indicators_3m.get('volume_ratio', 1.0)
+            if volume_ratio < Config.FLASH_EXIT_VOLUME_SURGE_MIN: return False
+            
+            print(f"🚨 FLASH EXIT TRIGGERED for {coin} ({direction}): RSI Delta {rsi_delta:.1f}, Vol {volume_ratio:.1f}x")
+            return True
+            
+        except Exception as e:
+            print(f"⚠️ Flash exit check error for {coin}: {e}")
+            return False
 
     def get_market_regime_strength(self) -> float:
         """Calculate market regime strength (0.0 to 1.0) based on coin alignment"""
@@ -2885,10 +2958,56 @@ class PortfolioManager:
                         leverage = 10
                 if not (0.0 <= confidence <= 1.0): confidence = 0.5 # Clamp confidence to 0.0-1.0
                 
-                # 2. Market Regime Position Sizing
+                # 2. Market Regime Position Sizing & Strategy Adjustment
                 market_regime = self.detect_market_regime_overall()
                 market_regime_multiplier = Config.MARKET_REGIME_MULTIPLIERS.get(market_regime, 1.0)
                 partial_margin_factor = 1.0
+
+                # DYNAMIC VOLATILITY SCALING (ATR) - FINAL STABILIZATION
+                # This block OVERRIDES all previous TP/SL logic (Choppy/Normal/AI)
+                # to ensure system stability based on market volatility.
+                
+                # 1. Get ATR (use HTF 1h ATR if available, else 3m ATR)
+                indicators_htf = self.market_data.get_technical_indicators(coin, HTF_INTERVAL)
+                atr_value = indicators_htf.get('atr_14')
+                if not isinstance(atr_value, (int, float)) or atr_value <= 0:
+                    # Fallback to 3m ATR
+                    indicators_3m = self.market_data.get_technical_indicators(coin, '3m')
+                    atr_value = indicators_3m.get('atr_14')
+                
+                # 2. Calculate Dynamic Targets
+                if isinstance(atr_value, (int, float)) and atr_value > 0:
+                    tp_distance = atr_value * Config.ATR_TP_MULTIPLIER
+                    sl_distance = atr_value * Config.ATR_SL_MULTIPLIER
+                    
+                    # Safety: Ensure minimum distance (0.3% of price) to cover fees/slippage
+                    min_distance = current_price * 0.003
+                    tp_distance = max(tp_distance, min_distance)
+                    sl_distance = max(sl_distance, min_distance)
+                    
+                    # Safety: Ensure maximum distance (5% of price) to prevent huge targets in pumps
+                    max_distance = current_price * 0.05
+                    tp_distance = min(tp_distance, max_distance)
+                    sl_distance = min(sl_distance, max_distance)
+                    
+                    if trade.get('signal') == 'buy_to_enter':
+                        trade['profit_target'] = current_price + tp_distance
+                        trade['stop_loss'] = current_price - sl_distance
+                    else: # sell_to_enter
+                        trade['profit_target'] = current_price - tp_distance
+                        trade['stop_loss'] = current_price + sl_distance
+                        
+                    print(f"🎯 DYNAMIC ATR TARGETS ({coin}): ATR=${atr_value:.4f}")
+                    print(f"   -> TP: ${trade['profit_target']:.4f} (Dist: {tp_distance:.4f} / {(tp_distance/current_price)*100:.2f}%)")
+                    print(f"   -> SL: ${trade['stop_loss']:.4f} (Dist: {sl_distance:.4f} / {(sl_distance/current_price)*100:.2f}%)")
+                    trade['tp_sl_source'] = 'dynamic_atr'
+                else:
+                    print(f"⚠️ ATR data missing for {coin}. Using default/AI targets.")
+                    # Fallback defaults if AI didn't provide them
+                    if not trade.get('profit_target'):
+                        trade['profit_target'] = current_price * 1.01 if trade.get('signal') == 'buy_to_enter' else current_price * 0.99
+                    if not trade.get('stop_loss'):
+                        trade['stop_loss'] = current_price * 0.99 if trade.get('signal') == 'buy_to_enter' else current_price * 1.01
 
                 direction = 'long' if signal == 'buy_to_enter' else 'short'
                 dominant_direction = None
