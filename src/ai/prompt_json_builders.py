@@ -503,8 +503,12 @@ def build_market_data_json(
     market_data = {
         "coin": coin,
         "market_regime": market_regime,
-        "efficiency_ratio": format_number_for_json(efficiency_ratio),  # NEW: ER for choppy detection
-        "market_condition": market_condition,  # NEW: CHOPPY vs TRENDING
+        "efficiency_ratio": format_number_for_json(efficiency_ratio),
+        "market_condition": market_condition,
+        "trend_1h": indicators_htf.get('sparkline') if indicators_htf else None,
+        "trend_15m": indicators_15m.get('sparkline') if indicators_15m else None,
+        "range_24h": indicators_htf.get('pivots') if indicators_htf else None,
+        "tags": indicators_htf.get('tags') if indicators_htf else [],
         "sentiment": {
             "open_interest": format_number_for_json(sentiment.get('open_interest')),
             "funding_rate": format_number_for_json(sentiment.get('funding_rate')),
