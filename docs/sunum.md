@@ -1,135 +1,116 @@
-# Alpha Arena: Yapay Zeka Destekli Sistematik Alım-Satım Sistemi
+# TradeSeeker: Hibrit Yapay Zeka Destekli Sistematik Alım-Satım Sistemi
+**Teknik Detaylı Proje Sunum Dokümanı**
 
-Bu doküman, Alpha Arena projesinin teknik mimarisini, çalışma mantığını ve temel bileşenlerini akademik bir sunum formatında detaylandırmaktadır.
-
-## 1. Proje Özeti ve Amacı
-
-**Alpha Arena**, kripto para piyasalarında otonom işlem yapabilen, hibrit bir yapay zeka mimarisine sahip sistematik bir alım-satım botudur. Sistem, klasik teknik analiz yöntemlerini Büyük Dil Modellerinin (LLM - DeepSeek) muhakeme yeteneği ile birleştirerek piyasa verilerini yorumlar ve işlem kararları alır.
-
-**Temel Amaç:**
-*   Duygusal kararları elimine etmek.
-*   Çoklu zaman dilimlerini (Multi-Timeframe) aynı anda analiz etmek.
-*   Karmaşık piyasa koşullarında (Trend ve Yatay piyasa) dinamik stratejiler uygulamak.
+## 1. Projenin Amacı ve Kapsamı
+Bu proje, finansal piyasalarda (Kripto Para) duygusal kararları elimine eden, veri odaklı ve otonom bir alım-satım sistemi (Trading Bot) geliştirmeyi amaçlar. Sistem, klasik algoritmik yaklaşımları (Teknik Analiz) modern **Büyük Dil Modelleri (LLM - DeepSeek)** ile birleştirerek "Hibrit Bir Zeka" oluşturur.
 
 ---
 
-## 2. Sistem Mimarisi
+## 2. Sistem Mimarisi ve Çalışma Mantığı (Workflow)
+Sistem, doğrusal olmayan ve çok katmanlı bir karar mekanizmasına sahiptir. Akış şöyledir:
 
-Sistem dört ana katmandan oluşmaktadır:
+### Adım 1: Veri Toplama ve İşleme (The Sensory Layer)
+Sistem her döngüde (Cycle) piyasadan ham veriyi (Fiyat, Hacim) çeker ve işler.
+*   **Zaman Dilimleri:** 1 Saatlik (Trend), 15 Dakikalık (Momentum), 3 Dakikalık (Giriş) veriler paralel işlenir.
+*   **Özellik Mühendisliği (Feature Engineering):** Ham veriden türetilmiş veriler (RSI, EMA, ATR) hesaplanır.
+*   **Gelişmiş Bağlam:** Fiyat hareketleri ASCII karakterlerine (Sparklines) dönüştürülerek AI'a "Görsel" bir özet sunulur.
 
-### 2.1. Veri Toplama Katmanı (`binance.py`)
-*   **Görevi:** Binance Borsası'ndan gerçek zamanlı fiyat (OHLCV) verilerini çeker.
-*   **Zaman Dilimleri:** 3 dakikalık (kısa vade), 15 dakikalık (orta vade) ve 1 saatlik (ana trend) veriler toplanır.
-*   **Ek Veriler:** Hacim, Emir Defteri Derinliği (Order Book), Fonlama Oranları (Funding Rates).
+### Adım 2: Bağlam Oluşturma (The Context Layer)
+Toplanan tüm veriler, AI'ın anlayabileceği yapılandırılmış bir **JSON Prompt** formatına dönüştürülür.
+*   *Örnek:* "RSI: 75" verisi, "RSI_Overbought" etiketiyle zenginleştirilir.
+*   *Örnek:* Hacim verisi, son 20 mumun ortalamasıyla kıyaslanıp "Volume Ratio" (Hacim Oranı) olarak sunulur.
 
-### 2.2. Analiz Motoru (`alpha_arena_deepseek.py` & `utils.py`)
-*   **Görevi:** Ham veriyi işleyerek teknik indikatörleri hesaplar.
-*   **Kullanılan İndikatörler:** EMA, RSI, MACD, ATR (Detayları Bölüm 3'te açıklanmıştır).
+### Adım 3: Yapay Zeka Analizi (The Reasoning Layer)
+Hazırlanan veri paketi **DeepSeek AI** modeline gönderilir. AI, kendisine verilen "Fon Yöneticisi" kişiliğiyle veriyi yorumlar:
+1.  **Trend Analizi:** Fiyat EMA'nın üzerinde mi? (Yön Tayini)
+2.  **Risk Analizi:** RSI çok mu şişik? Piyasa testere (Choppy) modunda mı?
+3.  **Karar:** Al (Buy), Sat (Sell) veya Bekle (Hold).
 
-### 2.3. Karar Mekanizması (AI & Hibrit Promptlama)
-Sistemin beyni burasıdır. Klasik algoritmik botlardan farklı olarak, kararlar "if-else" blokları yerine bir LLM (DeepSeek) tarafından verilir.
+### Adım 4: Güvenlik ve Filtreleme (The Safety Layer)
+AI "Al" dese bile, sistemin Python tarafındaki **"Katı Kurallar" (Hard Rules)** devreye girer. Bu, AI'ın halüsinasyon görmesini veya riskli işlem yapmasını engeller.
+*   **Hacim Filtresi:** Hacim ortalamanın altındaysa işlem reddedilir.
+*   **Slot Kontrolü:** Maksimum 5 işlem limiti doluysa yeni işlem açılmaz.
+*   **Soğuma (Cooldown):** Bir coin üzerinde işlem yapıldıysa, belirli bir süre o coin'e tekrar girilmez.
 
-*   **Hibrit Prompt Yapısı:**
-    *   **Sistem Promptu (Statik):** AI'ın kişiliğini (Risk Manager), kuralları ve strateji sınırlarını belirler.
-    *   **Kullanıcı Promptu (Dinamik JSON):** Piyasa verileri, hesap durumu ve indikatör analizleri **JSON formatında** yapılandırılarak AI'a sunulur. Bu, AI'ın veriyi sayısal olarak kesin bir şekilde işlemesini sağlar.
-
-### 2.4. İşlem Yönetimi (`performance_monitor.py`)
-*   **Görevi:** AI'dan gelen "AL/SAT" sinyallerini borsaya iletir, pozisyon büyüklüğünü ayarlar ve risk kontrollerini yapar.
-
----
-
-## 3. Temel Teknik İndikatörler ve Metrikler
-
-Sistemin karar verirken kullandığı temel finansal araçların ve metriklerin detaylı açıklamaları şunlardır:
-
-### 3.1. RSI (Göreceli Güç Endeksi - Relative Strength Index)
-*   **Nedir?** Fiyat hareketlerinin hızını ve değişimini ölçen, 0 ile 100 arasında değer alan bir momentum osilatörüdür.
-*   **Genel Kullanım:** 70 seviyesinin üzeri "Aşırı Alım" (Fiyatın düşme ihtimali yüksek), 30 seviyesinin altı "Aşırı Satım" (Fiyatın yükselme ihtimali yüksek) olarak yorumlanır.
-*   **Sistemdeki Rolü:** Özellikle **Counter-Trade (Karşıt İşlem)** stratejisinde kritik rol oynar. Fiyat yükselirken RSI 70'i aşarsa (veya düşerken 30'un altına inerse), sistem bunu bir "yorulma" veya "dönüş sinyali" olarak algılar ve ters yönlü işlem fırsatı arar.
-
-### 3.2. MACD (Hareketli Ortalama Yakınsama Iraksama)
-*   **Nedir?** İki farklı hareketli ortalamanın (genelde 12 ve 26 periyotluk) ilişkisini gösteren bir trend takip ve momentum indikatörüdür.
-*   **Genel Kullanım:** Sinyal çizgisi kesişimleri ve "Uyumsuzluklar" (Divergence) aranır.
-*   **Sistemdeki Rolü:** **Trend Reversal (Trend Dönüşü)** tespiti için kullanılır. Örneğin, fiyat yeni bir tepe yaparken MACD yeni bir tepe yapamıyorsa (Negatif Uyumsuzluk), bu trendin zayıfladığını ve yakında dönebileceğini gösterir.
-
-### 3.3. Hacim (Volume) ve Hacim Kalitesi
-*   **Nedir?** Belirli bir zaman diliminde alınıp satılan varlık miktarıdır. Piyasaya giren paranın gücünü gösterir.
-*   **Genel Kullanım:** Fiyat hareketlerini doğrulamak için kullanılır. Hacimsiz (zayıf) yükselişler genellikle güvenilmezdir ve "tuzak" olabilir.
-*   **Sistemdeki Rolü:** Sistem, anlık hacmi geçmiş ortalama hacimle kıyaslar (`volume_ratio`). Eğer hacim ortalamanın 1.5-2 katına çıkmışsa, bu "Güçlü Sinyal" olarak kabul edilir ve AI'ın işleme giriş güvenini (confidence) artırır.
-
-### 3.4. EMA (Üstel Hareketli Ortalama - Exponential Moving Average)
-*   **Nedir?** Son fiyatlara daha fazla ağırlık vererek hesaplanan bir ortalama türüdür. Basit ortalamaya göre fiyat değişimlerine daha hızlı tepki verir.
-*   **Sistemdeki Rolü:**
-    *   **Trend Yönü Belirleme:** Fiyat EMA20'nin (20 periyotluk ortalama) üzerindeyse trend **BULLISH** (Yükseliş), altındaysa **BEARISH** (Düşüş) kabul edilir.
-    *   **Dinamik Destek/Direnç:** Fiyatın EMA20'ye geri çekilmeleri (Pullback), trend yönünde işleme giriş fırsatı olarak değerlendirilir.
-
-### 3.5. ATR (Ortalama Gerçek Aralık - Average True Range)
-*   **Nedir?** Piyasdaki volatiliteyi (oynaklığı) ölçen bir metriktir. Yönü göstermez, hareketin ortalama boyutunu gösterir.
-*   **Sistemdeki Rolü:** **Risk Yönetimi** için hayati önem taşır. Sistem, Stop-Loss seviyelerini sabit bir yüzde (örn. %1) yerine ATR'ye göre belirler (örn. 2xATR). Böylece volatil (hareketli) piyasada stoplar genişler, sakin piyasada daralır; bu da "gürültü" yüzünden gereksiz yere stop olmayı engeller.
+### Adım 5: İcra ve Yönetim (The Execution Layer)
+Tüm filtreleri geçen kararlar uygulanır.
+*   **Dinamik TP/SL:** Kar Al (Take Profit) ve Zarar Durdur (Stop Loss) seviyeleri sabit değil, piyasanın o anki oynaklığına (ATR) göre dinamik hesaplanır.
 
 ---
 
-## 4. Temel Stratejiler ve Mantık
+## 3. Teknik İndikatörler ve Matematiksel Hesaplamalar
+Sistem, karar verirken aşağıdaki matematiksel modelleri kullanır. Tüm hesaplamalar `pandas` kütüphanesi ile vektörel olarak yapılır.
 
-Sistem iki ana strateji üzerine kuruludur:
+### 3.1. Exponential Moving Average (EMA) - Üstel Hareketli Ortalama
+Fiyatın yönünü (Trend) belirlemek için kullanılır. Son verilere daha fazla ağırlık verir.
+*   **Formül:** `EMA_t = (P_t * K) + (EMA_{t-1} * (1 - K))`
+    *   `P_t`: Bugünkü Fiyat
+    *   `N`: Periyot (Sistemde 20 ve 50 kullanılır)
+    *   `K`: Ağırlık Faktörü = `2 / (N + 1)`
+*   **Kullanım:** Fiyat > EMA20 ise "Yükseliş Trendi", Fiyat < EMA20 ise "Düşüş Trendi".
 
-### 4.1. Trend Takibi (Trend Following)
-*   **Mantık:** "Trend senin dostundur."
-*   **Koşul:** 1 Saatlik (Ana) trend ile 15m ve 3m (Ara) trendlerin aynı yönde olması.
-*   **Örnek:** 1H BULLISH + 15m BULLISH + 3m BULLISH -> **LONG İşlem**.
+### 3.2. Relative Strength Index (RSI) - Göreceli Güç Endeksi
+Fiyatın değişim hızını ölçerek aşırı alım/satım bölgelerini tespit eder.
+*   **Formül:** `RSI = 100 - (100 / (1 + RS))`
+    *   `RS = Ortalama Kazanç / Ortalama Kayıp`
+*   **Hesaplama:** Son 14 periyottaki pozitif kapanışların ortalaması ile negatif kapanışların ortalaması oranlanır.
+*   **Kullanım:** RSI > 70 (Aşırı Alım - Satış ihtimali), RSI < 30 (Aşırı Satım - Alış ihtimali).
 
-### 4.2. Karşıt İşlem (Counter-Trade / Mean Reversion)
-*   **Mantık:** Fiyatın ana trende ters yönde yaptığı kısa vadeli düzeltmeleri yakalamak.
-*   **Tanım:** 15m ve 3m momentumunun, 1h yapısal trendine **karşı** hizalanması.
-*   **Kritik Hata Düzeltmesi:** Sistemde daha önce yapılan bir düzeltme ile, sadece 3m değil, **hem 15m hem de 3m** trendinin ana trende ters olması şartı getirilmiştir.
-*   **Örnek:** 1H BULLISH (Ana Trend Yukarı) ancak 15m BEARISH ve 3m BEARISH (Kısa vadeli düşüş) -> **Counter-Trend SHORT Fırsatı**.
+### 3.3. Average True Range (ATR) - Ortalama Gerçek Aralık
+Piyasanın volatilitesini (oynaklığını) ölçer. Yön belirtmez, sadece hareketin büyüklüğünü gösterir.
+*   **Formül:**
+    1.  `TR = Max(|High - Low|, |High - Close_prev|, |Low - Close_prev|)`
+    2.  `ATR = SMA(TR, 14)` (TR değerlerinin 14 günlük ortalaması)
+*   **Kullanım:** Stop Loss seviyesini belirlerken kullanılır.
+    *   *Örnek:* `Stop Loss = Giriş Fiyatı - (2 * ATR)`
+    *   Bu sayede oynak piyasada stop mesafesi genişler, sakin piyasada daralır.
 
----
+### 3.4. Kaufman Efficiency Ratio (ER) - Etkinlik Oranı
+Piyasanın "Trend" mi yoksa "Testere" (Yatay/Choppy) mi olduğunu anlamak için kullanılır.
+*   **Formül:** `ER = Net Değişim / Toplam Oynaklık`
+    *   `ER = |Fiyat_t - Fiyat_{t-n}| / Toplam(|Fiyat_i - Fiyat_{i-1}|)`
+*   **Mantık:** Fiyat dümdüz bir çizgide giderse ER=1 olur. Sürekli zikzak çizip aynı yere gelirse ER=0'a yaklaşır.
+*   **Kullanım:** ER < 0.40 ise "Choppy Market" kabul edilir ve işlem yapılması engellenir.
 
-## 5. Kritik Değişkenler ve Parametreler
-
-Profesörünüze anlatırken vurgulamanız gereken en önemli sistem değişkenleri:
-
-### `market_regime` (Piyasa Rejimi)
-*   **Nedir?** Piyasaların genel durumunu özetleyen değişken.
-*   **Değerler:** `BULLISH` (Yükseliş), `BEARISH` (Düşüş), `NEUTRAL` (Yatay/Kararsız).
-*   **Önemi:** AI, stratejisini rejime göre değiştirir. Örneğin `NEUTRAL` rejimde daha dar Stop-Loss kullanır.
-
-### `alignment_strength` (Trend Uyumu)
-*   **Nedir?** Farklı zaman dilimlerindeki trendlerin birbirine ne kadar uyumlu olduğunu gösterir.
-*   **Hesaplama:** 1H, 15m ve 3m trendlerinin yön birliğine bakılır.
-*   **Önemi:** `STRONG` uyum, yüksek güvenli işlem demektir.
-
-### `risk_level` (Risk Seviyesi)
-*   **Nedir?** Bir işlemin ne kadar riskli olduğunun sayısal veya kategorik ifadesi.
-*   **Faktörler:** Volatilite, RSI'ın aşırı bölgelerde olması, trende ters olma durumu.
-*   **Değerler:** `LOW_RISK`, `MEDIUM_RISK`, `HIGH_RISK`.
-
-### `confidence` (Güven Skoru)
-*   **Nedir?** AI'ın verdiği karara ne kadar güvendiğini belirten 0.0 ile 1.0 arası bir sayı.
-*   **Kullanımı:** Pozisyon büyüklüğünü (Position Sizing) belirler. Yüksek güven = Daha büyük pozisyon.
-
-### `conditions_met` (Karşılanan Koşullar)
-*   **Nedir?** Bir karşıt işlem (Counter-Trade) sinyali için gerekli 5 teknik şarttan kaçının sağlandığı.
-*   **Şartlar:**
-    1.  Trend Uyumsuzluğu (1H vs 15m+3m)
-    2.  Hacim Onayı
-    3.  RSI Aşırılığı
-    4.  EMA'dan Uzaklık
-    5.  MACD Uyumsuzluğu
+### 3.5. Sparklines (ASCII Grafikleri)
+Fiyat serisini metin tabanlı bir grafiğe dönüştürür.
+*   **Algoritma:**
+    1.  Son 24 mumun fiyatları alınır.
+    2.  Min ve Max değerler bulunur.
+    3.  Veri 0-7 aralığına normalize edilir (8 seviyeli karakter seti: ` ▂▃▄▅▆▇█`).
+    4.  Her fiyat, karşılık gelen karaktere dönüştürülür.
+*   **Örnek:** ` ▂▃▄▅▆▇█` (Güçlü Yükseliş), `█▇▆▅▄▃▂ ` (Güçlü Düşüş).
 
 ---
 
-## 6. Neden Hibrit Promptlama? (Teknik Yenilik)
+## 4. Kod Mimarisi ve Dosya Yapısı
+Proje, modüler ve sürdürülebilir bir yazılım mimarisine sahiptir:
 
-Sistemimiz, **"Chain of Thought" (Düşünce Zinciri)** yöntemini yapılandırılmış **JSON verisi** ile birleştirir.
+### `src/main.py` (Orkestra Şefi)
+*   Sistemin ana döngüsünü (Infinite Loop) yönetir.
+*   Tüm alt modülleri sırasıyla çağırır ve senkronize eder.
 
-*   **Sorun:** LLM'ler düz metin içindeki sayısal verileri (örn. "RSI 75 oldu") bazen gözden kaçırabilir veya yanlış yorumlayabilir.
-*   **Çözüm:** Veriler `COUNTER_TRADE_ANALYSIS` gibi JSON blokları halinde verilir.
-*   **Avantaj:** AI, JSON verisini bir veritabanı gibi okur, kesin kuralları uygular ve ardından kararını metin olarak açıklar. Bu, "Halüsinasyon" (Yapay Zeka Yanılsaması) riskini minimize eder.
+### `src/core/market_data.py` (Duyu Organları)
+*   Borsa API'sinden ham veriyi çeker.
+*   Tüm teknik indikatörleri (RSI, EMA, Sparklines) hesaplar.
+*   Veriyi temizler ve işler.
+
+### `src/core/portfolio_manager.py` (Cüzdan ve Risk Müdürü)
+*   Mevcut bakiyeyi ve açık pozisyonları takip eder.
+*   Risk hesaplamalarını (Pozisyon büyüklüğü, TP/SL) yapar.
+*   İşlemlerin kaydını tutar.
+
+### `src/ai/deepseek_api.py` (Beyin)
+*   DeepSeek LLM ile iletişimi sağlar.
+*   "System Prompt" (AI'ın kişiliği ve kuralları) burada tanımlıdır.
+
+### `src/ai/prompt_json_builders.py` (Tercüman)
+*   Python objelerini (DataFrame, Dict), AI'ın anlayacağı optimize edilmiş JSON formatına çevirir.
+*   Veri tasarrufu (Token optimization) burada yapılır.
 
 ---
 
-## 7. Sonuç
-
-Alpha Arena, sadece teknik indikatörlere bakan kör bir algoritma değil, piyasa bağlamını (Context) anlayan ve risk yönetimi yapabilen akıllı bir asistandır. Çok katmanlı mimarisi ve hibrit veri işleme yeteneği ile akademik ve pratik açıdan ileri düzey bir finansal teknoloji örneğidir.
+## 5. Projenin Yenilikçi Yönleri (Innovation)
+1.  **Hibrit Zeka:** Klasik botlar sadece sayıya bakar (RSI < 30). Bu sistem ise AI sayesinde bağlamı (Context) anlar. *"RSI düşük ama trend çok güçlü düşüyor, alma"* diyebilir.
+2.  **Görsel Patern Tanıma (Metin Tabanlı):** Fiyat grafiklerini ASCII karakterlerine (` ▂▃▄▅`) dönüştürerek, metin tabanlı bir modele "Görsel" analiz yeteneği kazandırılmıştır.
+3.  **Dinamik Adaptasyon:** Piyasa durgunken hedefleri küçültür, hareketliyken büyütür (ATR Adaptasyonu).
