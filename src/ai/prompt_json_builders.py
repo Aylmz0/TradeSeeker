@@ -464,52 +464,25 @@ def build_market_data_json(
         
         # Build series with compression if needed
         price_series = indicators.get('price_series', [])
-        ema_series = indicators.get('ema_20_series', [])
         rsi_series = indicators.get('rsi_14_series', [])
-        macd_series = indicators.get('macd_series', [])
         
         series = {}
         
+        # Enforce max series length from Config
+        max_len = Config.JSON_SERIES_MAX_LENGTH
+        
         # Compress series if too long
-        if len(price_series) > max_series_length:
-            compressed_price = compress_series(price_series, max_length=max_series_length)
+        if len(price_series) > max_len:
+            compressed_price = compress_series(price_series, max_length=max_len)
             series["price"] = compressed_price
         else:
             series["price"] = [format_number_for_json(p) for p in price_series]
         
-        if len(ema_series) > max_series_length:
-            compressed_ema = compress_series(ema_series, max_length=max_series_length)
-            series["ema20"] = compressed_ema
-        else:
-            series["ema20"] = [format_number_for_json(e) for e in ema_series]
-        
-        if len(rsi_series) > max_series_length:
-            compressed_rsi = compress_series(rsi_series, max_length=max_series_length)
+        if len(rsi_series) > max_len:
+            compressed_rsi = compress_series(rsi_series, max_length=max_len)
             series["rsi"] = compressed_rsi
         else:
             series["rsi"] = [format_number_for_json(r) for r in rsi_series]
-        
-        if len(macd_series) > max_series_length:
-            compressed_macd = compress_series(macd_series, max_length=max_series_length)
-            series["macd"] = compressed_macd
-        else:
-            series["macd"] = [format_number_for_json(m) for m in macd_series]
-        
-        if has_atr:
-            atr_series = indicators.get('atr_14_series', [])
-            if len(atr_series) > max_series_length:
-                compressed_atr = compress_series(atr_series, max_length=max_series_length)
-                series["atr"] = compressed_atr
-            else:
-                series["atr"] = [format_number_for_json(a) for a in atr_series]
-        
-        if has_volume:
-            volume_series = indicators.get('volume_series', [])
-            if len(volume_series) > max_series_length:
-                compressed_volume = compress_series(volume_series, max_length=max_series_length)
-                series["volume"] = compressed_volume
-            else:
-                series["volume"] = [format_number_for_json(v) for v in volume_series]
         
         return {
             "current": current,
@@ -532,9 +505,6 @@ def build_market_data_json(
         "market_regime": market_regime,
         "efficiency_ratio": format_number_for_json(efficiency_ratio),
         "market_condition": market_condition,
-        "trend_1h": indicators_htf.get('sparkline') if indicators_htf else None,
-        "trend_15m": indicators_15m.get('sparkline') if indicators_15m else None,
-        "range_24h": indicators_htf.get('pivots') if indicators_htf else None,
         "tags": indicators_htf.get('tags') if indicators_htf else [],
         "sentiment": {
             "open_interest": format_number_for_json(sentiment.get('open_interest')),
