@@ -192,6 +192,59 @@ class RealMarketData:
         atr = tr.ewm(com=period - 1, adjust=False).mean()
         return atr
 
+    def _generate_sparkline(self, prices: pd.Series, length: int = 24) -> str:
+        """Generate ASCII sparkline from price series"""
+        if len(prices) < length: return ""
+        subset = prices.iloc[-length:]
+        min_val, max_val = subset.min(), subset.max()
+        if min_val == max_val: return "▄" * length
+        
+        chars = " ▂▃▄▅▆▇█"
+        step = (max_val - min_val) / (len(chars) - 1)
+        if step == 0: step = 1
+        
+        indices = ((subset - min_val) / step).astype(int)
+        indices = indices.clip(0, len(chars) - 1)
+        return "".join([chars[i] for i in indices])
+
+    def _calculate_pivots(self, df: pd.DataFrame, periods: int = 24) -> Dict[str, float]:
+        """Calculate High/Low pivots over N periods"""
+        if len(df) < periods: return {}
+        subset = df.iloc[-periods:]
+        return {
+            'high': float(subset['high'].max()),
+            'low': float(subset['low'].min())
+        }
+
+    def _generate_tags(self, indicators: Dict[str, Any]) -> List[str]:
+        """Generate analytical tags based on indicators"""
+        tags = []
+        
+        # Volatility
+        if indicators.get('volume_ratio', 0) > 1.5: tags.append("Vol_High")
+        elif indicators.get('volume_ratio', 0) < 0.5: tags.append("Vol_Low")
+        
+        # Trend (EMA Alignment)
+        price = indicators.get('current_price', 0)
+        ema20 = indicators.get('ema_20', 0)
+        ema50 = indicators.get('ema_50', 0)
+        
+        if price > ema20 > ema50: tags.append("Trend_Strong_Bull")
+        elif price < ema20 < ema50: tags.append("Trend_Strong_Bear")
+        elif price > ema20 and price < ema50: tags.append("Trend_Correction_Bull")
+        elif price < ema20 and price > ema50: tags.append("Trend_Correction_Bear")
+        
+        # RSI
+        rsi = indicators.get('rsi_14', 50)
+        if rsi > 70: tags.append("RSI_Overbought")
+        elif rsi < 30: tags.append("RSI_Oversold")
+        
+        # ATR (Volatility State)
+        atr = indicators.get('atr_14', 0)
+        if price > 0 and atr / price > 0.02: tags.append("High_Volatility") # >2% ATR
+        
+        return tags
+
     def get_technical_indicators(self, coin: str, interval: str) -> Dict[str, Any]:
         """Calculate technical indicators, returning history series"""
         cached = self.preloaded_indicators.get(coin, {}).get(interval)
@@ -248,6 +301,11 @@ class RealMarketData:
             indicators['efficiency_ratio'] = self.calculate_efficiency_ratio(close_prices, period=10)
             
             indicators['price_series'] = close_prices.iloc[-hist_len:].round(4).where(pd.notna, None).tolist()
+
+            # Enhanced Context Integration (Sparklines, Pivots, Tags)
+            indicators['sparkline'] = self._generate_sparkline(close_prices, length=24)
+            indicators['pivots'] = self._calculate_pivots(df, periods=24)
+            indicators['tags'] = self._generate_tags(indicators)
 
             for key, value in indicators.items():
                 if isinstance(value, float) and np.isnan(value): indicators[key] = None
