@@ -1,7 +1,7 @@
-import requests
 import json
 import time
 from typing import Dict, List, Any, Optional
+from openai import OpenAI
 from config.config import Config
 from src.utils import RetryManager, safe_file_read
 
@@ -14,13 +14,21 @@ class DeepSeekAPI:
 
     def __init__(self, api_key: str = None):
         self.api_key = api_key or Config.DEEPSEEK_API_KEY
-        self.base_url = "https://api.deepseek.com/v1/chat/completions"
+        self.base_url = "https://api.deepseek.com"
         self.model = "deepseek-chat"
-        self.session = RetryManager.create_session_with_retry()
-
+        
         if not self.api_key:
             print("❌ DEEPSEEK_API_KEY not found!")
             print("ℹ️  Please check your .env file configuration.")
+            self.client = None
+        else:
+            # Set global timeout to 180 seconds to prevent premature 30s timeouts
+            self.client = OpenAI(
+                api_key=self.api_key, 
+                base_url=self.base_url,
+                timeout=180.0,
+                max_retries=2
+            )
 
     def _build_system_prompt(self) -> str:
         """
@@ -183,26 +191,23 @@ class DeepSeekAPI:
                 }
             ]
         }
-        return json.dumps(system_structure)
+        return json.dumps(system_structure) 
 
     def get_ai_decision(self, prompt: str) -> str:
         """Get trading decision from DeepSeek API using structured JSON prompting"""
-        if not self.api_key:
+        if not self.client:
             return self._get_simulation_response(prompt)
 
         try:
-            headers = {
-                "Content-Type": "application/json", 
-                "Authorization": f"Bearer {self.api_key}"
-            }
-            
             # User prompt is already a JSON string from main.py
             # We wrap it in a clear instruction
             user_message_content = f"Analyze the following market data JSON and provide decisions based on the system rules:\n\n{prompt}"
 
-            data = {
-                "model": self.model,
-                "messages": [
+            print(f"🔄 Sending request to DeepSeek API (JSON Mode)... Payload Size: {len(prompt)} chars")
+            
+            stream = self.client.chat.completions.create(
+                model=self.model,
+                messages=[
                     {
                         "role": "system", 
                         "content": self._build_system_prompt()
@@ -212,20 +217,24 @@ class DeepSeekAPI:
                         "content": user_message_content
                     }
                 ],
-                "temperature": 0.5, # Optimized for JSON consistency
-                "max_tokens": 4096,
-                "response_format": { "type": "json_object" } # Enforce JSON output
-            }
+                temperature=0.5,
+                max_tokens=4000,
+                response_format={ "type": "json_object" },
+                stream=True
+            )
 
-            print("🔄 Sending request to DeepSeek API (JSON Mode)...")
-            response = requests.post(self.base_url, json=data, headers=headers, timeout=120)
-            response.raise_for_status()
-
-            result = response.json()
-            if not result.get('choices') or not result['choices'][0].get('message'):
-                raise ValueError("DeepSeek API returned unexpected structure.")
+            print("⏳ Receiving stream...", end="", flush=True)
+            collected_content = []
+            for chunk in stream:
+                if chunk.choices[0].delta.content:
+                    content_chunk = chunk.choices[0].delta.content
+                    collected_content.append(content_chunk)
+                    # Optional: Print a dot every 100 chars to show activity
+                    if len(collected_content) % 10 == 0:
+                        print(".", end="", flush=True)
             
-            content = result['choices'][0]['message']['content']
+            print(" ✅")
+            content = "".join(collected_content)
             
             # Robust JSON extraction using JSONDecoder
             try:
@@ -240,7 +249,6 @@ class DeepSeekAPI:
                     obj, end_index = decoder.raw_decode(json_candidate)
                     
                     # Re-serialize to ensure valid JSON string is returned
-                    # This effectively strips all extra text before and after the JSON
                     content = json.dumps(obj, indent=2)
                 else:
                     print("⚠️ No JSON object found in response")
@@ -255,15 +263,11 @@ class DeepSeekAPI:
             
             return content.strip()
 
-        except requests.exceptions.Timeout:
-             print("❌ DeepSeek API request timed out.")
-             return self._get_error_response("API Timeout")
-        except requests.exceptions.RequestException as e:
-            print(f"❌ DeepSeek API request failed: {e}")
-            return self._get_error_response(f"API Request Failed: {e}")
         except Exception as e:
-            print(f"❌ DeepSeek API error: {e}")
-            return self._get_error_response(f"General API Error: {e}")
+            # Detailed error logging
+            error_type = type(e).__name__
+            print(f"❌ DeepSeek API error ({error_type}): {e}")
+            return self._get_error_response(f"{error_type}: {e}")
 
     def _get_simulation_response(self, prompt: str) -> str:
         """Simulation response without API - Returns valid JSON string"""
