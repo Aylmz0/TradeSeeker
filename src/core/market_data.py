@@ -18,7 +18,7 @@ class RealMarketData:
     def __init__(self):
         self.spot_url = "https://api.binance.com/api/v3"
         self.futures_url = "https://fapi.binance.com/fapi/v1"
-        self.available_coins = ['XRP', 'DOGE', 'ASTER', 'ADA', 'LINK', 'SOL'] # SHIB replaced with ASTER
+        self.available_coins = ['XRP', 'DOGE', 'ASTER', 'ADA', 'LINK', 'SOL']
         self.indicator_history_length = 10
         self.session = RetryManager.create_session_with_retry()
         self.preloaded_indicators: Dict[str, Dict[str, Dict[str, Any]]] = {}
@@ -160,7 +160,7 @@ class RealMarketData:
             rate = data.get('lastFundingRate')
             if rate is not None and rate != '': return float(rate)
             else:
-                 # print(f"ℹ️ Using nextFundingRate for {symbol}.") # Less verbose
+                 # print(f"ℹ️ Using nextFundingRate for {symbol}.")
                  rate = data.get('nextFundingRate')
                  return float(rate) if rate is not None and rate != '' else 0.0
         except Exception as e:
@@ -192,20 +192,103 @@ class RealMarketData:
         atr = tr.ewm(com=period - 1, adjust=False).mean()
         return atr
 
-    def _generate_sparkline(self, prices: pd.Series, length: int = 24) -> str:
-        """Generate ASCII sparkline from price series"""
-        if len(prices) < length: return ""
-        subset = prices.iloc[-length:]
-        min_val, max_val = subset.min(), subset.max()
-        if min_val == max_val: return "▄" * length
+
+
+    def _extract_semantic_features(self, prices: pd.Series, period: int = 24) -> Dict[str, Any]:
+        """Extract semantic features from price series using numpy"""
+        if len(prices) < period:
+            return {}
+            
+        subset = prices.iloc[-period:].values
         
-        chars = " ▂▃▄▅▆▇█"
-        step = (max_val - min_val) / (len(chars) - 1)
-        if step == 0: step = 1
+        # 1. Calculate Trend Slope (Linear Regression)
+        x = np.arange(len(subset))
+        slope, _ = np.polyfit(x, subset, 1)
+        slope_pct = (slope / subset[0]) * 100  # Normalize slope as percentage
         
-        indices = ((subset - min_val) / step).astype(int)
-        indices = indices.clip(0, len(chars) - 1)
-        return "".join([chars[i] for i in indices])
+        # 2. Detect Peaks and Valleys (Simple Local Extrema)
+        peaks = []
+        valleys = []
+        for i in range(1, len(subset) - 1):
+            if subset[i] > subset[i-1] and subset[i] > subset[i+1]:
+                peaks.append(float(subset[i]))
+            elif subset[i] < subset[i-1] and subset[i] < subset[i+1]:
+                valleys.append(float(subset[i]))
+                
+        # 3. Determine Volatility State
+        std_dev = np.std(subset)
+        mean_price = np.mean(subset)
+        volatility_ratio = std_dev / mean_price
+        
+        volatility_state = "STABLE"
+        if volatility_ratio > 0.02: volatility_state = "HIGH_VOLATILITY"
+        elif volatility_ratio > 0.01: volatility_state = "EXPANDING"
+        elif volatility_ratio < 0.005: volatility_state = "COMPRESSED"
+        
+        # 4. Determine Pattern/Structure
+        structure = "SIDEWAYS"
+        if slope_pct > 0.05:
+            structure = "UPTREND"
+            if len(peaks) >= 2 and peaks[-1] < peaks[-2]:
+                structure = "UPTREND_LOSING_MOMENTUM"
+        elif slope_pct < -0.05:
+            structure = "DOWNTREND"
+            if len(valleys) >= 2 and valleys[-1] > valleys[-2]:
+                structure = "DOWNTREND_LOSING_MOMENTUM"
+                
+        return {
+            "slope": float(slope),
+            "slope_pct": float(slope_pct),
+            "peaks": peaks[-2:], # Keep last 2 peaks
+            "valleys": valleys[-2:], # Keep last 2 valleys
+            "volatility_state": volatility_state,
+            "structure": structure
+        }
+
+    def _generate_smart_sparkline(self, prices: pd.Series, period: int = 24) -> Dict[str, Any]:
+        """Generate Smart Sparkline (Visual + Semantic)"""
+        features = self._extract_semantic_features(prices, period)
+        if not features:
+            return {}
+            
+        # Generate Vector Visual (e.g., ↗️ ↗️ ↘️)
+        # Divide period into 4 chunks to show movement flow
+        subset = prices.iloc[-period:].values
+        chunk_size = len(subset) // 4
+        vectors = []
+        for i in range(4):
+            start = i * chunk_size
+            end = (i + 1) * chunk_size if i < 3 else len(subset)
+            chunk = subset[start:end]
+            if len(chunk) < 2: continue
+            
+            chunk_slope = (chunk[-1] - chunk[0]) / chunk[0]
+            if chunk_slope > 0.005: vectors.append("⏫")
+            elif chunk_slope > 0.001: vectors.append("↗️")
+            elif chunk_slope < -0.005: vectors.append("⏬")
+            elif chunk_slope < -0.001: vectors.append("↘️")
+            else: vectors.append("➡️")
+            
+        visual_vector = "".join(vectors)
+        
+        # Construct Semantic Summary
+        semantic_summary = f"{features['structure']}"
+        if features['volatility_state'] != "STABLE":
+            semantic_summary += f"_WITH_{features['volatility_state']}"
+            
+        # Critical Points String
+        critical_points = []
+        if features['peaks']:
+            critical_points.append(f"PEAK_{features['peaks'][-1]:.4f}")
+        if features['valleys']:
+            critical_points.append(f"VALLEY_{features['valleys'][-1]:.4f}")
+            
+        return {
+            "visual": visual_vector,
+            "semantic": semantic_summary,
+            "critical_points": ", ".join(critical_points),
+            "trend_slope": features['slope_pct']
+        }
 
     def _calculate_pivots(self, df: pd.DataFrame, periods: int = 24) -> Dict[str, float]:
         """Calculate High/Low pivots over N periods"""
@@ -280,7 +363,7 @@ class RealMarketData:
                  atr_3_series = self.calculate_atr_series(df['high'], df['low'], df['close'], 3)
                  indicators['atr_3'] = atr_3_series.iloc[-1]
 
-            # Volume Analysis (CRITICAL FIX: Use last CLOSED candle for consistent ratio)
+            # Volume Analysis: Use last CLOSED candle for consistent ratio
             # iloc[-1] is current incomplete candle. iloc[-2] is last closed candle.
             current_vol = df['volume'].iloc[-1]
             last_closed_vol = df['volume'].iloc[-2]
@@ -303,7 +386,7 @@ class RealMarketData:
             indicators['price_series'] = close_prices.iloc[-hist_len:].round(4).where(pd.notna, None).tolist()
 
             # Enhanced Context Integration (Sparklines, Pivots, Tags)
-            indicators['sparkline'] = self._generate_sparkline(close_prices, length=24)
+            indicators['smart_sparkline'] = self._generate_smart_sparkline(close_prices, period=24) # ✅ Smart Sparkline Added
             indicators['pivots'] = self._calculate_pivots(df, periods=24)
             indicators['tags'] = self._generate_tags(indicators)
 

@@ -210,14 +210,14 @@ class AlphaArenaDeepSeek:
             
             trend_label_htf = "BULLISH" if price_htf > ema20_htf else "BEARISH"
 
-            # Nof1AI Blog Style: EMA20 vs EMA50 comparison
+            # EMA20 vs EMA50 comparison
             ema_comparison = f"20-Period EMA: {format_num(ema20_htf)} vs. 50-Period EMA: {format_num(ema50_htf)}"
             
             # Simple trend strength calculation (used mainly for counter-trend context)
             trend_strength = 0
             trend_direction = 'NEUTRAL'
             
-            # Higher timeframe EMA alignment (strong trend indicator) - Nof1AI Blog Style
+            # Higher timeframe EMA alignment (strong trend indicator)
             if ema20_htf > ema50_htf and price_htf > ema20_htf:
                 trend_strength += 3  # Strong bullish (EMA20 > EMA50 + price > EMA20)
                 trend_direction = 'STRONG_BULLISH'
@@ -247,7 +247,7 @@ class AlphaArenaDeepSeek:
             elif alignment_count == 2:
                 trend_strength += 1  # Medium multi-timeframe alignment (2 of 3 timeframes)
             
-            # Volume Confirmation (Nof1AI Blog Style)
+            # Volume Confirmation
             volume_confidence = self.calculate_volume_confidence(coin)
             
             # Counter-trade detection information
@@ -569,7 +569,7 @@ class AlphaArenaDeepSeek:
             return "VERY_LOW"
 
     def calculate_volume_confidence(self, coin: str) -> float:
-        """Calculate volume confidence based on current vs average volume (Nof1AI Blog Style)"""
+        """Calculate volume confidence based on current vs average volume"""
         try:
             indicators_3m = self.market_data.get_technical_indicators(coin, '3m')
             if 'error' in indicators_3m:
@@ -581,7 +581,7 @@ class AlphaArenaDeepSeek:
             if avg_volume <= 0:
                 return 0.0
             
-            # Nof1AI Blog Style: "Current Volume: 53.457 vs. Average Volume: 4329.191"
+            # Volume comparison
             volume_ratio = current_volume / avg_volume
             
             # Volume confidence scoring
@@ -663,7 +663,7 @@ class AlphaArenaDeepSeek:
             return False
 
     def generate_advanced_exit_plan(self, coin: str, direction: str, entry_price: float) -> Dict[str, Any]:
-        """Generate advanced exit plan with momentum failure detection (Nof1AI Blog Style)"""
+        """Generate advanced exit plan with momentum failure detection"""
         try:
             indicators_htf = self.market_data.get_technical_indicators(coin, HTF_INTERVAL)
             indicators_3m = self.market_data.get_technical_indicators(coin, '3m')
@@ -681,13 +681,13 @@ class AlphaArenaDeepSeek:
             ema_20 = indicators_htf.get('ema_20', current_price)
             htf_upper = HTF_LABEL.upper()
             
-            # Calculate TP/SL based on ATR (Nof1AI Blog Style)
+            # Calculate TP/SL based on ATR
             if direction == 'long':
                 # Long position: TP = entry + 2x ATR, SL = entry - 1x ATR
                 profit_target = entry_price + (atr_14 * 2)
                 stop_loss = entry_price - atr_14
                 
-                # Advanced invalidation conditions (Nof1AI Blog Style)
+                # Advanced invalidation conditions
                 if rsi_14 > 70:
                     invalidation_condition = f"If {htf_upper} RSI breaks back below 60, signaling momentum failure"
                 elif rsi_14 < 40:
@@ -700,7 +700,7 @@ class AlphaArenaDeepSeek:
                 profit_target = entry_price - (atr_14 * 2)
                 stop_loss = entry_price + atr_14
                 
-                # Advanced invalidation conditions (Nof1AI Blog Style)
+                # Advanced invalidation conditions
                 if rsi_14 < 30:
                     invalidation_condition = f"If {htf_upper} RSI breaks back above 40, signaling momentum failure"
                 elif rsi_14 > 60:

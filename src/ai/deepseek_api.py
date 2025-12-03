@@ -10,7 +10,7 @@ HTF_INTERVAL = getattr(Config, 'HTF_INTERVAL', '1h') or '1h'
 HTF_LABEL = HTF_INTERVAL
 
 class DeepSeekAPI:
-    """DeepSeek API integration with fully structured JSON prompting (Logic Preservation Edition)"""
+    """DeepSeek API integration with fully structured JSON prompting"""
 
     def __init__(self, api_key: str = None):
         self.api_key = api_key or Config.DEEPSEEK_API_KEY
@@ -153,7 +153,7 @@ class DeepSeekAPI:
             },
             "few_shot_examples": [
                 {
-                    "style": "NOF1AI Advanced Style",
+                    "style": "Advanced Style",
                     "input_context": "Market data showing mixed signals...",
                     "output_example": {
                         "CHAIN_OF_THOUGHTS": f"Advanced systematic analysis of all assets using {HTF_LABEL} (1h) trends, 15m momentum confirmation, and 3m entry timing.\n\nXRP: 1h bullish (price > EMA20, RSI 62.5), 15m bullish momentum (price > EMA20, RSI 58), 3m bullish (price > EMA20, RSI 60). All three timeframes aligned bullish with volume confirmation. Open Interest increasing suggests institutional interest. Targeting $0.56 with stop below $0.48. Invalidation if {HTF_LABEL} price closes below EMA20.\n\nSOL: 1h bearish, 15m bearish, 3m bearish. Strong trend-following SHORT setup.\n\nADA: Mixed signals, holding.\n\nDOGE: Bullish trend but overextended, waiting for pullback.\n\nLINK: Low volume, skipping.\n\nASTER: Range bound, no clear edge.",
