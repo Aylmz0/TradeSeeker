@@ -55,6 +55,8 @@ class Config:
     RSI_OVERBOUGHT_THRESHOLD: float = float(os.getenv('RSI_OVERBOUGHT_THRESHOLD', '70.0'))
     RSI_OVERSOLD_THRESHOLD: float = float(os.getenv('RSI_OVERSOLD_THRESHOLD', '30.0'))
     EMA_NEUTRAL_BAND_PCT: float = float(os.getenv('EMA_NEUTRAL_BAND_PCT', '0.001'))  # 0.1% band around EMA
+    INTRADAY_NEUTRAL_RSI_LOW: float = float(os.getenv('INTRADAY_NEUTRAL_RSI_LOW', '45.0'))
+    INTRADAY_NEUTRAL_RSI_HIGH: float = float(os.getenv('INTRADAY_NEUTRAL_RSI_HIGH', '55.0'))
     
     # Enhanced Trading Settings
     SHORT_ENHANCEMENT_MULTIPLIER: float = float(os.getenv('SHORT_ENHANCEMENT_MULTIPLIER', '1.15'))  # %15 daha büyük short
@@ -126,8 +128,8 @@ class Config:
     MIN_EXIT_PLAN_OFFSET: float = float(os.getenv('MIN_EXIT_PLAN_OFFSET', '0.0001'))  # Minimum absolute offset for tiny-priced coins
 
     # Trailing Stop Configuration
-    TRAILING_PROGRESS_TRIGGER: float = float(os.getenv('TRAILING_PROGRESS_TRIGGER', '80.0'))  # % progress towards TP
-    TRAILING_TIME_PROGRESS_FLOOR: float = float(os.getenv('TRAILING_TIME_PROGRESS_FLOOR', '50.0'))  # % progress required for time-based trailing
+    TRAILING_PROGRESS_TRIGGER: float = float(os.getenv('TRAILING_PROGRESS_TRIGGER', '40.0'))  # % progress towards TP
+    TRAILING_TIME_PROGRESS_FLOOR: float = float(os.getenv('TRAILING_TIME_PROGRESS_FLOOR', '30.0'))  # % progress required for time-based trailing
     TRAILING_TIME_MINUTES: float = float(os.getenv('TRAILING_TIME_MINUTES', '20'))  # Minutes in trade before time-based trailing activates
     TRAILING_ATR_MULTIPLIER: float = float(os.getenv('TRAILING_ATR_MULTIPLIER', '1.2'))  # Multiplier for ATR-based buffer
     TRAILING_FALLBACK_BUFFER_PCT: float = float(os.getenv('TRAILING_FALLBACK_BUFFER_PCT', '0.004'))  # 0.4% price buffer fallback
