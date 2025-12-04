@@ -58,7 +58,7 @@ class DeepSeekAPI:
                 "risk_management": {
                     "risk_reward_ratio": "Maintain a positive risk/reward ratio.",
                     "stop_loss_basis": "Logical technical level (e.g., recent support/resistance or ATR-based).",
-                    "invalidation_requirement": "Must be explicit (e.g., 'Close below EMA20')",
+                    "invalidation_requirement": "Must be explicit and INCLUDE A 0.2% BUFFER to prevent wick-outs (e.g., 'Close if price < EMA20 * 0.998' for LONG, '... > EMA20 * 1.002' for SHORT).",
                     "CRITICAL_WARNING": "System has a HARD MARGIN STOP LOSS. Do NOT rely on wider stops."
                 }
             },
@@ -172,7 +172,7 @@ class DeepSeekAPI:
                                 "confidence": 0.75,
                                 "profit_target": 0.56,
                                 "stop_loss": 0.48,
-                                "invalidation_condition": f"If {HTF_LABEL} price closes below {HTF_LABEL} EMA20"
+                                "invalidation_condition": f"If {HTF_LABEL} price closes below {HTF_LABEL} EMA20 * 0.998"
                             },
                             "SOL": {
                                 "signal": "sell_to_enter",
@@ -180,7 +180,7 @@ class DeepSeekAPI:
                                 "confidence": 0.75,
                                 "profit_target": 185.0,
                                 "stop_loss": 198.0,
-                                "invalidation_condition": f"If {HTF_LABEL} price closes above {HTF_LABEL} EMA20"
+                                "invalidation_condition": f"If {HTF_LABEL} price closes above {HTF_LABEL} EMA20 * 1.002"
                             },
                             "ADA": { "signal": "hold" },
                             "DOGE": { "signal": "hold" },

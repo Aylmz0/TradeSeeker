@@ -1854,14 +1854,16 @@ class PortfolioManager:
         
         # --- KADEMELİ LOSS CUTTING MEKANİZMASI (Margin tabanlı) ---
         loss_multiplier = 0.03  # Default: %3 for margin >= 50
-        if margin_used < 30:
-            loss_multiplier = 0.07  # %7 for margin < 30
+        if margin_used < 20:
+            loss_multiplier = 0.08  # %8 for margin < 20
+        elif margin_used < 30:
+            loss_multiplier = 0.07  # %7 for margin 20-30
         elif margin_used < 40:
-            loss_multiplier = 0.05  # %5 for margin 30-40
+            loss_multiplier = 0.06  # %6 for margin 30-40
         elif margin_used < 50:
             loss_multiplier = 0.05  # %5 for margin 40-50
         else:
-            loss_multiplier = 0.03  # %3 for margin >= 50
+            loss_multiplier = 0.04  # %4 for margin >= 50
 
         loss_threshold_usd = margin_used * loss_multiplier
         
