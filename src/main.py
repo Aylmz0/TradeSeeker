@@ -2886,6 +2886,11 @@ All market data is provided in JSON format below. Each coin contains:
                 
                 current_cycle_number += 1; cycle_start_time = time.time()
                 
+                # Check MAX_CYCLES limit - auto-stop at configured cycle number
+                if Config.MAX_CYCLES > 0 and current_cycle_number > Config.MAX_CYCLES:
+                    print(f"🛑 MAX_CYCLES limit reached ({Config.MAX_CYCLES}). Auto-stopping bot...")
+                    break
+                
                 # Calculate dynamic cycle frequency
                 dynamic_cycle_interval = self.calculate_optimal_cycle_frequency()
                 print(f"🔄 Dynamic cycle frequency: {dynamic_cycle_interval} seconds ({dynamic_cycle_interval/60:.1f} minutes)")

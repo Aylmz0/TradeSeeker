@@ -28,6 +28,7 @@ class Config:
     INITIAL_BALANCE: float = float(os.getenv('INITIAL_BALANCE', '200.0'))
     CYCLE_INTERVAL_MINUTES: int = int(os.getenv('CYCLE_INTERVAL_MINUTES', '2'))
     HISTORY_RESET_INTERVAL: int = int(os.getenv('HISTORY_RESET_INTERVAL', '35'))
+    MAX_CYCLES: int = int(os.getenv('MAX_CYCLES', '0'))  # 0 = unlimited, >0 = stop at this cycle
     
     # Risk Management
     MAX_LEVERAGE: int = int(os.getenv('MAX_LEVERAGE', '20'))  # Nof1ai blog: 20x leverage for medium risk
@@ -38,6 +39,7 @@ class Config:
     # Smart Cooldown Settings
     SMART_COOLDOWN_LOSS: int = int(os.getenv('SMART_COOLDOWN_LOSS', '4'))
     SMART_COOLDOWN_WIN: int = int(os.getenv('SMART_COOLDOWN_WIN', '2'))
+    EXTENDED_LOSS_CYCLES: int = int(os.getenv('EXTENDED_LOSS_CYCLES', '15'))  # Close position after this many negative cycles
     
     # Risk Level Configuration
     RISK_LEVEL: str = os.getenv('RISK_LEVEL', 'medium').lower()

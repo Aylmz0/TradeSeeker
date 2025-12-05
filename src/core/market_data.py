@@ -246,48 +246,90 @@ class RealMarketData:
         }
 
     def _generate_smart_sparkline(self, prices: pd.Series, period: int = 24) -> Dict[str, Any]:
-        """Generate Smart Sparkline (Visual + Semantic)"""
-        features = self._extract_semantic_features(prices, period)
-        if not features:
-            return {}
-            
-        # Generate Vector Visual (e.g., ↗️ ↗️ ↘️)
-        # Divide period into 4 chunks to show movement flow
-        subset = prices.iloc[-period:].values
-        chunk_size = len(subset) // 4
-        vectors = []
-        for i in range(4):
-            start = i * chunk_size
-            end = (i + 1) * chunk_size if i < 3 else len(subset)
-            chunk = subset[start:end]
-            if len(chunk) < 2: continue
-            
-            chunk_slope = (chunk[-1] - chunk[0]) / chunk[0]
-            if chunk_slope > 0.005: vectors.append("⏫")
-            elif chunk_slope > 0.001: vectors.append("↗️")
-            elif chunk_slope < -0.005: vectors.append("⏬")
-            elif chunk_slope < -0.001: vectors.append("↘️")
-            else: vectors.append("➡️")
-            
-        visual_vector = "".join(vectors)
+        """Generate Smart Sparkline v2.1 with key level, structure, and momentum"""
+        if len(prices) < period:
+            return {"key_level": None, "structure": "UNCLEAR", "momentum": "STABLE"}
         
-        # Construct Semantic Summary
-        semantic_summary = f"{features['structure']}"
-        if features['volatility_state'] != "STABLE":
-            semantic_summary += f"_WITH_{features['volatility_state']}"
+        subset = prices.iloc[-period:].values
+        current_price = float(subset[-1])
+        tolerance_pct = 0.005  # %0.5 tolerance for grouping similar levels
+        
+        # 1. LOCAL EXTREMA (Tepe ve Dipler) - 2 önceki/sonraki kontrolü
+        peaks = []
+        valleys = []
+        for i in range(2, len(subset) - 2):
+            if subset[i] > subset[i-1] and subset[i] > subset[i-2] and \
+               subset[i] > subset[i+1] and subset[i] > subset[i+2]:
+                peaks.append(float(subset[i]))
+            if subset[i] < subset[i-1] and subset[i] < subset[i-2] and \
+               subset[i] < subset[i+1] and subset[i] < subset[i+2]:
+                valleys.append(float(subset[i]))
+        
+        # 2. KEY LEVEL TESPİTİ (En yakın support veya resistance)
+        key_level = None
+        
+        # Destek: Fiyatın altındaki en yakın valley
+        supports = [v for v in valleys if v < current_price]
+        if supports:
+            nearest_support = max(supports)
+            strength = sum(1 for v in valleys if abs(v - nearest_support) / nearest_support < tolerance_pct)
+            distance_pct = (current_price - nearest_support) / current_price * 100
             
-        # Critical Points String
-        critical_points = []
-        if features['peaks']:
-            critical_points.append(f"PEAK_{features['peaks'][-1]:.4f}")
-        if features['valleys']:
-            critical_points.append(f"VALLEY_{features['valleys'][-1]:.4f}")
+            if distance_pct < 2.0:  # %2'den yakınsa önemli
+                key_level = {
+                    "type": "support",
+                    "level": round(nearest_support, 6),
+                    "strength": min(strength, 5),
+                    "distance_pct": round(distance_pct, 2)
+                }
+        
+        # Direnç: Fiyatın üstündeki en yakın peak (sadece key_level yoksa)
+        if key_level is None:
+            resistances = [p for p in peaks if p > current_price]
+            if resistances:
+                nearest_resistance = min(resistances)
+                strength = sum(1 for p in peaks if abs(p - nearest_resistance) / nearest_resistance < tolerance_pct)
+                distance_pct = (nearest_resistance - current_price) / current_price * 100
+                
+                if distance_pct < 2.0:
+                    key_level = {
+                        "type": "resistance",
+                        "level": round(nearest_resistance, 6),
+                        "strength": min(strength, 5),
+                        "distance_pct": round(distance_pct, 2)
+                    }
+        
+        # 3. PRICE STRUCTURE (HH_HL, LH_LL, RANGE, UNCLEAR)
+        structure = "UNCLEAR"
+        if len(peaks) >= 2 and len(valleys) >= 2:
+            last_peaks = peaks[-2:]
+            last_valleys = valleys[-2:]
             
+            if last_peaks[1] > last_peaks[0] and last_valleys[1] > last_valleys[0]:
+                structure = "HH_HL"  # Higher Highs, Higher Lows = Bullish
+            elif last_peaks[1] < last_peaks[0] and last_valleys[1] < last_valleys[0]:
+                structure = "LH_LL"  # Lower Highs, Lower Lows = Bearish
+            else:
+                price_range = max(subset) - min(subset)
+                if price_range / current_price < 0.015:  # %1.5'den dar
+                    structure = "RANGE"
+        
+        # 4. MOMENTUM (İlk yarı vs Son yarı karşılaştırması)
+        mid = len(subset) // 2
+        first_half_change = abs(subset[mid] - subset[0]) / subset[0] if subset[0] != 0 else 0
+        second_half_change = abs(subset[-1] - subset[mid]) / subset[mid] if subset[mid] != 0 else 0
+        
+        if first_half_change > 0 and second_half_change > first_half_change * 1.3:
+            momentum = "STRENGTHENING"
+        elif first_half_change > 0 and second_half_change < first_half_change * 0.7:
+            momentum = "WEAKENING"
+        else:
+            momentum = "STABLE"
+        
         return {
-            "visual": visual_vector,
-            "semantic": semantic_summary,
-            "critical_points": ", ".join(critical_points),
-            "trend_slope": features['slope_pct']
+            "key_level": key_level,
+            "structure": structure,
+            "momentum": momentum
         }
 
     def _calculate_pivots(self, df: pd.DataFrame, periods: int = 24) -> Dict[str, float]:
@@ -386,7 +428,9 @@ class RealMarketData:
             indicators['price_series'] = close_prices.iloc[-hist_len:].round(4).where(pd.notna, None).tolist()
 
             # Enhanced Context Integration (Sparklines, Pivots, Tags)
-            indicators['smart_sparkline'] = self._generate_smart_sparkline(close_prices, period=24) # ✅ Smart Sparkline Added
+            # Smart Sparkline v2.1: Only for HTF (1h) - more meaningful S/R levels
+            if interval == HTF_INTERVAL:
+                indicators['smart_sparkline'] = self._generate_smart_sparkline(close_prices, period=24)
             indicators['pivots'] = self._calculate_pivots(df, periods=24)
             indicators['tags'] = self._generate_tags(indicators)
 
