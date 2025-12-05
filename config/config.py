@@ -33,6 +33,7 @@ class Config:
     MAX_LEVERAGE: int = int(os.getenv('MAX_LEVERAGE', '20'))  # Nof1ai blog: 20x leverage for medium risk
     MIN_CONFIDENCE: float = float(os.getenv('MIN_CONFIDENCE', '0.4'))  # Nof1ai blog: medium risk
     MAX_POSITIONS: int = int(os.getenv('MAX_POSITIONS', '5'))  # Nof1ai blog: 2-3 positions, but system uses 5
+    RISK_PER_TRADE_USD: float = float(os.getenv('RISK_PER_TRADE_USD', '3.0'))  # Fixed dollar risk per trade
     
     # Smart Cooldown Settings
     SMART_COOLDOWN_LOSS: int = int(os.getenv('SMART_COOLDOWN_LOSS', '4'))
