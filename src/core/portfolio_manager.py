@@ -448,16 +448,8 @@ class PortfolioManager:
                 # Calculate and save kademeli stop loss to exit_plan (for 30-second monitoring)
                 # No Binance orders - all TP/SL decisions made by 30-second monitoring loop (like simulation mode)
                 if executed_qty > 0:
-                    # Calculate margin-based stop loss using kademeli loss cutting
-                    loss_multiplier = 0.03  # Default: %3 for margin >= 50
-                    if margin_usd < 30:
-                        loss_multiplier = 0.07  # %7 for margin < 30
-                    elif margin_usd < 40:
-                        loss_multiplier = 0.05  # %5 for margin 30-40
-                    elif margin_usd < 50:
-                        loss_multiplier = 0.05  # %5 for margin 40-50
-                    else:
-                        loss_multiplier = 0.03  # %3 for margin >= 50
+                    # Calculate margin-based stop loss using graduated loss cutting
+                    loss_multiplier = self.get_graduated_loss_multiplier(margin_usd)
                     
                     loss_threshold_usd = margin_usd * loss_multiplier
                     
@@ -1621,16 +1613,8 @@ class PortfolioManager:
                 # If no exit_plan stop_loss or it didn't trigger, check margin-based kademeli stop loss
                 # Only check if margin_used is valid (> 0)
                 if close_reason is None and quantity > 0 and margin_used > 0:
-                    # Calculate margin-based stop loss using kademeli loss cutting (same as entry)
-                    loss_multiplier = 0.03  # Default: %3 for margin >= 50
-                    if margin_used < 30:
-                        loss_multiplier = 0.07  # %7 for margin < 30
-                    elif margin_used < 40:
-                        loss_multiplier = 0.05  # %5 for margin 30-40
-                    elif margin_used < 50:
-                        loss_multiplier = 0.05  # %5 for margin 40-50
-                    else:
-                        loss_multiplier = 0.03  # %3 for margin >= 50
+                    # Calculate margin-based stop loss using graduated loss cutting (same as entry)
+                    loss_multiplier = self.get_graduated_loss_multiplier(margin_used)
                     
                     loss_threshold_usd = margin_used * loss_multiplier
                     
@@ -1818,16 +1802,7 @@ class PortfolioManager:
                 'take3': 0.75     # %75 profit al
             }
 
-    def get_dynamic_stop_loss_percentage(self, total_portfolio_value: float) -> float:
-        """Get dynamic stop-loss percentage based on portfolio value"""
-        if total_portfolio_value < 300:
-            return 0.07  # %1.0
-        elif total_portfolio_value < 400:
-            return 0.006 # %0.8
-        elif total_portfolio_value < 500:
-            return 0.005 # %0.7
-        else:
-            return 0.004 # %0.5
+
 
     def enhanced_exit_strategy(self, position: Dict, current_price: float) -> Dict[str, Any]:
         """Enhanced exit strategy with dynamic profit taking and KADEMELİ loss cutting"""
@@ -1847,7 +1822,7 @@ class PortfolioManager:
         margin_used = position.get('margin_usd', position.get('notional_usd', 0) / max(position.get('leverage', 1), 1))
         loss_cycle_count = position.get('loss_cycle_count', 0)
         unrealized_pnl = position.get('unrealized_pnl', 0)
-        if loss_cycle_count >= 10 and unrealized_pnl <= 0:
+        if loss_cycle_count >= Config.EXTENDED_LOSS_CYCLES and unrealized_pnl <= 0:
             reason = f"Position negative for {loss_cycle_count} cycles"
             print(f"⏳ Extended loss exit: {position['symbol']} {direction} closed ({reason}).")
             return {"action": "close_position", "reason": reason}
@@ -1856,17 +1831,7 @@ class PortfolioManager:
         # --- KADEMELİ LOSS CUTTING MEKANİZMASI (Margin tabanlı) ---
         # Relaxed for Volatility Sizing: Acts as "Disaster Stop" only.
         # Primary risk is controlled by Position Sizing ($3 risk).
-        loss_multiplier = 0.30  # Default: %30 for margin >= 50
-        if margin_used < 20:
-            loss_multiplier = 0.50  # %50 for margin < 20 (Allows wide stops)
-        elif margin_used < 30:
-            loss_multiplier = 0.45  # %45 for margin 20-30
-        elif margin_used < 40:
-            loss_multiplier = 0.40  # %40 for margin 30-40
-        elif margin_used < 50:
-            loss_multiplier = 0.35  # %35 for margin 40-50
-        else:
-            loss_multiplier = 0.30  # %30 for margin >= 50
+        loss_multiplier = self.get_graduated_loss_multiplier(margin_used)
 
         loss_threshold_usd = margin_used * loss_multiplier
         
@@ -2638,6 +2603,22 @@ class PortfolioManager:
 
         print(f"📊 Volatility Sizing: Risk ${risk_amount} | Stop {dist_pct*100:.2f}% | Base Notional ${base_notional:.1f} | Conf {confidence:.2f} -> Margin ${target_margin:.2f}")
         return target_margin
+
+    def get_graduated_loss_multiplier(self, margin_usd: float) -> float:
+        """
+        Calculate the loss multiplier based on margin size.
+        Relaxed for Volatility Sizing: Acts as "Disaster Stop" only.
+        """
+        if margin_usd < 20:
+            return 0.50  # %50 for margin < 20 (Allows wide stops)
+        elif margin_usd < 30:
+            return 0.45  # %45 for margin 20-30
+        elif margin_usd < 40:
+            return 0.40  # %40 for margin 30-40
+        elif margin_usd < 50:
+            return 0.35  # %35 for margin 40-50
+        else:
+            return 0.30  # %30 for margin >= 50
 
     def get_volume_threshold(self, market_regime: str, signal: str) -> float:
         """Get volume threshold based on market regime and signal type"""

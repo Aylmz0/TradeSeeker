@@ -250,7 +250,23 @@ def get_market_data_schema() -> Dict[str, Any]:
                                     "ema20": {"type": ["number", "null"]},
                                     "rsi": {"type": ["number", "null"]},
                                     "macd": {"type": ["number", "null"]},
-                                    "atr": {"type": ["number", "null"]}
+                                    "atr": {"type": ["number", "null"]},
+                                    "smart_sparkline": {
+                                        "type": ["object", "null"],
+                                        "properties": {
+                                            "key_level": {
+                                                "type": ["object", "null"],
+                                                "properties": {
+                                                    "type": {"type": "string", "enum": ["support", "resistance"]},
+                                                    "level": {"type": "number"},
+                                                    "strength": {"type": "integer", "minimum": 1, "maximum": 5},
+                                                    "distance_pct": {"type": "number"}
+                                                }
+                                            },
+                                            "structure": {"type": "string", "enum": ["HH_HL", "LH_LL", "RANGE", "UNCLEAR"]},
+                                            "momentum": {"type": "string", "enum": ["STRENGTHENING", "STABLE", "WEAKENING"]}
+                                        }
+                                    }
                                 }
                             },
                             "series": {
