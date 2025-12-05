@@ -1853,17 +1853,20 @@ class PortfolioManager:
             return {"action": "close_position", "reason": reason}
         
         # --- KADEMELİ LOSS CUTTING MEKANİZMASI (Margin tabanlı) ---
-        loss_multiplier = 0.03  # Default: %3 for margin >= 50
+        # --- KADEMELİ LOSS CUTTING MEKANİZMASI (Margin tabanlı) ---
+        # Relaxed for Volatility Sizing: Acts as "Disaster Stop" only.
+        # Primary risk is controlled by Position Sizing ($3 risk).
+        loss_multiplier = 0.30  # Default: %30 for margin >= 50
         if margin_used < 20:
-            loss_multiplier = 0.08  # %8 for margin < 20
+            loss_multiplier = 0.50  # %50 for margin < 20 (Allows wide stops)
         elif margin_used < 30:
-            loss_multiplier = 0.07  # %7 for margin 20-30
+            loss_multiplier = 0.45  # %45 for margin 20-30
         elif margin_used < 40:
-            loss_multiplier = 0.06  # %6 for margin 30-40
+            loss_multiplier = 0.40  # %40 for margin 30-40
         elif margin_used < 50:
-            loss_multiplier = 0.05  # %5 for margin 40-50
+            loss_multiplier = 0.35  # %35 for margin 40-50
         else:
-            loss_multiplier = 0.04  # %4 for margin >= 50
+            loss_multiplier = 0.30  # %30 for margin >= 50
 
         loss_threshold_usd = margin_used * loss_multiplier
         
@@ -2593,16 +2596,48 @@ class PortfolioManager:
         return min(base_risk, 60.0)  # Cap at $60 maximum risk
 
 
-    def calculate_confidence_based_margin(self, confidence: float, available_cash: float) -> float:
-        """Calculate margin based on confidence level and available cash (new simplified formula)"""
-        # Max margin = 40% of available cash × confidence
-        margin = available_cash * 0.40 * confidence
+    def calculate_confidence_based_margin(self, confidence: float, available_cash: float, entry_price: float = None, stop_loss: float = None, leverage: int = 10) -> float:
+        """
+        Calculate margin based on Volatility Sizing (Fixed Risk) + Confidence.
+        Formula: Position Size = (Risk Amount / Stop Distance %) * Confidence
+        """
+        # 1. Default fallback (Old method) if data is missing
+        if entry_price is None or stop_loss is None or entry_price <= 0:
+            margin = available_cash * 0.40 * confidence
+            margin = max(margin, Config.MIN_POSITION_MARGIN_USD)
+            print(f"📊 Standard Sizing (Missing Data): ${margin:.2f} (conf: {confidence:.2f})")
+            return margin
+
+        # 2. Calculate Stop Distance %
+        dist_pct = abs(entry_price - stop_loss) / entry_price
         
-        # Apply minimum margin limit ($10)
-        margin = max(margin, Config.MIN_POSITION_MARGIN_USD)
-        
-        print(f"📊 Confidence-based margin: ${margin:.2f} (confidence: {confidence:.2f}, available cash: ${available_cash:.2f})")
-        return margin
+        # Safety: Avoid division by zero or extremely small stops (<0.2%)
+        if dist_pct < 0.002: 
+            dist_pct = 0.002 # Min 0.2% stop distance assumption
+
+        # 3. Calculate Base Position Size (Notional) for Fixed Risk
+        # Risk = Notional * Dist_Pct  =>  Notional = Risk / Dist_Pct
+        risk_amount = Config.RISK_PER_TRADE_USD
+        base_notional = risk_amount / dist_pct
+
+        # 4. Apply Confidence Scaling
+        target_notional = base_notional * confidence
+
+        # 5. Convert to Margin
+        target_margin = target_notional / leverage
+
+        # 6. Apply Limits
+        # Cap margin at 40% of available cash (Safety ceiling)
+        max_margin_cash = available_cash * 0.40
+        if target_margin > max_margin_cash:
+            print(f"⚠️ Volatility sizing capped by cash limit: ${target_margin:.2f} -> ${max_margin_cash:.2f}")
+            target_margin = max_margin_cash
+
+        # Apply minimum margin ($10)
+        target_margin = max(target_margin, Config.MIN_POSITION_MARGIN_USD)
+
+        print(f"📊 Volatility Sizing: Risk ${risk_amount} | Stop {dist_pct*100:.2f}% | Base Notional ${base_notional:.1f} | Conf {confidence:.2f} -> Margin ${target_margin:.2f}")
+        return target_margin
 
     def get_volume_threshold(self, market_regime: str, signal: str) -> float:
         """Get volume threshold based on market regime and signal type"""
@@ -2866,34 +2901,7 @@ class PortfolioManager:
             return True # Fail safe: allow exit
 
 
-    def should_enhance_short_sizing(self, coin: str) -> bool:
-        """
-        Determines if short sizing should be enhanced based on market conditions.
-        Criteria:
-        1. Market Regime is BEARISH
-        2. Coin is in a clear downtrend (Price < EMA20)
-        """
-        try:
-            # 1. Check Market Regime
-            market_regime = self.detect_market_regime_overall()
-            if market_regime != 'BEARISH':
-                return False
-                
-            # 2. Check Coin Trend
-            indicators = self.market_data.get_technical_indicators(coin, '1h')
-            if not indicators:
-                return False
-                
-            current_price = indicators.get('current_price')
-            ema_20 = indicators.get('ema_20')
-            
-            if current_price and ema_20 and current_price < ema_20:
-                return True
-                
-            return False
-        except Exception as e:
-            print(f"⚠️ Error checking enhanced short sizing for {coin}: {e}")
-            return False
+
 
     def execute_decision(
         self,
@@ -3073,13 +3081,7 @@ class PortfolioManager:
                     trade['runtime_decision'] = 'blocked_same_direction_limit'
                     continue
                 
-                # 3. Enhanced Short Sizing (increase by 15% when criteria met)
-                if signal == 'sell_to_enter':
-                    # Check enhanced short conditions
-                    if self.should_enhance_short_sizing(coin):
-                        print(f"📈 ENHANCED SHORT: increasing {coin} short exposure by 15% based on conditions")
-                        if 'quantity_usd' in trade:
-                            trade['quantity_usd'] *= Config.SHORT_ENHANCEMENT_MULTIPLIER
+
                 
                 # 4. Coin-specific dynamic stop-loss adjustment
                 stop_loss = trade.get('stop_loss')
@@ -3339,7 +3341,13 @@ class PortfolioManager:
                 
                 # Use dynamic confidence-based margin calculation instead of AI's quantity_usd
                 # This ensures position sizing is ratio-based and dynamic
-                calculated_margin = self.calculate_confidence_based_margin(confidence, self.current_balance)
+                calculated_margin = self.calculate_confidence_based_margin(
+                    confidence, 
+                    self.current_balance,
+                    entry_price=current_price,
+                    stop_loss=trade.get('stop_loss'),
+                    leverage=leverage
+                )
                 
                 # Apply market regime multiplier
                 calculated_margin *= market_regime_multiplier
