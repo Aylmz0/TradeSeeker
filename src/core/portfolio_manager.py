@@ -1280,9 +1280,18 @@ class PortfolioManager:
         pos['erosion_from_peak'] = round(erosion_from_peak, 4)
         pos['erosion_pct'] = round(erosion_pct, 2)
         
+        # Minimum meaningful profit threshold (10% of risk_usd)
+        # Small profits are normal fluctuation, not worth triggering erosion alerts
+        risk_usd = pos.get('risk_usd', 1.0)
+        if isinstance(risk_usd, str):  # Handle 'N/A' case
+            risk_usd = 1.0
+        min_meaningful_profit = max(risk_usd * 0.1, 0.30)  # At least 10% of risk or $0.30
+        
         # Determine erosion status
         if peak_pnl <= 0:
             pos['erosion_status'] = "NONE"  # Never had profit
+        elif peak_pnl < min_meaningful_profit:
+            pos['erosion_status'] = "NONE"  # Profit too small to matter
         elif erosion_pct < 20:
             pos['erosion_status'] = "NONE"
         elif erosion_pct < 50:
