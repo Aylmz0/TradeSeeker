@@ -202,6 +202,15 @@ def build_trend_reversal_json(
         trend_3m = analysis.get('current_trend_3m', 'UNKNOWN')
         trend_15m = analysis.get('current_trend_15m', None)  # May not be available
         
+        # Check if this is a counter-trend position
+        # Counter-trend: position direction is OPPOSITE to HTF trend at entry
+        is_counter_trend = False
+        if has_position and position_direction and position:
+            trend_alignment = position.get('trend_alignment', 'trend_following')
+            trend_context = position.get('trend_context', {})
+            if trend_alignment == 'counter_trend' or trend_context.get('alignment') == 'counter_trend':
+                is_counter_trend = True
+        
         # Detect reversal against position direction
         htf_reversal = False
         fifteen_m_reversal = False
@@ -222,24 +231,39 @@ def build_trend_reversal_json(
                     fifteen_m_reversal = True
         
         # Map reversal strength based on 15m and 3m reversal detection (15m > 3m priority)
-        if fifteen_m_reversal and three_m_reversal:
-            strength = "STRONG"  # Both 15m and 3m show reversal
-        elif fifteen_m_reversal:
-            strength = "MEDIUM"  # Only 15m shows reversal (more reliable)
-        elif three_m_reversal:
-            strength = "INFORMATIONAL"  # Only 3m shows reversal (may be noise)
+        # IMPORTANT: For counter-trend positions, htf_reversal is expected (was already against at entry)
+        # So we only consider 15m and 3m for strength calculation
+        if is_counter_trend:
+            # Counter-trend: ignore htf_reversal, only look at 15m/3m
+            if fifteen_m_reversal and three_m_reversal:
+                strength = "STRONG"  # Both 15m and 3m reversed - trend flip happening
+            elif fifteen_m_reversal:
+                strength = "MEDIUM"  # 15m reversed against counter-trend position
+            elif three_m_reversal:
+                strength = "INFORMATIONAL"  # Only 3m, may be noise
+            else:
+                strength = "NONE"  # htf_reversal alone doesn't count for counter-trend
         else:
-            strength = "NONE"
+            # Trend-following: htf_reversal matters
+            if fifteen_m_reversal and three_m_reversal:
+                strength = "STRONG"  # Both 15m and 3m show reversal
+            elif fifteen_m_reversal:
+                strength = "MEDIUM"  # Only 15m shows reversal (more reliable)
+            elif three_m_reversal:
+                strength = "INFORMATIONAL"  # Only 3m shows reversal (may be noise)
+            else:
+                strength = "NONE"
         
         reversal_list.append({
             "coin": coin,
             "has_position": has_position,
             "position_direction": position_direction,
             "position_duration_minutes": format_number_for_json(position_duration_minutes),
+            "is_counter_trend": is_counter_trend,  # Added for AI awareness
             "reversal_signals": {
-                "htf_reversal": htf_reversal,  # ✅ Dinamik detection eklendi
-                "15m_reversal": fifteen_m_reversal,  # ✅ Dinamik detection eklendi (fifteen_m → 15m)
-                "3m_reversal": three_m_reversal,  # ✅ Kısaltıldı: three_m → 3m
+                "htf_reversal": htf_reversal,  # Still reported, but interpreted differently for counter-trend
+                "15m_reversal": fifteen_m_reversal,
+                "3m_reversal": three_m_reversal,
                 "strength": strength
             },
             "loss_risk_signal": signal_strength,
