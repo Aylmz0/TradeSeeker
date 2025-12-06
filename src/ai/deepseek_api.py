@@ -40,7 +40,7 @@ class DeepSeekAPI:
                 "role": "Zero-shot systematic trading model",
                 "competition": "Alpha Arena",
                 "objective": "Maximize PnL via perpetual futures trading",
-                "assets": ["XRP", "DOGE", "ASTER", "ADA", "LINK", "SOL"],
+                "assets": ["XRP", "DOGE", "ASTER", "TRX", "LINK", "SOL"],
                 "capital_settings": {
                     "initial_balance": Config.INITIAL_BALANCE
                 }
@@ -188,7 +188,7 @@ class DeepSeekAPI:
                     "style": "Advanced Style",
                     "input_context": "Market data showing mixed signals...",
                     "output_example": {
-                        "CHAIN_OF_THOUGHTS": f"Advanced systematic analysis of all assets using {HTF_LABEL} (1h) trends, 15m momentum confirmation, and 3m entry timing.\n\nXRP: 1h bullish (price=0.54 > EMA20=0.52, RSI 62.5), 15m bullish (RSI 58), 3m bullish (RSI 60). All three timeframes aligned bullish with volume ratio 1.2x. Price near support@0.52 (tested 3x) adds confluence. Open Interest increasing. Targeting $0.56 with stop below $0.48.\n\nSOL: 1h bearish, 15m bearish, 3m bearish. Volume 0.85x (normal). Strong trend-following SHORT setup.\n\nADA: 1h bullish, 15m neutral, 3m bearish. Mixed signals, near resistance level. HOLD.\n\nDOGE: 1h bullish but RSI 72 (overbought). Momentum weakening. Waiting for pullback.\n\nLINK: Volume ratio 0.15x (< 0.20 threshold). DO NOT TRADE per hard rule.\n\nASTER: Structure=RANGE (consolidation), no clear directional edge. HOLD.",
+                        "CHAIN_OF_THOUGHTS": f"Advanced systematic analysis of all assets using {HTF_LABEL} (1h) trends, 15m momentum confirmation, and 3m entry timing.\n\nXRP: 1h bullish (price=0.54 > EMA20=0.52, RSI 62.5), 15m bullish (RSI 58), 3m bullish (RSI 60). All three timeframes aligned bullish with volume ratio 1.2x. Price near support@0.52 (tested 3x) adds confluence. Open Interest increasing. Targeting $0.56 with stop below $0.48.\n\nSOL: 1h bearish, 15m bearish, 3m bearish. Volume 0.85x (normal). Strong trend-following SHORT setup.\n\nTRX: 1h bullish, 15m neutral, 3m bearish. Mixed signals, near resistance level. HOLD.\n\nDOGE: 1h bullish but RSI 72 (overbought). Momentum weakening. Waiting for pullback.\n\nLINK: Volume ratio 0.15x (< 0.20 threshold). DO NOT TRADE per hard rule.\n\nASTER: Structure=RANGE (consolidation), no clear directional edge. HOLD.",
                         "DECISIONS": {
                             "XRP": {
                                 "signal": "buy_to_enter",
@@ -206,7 +206,7 @@ class DeepSeekAPI:
                                 "stop_loss": 198.0,
                                 "invalidation_condition": f"If {HTF_LABEL} price closes above {HTF_LABEL} EMA20 * 1.002"
                             },
-                            "ADA": { "signal": "hold" },
+                            "TRX": { "signal": "hold" },
                             "DOGE": { "signal": "hold" },
                             "LINK": { "signal": "hold" },
                             "ASTER": { "signal": "hold" }
@@ -308,7 +308,7 @@ class DeepSeekAPI:
                     "invalidation_condition": "If price closes above 199.0"
                 },
                 "XRP": { "signal": "hold" },
-                "ADA": { "signal": "hold" },
+                "TRX": { "signal": "hold" },
                 "DOGE": { "signal": "hold" },
                 "ASTER": { "signal": "hold" },
                 "LINK": { "signal": "hold" }
@@ -345,7 +345,7 @@ class DeepSeekAPI:
         """Generate safe hold decisions for all coins - Returns valid JSON string"""
         print("🛡️ Generating safe hold decisions")
         hold_decisions = {}
-        for coin in ['XRP', 'DOGE', 'ASTER', 'ADA', 'LINK', 'SOL']:
+        for coin in ['XRP', 'DOGE', 'ASTER', 'TRX', 'LINK', 'SOL']:
             hold_decisions[coin] = {"signal": "hold", "justification": "Safe mode: Holding due to API error"}
         
         safe_response = {

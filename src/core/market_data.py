@@ -18,7 +18,7 @@ class RealMarketData:
     def __init__(self):
         self.spot_url = "https://api.binance.com/api/v3"
         self.futures_url = "https://fapi.binance.com/fapi/v1"
-        self.available_coins = ['XRP', 'DOGE', 'ASTER', 'ADA', 'LINK', 'SOL']
+        self.available_coins = ['XRP', 'DOGE', 'ASTER', 'TRX', 'LINK', 'SOL']
         self.indicator_history_length = 10
         self.session = RetryManager.create_session_with_retry()
         self.preloaded_indicators: Dict[str, Dict[str, Dict[str, Any]]] = {}

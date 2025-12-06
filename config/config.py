@@ -105,7 +105,7 @@ class Config:
     
     COIN_SPECIFIC_STOP_LOSS_MULTIPLIERS: dict = {
         'SOL': 1.0,   # AI'nın SL değerine saygı duy
-        'ADA': 1.0,   # AI'nın SL değerine saygı duy
+        'TRX': 1.0,   # AI'nın SL değerine saygı duy
         'XRP': 1.0,   # AI'nın SL değerine saygı duy
         'LINK': 1.0,  # AI'nın SL değerine saygı duy
         'DOGE': 1.0,  # AI'nın SL değerine saygı duy
