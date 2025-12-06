@@ -1,4 +1,5 @@
 .env
 .venv
 __pycache__/
-data/history_backups/
+data/
+history_backups/
