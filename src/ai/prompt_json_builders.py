@@ -127,8 +127,10 @@ def build_counter_trade_json(
                 risk_level = "MEDIUM_RISK"  # STRONG alignment + High Confluence
             elif alignment_strength == "MEDIUM" and total_met >= 4:
                 risk_level = "MEDIUM_RISK"  # MEDIUM alignment + Very High Confluence
+            elif alignment_strength == "MEDIUM" and total_met >= 3:
+                risk_level = "MEDIUM_RISK"  # MEDIUM alignment + 3 conditions (relaxed)
             elif alignment_strength == "MEDIUM":
-                risk_level = "HIGH_RISK"  # Medium alignment with < 4 conditions is High Risk
+                risk_level = "HIGH_RISK"  # Medium alignment with < 3 conditions is High Risk
             else:
                 risk_level = "VERY_HIGH_RISK"
             
@@ -219,13 +221,13 @@ def build_trend_reversal_json(
                 elif position_direction == 'short' and trend_15m == 'BULLISH':
                     fifteen_m_reversal = True
         
-        # Map signal strength to reversal strength
-        if signal_strength == "HIGH_LOSS_RISK":
-            strength = "STRONG"
-        elif signal_strength == "MEDIUM_LOSS_RISK":
-            strength = "MEDIUM"
-        elif signal_strength == "LOW_LOSS_RISK":
-            strength = "INFORMATIONAL"
+        # Map reversal strength based on 15m and 3m reversal detection (15m > 3m priority)
+        if fifteen_m_reversal and three_m_reversal:
+            strength = "STRONG"  # Both 15m and 3m show reversal
+        elif fifteen_m_reversal:
+            strength = "MEDIUM"  # Only 15m shows reversal (more reliable)
+        elif three_m_reversal:
+            strength = "INFORMATIONAL"  # Only 3m shows reversal (may be noise)
         else:
             strength = "NONE"
         
@@ -536,7 +538,11 @@ def build_market_data_json(
                 "profit_target": format_number_for_json(position.get('exit_plan', {}).get('profit_target')),
                 "stop_loss": format_number_for_json(position.get('exit_plan', {}).get('stop_loss')),
                 "invalidation_condition": position.get('exit_plan', {}).get('invalidation_condition')
-            }
+            },
+            # Profit erosion tracking
+            "peak_pnl": format_number_for_json(position.get('peak_pnl', 0)),
+            "erosion_pct": format_number_for_json(position.get('erosion_pct', 0)),
+            "erosion_status": position.get('erosion_status', 'NONE')
         }
     else:
         market_data["position"] = None
