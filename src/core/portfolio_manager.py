@@ -3295,10 +3295,10 @@ class PortfolioManager:
                             # Perform validation for counter-trend trades only
                             validation_result = self.validate_counter_trade(coin, signal, indicators_3m, indicators_htf)
                             
-                            if validation_result['valid']:
-                                print(f"🚫 Counter-trend confidence {confidence:.2f} < {min_ct_conf}. Blocked for discipline.")
-                                execution_report['blocked'].append({'coin': coin, 'reason': 'counter_trend_confidence', 'confidence': confidence})
-                                trade['runtime_decision'] = 'blocked_counter_trend_confidence'
+                            if not validation_result['valid']:
+                                print(f"🚫 Counter-trend validation failed: {validation_result.get('reason', 'Unknown')}. Blocked for discipline.")
+                                execution_report['blocked'].append({'coin': coin, 'reason': 'counter_trend_validation_failed', 'confidence': confidence})
+                                trade['runtime_decision'] = 'blocked_counter_trend_validation'
                                 continue
                     else:
                         guard_active = guard_cycles_since_flip is not None and guard_cycles_since_flip <= guard_window
