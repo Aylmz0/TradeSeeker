@@ -1942,14 +1942,32 @@ Current live positions & performance:"""
         # Build JSON sections
         compact = Config.JSON_PROMPT_COMPACT
         
+        # === COOLDOWN COIN FILTERING ===
+        # Skip coins in cooldown that have no position from prompt (save tokens + focus AI)
+        # Data collection continues normally for regime calculation
+        coins_to_analyze = []
+        skipped_cooldown_coins = []
+        
+        for coin in self.market_data.available_coins:
+            has_position = coin in self.portfolio.positions
+            cooldown_cycles = coin_cooldowns.get(coin, 0)
+            
+            if cooldown_cycles > 0 and not has_position:
+                skipped_cooldown_coins.append(f"{coin}({cooldown_cycles})")
+            else:
+                coins_to_analyze.append(coin)
+        
+        if skipped_cooldown_coins:
+            print(f"⏭️ Prompt optimization: Skipped cooldown coins (no position): {skipped_cooldown_coins}")
+        
         # Metadata
         metadata_json = build_metadata_json(minutes_running, current_time, self.invocation_count)
         
-        # Counter-trade analysis
+        # Counter-trade analysis (only for tradeable coins)
         counter_trade_json = build_counter_trade_json(
             counter_trade_analysis,
             all_indicators,
-            self.market_data.available_coins,
+            coins_to_analyze,  # Filtered list
             HTF_INTERVAL
         )
         
@@ -1975,9 +1993,9 @@ Current live positions & performance:"""
         effective_limit = self.portfolio.get_effective_same_direction_limit()
         position_slot_json = build_position_slot_json(self.portfolio.positions, max_positions, same_direction_limit=effective_limit)
         
-        # Market data (per coin)
+        # Market data (per coin) - only for tradeable coins
         market_data_json = []
-        for coin in self.market_data.available_coins:
+        for coin in coins_to_analyze:  # Filtered list (excludes cooldown coins without position)
             indicators_3m = all_indicators.get(coin, {}).get('3m', {})
             indicators_15m = all_indicators.get(coin, {}).get('15m', {})
             indicators_htf = all_indicators.get(coin, {}).get(HTF_INTERVAL, {})

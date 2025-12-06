@@ -548,7 +548,7 @@ def build_market_data_json(
     if position:
         market_data["position"] = {
             "symbol": position.get('symbol', coin),
-            "direction": position.get('direction', 'long'),  # ✅ Eklendi
+            "direction": position.get('direction', 'long'),
             "quantity": format_number_for_json(position.get('quantity', 0)),
             "entry_price": format_number_for_json(position.get('entry_price', 0)),
             "current_price": format_number_for_json(position.get('current_price', 0)),
@@ -562,12 +562,17 @@ def build_market_data_json(
                 "profit_target": format_number_for_json(position.get('exit_plan', {}).get('profit_target')),
                 "stop_loss": format_number_for_json(position.get('exit_plan', {}).get('stop_loss')),
                 "invalidation_condition": position.get('exit_plan', {}).get('invalidation_condition')
-            },
-            # Profit erosion tracking
-            "peak_pnl": format_number_for_json(position.get('peak_pnl', 0)),
-            "erosion_pct": format_number_for_json(position.get('erosion_pct', 0)),
-            "erosion_status": position.get('erosion_status', 'NONE')
+            }
         }
+        # Profit erosion tracking - only send details if meaningful (not NONE)
+        # This prevents AI confusion from high erosion_pct when peak_pnl was tiny
+        erosion_status = position.get('erosion_status', 'NONE')
+        if erosion_status != 'NONE':
+            market_data["position"]["peak_pnl"] = format_number_for_json(position.get('peak_pnl', 0))
+            market_data["position"]["erosion_pct"] = format_number_for_json(position.get('erosion_pct', 0))
+            market_data["position"]["erosion_status"] = erosion_status
+        else:
+            market_data["position"]["erosion_status"] = "NONE"
     else:
         market_data["position"] = None
     

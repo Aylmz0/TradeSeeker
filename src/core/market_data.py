@@ -625,9 +625,17 @@ class RealMarketData:
         if None in [price_3m, ema20_3m, rsi_3m, macd_3m, macd_signal_3m, price_htf, ema20_htf]:
             return {'signals': [], 'strength': 'NONE'}
             
-        # Determine trends
-        trend_3m = "BULLISH" if price_3m > ema20_3m else "BEARISH"
-        trend_htf = "BULLISH" if price_htf > ema20_htf else "BEARISH"
+        # Determine trends with neutral band (matches portfolio_manager.py logic)
+        def _determine_trend(price: float, ema20: float) -> str:
+            if ema20 == 0:
+                return "UNKNOWN"
+            delta = (price - ema20) / ema20
+            if abs(delta) <= Config.EMA_NEUTRAL_BAND_PCT:
+                return "NEUTRAL"
+            return "BULLISH" if delta > 0 else "BEARISH"
+        
+        trend_3m = _determine_trend(price_3m, ema20_3m)
+        trend_htf = _determine_trend(price_htf, ema20_htf)
         
         # 1. Trend Conflict (HTF vs 3m)
         if trend_htf != trend_3m:
