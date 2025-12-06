@@ -81,10 +81,10 @@ class DeepSeekAPI:
                         "definition": f"Trade direction is OPPOSITE to {HTF_LABEL} trend.",
                         "condition": "Evaluate 'risk_level' provided in counter_trade_analysis.",
                         "risk_level_rules": {
-                            "LOW_RISK": "STRONG SIGNAL (Tier 1). 15m+3m alignment + High Confluence. EXECUTE.",
-                            "MEDIUM_RISK": "VALID SIGNAL (Tier 2). 3m alignment + Strong Volume/RSI. EXECUTE if confidence > 0.65.",
-                            "HIGH_RISK": "WEAK SIGNAL. Do NOT trade.",
-                            "VERY_HIGH_RISK": "Do NOT trade."
+                            "LOW_RISK": "STRONG alignment (15m+3m both counter) + 4+ conditions. EXECUTE.",
+                            "MEDIUM_RISK": "STRONG+3 conditions OR MEDIUM+4 conditions. EXECUTE if confidence > 0.65.",
+                            "HIGH_RISK": "MEDIUM alignment + <4 conditions. Do NOT trade.",
+                            "VERY_HIGH_RISK": "No alignment. Do NOT trade."
                         },
                         "direction_rule": "Counter-trend direction = 15m+3m direction (NOT 1h direction).",
                         "restriction": "Do NOT trade if risk_level is HIGH_RISK or VERY_HIGH_RISK."
@@ -103,8 +103,23 @@ class DeepSeekAPI:
                     },
                     "reversal_strength_definitions": {
                         "STRONG": f"15m + 3m BOTH show reversal against position (but {HTF_LABEL} doesn't). Consider closing.",
-                        "MEDIUM": "Only 3m shows reversal against position. Continue monitoring, don't overreact to noise.",
-                        "INFORMATIONAL": "Only 15m shows reversal against position. Prioritize 1h trend."
+                        "MEDIUM": "Only 15m shows reversal against position. Monitor closely, protect profits if any.",
+                        "INFORMATIONAL": "Only 3m shows reversal against position. May be noise, continue watching."
+                    },
+                    "profit_erosion_rules": {
+                        "description": "Rules for protecting profits based on peak_pnl erosion tracking",
+                        "fields": {
+                            "peak_pnl": "Highest profit reached for this position ($)",
+                            "erosion_pct": "How much of peak profit has eroded (%)",
+                            "erosion_status": "NONE (<20%), MINOR (20-50%), SIGNIFICANT (50-100%), CRITICAL (>100%)"
+                        },
+                        "actions": {
+                            "NONE": "Normal fluctuation. Continue with existing exit plan.",
+                            "MINOR": "Watch closely. Tighten mental stop if reversal signals appear.",
+                            "SIGNIFICANT": "Over 50% of peak profit eroded. Close if reversal_strength >= MEDIUM.",
+                            "CRITICAL": "Peak profit fully eroded or now losing. Close unless trend still strongly supports position."
+                        },
+                        "combined_decision": "Combine erosion_status with reversal_strength: SIGNIFICANT/CRITICAL + MEDIUM/STRONG reversal = close position."
                     }
                 },
                 "startup_behavior": {
@@ -140,8 +155,8 @@ class DeepSeekAPI:
             },
             "enhanced_context_definitions": {
                 "smart_sparkline": {
-                    "description": "HTF (1h) price pattern analysis from last 24 candles. Only included in HTF timeframe.",
-                    "key_level": "Nearest support or resistance. strength = how many times tested (1-5). distance_pct = distance from price.",
+                    "description": "Price pattern analysis. HTF (1h) includes full data (24h), 15m includes structure+momentum only (6h).",
+                    "key_level": "Nearest support or resistance (HTF only). strength = how many times tested (1-5). distance_pct = distance from price.",
                     "structure": {
                         "HH_HL": "Higher Highs + Higher Lows = Bullish structure",
                         "LH_LL": "Lower Highs + Lower Lows = Bearish structure",
@@ -149,7 +164,7 @@ class DeepSeekAPI:
                         "UNCLEAR": "No clear pattern"
                     },
                     "momentum": "STRENGTHENING (trend accelerating) | STABLE | WEAKENING (trend losing steam)",
-                    "usage": "Mention only when it adds value (e.g., 'near support tested 3x'). Do NOT mention for every coin."
+                    "usage": "Use 15m structure for shorter-term confirmation. Mention only when it adds value."
                 },
                 "tags": "Analytical labels (e.g., 'Vol_High', 'RSI_Overbought'). Use as confirmation."
             },

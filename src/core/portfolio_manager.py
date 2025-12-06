@@ -1241,6 +1241,57 @@ class PortfolioManager:
             cycle_data['metadata'] = metadata
         self.cycle_history.append(cycle_data); self.cycle_history = self.cycle_history[-self.max_cycle_history:]
         safe_file_write(self.cycle_history_file, self.cycle_history); print(f"✅ Saved cycle {cycle_number} (Total: {len(self.cycle_history)})")
+    
+    def _update_peak_pnl_tracking(self, coin: str, pos: Dict):
+        """
+        Track peak PnL and calculate erosion for a position.
+        Called after unrealized_pnl is updated in update_prices().
+        
+        Updates pos dict with:
+        - peak_pnl: Highest profit reached ($)
+        - peak_pnl_cycle: Cycle when peak was reached
+        - erosion_from_peak: How much profit has eroded ($)
+        - erosion_pct: Erosion percentage (%)
+        - erosion_status: NONE, MINOR, SIGNIFICANT, CRITICAL
+        """
+        current_pnl = pos.get('unrealized_pnl', 0.0)
+        
+        # Initialize if not exists
+        if 'peak_pnl' not in pos:
+            pos['peak_pnl'] = 0.0
+            pos['peak_pnl_cycle'] = None
+        
+        peak_pnl = pos.get('peak_pnl', 0.0)
+        
+        # Update peak if current pnl is higher (only positive peaks matter)
+        if current_pnl > peak_pnl and current_pnl > 0:
+            pos['peak_pnl'] = current_pnl
+            pos['peak_pnl_cycle'] = getattr(self, 'current_cycle', None)
+            peak_pnl = current_pnl  # Use new peak for erosion calc
+        
+        # Calculate erosion (only if there was a positive peak)
+        if peak_pnl > 0:
+            erosion_from_peak = peak_pnl - current_pnl
+            erosion_pct = (erosion_from_peak / peak_pnl) * 100
+        else:
+            erosion_from_peak = 0.0
+            erosion_pct = 0.0
+        
+        pos['erosion_from_peak'] = round(erosion_from_peak, 4)
+        pos['erosion_pct'] = round(erosion_pct, 2)
+        
+        # Determine erosion status
+        if peak_pnl <= 0:
+            pos['erosion_status'] = "NONE"  # Never had profit
+        elif erosion_pct < 20:
+            pos['erosion_status'] = "NONE"
+        elif erosion_pct < 50:
+            pos['erosion_status'] = "MINOR"
+        elif erosion_pct < 100:
+            pos['erosion_status'] = "SIGNIFICANT"
+        else:
+            pos['erosion_status'] = "CRITICAL"  # Profit fully eroded or now losing
+
     def update_prices(self, new_prices: Dict[str, float], increment_loss_counters: bool = True):
         """Updates prices and recalculates total value."""
         total_unrealized_pnl = 0.0
@@ -1293,6 +1344,9 @@ class PortfolioManager:
                     pos['unrealized_pnl'] = pnl
                 
                 total_unrealized_pnl += pos.get('unrealized_pnl', 0.0)
+                
+                # Track peak PnL and calculate erosion
+                self._update_peak_pnl_tracking(coin, pos)
                 
                 if increment_loss_counters:
                     direction = pos.get('direction', 'unknown')
@@ -3195,7 +3249,7 @@ class PortfolioManager:
                             if guard_active:
                                 # FIXED: Confidence threshold DECREASES over time (stricter → more relaxed)
                                 if guard_cycles_since_flip == 0:
-                                    min_conf = 0.70  # Strictest: same cycle as flip
+                                    min_conf = 0.65  # Strictest: same cycle as flip (reduced from 0.70)
                                     if confidence < min_conf:
                                         print(f"🚫 Flip guard confidence floor: {coin} {signal} confidence {confidence:.2f} < {min_conf:.2f} in same cycle after flip.")
                                         execution_report['blocked'].append({'coin': coin, 'reason': 'trend_flip_guard_confidence', 'classification': trend_classification})
@@ -3204,7 +3258,7 @@ class PortfolioManager:
                                     partial_margin_factor = min(partial_margin_factor, 0.5)
                                     print(f"⏳ Trend flip guard: {coin} sizing capped at 50% in same-cycle counter-trend attempt (confidence {confidence:.2f}).")
                                 elif guard_cycles_since_flip == 1:
-                                    min_conf = 0.65  # More relaxed: one cycle after flip
+                                    min_conf = 0.60  # More relaxed: one cycle after flip (reduced from 0.65)
                                     if confidence < min_conf:
                                         print(f"🚫 Flip guard confidence floor: {coin} {signal} confidence {confidence:.2f} < {min_conf:.2f} one cycle after flip.")
                                         execution_report['blocked'].append({'coin': coin, 'reason': 'trend_flip_guard_confidence', 'classification': trend_classification})
@@ -3213,7 +3267,7 @@ class PortfolioManager:
                                     partial_margin_factor = min(partial_margin_factor, 0.7)
                                     print(f"⏳ Trend flip guard (counter-trend): {coin} sizing capped at 70% one cycle after flip.")
                                 elif guard_cycles_since_flip == 2:
-                                    min_conf = 0.60  # Most relaxed: two cycles after flip
+                                    min_conf = 0.55  # Most relaxed: two cycles after flip (reduced from 0.60)
                                     if confidence < min_conf:
                                         print(f"🚫 Flip guard confidence floor: {coin} {signal} confidence {confidence:.2f} < {min_conf:.2f} two cycles after flip.")
                                         execution_report['blocked'].append({'coin': coin, 'reason': 'trend_flip_guard_confidence', 'classification': trend_classification})

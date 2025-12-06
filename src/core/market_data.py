@@ -428,9 +428,16 @@ class RealMarketData:
             indicators['price_series'] = close_prices.iloc[-hist_len:].round(4).where(pd.notna, None).tolist()
 
             # Enhanced Context Integration (Sparklines, Pivots, Tags)
-            # Smart Sparkline v2.1: Only for HTF (1h) - more meaningful S/R levels
+            # Smart Sparkline v2.1: HTF (1h) gets full data, 15m gets structure+momentum only
             if interval == HTF_INTERVAL:
                 indicators['smart_sparkline'] = self._generate_smart_sparkline(close_prices, period=24)
+            elif interval == '15m':
+                # 15m: Only structure and momentum (no key_level for token efficiency)
+                full_sparkline = self._generate_smart_sparkline(close_prices, period=24)
+                indicators['smart_sparkline'] = {
+                    "structure": full_sparkline.get("structure", "UNCLEAR"),
+                    "momentum": full_sparkline.get("momentum", "STABLE")
+                }
             indicators['pivots'] = self._calculate_pivots(df, periods=24)
             indicators['tags'] = self._generate_tags(indicators)
 
