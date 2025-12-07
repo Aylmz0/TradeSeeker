@@ -17,20 +17,31 @@ MAX_RETRY_ATTEMPTS=3
 REQUEST_TIMEOUT=30
 
 # Trading Configuration
-INITIAL_BALANCE=200.0
+INITIAL_BALANCE=500.0
+MAX_TRADE_NOTIONAL_USD=800
 CYCLE_INTERVAL_MINUTES=2
 HISTORY_RESET_INTERVAL=35
+MAX_CYCLES=0  # 0 = unlimited, >0 = stop at this cycle
 
 # Risk Management Configuration
 MAX_LEVERAGE=20
 MIN_CONFIDENCE=0.4
-MAX_POSITIONS=4
+MAX_POSITIONS=5
 RISK_LEVEL=medium
-SAME_DIRECTION_LIMIT=4
-DYNAMIC_DIRECTION_LIMIT=3
-MIN_POSITION_MARGIN_USD=15.0
-MIN_POSITION_CLEANUP_THRESHOLD=5.0
-MIN_PARTIAL_PROFIT_MARGIN_REMAINING_USD=15.0
+RISK_PER_TRADE_USD=7.5
+SAME_DIRECTION_LIMIT=2
+DYNAMIC_DIRECTION_LIMIT=2
+
+# Smart Cooldown Settings
+SMART_COOLDOWN_LOSS=4
+SMART_COOLDOWN_WIN=2
+EXTENDED_LOSS_CYCLES=15
+
+# Position Size Configuration (Margin-based)
+MIN_POSITION_MARGIN_USD=25.0
+MIN_POSITION_CLEANUP_THRESHOLD=12.5
+MIN_PARTIAL_PROFIT_MARGIN_REMAINING_USD=40.0
+MAXIMUM_LIMIT_BALANCE_PCT=0.08
 
 # Exit Plan Defaults
 DEFAULT_STOP_LOSS_PCT=0.01
@@ -50,6 +61,10 @@ TRAILING_MIN_IMPROVEMENT_PCT=0.0005
 # Higher Timeframe Trend Settings
 HTF_INTERVAL=1h  # Options: 30m, 1h, 2h, 4h (default 1h)
 
+# RSI Thresholds
+RSI_OVERBOUGHT_THRESHOLD=70.0
+RSI_OVERSOLD_THRESHOLD=30.0
+
 # Enhanced Trading Settings
 SHORT_ENHANCEMENT_MULTIPLIER=1.15
 EMA_NEUTRAL_BAND_PCT=0.0015
@@ -64,11 +79,37 @@ DIRECTIONAL_BULLISH_SHORT_MULTIPLIER=0.90
 DIRECTIONAL_BEARISH_LONG_MULTIPLIER=0.90
 DIRECTIONAL_BEARISH_SHORT_MULTIPLIER=1.00
 
-# JSON Prompt Feature Flags (New in v1.0)
-USE_JSON_PROMPT=false  # Enable JSON format prompts (true/false)
+# Choppy Market Detection
+CHOPPY_ER_THRESHOLD=0.30
+CHOPPY_COIN_RATIO_MIN=0.5
+CHOPPY_LEVERAGE=5
+CHOPPY_TP_LONG_MULTIPLIER=1.004
+CHOPPY_TP_SHORT_MULTIPLIER=0.996
+CHOPPY_SL_LONG_MULTIPLIER=0.994
+CHOPPY_SL_SHORT_MULTIPLIER=1.006
+CHOPPY_TP_SL_MULTIPLIER=0.004
+CHOPPY_HIGH_ER_EXCEPTION=0.45
+
+# ATR-Based Dynamic TP/SL
+ATR_TP_MULTIPLIER=2.0
+ATR_SL_MULTIPLIER=1.5
+
+# Flash Exit Settings (V-Reversal Protection)
+FLASH_EXIT_ENABLED=true
+FLASH_EXIT_RSI_DELTA_MIN=15.0
+FLASH_EXIT_VOLUME_SURGE_MIN=3.0
+FLASH_EXIT_LOSS_TRIGGER_MULTIPLIER=1.002
+
+# JSON Prompt Feature Flags
+USE_JSON_PROMPT=true  # Enable JSON format prompts (true/false)
 JSON_PROMPT_COMPACT=true  # Use compact JSON format to save tokens (true/false) - Recommended: true
 VALIDATE_JSON_PROMPTS=false  # Enable runtime JSON validation (true/false)
 JSON_PROMPT_VERSION=1.0  # JSON prompt format version
-JSON_SERIES_MAX_LENGTH=50  # Maximum series length before compression (default: 50)
+JSON_SERIES_MAX_LENGTH=30  # Maximum series length before compression (default: 50)
 JSON_CACHE_ENABLED=false  # Enable JSON serialization cache (true/false)
-JSON_CACHE_TTL=240  # Cache TTL in seconds (4 minutes = 1 cycle, adjust based on actual cycle duration)
+JSON_CACHE_TTL=240  # Cache TTL in seconds (4 minutes = 1 cycle)
+
+# Smart Indicator Cache (New)
+USE_SMART_CACHE=true  # Enable smart TTL cache for 15m and HTF indicators (true/false)
+SMART_CACHE_SAFETY_MARGIN=0.85  # Safety margin for TTL calculation (85% of candle duration)
+SMART_CACHE_STATS_LOGGING=true  # Print cache statistics after each cycle (true/false)
