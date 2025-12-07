@@ -301,13 +301,13 @@ class AlphaArenaDeepSeek:
             else:
                 conditions_details.append("❌ 3m trend misalignment")
             
-            # Condition 2: Volume confirmation (>1.5x average)
+            # Condition 2: Volume confirmation (>1.0x average)
             volume_ratio = volume_3m / avg_volume_3m if avg_volume_3m > 0 else 0
-            if volume_ratio > 1.5:
+            if volume_ratio > 1.0:
                 conditions_met += 1
                 conditions_details.append(f"✅ Volume {volume_ratio:.1f}x average")
             else:
-                conditions_details.append(f"❌ Volume {volume_ratio:.1f}x average (need >1.5x)")
+                conditions_details.append(f"❌ Volume {volume_ratio:.1f}x average (need >1.0x)")
             
             # Condition 3: Extreme RSI
             if (trend_htf == "BULLISH" and rsi_3m < 25) or (trend_htf == "BEARISH" and rsi_3m > 75):
@@ -1186,13 +1186,13 @@ class AlphaArenaDeepSeek:
                 else:
                     conditions_details.append("❌ Trend alignment weak")
                 
-                # Condition 2: Volume confirmation (>1.5x average)
+                # Condition 2: Volume confirmation (>1.0x average)
                 volume_ratio = volume_3m / avg_volume_3m if avg_volume_3m > 0 else 0
-                if volume_ratio > 1.5:
+                if volume_ratio > 1.0:
                     conditions_met += 1
                     conditions_details.append(f"✅ Volume {volume_ratio:.1f}x average")
                 else:
-                    conditions_details.append(f"❌ Volume {volume_ratio:.1f}x average (need >1.5x)")
+                    conditions_details.append(f"❌ Volume {volume_ratio:.1f}x average (need >1.0x)")
                 
                 # Condition 3: Extreme RSI
                 # If Bullish trend, we want to Short -> Need Overbought (>75)
@@ -2871,8 +2871,11 @@ All market data is provided in JSON format below. Each coin contains:
         self.start_tp_sl_monitoring()
 
         end_time = datetime.now() + timedelta(hours=total_duration_hours)
-        start_cycle = len(self.portfolio.cycle_history) + 1
-        print(f"   Resuming from Cycle {start_cycle}...")
+        # Calculate correct cycle number: reset_cycle + cycles_since_reset
+        last_reset = getattr(self.portfolio, 'last_history_reset_cycle', 0) or 0
+        cycles_since_reset = len(self.portfolio.cycle_history)
+        start_cycle = last_reset + cycles_since_reset + 1
+        print(f"   Resuming from Cycle {start_cycle}... (last reset: {last_reset}, cycles since: {cycles_since_reset})")
         self.invocation_count = start_cycle - 1; current_cycle_number = start_cycle - 1
 
         # Initialize bot control file

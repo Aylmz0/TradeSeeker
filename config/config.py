@@ -125,6 +125,7 @@ class Config:
     
     # Partial Profit Taking Configuration (Margin-based)
     MIN_PARTIAL_PROFIT_MARGIN_REMAINING_USD: float = float(os.getenv('MIN_PARTIAL_PROFIT_MARGIN_REMAINING_USD', '15.0'))  # Minimum $15 margin kalacak şekilde satış
+    MAXIMUM_LIMIT_BALANCE_PCT: float = float(os.getenv('MAXIMUM_LIMIT_BALANCE_PCT', '0.08'))  # %8 of current balance for max limit calculation
 
     # Exit Plan Defaults
     DEFAULT_STOP_LOSS_PCT: float = float(os.getenv('DEFAULT_STOP_LOSS_PCT', '0.01'))  # 1% default SL buffer

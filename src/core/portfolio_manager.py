@@ -1807,9 +1807,19 @@ class PortfolioManager:
         if notional_usd < Config.INITIAL_BALANCE:
             # Small positions: aggressive profit taking
             return {
-                'level1': 0.006,  # %0.7
-                'level2': 0.007,  # %0.9
-                'level3': 0.08,  # %1.1
+                'level1': 0.008,  # %0.7
+                'level2': 0.009,  # %0.9
+                'level3': 0.01,  # %1.1
+                'take1': 0.25,    # %25 profit al
+                'take2': 0.50,    # %50 profit al
+                'take3': 0.75     # %75 profit al
+            }
+        elif notional_usd < 200:
+            # Medium positions: balanced profit taking
+            return {
+                'level1': 0.007,  # %0.7
+                'level2': 0.008,  # %0.9
+                'level3': 0.009,  # %1.1
                 'take1': 0.25,    # %25 profit al
                 'take2': 0.50,    # %50 profit al
                 'take3': 0.75     # %75 profit al
@@ -1817,9 +1827,9 @@ class PortfolioManager:
         elif notional_usd < 300:
             # Medium positions: balanced profit taking
             return {
-                'level1': 0.005,  # %0.7
-                'level2': 0.006,  # %0.9
-                'level3': 0.007,  # %1.1
+                'level1': 0.006,  # %0.7
+                'level2': 0.007,  # %0.9
+                'level3': 0.008,  # %1.1
                 'take1': 0.25,    # %25 profit al
                 'take2': 0.50,    # %50 profit al
                 'take3': 0.75     # %75 profit al
@@ -1827,9 +1837,9 @@ class PortfolioManager:
         elif notional_usd < 400:
             # Large positions: conservative profit taking
             return {
-                'level1': 0.004,  # %0.6
-                'level2': 0.005,  # %0.8
-                'level3': 0.006,  # %1.0
+                'level1': 0.005,  # %0.6
+                'level2': 0.006,  # %0.8
+                'level3': 0.007,  # %1.0
                 'take1': 0.25,    # %25 profit al
                 'take2': 0.50,    # %50 profit al
                 'take3': 0.75     # %75 profit al
@@ -1837,9 +1847,9 @@ class PortfolioManager:
         elif notional_usd < 500:
             # xLarge positions: conservative profit taking
             return {
-                'level1': 0.003,  # %0.5
-                'level2': 0.004,  # %0.7
-                'level3': 0.005,  # %0.9
+                'level1': 0.004,  # %0.5
+                'level2': 0.005,  # %0.7
+                'level3': 0.006,  # %0.9
                 'take1': 0.25,    # %25 profit al
                 'take2': 0.50,    # %50 profit al
                 'take3': 0.75     # %75 profit al
@@ -1847,9 +1857,9 @@ class PortfolioManager:
         elif notional_usd < 600:
             # xxLarge positions: conservative profit taking
             return {
-                'level1': 0.002,  # %0.
-                'level2': 0.003,  # %0.6
-                'level3': 0.004,  # %0.8
+                'level1': 0.003,  # %0.
+                'level2': 0.004,  # %0.6
+                'level3': 0.005,  # %0.8
                 'take1': 0.25,    # %25 profit al
                 'take2': 0.50,    # %50 profit al
                 'take3': 0.75     # %75 profit al
@@ -1858,8 +1868,8 @@ class PortfolioManager:
             # Very large positions: very conservative profit taking
             return {
                 'level1': 0.002,  # %0.3
-                'level2': 0.004,  # %0.5
-                'level3': 0.006,  # %0.7
+                'level2': 0.003,  # %0.5
+                'level3': 0.004,  # %0.7
                 'take1': 0.25,    # %25 profit al
                 'take2': 0.50,    # %50 profit al
                 'take3': 0.75     # %75 profit al
@@ -2300,12 +2310,12 @@ class PortfolioManager:
             self.execute_decision(decisions_to_execute, valid_prices, indicator_cache=indicator_cache)
 
     def _calculate_maximum_limit(self) -> float:
-        """Calculate maximum limit: Configured value OR 15% of available cash, whichever is larger"""
-        max_from_percentage = self.current_balance * 0.15
+        """Calculate maximum limit: Configured value OR Config.MAXIMUM_LIMIT_BALANCE_PCT of available cash, whichever is larger"""
+        max_from_percentage = self.current_balance * Config.MAXIMUM_LIMIT_BALANCE_PCT
         # Use configured value instead of hardcoded 15.0
         min_limit = Config.MIN_PARTIAL_PROFIT_MARGIN_REMAINING_USD
         max_limit = max(min_limit, max_from_percentage)
-        print(f"📊 Maximum limit: ${max_limit:.2f} (${min_limit} fixed vs ${max_from_percentage:.2f} 15% of ${self.current_balance:.2f} available cash)")
+        print(f"📊 Maximum limit: ${max_limit:.2f} (${min_limit} fixed vs ${max_from_percentage:.2f} {Config.MAXIMUM_LIMIT_BALANCE_PCT*100:.1f}% of ${self.current_balance:.2f} available cash)")
         return max_limit
 
 
@@ -2394,26 +2404,39 @@ class PortfolioManager:
             price_3m = indicators_3m.get('current_price')
             ema20_3m = indicators_3m.get('ema_20')
             
-            # Determine higher timeframe trend direction
-            trend_htf = "BULLISH" if price_htf > ema20_htf else "BEARISH"
+            # Helper function to determine trend with NEUTRAL BAND
+            # This matches the logic in update_trend_state for consistency
+            def _determine_trend(price, ema20):
+                if not isinstance(price, (int, float)) or not isinstance(ema20, (int, float)) or ema20 == 0:
+                    return "NEUTRAL"
+                delta = (price - ema20) / ema20
+                if abs(delta) <= Config.EMA_NEUTRAL_BAND_PCT:
+                    return "NEUTRAL"
+                return "BULLISH" if delta > 0 else "BEARISH"
             
-            # Determine 3m trend direction
-            trend_3m = "BULLISH" if price_3m > ema20_3m else "BEARISH"
+            # Determine higher timeframe trend direction WITH NEUTRAL BAND
+            trend_htf = _determine_trend(price_htf, ema20_htf)
             
-            # Determine 15m trend direction (if available)
+            # Determine 3m trend direction WITH NEUTRAL BAND
+            trend_3m = _determine_trend(price_3m, ema20_3m)
+            
+            # Determine 15m trend direction (if available) WITH NEUTRAL BAND
             trend_15m = None
             if indicators_15m:
                 price_15m = indicators_15m.get('current_price')
                 ema20_15m = indicators_15m.get('ema_20')
-                if isinstance(price_15m, (int, float)) and isinstance(ema20_15m, (int, float)):
-                    trend_15m = "BULLISH" if price_15m > ema20_15m else "BEARISH"
+                trend_15m = _determine_trend(price_15m, ema20_15m)
             
             # Determine signal direction
             signal_direction = "BULLISH" if signal == 'buy_to_enter' else "BEARISH"
             
             # Check if trade is counter-trend (signal vs higher timeframe trend)
+            # NEUTRAL trend is NOT counter-trend - this allows trades when price is close to EMA
             is_counter_trend = False
-            if signal == 'buy_to_enter' and trend_htf == "BEARISH":
+            if trend_htf == "NEUTRAL":
+                # When HTF is neutral, trade is NOT counter-trend regardless of signal
+                is_counter_trend = False
+            elif signal == 'buy_to_enter' and trend_htf == "BEARISH":
                 is_counter_trend = True  # Long against bearish higher timeframe trend
             elif signal == 'sell_to_enter' and trend_htf == "BULLISH":
                 is_counter_trend = True  # Short against bullish higher timeframe trend
