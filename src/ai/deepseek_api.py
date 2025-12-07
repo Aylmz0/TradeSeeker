@@ -155,7 +155,7 @@ class DeepSeekAPI:
             },
             "enhanced_context_definitions": {
                 "smart_sparkline": {
-                    "description": "Price pattern analysis. HTF (1h) includes full data (24h), 15m includes structure+momentum only (6h).",
+                    "description": "Price pattern analysis. HTF (1h) includes full data (24h), 15m includes structure+momentum+price_location (6h).",
                     "key_level": "Nearest support or resistance (HTF only). strength = how many times tested (1-5). distance_pct = distance from price.",
                     "structure": {
                         "HH_HL": "Higher Highs + Higher Lows = Bullish structure",
@@ -164,7 +164,17 @@ class DeepSeekAPI:
                         "UNCLEAR": "No clear pattern"
                     },
                     "momentum": "STRENGTHENING (trend accelerating) | STABLE | WEAKENING (trend losing steam)",
-                    "usage": "Use 15m structure for shorter-term confirmation. Mention only when it adds value."
+                    "price_location": {
+                        "description": "Where is the current price within the period's high-low range",
+                        "zone": {
+                            "LOWER_10": "Price in bottom 10% of period range. When combined with RSI < 25, this indicates the asset may be at a short-term bottom with high bounce probability. Consider reducing SHORT confidence or waiting for confirmation.",
+                            "UPPER_10": "Price in top 10% of period range. When combined with RSI > 75, this indicates the asset may be at a short-term top with high pullback probability. Consider reducing LONG confidence or waiting for confirmation.",
+                            "MIDDLE": "Price in normal range. No extreme location-based risk."
+                        },
+                        "percentile": "0-100 scale. 0 = at period low, 100 = at period high.",
+                        "guidance": "This is NOT a hard rule. Trend can continue through support/resistance. Use price_location + RSI together to assess risk. If LOWER_10 + RSI<25, mention bounce risk in analysis. If UPPER_10 + RSI>75, mention pullback risk."
+                    },
+                    "usage": "Use 15m data for shorter-term confirmation. Check price_location on both 1h and 15m when deciding entries."
                 },
                 "tags": "Analytical labels (e.g., 'Vol_High', 'RSI_Overbought'). Use as confirmation."
             },
