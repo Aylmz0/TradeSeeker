@@ -1280,12 +1280,12 @@ class PortfolioManager:
         pos['erosion_from_peak'] = round(erosion_from_peak, 4)
         pos['erosion_pct'] = round(erosion_pct, 2)
         
-        # Minimum meaningful profit threshold (10% of risk_usd)
+        # Minimum meaningful profit threshold (7% of risk_usd)
         # Small profits are normal fluctuation, not worth triggering erosion alerts
         risk_usd = pos.get('risk_usd', 1.0)
         if isinstance(risk_usd, str):  # Handle 'N/A' case
             risk_usd = 1.0
-        min_meaningful_profit = max(risk_usd * 0.1, 0.30)  # At least 10% of risk or $0.30
+        min_meaningful_profit = max(risk_usd * 0.07, 0.20)  # At least 7% of risk or $0.20
         
         # Determine erosion status
         if peak_pnl <= 0:
@@ -1932,6 +1932,20 @@ class PortfolioManager:
             unrealized_pnl_usd = max(0.0, (current_price - entry_price) * position['quantity'])
             unrealized_pnl_percent = (unrealized_pnl_usd / notional_usd) if notional_usd else 0.0
             
+            # FIRST: Always evaluate and update trailing stop when in profit
+            # This ensures stop loss is tightened even when partial take happens
+            trailing_action = self._evaluate_trailing_stop(
+                position=position,
+                current_price=current_price,
+                profit_target=profit_target,
+                direction=direction,
+                entry_price=entry_price,
+                unrealized_pnl_percent=unrealized_pnl_percent,
+                profit_levels=profit_levels
+            )
+            # If trailing stop updated, the new stop is already saved in position['exit_plan']
+            # We don't return here - continue to check partial take
+            
             # Dynamic Profit Taking Levels based on notional size
             if unrealized_pnl_percent >= level3:  # Level 3 profit - take 75%
                 take_profit_percent = take3
@@ -1955,6 +1969,16 @@ class PortfolioManager:
                 if adjusted_percent > 0:
                     return {"action": "partial_close", "percent": adjusted_percent, "reason": f"Profit taking at {level1*100:.1f}% gain ({adjusted_percent*100:.0f}%)"}
             
+            # If trailing stop was updated but no partial take, return the trailing action
+            if trailing_action:
+                return trailing_action
+        
+        elif direction == 'short':
+            unrealized_pnl_usd = max(0.0, (entry_price - current_price) * position['quantity'])
+            unrealized_pnl_percent = (unrealized_pnl_usd / notional_usd) if notional_usd else 0.0
+            
+            # FIRST: Always evaluate and update trailing stop when in profit
+            # This ensures stop loss is tightened even when partial take happens
             trailing_action = self._evaluate_trailing_stop(
                 position=position,
                 current_price=current_price,
@@ -1964,12 +1988,8 @@ class PortfolioManager:
                 unrealized_pnl_percent=unrealized_pnl_percent,
                 profit_levels=profit_levels
             )
-            if trailing_action:
-                return trailing_action
-        
-        elif direction == 'short':
-            unrealized_pnl_usd = max(0.0, (entry_price - current_price) * position['quantity'])
-            unrealized_pnl_percent = (unrealized_pnl_usd / notional_usd) if notional_usd else 0.0
+            # If trailing stop updated, the new stop is already saved in position['exit_plan']
+            # We don't return here - continue to check partial take
             
             # Dynamic Profit Taking Levels for shorts based on notional size
             if unrealized_pnl_percent >= level3:  # Level 3 profit - take 75%
@@ -1994,15 +2014,7 @@ class PortfolioManager:
                 if adjusted_percent > 0:
                     return {"action": "partial_close", "percent": adjusted_percent, "reason": f"Profit taking at {level1*100:.1f}% gain ({adjusted_percent*100:.0f}%)"}
             
-            trailing_action = self._evaluate_trailing_stop(
-                position=position,
-                current_price=current_price,
-                profit_target=profit_target,
-                direction=direction,
-                entry_price=entry_price,
-                unrealized_pnl_percent=unrealized_pnl_percent,
-                profit_levels=profit_levels
-            )
+            # If trailing stop was updated but no partial take, return the trailing action
             if trailing_action:
                 return trailing_action
         
@@ -2113,6 +2125,25 @@ class PortfolioManager:
         )
         atr_buffer = max(atr_value * Config.TRAILING_ATR_MULTIPLIER, min_improvement_abs)
 
+        # UPPER_10 + Overbought Kar Koruma
+        # Fiyat en üst %10 bölgesinde VE RSI>70 ise trailing stop'u sıkılaştır
+        overbought_protect_active = False
+        try:
+            indicators_htf = self.market_data.get_technical_indicators(symbol, HTF_INTERVAL) if self.market_data else {}
+            if isinstance(indicators_htf, dict) and 'error' not in indicators_htf:
+                rsi_htf = indicators_htf.get('rsi_14', 50)
+                sparkline = indicators_htf.get('smart_sparkline', {})
+                price_loc = sparkline.get('price_location', {}) if isinstance(sparkline, dict) else {}
+                zone = price_loc.get('zone', 'MIDDLE')
+                
+                # UPPER_10 + RSI>70 durumunda buffer'ı yarıya indir
+                if zone == 'UPPER_10' and isinstance(rsi_htf, (int, float)) and rsi_htf > 70:
+                    atr_buffer = atr_buffer * 0.5
+                    overbought_protect_active = True
+                    print(f"🛡️ OVERBOUGHT PROTECT: {symbol} zone={zone} RSI={rsi_htf:.1f} → Buffer halved")
+        except Exception as e:
+            pass  # Sessizce devam et, overbought koruması olmadan
+
         reason_tokens: List[str] = []
         if progress_triggered:
             reason_tokens.append(f"progress {progress_score:.1f}%")
@@ -2120,6 +2151,8 @@ class PortfolioManager:
             reason_tokens.append(f"time {time_in_trade:.1f}m")
         if volume_drop_triggered and isinstance(current_volume_ratio, (int, float)):
             reason_tokens.append(f"volume {current_volume_ratio:.2f}x")
+        if overbought_protect_active:
+            reason_tokens.append("overbought_protect")
 
         if not reason_tokens:
             reason_tokens.append("trailing criteria met")
@@ -2538,27 +2571,27 @@ class PortfolioManager:
             if alignment_strength == "WEAK":
                 score_breakdown.append("Trend Alignment: WEAK")
 
-            # Condition 2: Volume confirmation (>1.5x average)
+            # Condition 2: Volume confirmation (>1.0x average)
             current_volume = indicators_3m.get('volume', 0)
             avg_volume = indicators_3m.get('avg_volume', 1)
             volume_ratio = current_volume / avg_volume if avg_volume > 0 else 0
-            if volume_ratio > 1.5:
+            if volume_ratio > 1.0:
                 _register(True, f"Volume {volume_ratio:.1f}x average", 1.0)
             else:
-                score_breakdown.append(f"Volume {volume_ratio:.2f}x average (need >1.5x)")
+                score_breakdown.append(f"Volume {volume_ratio:.2f}x average (need >1.0x)")
             
-            # Condition 3: Extreme RSI
+            # Condition 3: Extreme RSI (relaxed thresholds)
             rsi_3m = indicators_3m.get('rsi_14', 50)
             if signal == 'buy_to_enter':
-                if rsi_3m < 25:
-                    _register(True, f"Extreme RSI ({rsi_3m:.1f} < 25)", 1.0)
+                if rsi_3m < 30:
+                    _register(True, f"Extreme RSI ({rsi_3m:.1f} < 30)", 1.0)
                 else:
-                    score_breakdown.append(f"RSI {rsi_3m:.1f} (need < 25)")
+                    score_breakdown.append(f"RSI {rsi_3m:.1f} (need < 30)")
             elif signal == 'sell_to_enter':
-                if rsi_3m > 75:
-                    _register(True, f"Extreme RSI ({rsi_3m:.1f} > 75)", 1.0)
+                if rsi_3m > 70:
+                    _register(True, f"Extreme RSI ({rsi_3m:.1f} > 70)", 1.0)
                 else:
-                    score_breakdown.append(f"RSI {rsi_3m:.1f} (need > 75)")
+                    score_breakdown.append(f"RSI {rsi_3m:.1f} (need > 70)")
             
             # Condition 4: Price close to EMA20 (< 1%)
             if isinstance(price_3m, (int, float)) and isinstance(ema20_3m, (int, float)) and price_3m:
@@ -3287,8 +3320,8 @@ class PortfolioManager:
                                         execution_report['blocked'].append({'coin': coin, 'reason': 'trend_flip_guard_confidence', 'classification': trend_classification})
                                         trade['runtime_decision'] = 'blocked_trend_flip_confidence'
                                         continue
-                                    partial_margin_factor = min(partial_margin_factor, 0.5)
-                                    print(f"⏳ Trend flip guard: {coin} sizing capped at 50% in same-cycle counter-trend attempt (confidence {confidence:.2f}).")
+                                    partial_margin_factor = min(partial_margin_factor, 0.7)
+                                    print(f"⏳ Trend flip guard: {coin} sizing capped at 70% in same-cycle counter-trend attempt (confidence {confidence:.2f}).")
                                 elif guard_cycles_since_flip == 1:
                                     min_conf = 0.60  # More relaxed: one cycle after flip (reduced from 0.65)
                                     if confidence < min_conf:
@@ -3296,8 +3329,8 @@ class PortfolioManager:
                                         execution_report['blocked'].append({'coin': coin, 'reason': 'trend_flip_guard_confidence', 'classification': trend_classification})
                                         trade['runtime_decision'] = 'blocked_trend_flip_confidence'
                                         continue
-                                    partial_margin_factor = min(partial_margin_factor, 0.7)
-                                    print(f"⏳ Trend flip guard (counter-trend): {coin} sizing capped at 70% one cycle after flip.")
+                                    partial_margin_factor = min(partial_margin_factor, 0.8)
+                                    print(f"⏳ Trend flip guard (counter-trend): {coin} sizing capped at 80% one cycle after flip.")
                                 elif guard_cycles_since_flip == 2:
                                     min_conf = 0.55  # Most relaxed: two cycles after flip (reduced from 0.60)
                                     if confidence < min_conf:
@@ -3372,12 +3405,8 @@ class PortfolioManager:
                             print(f"✅ TREND-FOLLOWING ({strength}): {coin} {alignment_info}")
                             print(f"   Timeframes: 1h={trends['1h']}, 15m={trends['15m']}, 3m={trends['3m']} | Volume: {ratio_str}x")
                             
-                            # Mevcut volume kontrolü (değişiklik yok)
-                            if trend_aligned:
-                                if volume_ratio is not None and volume_ratio >= 0.5:
-                                    if volume_ratio < 0.8:
-                                        partial_margin_factor = 0.5
-                                        print(f"🧪 Low-volume trend-following: using 50% margin for {coin} (volume ratio {volume_ratio:.2f})")
+                            # Volume 0.5-0.8 arasinda ise normal devam et (0.5 carpani kaldirildi)
+                            # Hard volume filter (<0.20) zaten kotu trade'leri engelliyor
                         else:
                             # Fallback: Eski mantık (hata durumunda veya 15m verisi yoksa)
                             price_htf_follow = indicators_htf.get('current_price')
@@ -3392,10 +3421,7 @@ class PortfolioManager:
                                 elif signal == 'sell_to_enter' and price_htf_follow <= ema20_htf_follow and price_3m <= ema20_3m:
                                     trend_aligned = True
                             if trend_aligned:
-                                if volume_ratio is not None and volume_ratio >= 0.5:
-                                    if volume_ratio < 0.8:
-                                        partial_margin_factor = 0.5
-                                        print(f"🧪 Low-volume trend-following: using 50% margin for {coin} (volume ratio {volume_ratio:.2f})")
+                                # Volume 0.5-0.8 arasinda normal devam et (0.5 carpani kaldirildi)
                                 ratio_str = f"{volume_ratio:.2f}" if volume_ratio is not None else "n/a"
                                 print(f"✅ TREND-FOLLOWING: {coin} aligns with {HTF_LABEL} trend direction (volume ratio {ratio_str})")
                             else:
