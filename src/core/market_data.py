@@ -326,10 +326,36 @@ class RealMarketData:
         else:
             momentum = "STABLE"
         
+        # 5. PRICE LOCATION ANALYSIS (v2.2 - Bounce/Pullback Risk Detection)
+        # Calculate where current price is within the period's range
+        period_high = max(subset)
+        period_low = min(subset)
+        price_range = period_high - period_low
+        
+        if price_range > 0:
+            # 0 = at period low, 100 = at period high
+            percentile = ((current_price - period_low) / price_range) * 100
+        else:
+            percentile = 50  # No range = middle
+        
+        # Determine zone
+        if percentile <= 10:
+            zone = "LOWER_10"  # Bottom 10% - potential bounce zone
+        elif percentile >= 90:
+            zone = "UPPER_10"  # Top 10% - potential pullback zone
+        else:
+            zone = "MIDDLE"  # Normal range
+        
+        price_location = {
+            "zone": zone,
+            "percentile": round(percentile, 0)
+        }
+        
         return {
             "key_level": key_level,
             "structure": structure,
-            "momentum": momentum
+            "momentum": momentum,
+            "price_location": price_location
         }
 
     def _calculate_pivots(self, df: pd.DataFrame, periods: int = 24) -> Dict[str, float]:
@@ -432,11 +458,12 @@ class RealMarketData:
             if interval == HTF_INTERVAL:
                 indicators['smart_sparkline'] = self._generate_smart_sparkline(close_prices, period=24)
             elif interval == '15m':
-                # 15m: Only structure and momentum (no key_level for token efficiency)
+                # 15m: structure, momentum, and price_location (no key_level for token efficiency)
                 full_sparkline = self._generate_smart_sparkline(close_prices, period=24)
                 indicators['smart_sparkline'] = {
                     "structure": full_sparkline.get("structure", "UNCLEAR"),
-                    "momentum": full_sparkline.get("momentum", "STABLE")
+                    "momentum": full_sparkline.get("momentum", "STABLE"),
+                    "price_location": full_sparkline.get("price_location", {"zone": "MIDDLE", "percentile": 50})
                 }
             indicators['pivots'] = self._calculate_pivots(df, periods=24)
             indicators['tags'] = self._generate_tags(indicators)
