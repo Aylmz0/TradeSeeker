@@ -795,6 +795,11 @@ class PortfolioManager:
             stats['consecutive_losses'] = 0
             stats['consecutive_wins'] = stats.get('consecutive_wins', 0) + 1
             
+            # Win Streak Cooldown: 2+ consecutive wins in same direction → 1 cycle cooldown
+            if stats['consecutive_wins'] >= Config.WIN_STREAK_COOLDOWN_THRESHOLD:
+                self._activate_directional_cooldown(direction, Config.WIN_STREAK_COOLDOWN_CYCLES)
+                print(f"🛡️ Win streak cooldown for {direction.upper()}: {stats['consecutive_wins']} wins → {Config.WIN_STREAK_COOLDOWN_CYCLES} cycle cooldown")
+            
             # Smart Cooldown (WIN): Kâr durumunda kısa cooldown (Config.SMART_COOLDOWN_WIN)
             coin_symbol = trade.get('symbol', '').upper()
             if coin_symbol:
@@ -1280,12 +1285,12 @@ class PortfolioManager:
         pos['erosion_from_peak'] = round(erosion_from_peak, 4)
         pos['erosion_pct'] = round(erosion_pct, 2)
         
-        # Minimum meaningful profit threshold (7% of risk_usd)
+        # Minimum meaningful profit threshold (5% of risk_usd)
         # Small profits are normal fluctuation, not worth triggering erosion alerts
         risk_usd = pos.get('risk_usd', 1.0)
         if isinstance(risk_usd, str):  # Handle 'N/A' case
             risk_usd = 1.0
-        min_meaningful_profit = max(risk_usd * 0.07, 0.20)  # At least 7% of risk or $0.20
+        min_meaningful_profit = max(risk_usd * 0.05, 0.15)  # At least 5% of risk or $0.15
         
         # Determine erosion status
         if peak_pnl <= 0:
@@ -2081,7 +2086,23 @@ class PortfolioManager:
             except Exception:
                 time_in_trade = 0.0
 
-        progress_triggered = progress_score >= Config.TRAILING_PROGRESS_TRIGGER
+        # Dynamic trailing trigger based on price location
+        # In extreme zones (LOWER_10/UPPER_10), use lower threshold for earlier trailing stop activation
+        effective_progress_trigger = Config.TRAILING_PROGRESS_TRIGGER
+        extreme_zone_active = False
+        try:
+            indicators_htf_early = self.market_data.get_technical_indicators(symbol, HTF_INTERVAL) if self.market_data else {}
+            if isinstance(indicators_htf_early, dict) and 'error' not in indicators_htf_early:
+                sparkline_early = indicators_htf_early.get('smart_sparkline', {})
+                price_loc_early = sparkline_early.get('price_location', {}) if isinstance(sparkline_early, dict) else {}
+                zone_early = price_loc_early.get('zone', 'MIDDLE')
+                if zone_early in ['LOWER_10', 'UPPER_10']:
+                    effective_progress_trigger = Config.TRAILING_PROGRESS_TRIGGER_EXTREME
+                    extreme_zone_active = True
+        except Exception:
+            pass  # Use default trigger
+
+        progress_triggered = progress_score >= effective_progress_trigger
         time_triggered = (
             time_in_trade >= Config.TRAILING_TIME_MINUTES
             and progress_score >= Config.TRAILING_TIME_PROGRESS_FLOOR
@@ -2147,6 +2168,8 @@ class PortfolioManager:
         reason_tokens: List[str] = []
         if progress_triggered:
             reason_tokens.append(f"progress {progress_score:.1f}%")
+        if extreme_zone_active:
+            reason_tokens.append(f"extreme_zone (trigger {effective_progress_trigger:.0f}%)")
         if time_triggered:
             reason_tokens.append(f"time {time_in_trade:.1f}m")
         if volume_drop_triggered and isinstance(current_volume_ratio, (int, float)):
@@ -3029,7 +3052,31 @@ class PortfolioManager:
         if live_trading:
             self.sync_live_account()
 
-        for coin, trade in decisions.items():
+        # Slot Priority by Confidence: Sort entry signals by confidence (highest first)
+        # This ensures when slots are limited, we pick the best signals
+        def get_signal_priority(item):
+            coin, trade = item
+            if not isinstance(trade, dict):
+                return (2, 0)  # Invalid trades last
+            signal = trade.get('signal', '')
+            confidence = trade.get('confidence', 0)
+            try:
+                confidence = float(confidence)
+            except (ValueError, TypeError):
+                confidence = 0
+            if signal in ['buy_to_enter', 'sell_to_enter']:
+                return (0, -confidence)  # Entry signals first, sorted by confidence desc
+            elif signal == 'close_position':
+                return (1, 0)  # Close signals after entries
+            else:
+                return (2, 0)  # Hold signals last
+        
+        sorted_decisions = sorted(decisions.items(), key=get_signal_priority)
+        entry_signals = [f"{c}({t.get('confidence', 0):.2f})" for c, t in sorted_decisions if t.get('signal') in ['buy_to_enter', 'sell_to_enter']]
+        if entry_signals:
+            print(f"📊 Signal priority order: {entry_signals}")
+
+        for coin, trade in sorted_decisions:
             if not isinstance(trade, dict): print(f"⚠️ Invalid trade data for {coin}: {type(trade)}"); continue
             if coin not in current_prices or not isinstance(current_prices[coin], (int, float)) or current_prices[coin] <= 0:
                 print(f"⚠️ Skipping {coin}: Invalid price data."); continue
@@ -3072,6 +3119,38 @@ class PortfolioManager:
                 market_regime = self.detect_market_regime_overall()
                 market_regime_multiplier = Config.MARKET_REGIME_MULTIPLIERS.get(market_regime, 1.0)
                 partial_margin_factor = 1.0
+
+                # 3. Momentum and Price Location Confidence Adjustments
+                # Reduce confidence when trend conviction is weak or price is in extreme zones
+                confidence_adjustments = []
+                direction = 'long' if signal == 'buy_to_enter' else 'short'
+                try:
+                    indicators_15m = self.market_data.get_technical_indicators(coin, '15m') if self.market_data else {}
+                    if isinstance(indicators_15m, dict) and 'error' not in indicators_15m:
+                        # Momentum WEAKENING adjustment (×0.90)
+                        sparkline_15m = indicators_15m.get('smart_sparkline', {})
+                        momentum_15m = sparkline_15m.get('momentum', 'STABLE') if isinstance(sparkline_15m, dict) else 'STABLE'
+                        if momentum_15m == 'WEAKENING':
+                            confidence = confidence * 0.90
+                            confidence_adjustments.append(f"momentum_weak(-10%)")
+                        
+                        # LOWER_10 + RSI<30 = SHORT için riskli (×0.90)
+                        # UPPER_10 + RSI>70 = LONG için riskli (×0.90)
+                        price_loc_15m = sparkline_15m.get('price_location', {}) if isinstance(sparkline_15m, dict) else {}
+                        zone_15m = price_loc_15m.get('zone', 'MIDDLE')
+                        rsi_15m = indicators_15m.get('rsi_14', 50)
+                        
+                        if zone_15m == 'LOWER_10' and rsi_15m < 30 and direction == 'short':
+                            confidence = confidence * 0.90
+                            confidence_adjustments.append(f"lower10_rsi{rsi_15m:.0f}(-10%)")
+                        elif zone_15m == 'UPPER_10' and rsi_15m > 70 and direction == 'long':
+                            confidence = confidence * 0.90
+                            confidence_adjustments.append(f"upper10_rsi{rsi_15m:.0f}(-10%)")
+                    
+                    if confidence_adjustments:
+                        print(f"📉 Confidence adjusted for {coin}: {' '.join(confidence_adjustments)} → {confidence:.2f}")
+                except Exception as e:
+                    pass  # Continue without adjustments
 
                 # DYNAMIC VOLATILITY SCALING (ATR) - FINAL STABILIZATION
                 # This block OVERRIDES all previous TP/SL logic (Choppy/Normal/AI)
