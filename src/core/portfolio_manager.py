@@ -1285,12 +1285,35 @@ class PortfolioManager:
         pos['erosion_from_peak'] = round(erosion_from_peak, 4)
         pos['erosion_pct'] = round(erosion_pct, 2)
         
-        # Minimum meaningful profit threshold (5% of risk_usd)
+        # Dynamic erosion rate based on price_location zone
+        # UPPER_10/LOWER_10: More sensitive (0.03) - price at extremes, protect profits earlier
+        # MIDDLE: Normal sensitivity (0.05) - give more room for fluctuation
+        zone = None
+        try:
+            symbol = pos.get('symbol', '')
+            coin_name = symbol.replace('USDT', '') if symbol else coin
+            htf_interval = Config.HTF_INTERVAL if hasattr(Config, 'HTF_INTERVAL') else '1h'
+            if hasattr(self, 'indicator_cache') and self.indicator_cache:
+                indicators_htf = self.indicator_cache.get_indicators(coin_name, htf_interval, self.market_data)
+                if indicators_htf and 'smart_sparkline' in indicators_htf:
+                    sparkline = indicators_htf.get('smart_sparkline', {})
+                    price_location = sparkline.get('price_location', {})
+                    zone = price_location.get('zone', 'MIDDLE')
+        except Exception:
+            zone = 'MIDDLE'  # Default to MIDDLE on any error
+        
+        # Set erosion rate based on zone
+        if zone in ['LOWER_10', 'UPPER_10']:
+            erosion_rate = 0.03  # More sensitive at extremes
+        else:
+            erosion_rate = 0.05  # Normal sensitivity in MIDDLE
+        
+        # Minimum meaningful profit threshold
         # Small profits are normal fluctuation, not worth triggering erosion alerts
         risk_usd = pos.get('risk_usd', 1.0)
         if isinstance(risk_usd, str):  # Handle 'N/A' case
             risk_usd = 1.0
-        min_meaningful_profit = max(risk_usd * 0.05, 0.15)  # At least 5% of risk or $0.15
+        min_meaningful_profit = max(risk_usd * erosion_rate, 0.15)  # Dynamic rate or $0.15 minimum
         
         # Determine erosion status
         if peak_pnl <= 0:
@@ -1616,6 +1639,12 @@ class PortfolioManager:
                     if history_entry:
                         self.add_to_history(history_entry)
                     print(f"⚡ PARTIAL CLOSE {coin} ({direction}) [LIVE]: {exit_decision['reason']} ({close_percent*100:.0f}% / PnL ${format_num(live_result.get('pnl', 0), 2)})")
+                    # BUG FIX: Adjust peak_pnl proportionally after partial close
+                    # Without this, erosion tracking would falsely alarm (peak $3 -> current $1.5 = 50% erosion)
+                    if 'peak_pnl' in position and position['peak_pnl'] > 0:
+                        old_peak = position['peak_pnl']
+                        position['peak_pnl'] = position['peak_pnl'] * (1 - close_percent)
+                        print(f"   📊 peak_pnl adjusted: ${format_num(old_peak, 2)} → ${format_num(position['peak_pnl'], 2)} (after {close_percent*100:.0f}% close)")
                     state_changed = True
                     # Sync account balance after partial close in live mode
                     try:
@@ -1634,6 +1663,11 @@ class PortfolioManager:
                 position['quantity'] = quantity * (1 - close_percent)
                 position['margin_usd'] = margin_used * (1 - close_percent)
                 position['notional_usd'] = position['notional_usd'] * (1 - close_percent)
+                # BUG FIX: Adjust peak_pnl proportionally after partial close
+                if 'peak_pnl' in position and position['peak_pnl'] > 0:
+                    old_peak = position['peak_pnl']
+                    position['peak_pnl'] = position['peak_pnl'] * (1 - close_percent)
+                    print(f"   📊 peak_pnl adjusted: ${format_num(old_peak, 2)} → ${format_num(position['peak_pnl'], 2)} (after {close_percent*100:.0f}% close)")
                 
                 # Add profit to balance
                 self.current_balance += (margin_used * close_percent + profit)
@@ -1809,7 +1843,7 @@ class PortfolioManager:
 
     def get_profit_levels_by_notional(self, notional_usd: float) -> Dict[str, float]:
         """Get dynamic profit levels based on notional size"""
-        if notional_usd < Config.INITIAL_BALANCE:
+        if notional_usd < 100:
             # Small positions: aggressive profit taking
             return {
                 'level1': 0.008,  # %0.7

@@ -1,0 +1,942 @@
+USER PROMPT
+CURRENT STATE OF MARKETS
+It is Saturday, December 06, 2025 08:45 am ET. **0. Context Snapshot (Risk Regime)**
+
+    Regime: Low-vol, mildly risk-on, indices near range highs.
+    Macro: Soft-landing baseline, dense Fed/CPI window next week = event-volatility risk.
+    Dog (NDX & leaders): Uptrend intact, 4h structures bullish/sideways.
+    Tail (Hyperliquid): Funding tiny, no crowded leverage; only mild MSFT/PLTR short-lean.
+    News: All AI/infra items are incremental and multi-day narrative, not fresh impulses.
+
+1. Raw Data Dashboard (Dog vs. Tail)
+
+TSLA
+
+    Global Structure: 4h uptrend, higher lows mid‑440s → mid‑450s; intraday 30–60m tight consolidation just below highs (~454–456).
+    Local Funding: +0.00125%/8h (tiny positive).
+    Local OI: N/A (no change series).
+    Rel. Vol: Normal to slightly elevated focus (most-active list), but price quiet.
+    Dog vs. Tail: Global Up / Local Flat (no perp skew).
+
+NDX (XYZ100 / QQQ)
+
+    Global Structure: NDX +0.4%, VXN -2.8%; 4h holding above 624–625, near range highs; intraday tight band 625–626.
+    Local Funding (XYZ100): +0.00125%/8h.
+    Local OI: N/A.
+    Rel. Vol: QQQ modestly > SPY; growth tilt, but not blow-off.
+    Dog vs. Tail: Global Up / Local Flat (brief HL downtick, but no leverage signal).
+
+NVDA
+
+    Global Structure: 4h bullish, holding above 181–181.5, closing near top of range; intraday grind higher, higher lows.
+    Local Funding: +0.00125%/8h (neutral).
+    Local OI: ~118k, trend N/A.
+    Rel. Vol: High activity, price slightly red recently but intraday strength into close; sector semis bid via SOXL.
+    Dog vs. Tail: Global Up / Local Flat.
+
+MSFT
+
+    Global Structure: 4h reclaim above 481–482, intraday stair-step 481.4 → 483+, closing at highs. Uptrend intact.
+    Local Funding: -0.0141%/8h (mild negative).
+    Local OI: ~8.5k, trend N/A.
+    Rel. Vol: Solid participation, leadership within mega-cap tech.
+    Dog vs. Tail: Global Up / Local Mild Short (contrarian bullish).
+
+AMZN
+
+    Global Structure: 4h sideways 228–231; intraday 229–230 range, no expansion.
+    Local Funding: -0.0010%/8h (slightly negative).
+    Local OI: ~31.8k, trend N/A.
+    Rel. Vol: Normal; benefits from cyclical + growth tilt.
+    Dog vs. Tail: Global Sideways / Local Mild Short (slight contrarian bullish).
+
+GOOG
+
+    Global Structure: 4h reclaim 320–321, closing near top of range; intraday grind 321 → 322, no late selling.
+    Local Funding: +0.00123%/8h (tiny positive).
+    Local OI: ~83.8k, trend N/A.
+    Rel. Vol: Healthy; comm services leadership.
+    Dog vs. Tail: Global Up / Local Flat.
+
+PLTR
+
+    Global Structure: 4h uptrend 170s → low‑180s, holding near highs; intraday tight 181.7–181.9 consolidation.
+    Local Funding: -0.0031%/8h (mild negative).
+    Local OI: ~35.1k, trend N/A.
+    Rel. Vol: Elevated recently (strong 4h advance), now compressing.
+    Dog vs. Tail: Global Up / Local Mild Short (contrarian bullish).
+
+2. Narrative vs. Reality Check
+
+Theme 1: “New PLTR–NVDA AI infra deals = big upside now”
+
+    Narrative: PLTR Chain Reaction OS (with NVDA), rodeo edge AI, Malaysia NVL72 DC → “new AI super-cycle leg.”
+    Time: ~1–4 days old.
+    Reality Check:
+        NVDA: 4h uptrend intact, but only modest recent price response; no explosive breakout.
+        PLTR: Strong 4h rally then sideways near highs; no failure of structure.
+    Catalyst Risk (Unknown/Hypothetical):
+        Hypothetical: US/ally government announces large, near-term AI infra contracts explicitly naming PLTR/NVDA.
+        Hypothetical: Regulatory pushback on AI infra security or export controls that slow deployments.
+    State: PRICED IN → mild ongoing NARRATIVE support (no fresh impulse).
+
+Theme 2: “AWS Graviton5 & AI tools change AMZN trajectory”
+
+    Narrative: AMZN cloud/AI competitiveness step-change.
+    Time: ~2–3 days.
+    Reality Check: AMZN 4h still sideways 228–231; no structural breakout or breakdown.
+    Catalyst Risk (Hypothetical):
+        Hypothetical: Major hyperscaler customer migration announcement (e.g., large enterprise shifts workloads to AWS for AI).
+        Hypothetical: Cloud pricing war compressing margins.
+    State: PRICED IN / DISTRIBUTION-lite (good news, flat price).
+
+Theme 3: “Macro soft landing + expected Fed cut = tech can only go up”
+
+    Narrative: Low recession probability, expected 25bp cut (4.0 → 3.75) = durable tailwind for NDX.
+    Time: Ongoing, but FOMC/CPI in 4–5 days.
+    Reality Check: NDX at/near highs, low vol; no break of support, but also no blow-off.
+    Catalyst Risk (Real):
+        CPI hotter than expected → market prices fewer/future cuts.
+        Fed signals slower easing path or higher terminal real rates.
+    State: DIVERGENCE RISK (good macro narrative, but event risk could flip it).
+
+Theme 4: “PLTR is now core AI infra, must chase”
+
+    Narrative: Chain Reaction OS + multiple AI deployments → PLTR as structural AI infra winner.
+    Time: 1–3 days.
+    Reality Check: 4h trend up, price near highs, but intraday momentum has stalled; HL shows momentum cooling and mild short-lean.
+    Catalyst Risk (Hypothetical):
+        Hypothetical: Large regulated-utility or federal contract explicitly tied to Chain Reaction.
+        Hypothetical: Negative press/regulatory scrutiny on data/AI governance.
+    State: ABSORPTION (bullish narrative, price consolidating after move).
+
+3. FOMO Map & Catalyst Horizon
+
+Scheduled Macro Events (High Impact for NDX & AI leaders)
+
+    2025‑12‑09: JOLTs.
+    2025‑12‑10:
+        13:30 – CPI / Core CPI.
+        19:00 – FOMC decision & projections (market expects -25bp).
+    2025‑12‑11: PPI, jobless claims.
+    2025‑12‑16: NFP, unemployment, retail sales, PMIs, housing.
+    2025‑12‑18–19: Inflation/PCE, income/spending.
+
+Thematic Risk Scans
+
+    Fed/Rates (Dec ’25 outlook)
+        Baseline: Mild bear-steepening, front-end easing; neutral-to-slightly supportive for growth.
+        Hypothetical Upside Surprise: CPI soft + Fed hints at faster cuts → duration/growth chase, NDX breakout.
+        Hypothetical Downside Surprise: CPI hot or Fed “one-and-done” tone → repricing of cuts, NDX pullback.
+
+    Geopolitics / Trade
+        No fresh hard headlines in feed.
+        Hypothetical: New US–China tech export controls (chips, cloud) → NVDA/GOOG/MSFT hit.
+        Hypothetical: Tariff rhetoric on autos → TSLA risk.
+
+    Corporate / Regulatory
+        MSFT: Routine dividend; no structural change.
+        Hypothetical: Antitrust actions vs. MSFT/GOOG/AMZN AI bundling.
+        Hypothetical: Large AI infra partnership announcements (PLTR/NVDA/AMZN/MSFT).
+
+FOMO Radar (Key Levels & Traps)
+
+TSLA
+
+    Upside Chase: Above ~457–460 (recent intraday highs), funds/retail likely chase “flag breakout” in a risk-on tape.
+    Downside Flush: Below ~453–454 (4h support), recent buyers trapped; could accelerate toward mid‑440s.
+
+NDX
+
+    Upside Chase: Clear break/hold above recent 4h highs (≈ NDX 25,700–25,800 / QQQ > ~627–628) post-CPI/Fed → systematic & retail chase.
+    Downside Flush: Lose 624–625 (QQQ) on a macro miss → fast de-risking, especially in high-beta names.
+
+NVDA
+
+    Upside Chase: Hold above 185 and extend >188–190 → “new leg” narrative, FOMO from funds underweight semis.
+    Downside Flush: Lose 181–181.5 → breaks current 4h support band, opens 175–177.
+
+MSFT
+
+    Upside Chase: Sustained trade >485–488 → continuation of structural AI leader trend; negative HL funding adds contrarian fuel.
+    Downside Flush: Back below 481–482 → suggests failed reclaim; could mean mean-reversion toward 475.
+
+AMZN
+
+    Upside Chase: Break and hold >231–232 (top of 4h range) → “AWS AI + consumer resilience” chase.
+    Downside Flush: Lose 228 → range breakdown, consumer macro worries reprice.
+
+GOOG
+
+    Upside Chase: Above 323–325 → confirms reclaim of prior breakdown zone; comm services leadership extends.
+    Downside Flush: Below 320–321 → failed reclaim, opens 315–317.
+
+PLTR
+
+    Upside Chase: Above 183–185 with volume → “Chain Reaction” + AI infra FOMO, especially if macro benign.
+    Downside Flush: Below 180–181 → breaks current 4h higher-low structure; late longs trapped.
+
+4. Alpha Setups: Menu of Hypotheses
+TSLA
+
+Hypothesis A – 4h Uptrend Continuation
+
+    View: Bullish continuation while 453–454 holds.
+    Timeframe/Style: SHORT SWING (2–5 days).
+    Alpha Type: FLOW / MEAN REVERSION (buy dips in uptrend).
+    Edge Depth: MODERATE.
+    Risk Regime: NORMAL.
+    Edge Freshness: NEW.
+    Invalidation: Clean 4h close below 453.
+    Steel Man Risk:
+        Macro: CPI/Fed hawkish surprise hits high-beta growth.
+        Micro: Weak consumer data or EV headlines; TSLA’s beta amplifies any NDX pullback.
+
+Hypothesis B – Range Fade (Short Near 457–460)
+
+    View: Fade local resistance into macro event week; expect chop, not breakout.
+    Timeframe/Style: SCALP (intraday/1–2 days).
+    Alpha Type: MEAN REVERSION.
+    Edge Depth: SHALLOW.
+    Risk Regime: TIGHT.
+    Edge Freshness: NEW.
+    Invalidation: 30–60m acceptance above 460 with NDX strong.
+    Steel Man Risk:
+        NDX breaks to new highs; TSLA becomes beta vehicle for upside.
+        Shorting into structural risk-on regime with no clear selling pressure.
+
+Hypothesis C – Tail Neutrality (No HL Edge)
+
+    View: HL perp is flat; no squeeze or crowding → rely on Dog only.
+    Timeframe/Style: SCALP / SHORT SWING.
+    Alpha Type: FLOW (index-driven).
+    Edge Depth: SHALLOW.
+    Risk Regime: TIGHT.
+    Edge Freshness: NEW.
+    Invalidation: Sudden HL funding spike (>|0.05%/8h|) with price dislocation vs NDX.
+    Steel Man Risk: HL remains irrelevant; edge never materializes.
+
+NDX
+
+Hypothesis A – Structural Bullish Bias into/through Events
+
+    View: Uptrend intact; buy dips above 624–625, but size down for event risk.
+    Timeframe/Style: SHORT SWING.
+    Alpha Type: FLOW / NARRATIVE (soft-landing, expected cut).
+    Edge Depth: MODERATE.
+    Risk Regime: WIDE (event risk).
+    Edge Freshness: AGING (trend known, but still valid).
+    Invalidation: Daily close below 624 (QQQ) / clear break of recent 4h lows.
+    Steel Man Risk: CPI/Fed surprise reprices rates sharply higher; NDX mean-reverts lower.
+
+Hypothesis B – Event Hedge / Tactical Short Above Range
+
+    View: Use strength near highs to position small tactical short into CPI/Fed.
+    Timeframe/Style: SHORT SWING (1–4 days).
+    Alpha Type: NARRATIVE / MEAN REVERSION.
+    Edge Depth: SHALLOW.
+    Risk Regime: TIGHT.
+    Edge Freshness: NEW.
+    Invalidation: Strong dovish surprise (soft CPI + dovish Fed) with NDX closing above recent highs.
+    Steel Man Risk: Fighting structural AI/mega-cap tailwind; short can be steamrolled by upside surprise.
+
+Hypothesis C – HL Tail Calm = Dog-Driven Breakout Potential
+
+    View: HL XYZ100 shows no leverage stress; if macro is benign, breakout can be clean (no forced covering yet).
+    Timeframe/Style: SWING (Structural).
+    Alpha Type: FLOW.
+    Edge Depth: MODERATE.
+    Risk Regime: NORMAL.
+    Edge Freshness: NEW.
+    Invalidation: HL funding spikes negative with NDX stalling at highs (sign of crowded longs elsewhere).
+    Steel Man Risk: Breakout fails due to macro shock, not positioning.
+
+NVDA
+
+Hypothesis A – Structural AI Bull, Buy Dips Above 181
+
+    View: Bullish; 4h support 181–181.5 holds, macro neutral-to-supportive, AI infra news adds tailwind.
+    Timeframe/Style: SWING (Structural).
+    Alpha Type: FLOW / NARRATIVE.
+    Edge Depth: DEEP (within AI structural bull regime).
+    Risk Regime: WIDE (high beta + event week).
+    Edge Freshness: NEW–MODERATE.
+    Invalidation: 4h close below 181.
+    Steel Man Risk:
+        Macro: Rates spike on CPI/Fed.
+        Micro: New export controls or AI capex slowdown headlines.
+
+Hypothesis B – Short-Term Mean Reversion Short Near 188–190
+
+    View: If NVDA spikes into 188–190 pre-events, fade extension for a pullback to 182–184.
+    Timeframe/Style: SCALP / very SHORT SWING.
+    Alpha Type: MEAN REVERSION.
+    Edge Depth: SHALLOW (counter-trend vs AI leader).
+    Risk Regime: TIGHT.
+    Edge Freshness: NEW.
+    Invalidation: Strong 4h close above 190 with volume.
+    Steel Man Risk: Structural AI demand + news flow can turn any breakout into sustained trend; shorting strength is dangerous.
+
+Hypothesis C – HL Neutral Tail = Trust the Dog
+
+    View: With HL funding neutral and no OI signal, NVDA’s path is dominated by NDX + macro; no perp edge.
+    Timeframe/Style: SCALP / SHORT SWING.
+    Alpha Type: FLOW.
+    Edge Depth: SHALLOW.
+    Risk Regime: NORMAL.
+    Edge Freshness: NEW.
+    Invalidation: HL funding or OI suddenly spike with divergence vs spot.
+    Steel Man Risk: Overfitting to tiny HL data; real leverage sits on other venues.
+
+MSFT
+
+Hypothesis A – Uptrend Continuation with Contrarian Tailwind
+
+    View: Bullish; 4h reclaim above 481–482 + HL negative funding = “Global Up / Local Mild Short.”
+    Timeframe/Style: SWING (Structural).
+    Alpha Type: FLOW / NARRATIVE.
+    Edge Depth: DEEP (AI leader, structural tailwind).
+    Risk Regime: NORMAL–WIDE (event risk).
+    Edge Freshness: NEW.
+    Invalidation: 4h close back below 481.
+    Steel Man Risk: Fed/CPI hawkish surprise hits duration; MSFT, as crowded long, could see de-grossing.
+
+Hypothesis B – Tactical Short Fade Near 488–490
+
+    View: Fade local extension into macro events, expecting reversion to 481–482.
+    Timeframe/Style: SCALP / SHORT SWING.
+    Alpha Type: MEAN REVERSION.
+    Edge Depth: SHALLOW (counter-trend vs AI leader).
+    Risk Regime: TIGHT.
+    Edge Freshness: NEW.
+    Invalidation: Strong 4h close above 490.
+    Steel Man Risk: Negative HL funding can fuel a squeeze; structural buyers step in on any dip.
+
+Hypothesis C – HL Short Bias Caps Upside
+
+    View: Slightly bearish multi-day skew: persistent negative funding may indicate overhead supply from perps.
+    Timeframe/Style: SHORT SWING.
+    Alpha Type: MEAN REVERSION / SENTIMENT.
+    Edge Depth: SHALLOW (HL is tiny).
+    Risk Regime: TIGHT.
+    Edge Freshness: NEW.
+    Invalidation: Funding flips positive while price holds >482–483.
+    Steel Man Risk: HL volume is negligible; reading too much into tiny funding.
+
+AMZN
+
+Hypothesis A – Range Break Higher on AI + Cyclical Tailwind
+
+    View: Bullish bias; if 231–232 breaks, chase toward 236–238.
+    Timeframe/Style: SHORT SWING.
+    Alpha Type: FLOW / NARRATIVE (AWS AI + consumer cyclicals leadership).
+    Edge Depth: MODERATE.
+    Risk Regime: NORMAL.
+    Edge Freshness: NEW.
+    Invalidation: Failed breakout (4h close back below 231).
+    Steel Man Risk: Consumer sentiment weakens further; retail sales miss; macro hits discretionary.
+
+Hypothesis B – Range Trade / Fade Extremes
+
+    View: Sell near 231–232, buy near 228 until macro breaks the range.
+    Timeframe/Style: SCALP.
+    Alpha Type: MEAN REVERSION.
+    Edge Depth: MODERATE (clear range).
+    Risk Regime: TIGHT.
+    Edge Freshness: NEW.
+    Invalidation: Sustained 4h close outside 228–232.
+    Steel Man Risk: Event-driven breakout invalidates range quickly.
+
+Hypothesis C – HL Slight Short Tilt as Contrarian Bullish
+
+    View: Mild negative funding with flat price = shorts not getting paid; lean long vs 228.
+    Timeframe/Style: SHORT SWING.
+    Alpha Type: MEAN REVERSION / SENTIMENT.
+    Edge Depth: SHALLOW.
+    Risk Regime: TIGHT.
+    Edge Freshness: NEW.
+    Invalidation: Funding turns more negative with price rolling over below 228.
+    Steel Man Risk: HL signal too small; real shorting may be elsewhere.
+
+GOOG
+
+Hypothesis A – Reclaim & Extend Above 320–321
+
+    View: Bullish; 4h reclaim of 320–321 with comm services leadership; target 325–330.
+    Timeframe/Style: SHORT SWING.
+    Alpha Type: FLOW / NARRATIVE.
+    Edge Depth: MODERATE.
+    Risk Regime: NORMAL.
+    Edge Freshness: NEW.
+    Invalidation: 4h close back below 320.
+    Steel Man Risk: Macro shock hits ad/cyclical exposure; GOOG underperforms defensives.
+
+Hypothesis B – Fade into 323–325
+
+    View: Short-term mean reversion if price stretches into 323–325 pre-events.
+    Timeframe/Style: SCALP.
+    Alpha Type: MEAN REVERSION.
+    Edge Depth: SHALLOW.
+    Risk Regime: TIGHT.
+    Edge Freshness: NEW.
+    Invalidation: Strong acceptance above 325 with NDX breakout.
+    Steel Man Risk: Communication services leadership persists; shorting strength in a risk-on tape.
+
+Hypothesis C – HL Microstructure Noise, Ignore Tail
+
+    View: HL near-static band with stacked offers is micro noise; no directional edge.
+    Timeframe/Style: SCALP / SHORT SWING.
+    Alpha Type: FLOW (Dog-driven).
+    Edge Depth: SHALLOW.
+    Risk Regime: NORMAL.
+    Edge Freshness: NEW.
+    Invalidation: HL funding or OI show persistent skew with divergence vs spot.
+    Steel Man Risk: Overconfidence in ignoring a potential early sentiment tell.
+
+PLTR
+
+Hypothesis A – Structural AI Uptrend, Buy Dips Above 180–181
+
+    View: Bullish; 4h higher lows, AI infra narrative, macro supportive for capex.
+    Timeframe/Style: SWING (Structural).
+    Alpha Type: FLOW / NARRATIVE.
+    Edge Depth: MODERATE (not as entrenched as NVDA/MSFT).
+    Risk Regime: WIDE (high beta).
+    Edge Freshness: NEW.
+    Invalidation: 4h close below 180.
+    Steel Man Risk: Narrative > near-term earnings; any macro risk-off hits PLTR harder than mega-caps.
+
+Hypothesis B – Short-Term Momentum Fade
+
+    View: Momentum has cooled (MACD rolled, RSI down); fade strength toward 183–185 for pullback to 180–181.
+    Timeframe/Style: SCALP / very SHORT SWING.
+    Alpha Type: MEAN REVERSION.
+    Edge Depth: SHALLOW (counter-trend vs current 4h up).
+    Risk Regime: TIGHT.
+    Edge Freshness: NEW.
+    Invalidation: Strong 4h close above 185 with volume.
+    Steel Man Risk: Fresh AI headlines or NDX breakout reignite PLTR FOMO.
+
+Hypothesis C – HL Mild Short Bias as Fuel for Squeeze
+
+    View: Slightly negative funding + uptrend = potential for squeeze if price breaks 183–185.
+    Timeframe/Style: SHORT SWING.
+    Alpha Type: SENTIMENT / FLOW.
+    Edge Depth: SHALLOW–MODERATE.
+    Risk Regime: NORMAL.
+    Edge Freshness: NEW.
+    Invalidation: Funding normalizes to flat/positive while price stalls below 183.
+    Steel Man Risk: HL is tiny; shorts may be mostly on listed options/stock, not perps.
+
+5. Edge Quality Matrix
+
+High Conviction (Deep Edge / Wide Risk / Structural Tailwind)
+
+    NVDA – Hypothesis A: Buy dips above 181 (AI infra + 4h support).
+    MSFT – Hypothesis A: Long above 481–482 with HL contrarian short-lean.
+    NDX – Hypothesis A: Buy dips above 624–625, but size down for CPI/Fed.
+    PLTR – Hypothesis A: Buy dips above 180–181 (AI infra narrative + 4h trend), with sizing discipline.
+
+Tactical Skews (Shallow Edge / Tight Risk / Counter-Trend)
+
+    TSLA – Hypothesis B: Fade 457–460 resistance for short-term mean reversion.
+    NVDA – Hypothesis B: Fade 188–190 if reached pre-events.
+    MSFT – Hypothesis B: Fade 488–490 for pullback to 481–482.
+    AMZN – Hypothesis B: Range trade 228–232.
+    GOOG – Hypothesis B: Fade 323–325 if NDX stalls.
+    PLTR – Hypothesis B: Fade 183–185 for pullback to 180–181.
+
+No Edge / Avoid (for now)
+
+    HL-driven standalone trades across all names: Funding and OI are too small and flat to justify trades by themselves; use HL only as a minor sentiment overlay, not a primary signal.
+    Pure macro bets via single names into CPI/Fed without clear technical levels: Event risk dominates; better expressed via indices or options with defined risk.
+
+Risk manager note: Into next week’s CPI/Fed cluster, prioritize defined-risk structures (options, tight stops) and avoid oversized directional bets, especially counter-trend shorts in AI leaders unless key supports (NVDA 181, MSFT 481, NDX 624–625) break on volume.
+CURRENT AVAILABLE CAPITAL
+12234.463653
+CURRENT NAV
+12854.334815
+CURRENT PRICES OF TRADEABLE COINS
+{'xyz:TSLA': 455.065, 'xyz:XYZ100': 25663.5, 'xyz:NVDA': 182.225, 'xyz:GOOGL': 320.105, 'xyz:MSFT': 483.14, 'xyz:AMZN': 229.605, 'xyz:PLTR': 181.24}
+CURRENT LIVE POSITIONS AND PERFORMANCE
+
+{'symbol': 'xyz:MSFT', 'quantity': 12.935, 'entry_price': 483.54, 'current_price': 483.15, 'liquidation_price': 458.11, 'unrealized_pnl': -5.04, 'leverage': 10, 'exit_plan': {'profit_target': 504.9, 'stop_loss': 470.0, 'invalidation_condition': 'Daily close below 470.00'}, 'confidence': 0.0, 'risk_usd': 0.0, 'sl_oid': -1, 'tp_oid': -1, 'wait_for_fill': False, 'entry_oid': -1, 'notional_usd': 6249.55}
+
+Chain Of Thoughts:
+First, the user has provided a detailed market analysis and hypotheses for various assets. My goal is to decide whether to enter, add to, hold, or close positions based on this data, and output a JSON with trade signals.
+
+Key constraints:
+
+    I must default to "No Trade" if no clear edge is present.
+    I can only trade the listed assets with their system symbols.
+    Focus on capital preservation and risk-adjusted returns.
+    Fee hurdle: Expected move must exceed 0.15% to break even.
+    Decision based on the hypothesis that offers the best setup, not averaging them.
+
+Current state:
+
+    It's Saturday, December 6, 2025, 08:45 am ET. Market is closed, but I'm to simulate or consider the next moves based on data.
+    Regime: Low-vol, mildly risk-on, indices near range highs.
+    Macro events next week (CPI, FOMC), so high event risk.
+    Available capital: $12,234.46
+    Current NAV: $12,854.33
+    Current prices provided.
+    One live position: xyz:MSFT with details.
+
+Current position in MSFT:
+
+    Quantity: 12.935
+    Entry price: 483.54
+    Current price: 483.15 (slightly down, -5.04 PNL)
+    Leverage: 10x
+    Profit target: 504.9, Stop loss: 470.0
+    Invalidation: Daily close below 470.00
+    Confidence was 0.0, but that might be a placeholder; I need to reassess.
+
+I need to decide what to do with this position and whether to enter new trades.
+
+Step 1: Analyze the hypotheses for each asset and select the best one.
+
+From the "Alpha Setups: Menu of Hypotheses":
+
+    For MSFT, hypotheses are:
+        A: Uptrend continuation, bullish, deep edge, normal-wide risk.
+        B: Tactical short fade near 488-490, shallow edge, tight risk.
+        C: HL short bias caps upside, shallow edge, tight risk.
+
+Current MSFT price is 483.14, which is above the 481-482 support mentioned in Hypothesis A. Funding is mildly negative (-0.0141%/8h), which aligns with Hypothesis A's contrarian bullish view.
+
+The "Edge Quality Matrix" lists MSFT Hypothesis A as high conviction: "Long above 481–482 with HL contrarian short-lean."
+
+Steel Man Risk for Hypothesis A: Fed/CPI hawkish surprise could hit it, but that's a general risk.
+
+Since the position is already open, and it's slightly underwater but within the stop loss, I need to decide whether to hold, add, or close.
+
+Confidence in Hypothesis A: It's described as deep edge, so confidence should be high. But with event risk, I should size down.
+
+For MSFT, current price is 483.14, entry was 483.54, so it's close. Stop loss is at 470, which is about 2.7% below entry, reasonable.
+
+I should hold this position unless the hypothesis is invalidated.
+
+Now, for other assets, I need to see if there are better opportunities.
+
+Look at high conviction ones from the matrix:
+
+    NVDA Hypothesis A: Buy dips above 181, deep edge, wide risk. Current price 182.225, which is above 181, so could be a buy.
+    NDX Hypothesis A: Buy dips above 624-625, but size down for events. NDX is at 25663.5, which corresponds to QQQ? The hypothesis mentions QQQ > 627-628, but NDX is given as 25663.5. Typically, NDX index level, but for perps, it's xyz:XYZ100. Price is 25663.5, and hypothesis says "NDX +0.4%", but no specific level. From FOMO map, NDX upside chase above 25,700-25,800. Current is 25663.5, which might be below that. Need to check support.
+
+From raw data: "NDX +0.4%, VXN -2.8%; 4h holding above 624–625" – this is probably for QQQ, since NDX index is around 25k. Inconsistency? The system symbol is xyz:XYZ100 for NDX, and price is 25663.5, which is likely the index level.
+
+In hypotheses, for NDX, it says "Invalidation: Daily close below 624 (QQQ)" – so they are mixing NDX index and QQQ price. QQQ is ETF for NDX, so price around 625-626. Current xyz:XYZ100 price is 25663.5, which is the index, so to compare, QQQ price is roughly NDX/100, so about 256.635, but that can't be right because QQQ is around 625. I think there's a confusion.
+
+Look back: In raw data for NDX: "Global Structure: NDX +0.4%, VXN -2.8%; 4h holding above 624–625" – this must be for QQQ price, as NDX index is much higher. Similarly, in FOMO map, "NDX" probably refers to the index, but levels are given for QQQ.
+
+To avoid confusion, for xyz:XYZ100, the price is 25663.5, which is the Nasdaq 100 index level. Typical NDX is around 25k, QQQ is around 625, so ratio is about 40:1 (since 25663.5 / 640 ≈ 40.1, but QQQ is not exactly NDX/100). Actually, QQQ tracks NDX, so price is NDX / divisor, but for simplicity, in trading, we use the index level for perps.
+
+In the hypothesis, "Invalidation: Daily close below 624 (QQQ)" – this is messy. I need to interpret.
+
+For xyz:XYZ100, the price is 25663.5. From FOMO map: "Downside Flush: Lose 624–625 (QQQ) on a macro miss" – so for NDX index, losing 624-625 might mean QQQ price, which corresponds to NDX index around 25,000? Let's calculate roughly: if QQQ is 625, NDX is about 25,000 (since QQQ ≈ NDX / 40). Current NDX is 25663.5, which is above 25,000, so support might be around 25,000 for NDX index.
+
+But in hypothesis A for NDX, it says "buy dips above 624-625" which is likely QQQ price. To map to xyz:XYZ100, I need to estimate. Since xyz:XYZ100 price is the index, and QQQ price is roughly NDX / 40, so 625 QQQ ≈ 25,000 NDX. Current NDX is 25663.5, which is higher, so support might be around 25,000.
+
+This is ambiguous. Perhaps I should focus on the relative levels.
+
+From raw data: "4h holding above 624–625" – probably QQQ price. Current QQQ price not given, but xyz:XYZ100 is 25663.5, which might imply QQQ around 641.6 (if divisor is 40, but it's not exact). I should use the index level directly.
+
+In the hypothesis for NDX: "Invalidation: Daily close below 624 (QQQ)" – so for xyz:XYZ100, I need to convert. Assume that 624 QQQ corresponds to NDX index of 624 * 40 = 24,960. Current NDX is 25663.5, which is above, so support at 24,960.
+
+Similarly, upside chase above 25,700-25,800 NDX.
+
+Current price 25663.5, so it's near range highs but not broken out.
+
+For NDX Hypothesis A, it might be valid, but with event risk.
+
+Now, back to decision.
+
+I have a live position in MSFT. I need to output for each asset, but only if I have a signal.
+
+First, for MSFT: Current position is open. Should I hold, add, or close?
+
+Hypothesis A is still valid: price above 481-482, funding negative, contrarian bullish. Confidence is high, but with event risk, I might not add, but hold.
+
+The position has a stop loss at 470, which is below current price, and invalidation is daily close below 470, which hasn't happened.
+
+Unrealized PNL is small negative, so no reason to close early.
+
+So for MSFT, I should signal "hold".
+
+Now, for other assets, see if there are entry opportunities.
+
+From high conviction list:
+
+    NVDA Hypothesis A: Buy dips above 181. Current price 182.225, which is above 181, so could enter long.
+    Confidence: Deep edge, so high confidence, 0.85+.
+    Risk regime: Wide, so use high risk factor r=0.5 to 0.8.
+    But with event risk, I might size down.
+
+Similarly, PLTR Hypothesis A: Buy dips above 180-181. Current price 181.24, just above, so could enter long.
+
+    Confidence: Moderate, not as deep as NVDA.
+    Risk regime: Wide, high beta.
+
+NDX Hypothesis A: Buy dips above support, but current price is near highs, not a dip. Price is 25663.5, and support is around 25,000 for NDX index? From earlier, support at 24,960 QQQ-equivalent, but current is high, so not a dip. Hypothesis says "buy dips above 624-625" which for QQQ, current might be higher. Since not specified, perhaps avoid or wait for dip.
+
+Current NDX price is given as 25663.5, and from FOMO map, upside chase above 25,700-25,800, so current is below, but not at support.
+
+For NDX, it might not be a good entry point now.
+
+Similarly, for TSLA, hypotheses are mixed, no high conviction.
+
+AMZN is range-bound, Hypothesis B might be for range trade, but shallow edge.
+
+GOOG similar.
+
+PLTR and NVDA seem promising.
+
+But I need to check the Steel Man Risks. For NVDA, macro risks with CPI/Fed.
+
+Also, correlation: NVDA and MSFT are both AI leaders, so if I add NVDA long, it might be correlated with MSFT, but that's okay if I believe in the thesis.
+
+Now, for entry, I need to calculate margin, leverage, etc.
+
+Available capital: $12,234.46
+
+For new entry, I can use part of it.
+
+First, decide confidence.
+
+For NVDA Hypothesis A: Deep edge, so confidence around 0.85.
+
+Risk regime: Wide, so use r=0.6 (medium-high).
+
+Leverage: Max 10x for NVDA, but I should use less due to event risk.
+
+Margin: For confidence 0.85, margin could be 15-30% of available cash. Available cash is 12,234.46,somarginbetween12,234.46,somarginbetween1,835.17 and $3,670.34.
+
+I'll choose margin say $3,000 (about 24.5%, within range).
+
+Leverage: Use 5x or something, not max, to reduce risk. Max is 10x, but with event risk, lower leverage.
+
+Set leverage to 5x.
+
+Then notional = margin * leverage = 3000 * 5 = 15,000 USD
+
+Current price NVDA = 182.225
+
+Quantity = notional / price = 15000 / 182.225 ≈ 82.32 (I'll calculate precisely later)
+
+Risk factor r: say 0.6
+
+risk_usd = margin * r = 3000 * 0.6 = 1800 USD
+
+stop_distance = risk_usd / quantity = 1800 / 82.32 ≈ 21.86 USD per share
+
+For long, stop_loss = entry_price - stop_distance = 182.225 - 21.86 ≈ 160.365
+
+But check if this is reasonable. From hypothesis, invalidation is 4h close below 181, so stop should be below that. 160.365 is way below, too wide. I need to set stop based on technicals, not just risk.
+
+The hypothesis has invalidation: 4h close below 181.
+
+So I should set stop_loss at or below 181, but with a buffer.
+
+Typically, stop loss should be based on the invalidation point.
+
+From hypothesis A for NVDA: "Invalidation: 4h close below 181."
+
+So I can set stop_loss at 180.5 or something, but need to calculate the distance.
+
+entry_price = 182.225
+
+If stop_loss = 180.5, stop_distance = 182.225 - 180.5 = 1.725
+
+Then risk_usd = quantity * stop_distance
+
+But I need to determine quantity from margin and leverage.
+
+First, set stop_loss based on technicals: say 180.5, just below 181.
+
+Then stop_distance = 182.225 - 180.5 = 1.725
+
+Now, risk_usd should be margin * r, but r is chosen based on risk regime.
+
+For wide risk, r=0.5 to 0.8, but I need to ensure risk_usd is consistent.
+
+Perhaps better to set stop_loss first based on invalidation, then back-calculate.
+
+The constitution says: "stop_distance = risk_usd / |quantity|"
+
+But quantity = notional / entry_price, notional = margin * leverage
+
+And risk_usd = margin * r
+
+So stop_distance = (margin * r) / (margin * leverage / entry_price) = (r * entry_price) / leverage
+
+Thus, stop_distance = (r * entry_price) / leverage
+
+Then for long, stop_loss = entry_price - stop_distance
+
+I need to choose r and leverage such that stop_loss is at a technical level.
+
+For NVDA, invalidation at 181, so stop_loss should be slightly below, say 180.5.
+
+So entry_price - stop_loss = stop_distance = 182.225 - 180.5 = 1.725
+
+Then from stop_distance = (r * entry_price) / leverage
+
+So 1.725 = (r * 182.225) / leverage
+
+I need to choose r and leverage.
+
+r between 0.5 and 0.8, leverage between 2 and 10.
+
+Set leverage to 5, r to 0.6, then stop_distance = (0.6 * 182.225) / 5 = (109.335) / 5 = 21.867, which is much larger than 1.725, so stop_loss would be 182.225 - 21.867 = 160.358, which is too low.
+
+To have a tighter stop, I need to adjust r and leverage.
+
+If I want stop_distance = 1.725, and entry_price = 182.225, then (r * 182.225) / leverage = 1.725
+
+So r / leverage = 1.725 / 182.225 ≈ 0.009467
+
+If I set leverage to 10, then r = 0.009467 * 10 = 0.09467, which is less than 0.2, not allowed. r min is 0.2.
+
+If set r=0.2, then leverage = r / (1.725 / 182.225) = 0.2 / 0.009467 ≈ 21.12, but max leverage is 10, so not possible.
+
+This means that with the technical stop at 180.5, the risk is small, so I can use high leverage or small margin.
+
+stop_distance = 1.725
+
+risk_usd = quantity * stop_distance
+
+notional = quantity * entry_price
+
+margin = notional / leverage
+
+risk_usd = margin * r
+
+So margin * r = quantity * stop_distance
+
+But quantity = notional / entry_price = (margin * leverage) / entry_price
+
+So margin * r = (margin * leverage / entry_price) * stop_distance
+
+Simplify: r = (leverage * stop_distance) / entry_price
+
+So for stop_distance = 1.725, entry_price = 182.225, r = (leverage * 1.725) / 182.225
+
+If leverage=10, r= (10*1.725)/182.225 = 17.25/182.225 ≈ 0.0947, which is less than 0.2, not allowed.
+
+If leverage=5, r= (5*1.725)/182.225 = 8.625/182.225 ≈ 0.0473, still less than 0.2.
+
+To have r >=0.2, leverage * stop_distance / entry_price >=0.2
+
+So leverage >= (0.2 * entry_price) / stop_distance = (0.2 * 182.225) / 1.725 ≈ 36.445 / 1.725 ≈ 21.13, but max leverage is 10, so impossible.
+
+This means that with a tight stop at 180.5, the risk is too small for the minimum r, so I cannot set a stop that tight with reasonable leverage and r.
+
+Perhaps I should set a wider stop based on the risk regime.
+
+From hypothesis, invalidation is 4h close below 181, but for stop loss, I can set it at a level that allows proper risk management.
+
+For example, set stop_loss at 175 or something, from FOMO map, downside flush to 175-177.
+
+But that might be too wide.
+
+For NVDA, the deep edge suggests giving it room, so stop could be wider.
+
+Set stop_loss at 175, for example.
+
+Then stop_distance = 182.225 - 175 = 7.225
+
+Then r = (leverage * stop_distance) / entry_price
+
+If leverage=5, r= (5*7.225)/182.225 = 36.125/182.225 ≈ 0.198, which is approximately 0.2, min allowed.
+
+If leverage=10, r= (10*7.225)/182.225 = 72.25/182.225 ≈ 0.396, which is within 0.2-0.9.
+
+So with leverage=10, r=0.4, stop_loss=175.
+
+Then risk_usd = margin * r
+
+But I need to choose margin.
+
+Confidence 0.85, so margin 15-30% of available cash, say $3,000.
+
+Then risk_usd = 3000 * 0.4 = 1200 USD
+
+Quantity = notional / entry_price = (margin * leverage) / entry_price = (3000 * 10) / 182.225 = 30000 / 182.225 ≈ 164.64
+
+Stop_distance should be risk_usd / quantity = 1200 / 164.64 ≈ 7.286, which is close to 7.225, good.
+
+Profit target must be at least 1.5 * stop_distance, so at least 10.929, so target around 182.225 + 10.929 = 193.154 or higher. From FOMO map, upside chase above 185-190, so 193 is reasonable.
+
+Invalidation condition: 4h close below 181, but stop is at 175, which is wider, so it might be hit before invalidation, but that's okay.
+
+I can set invalidation as per hypothesis.
+
+For PLTR similar issue.
+
+But with event risk, I might avoid new entries or size very small.
+
+Also, I have a live position in MSFT.
+
+Perhaps for now, since it's Saturday, and markets are closed, but the data is given, I should only hold existing positions and not enter new ones because of the event risk next week.
+
+The constitution says: "Do not trade if no clean edge is present." and with CPI/Fed, edge might be murky.
+
+From the risk manager note: "Into next week’s CPI/Fed cluster, prioritize defined-risk structures and avoid oversized directional bets."
+
+So perhaps no new entries, only manage existing.
+
+For MSFT, hold.
+
+For other assets, no trade.
+
+But let's see the hypotheses.
+
+For MSFT, I have position, so hold.
+
+For NVDA, Hypothesis A is high conviction, but with event risk, confidence might be lower.
+
+Confidence should be based on edge depth, but adjusted for regime.
+
+Edge depth is deep, but event risk adds uncertainty, so confidence might be 0.8 instead of 0.85.
+
+But still above 0.7, so could trade.
+
+However, the Steel Man Risk for NVDA is macro rates spike, which is imminent with CPI/Fed.
+
+Similarly for others.
+
+Perhaps better to wait.
+
+Also, the default is no trade.
+
+For PLTR, similar.
+
+Now, for the output, I need to output JSON for each asset, but only if I have a signal.
+
+Assets: xyz:TSLA, xyz:XYZ100, xyz:NVDA, xyz:GOOGL, xyz:MSFT, xyz:AMZN, xyz:PLTR
+
+For MSFT, I have a position, so I must output something.
+
+For others, if no trade, don't output, or output nothing, but the JSON should include only assets with signals.
+
+The instruction: "Return a SINGLE, VALID JSON object. Keys must be the System Symbols." So only include keys for assets where I have a trade signal.
+
+For MSFT, signal "hold".
+
+For others, no signal, so no key.
+
+But for MSFT, I need to copy the existing SL/TP/Invalidation/Justification from the position.
+
+The position has exit_plan with profit_target=504.9, stop_loss=470.0, invalidation='Daily close below 470.00'
+
+But current price is 483.15, and hypothesis might have changed, but I should keep it consistent.
+
+The constitution says for hold: "Copy existing SL/TP/Invalidation/Justification, from existing position in that asset"
+
+So for MSFT, I should use the same.
+
+Justification for hold: why I'm holding, based on Hypothesis A.
+
+Similarly, confidence for the position: it was 0.0, but I should set a current confidence.
+
+For hold, I need to output the trade_signal_args with signal "hold", and copy the existing values.
+
+Quantity is already set, so for hold, I don't change quantity, leverage, etc., just signal hold.
+
+The output for hold should include the same quantity, profit_target, stop_loss, etc., but signal is "hold".
+
+Similarly, for add or close.
+
+Now, for MSFT, I think hold is appropriate.
+
+For new entries, I might consider NVDA or PLTR, but with event risk, I'll skip.
+
+Let's check PLTR.
+
+PLTR Hypothesis A: Buy dips above 180-181, current price 181.24, just above.
+
+Confidence: moderate, edge depth moderate.
+
+Risk regime: wide.
+
+Invalidation: 4h close below 180.
+
+Set stop_loss at 179.5, for example.
+
+Entry_price = 181.24
+
+Stop_distance = 181.24 - 179.5 = 1.74
+
+Then r = (leverage * stop_distance) / entry_price
+
+If leverage=10, r= (10*1.74)/181.24 = 17.4/181.24 ≈ 0.096, less than 0.2.
+
+To have r>=0.2, leverage >= (0.2 * entry_price) / stop_distance = (0.2*181.24)/1.74 ≈ 36.248/1.74 ≈ 20.83, max leverage 10, not possible.
+
+So need wider stop. Set stop at 175, for example, from FOMO map downside flush to 180-181? FOMO map for PLTR: "Downside Flush: Below 180–181", so stop at 179 might be tight, but 175 is lower.
+
+Stop_distance = 181.24 - 175 = 6.24
+
+r = (leverage * 6.24) / 181.24
+
+If leverage=10, r=62.4/181.24≈0.344, within range.
+
+Then with margin, say confidence 0.8, margin 20% of available, $2446.89, leverage=10, notional=24468.9, quantity=24468.9/181.24≈135.0, risk_usd=marginr=2446.890.344≈841.5, stop_distance=risk_usd/quantity=841.5/135≈6.233, close to 6.24.
+
+Profit target min 1.5*6.24=9.36, so target around 190.6, which is above 185, reasonable.
+
+But with event risk, I might not enter.
+
+Similarly for NVDA.
+
+Perhaps better to no new entries.
+
+Also, the market is closed now, but since it's a simulation, I can consider entries.
+
+But the data is as of now, so prices are current.
+
+Another thing: the user said "It is Saturday", so markets are closed, but perps might be trading 24/7, so perhaps yes.
+
+But with low liquidity on weekend, might avoid.
+
+In the context, it says "Market Hours: You trade 24/7. Be aware that outside of US Market Hours, volatility and liquidity are significantly lower." So I can trade, but with caution.
+
+With event risk coming, I should avoid new positions.
+
+For MSFT, hold.
+
+For others, no trade.
+
+So output only for MSFT with "hold".
+
+Now for the JSON.
+
+For MSFT:
+
+    signal: "hold"
+    quantity: 12.935 (from existing)
+    profit_target: 504.9
+    stop_loss: 470.0
+    invalidation_condition: "Daily close below 470.00"
+    leverage: 10
+    confidence: I need to set a confidence. From Hypothesis A, deep edge, but with event risk, say 0.8
+    add: false (since not adding)
+    risk_usd: from existing, it was 0.0, but I should calculate based on current. risk_usd = quantity * |entry_price - stop_loss| = 12.935 * |483.54 - 470.0| = 12.935 * 13.54 ≈ 175.1 USD But in the position, risk_usd was 0.0, probably not set, but I should include it.
+
+In the output, for hold, I copy existing, but risk_usd might need to be computed.
+
+The constitution doesn't specify for hold, but for consistency, I can compute risk_usd based on current stop_loss.
+
+Similarly, justification: why hold.
+
+Justification: "Holding MSFT long as per Hypothesis A: uptrend continuation with contrarian tailwind from negative funding, despite event risk. Stop loss at 470 protects against breakdown."
+
+Confidence: 0.8
+
+Now, for other assets, no signal, so no keys in JSON.
+
+So output only xyz:MSFT.
+
+Finally, the JSON.

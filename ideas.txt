@@ -57,3 +57,66 @@ Dezavantaj: Trend devam ederse büyük kar kaçırılabilir
 ### Öneri
 Seçenek 2 (Trailing Stop Sıkılaştır) en dengeli görünüyor.
 Mevcut enhanced_exit_strategy içine eklenebilir.
+
+================================================================================
+
+## İyileştirme 3: Dinamik Erosion Threshold (Zone-Based)
+
+### Fikir
+Erosion tracking başlama eşiğini price_location'a göre dinamik yap:
+
+```python
+if price_location in ['LOWER_10', 'UPPER_10']:
+    erosion_rate = 0.03  # Daha erken tracking
+else:
+    erosion_rate = 0.05  # Normal tracking
+
+min_meaningful_profit = max(risk_usd * erosion_rate, 0.15)
+```
+
+### Mantık
+| Zone | Rate | Neden |
+|------|------|-------|
+| UPPER_10 | 0.03 | Fiyat tepede, pullback riski yüksek → küçük karları erken koru |
+| LOWER_10 | 0.03 | Bounce bölgesi, hızlı geri dönüş → erken tracking |
+| MIDDLE | 0.05 | Normal bölge, geniş hareket alanı ver |
+
+### Örnek (margin $45):
+| Zone | Threshold | Sonuç |
+|------|-----------|-------|
+| UPPER_10 | $1.35 | Daha erken tracking |
+| MIDDLE | $2.25 | Normal tracking |
+
+### Durum
+✅ UYGULAND - 2025-12-08
+
+================================================================================
+
+## BUG: Partial Close Sonrası Erosion Yanlış Alarm
+
+### Problem
+Partial close yapıldığında `peak_pnl` eski değerde kalıyor, ama pozisyon küçüldüğü için `unrealized_pnl` düşüyor. Bu yanlış erosion alarmına neden oluyor.
+
+### Örnek
+```
+Partial close ÖNCE:
+  - Notional: $450, unrealized_pnl: +$3
+  - peak_pnl: $3
+
+Partial close SONRA (%50 satış):
+  - Notional: $225, unrealized_pnl: +$1.50
+  - peak_pnl: $3 (hala eski!)
+  - Erosion: ($3 - $1.50) / $3 = 50% → SIGNIFICANT (YANLIŞ!)
+```
+
+### Çözüm
+Partial close sonrası `peak_pnl`'i orantılı düşür:
+```python
+# execute_live_partial_close ve _close_partial_position sonrası:
+pos['peak_pnl'] = pos.get('peak_pnl', 0) * (1 - close_percent)
+```
+
+### Durum
+✅ DÜZELTİLDİ - 2025-12-08
+- Live mode: check_and_execute_tp_sl içinde peak_pnl adjustment eklendi
+- Simulation mode: aynı fonksiyon içinde peak_pnl adjustment eklendi
