@@ -102,6 +102,19 @@ class DeepSeekAPI:
                     "price_location_entry_timing": {
                         "LOWER_10_SHORT": "If price in LOWER_10 zone and RSI < 30, wait for trend stabilization before opening new SHORT. High bounce probability.",
                         "UPPER_10_LONG": "If price in UPPER_10 zone and RSI > 70, wait for trend stabilization before opening new LONG. High pullback probability."
+                    },
+                    "zone_weakening_combined_rule": {
+                        "description": "CRITICAL RULE: Zone + WEAKENING combination signals trend exhaustion",
+                        "UPPER_10_WEAKENING": {
+                            "for_LONG_entry": "DO NOT open LONG. Trend exhausted at highs. Instead, evaluate SHORT opportunity.",
+                            "for_LONG_exit": "If you have LONG position: signal close_position immediately. Do NOT wait for stop loss.",
+                            "for_SHORT_entry": "GOOD opportunity. Trend reversing from highs. Proceed with SHORT if other conditions align."
+                        },
+                        "LOWER_10_WEAKENING": {
+                            "for_SHORT_entry": "DO NOT open SHORT. Trend exhausted at lows. Instead, evaluate LONG opportunity.",
+                            "for_SHORT_exit": "If you have SHORT position: signal close_position immediately. Do NOT wait for stop loss.",
+                            "for_LONG_entry": "GOOD opportunity. Trend reversing from lows. Proceed with LONG if other conditions align."
+                        }
                     }
                 },
                 "exit_logic": {

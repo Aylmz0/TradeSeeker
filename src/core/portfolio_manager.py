@@ -3180,6 +3180,17 @@ class PortfolioManager:
                         elif zone_15m == 'UPPER_10' and rsi_15m > 70 and direction == 'long':
                             confidence = confidence * 0.90
                             confidence_adjustments.append(f"upper10_rsi{rsi_15m:.0f}(-10%)")
+                        
+                        # Zone + WEAKENING adjustment (×0.90) - simetrik koruma
+                        # UPPER_10 + WEAKENING + LONG: Fiyat tepede + trend zayıflıyor = düşüş riski
+                        # LOWER_10 + WEAKENING + SHORT: Fiyat dipte + trend zayıflıyor = bounce riski
+                        if momentum_15m == 'WEAKENING':
+                            if zone_15m == 'UPPER_10' and direction == 'long':
+                                confidence = confidence * 0.90
+                                confidence_adjustments.append(f"upper10_weak(-10%)")
+                            elif zone_15m == 'LOWER_10' and direction == 'short':
+                                confidence = confidence * 0.90
+                                confidence_adjustments.append(f"lower10_weak(-10%)")
                     
                     if confidence_adjustments:
                         print(f"📉 Confidence adjusted for {coin}: {' '.join(confidence_adjustments)} → {confidence:.2f}")
