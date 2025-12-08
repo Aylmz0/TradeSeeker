@@ -120,3 +120,42 @@ pos['peak_pnl'] = pos.get('peak_pnl', 0) * (1 - close_percent)
 ✅ DÜZELTİLDİ - 2025-12-08
 - Live mode: check_and_execute_tp_sl içinde peak_pnl adjustment eklendi
 - Simulation mode: aynı fonksiyon içinde peak_pnl adjustment eklendi
+
+================================================================================
+
+## İyileştirme 4: Zone + WEAKENING Simetrik Koruma
+
+### Problem
+Mevcut kural RSI > 70 / RSI < 30 gerektiriyor. Ama:
+- DOGE LONG: RSI 65.46 (< 70) iken UPPER_10 + WEAKENING → koruma yok → -$5.91
+- XRP LONG: RSI 60.8 (< 70) iken UPPER_10 + WEAKENING → koruma yok → -$4.99
+- ASTER SHORT: LOWER_10 + WEAKENING → koruma yok → -$6.29
+
+### Çözüm
+```python
+# UPPER_10 + WEAKENING + LONG = TEHLİKE (×0.90)
+# LOWER_10 + WEAKENING + SHORT = TEHLİKE (×0.90)
+if momentum_15m == 'WEAKENING':
+    if zone_15m == 'UPPER_10' and direction == 'long':
+        confidence = confidence * 0.90
+    elif zone_15m == 'LOWER_10' and direction == 'short':
+        confidence = confidence * 0.90
+```
+
+### Durum
+✅ UYGULAND - 2025-12-08
+- portfolio_manager.py satır 3183-3193
+
+================================================================================
+
+## İyileştirme 5: Trailing Threshold 40% → 30%
+
+### Problem
+%30-40 progress aralığında trailing başlamadığı için kârların bir kısmı korunmuyor.
+
+### Çözüm
+TRAILING_PROGRESS_TRIGGER: 40.0 → 30.0
+
+### Durum
+✅ UYGULAND - 2025-12-08
+- .env ve .envexample güncellendi
