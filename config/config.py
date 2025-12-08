@@ -141,6 +141,11 @@ class Config:
     TRAILING_VOLUME_ABSOLUTE_THRESHOLD: float = float(os.getenv('TRAILING_VOLUME_ABSOLUTE_THRESHOLD', '0.2'))  # Absolute volume ratio floor
     TRAILING_VOLUME_DROP_RATIO: float = float(os.getenv('TRAILING_VOLUME_DROP_RATIO', '0.5'))  # Relative drop vs entry volume ratio
     TRAILING_MIN_IMPROVEMENT_PCT: float = float(os.getenv('TRAILING_MIN_IMPROVEMENT_PCT', '0.0005'))  # Minimum 0.05% improvement before updating stop
+    TRAILING_PROGRESS_TRIGGER_EXTREME: float = float(os.getenv('TRAILING_PROGRESS_TRIGGER_EXTREME', '20.0'))  # Lower trigger for LOWER_10/UPPER_10 zones
+
+    # Win Streak Cooldown Settings
+    WIN_STREAK_COOLDOWN_THRESHOLD: int = int(os.getenv('WIN_STREAK_COOLDOWN_THRESHOLD', '2'))  # Consecutive wins before cooldown
+    WIN_STREAK_COOLDOWN_CYCLES: int = int(os.getenv('WIN_STREAK_COOLDOWN_CYCLES', '1'))  # Cycles to wait after win streak
 
     # Higher Timeframe Configuration
     HTF_INTERVAL: str = os.getenv('HTF_INTERVAL', '1h').lower()

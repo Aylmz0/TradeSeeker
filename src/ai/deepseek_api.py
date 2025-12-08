@@ -92,6 +92,16 @@ class DeepSeekAPI:
                     "volume_rules": {
                          "weakness_warning": "If volume ratio is <= 0.20x average, DO NOT TRADE. This is a hard rule.",
                          "low_volume_caution": "If volume ratio is 0.20-0.50x, reduce confidence significantly."
+                    },
+                    "momentum_conviction_rule": {
+                        "description": "How 15m momentum quality affects entry timing",
+                        "STRENGTHENING": "Trend accelerating. Proceed with entry normally.",
+                        "STABLE": "Trend steady. Proceed with entry normally.",
+                        "WEAKENING": "Trend losing conviction. Wait for momentum stabilization before entering. If 15m WEAKENING and 3m is opposite direction, trend conviction is very weak - prefer HOLD."
+                    },
+                    "price_location_entry_timing": {
+                        "LOWER_10_SHORT": "If price in LOWER_10 zone and RSI < 30, wait for trend stabilization before opening new SHORT. High bounce probability.",
+                        "UPPER_10_LONG": "If price in UPPER_10 zone and RSI > 70, wait for trend stabilization before opening new LONG. High pullback probability."
                     }
                 },
                 "exit_logic": {
