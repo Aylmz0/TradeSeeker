@@ -1,161 +1,87 @@
-Potansiyel İyileştirme
-Öneri: LOWER_10 + RSI<30 durumunda counter-trade risk seviyesini bir kademe düşür:
-
-Mevcut Risk	Yeni Risk (dipte + oversold)
-HIGH_RISK	→ MEDIUM_RISK (trade edilebilir)
-VERY_HIGH_RISK	→ HIGH_RISK (hala edilemez)
-Mantık: Eğer fiyat gerçekten dipte ve oversold ise, bounce ihtimali normal durumdan daha yüksek. Bu durumda 15m'in dönmesini beklemek geç kalabilir.
-
-Soru
-Bu değişikliği yapmamı ister misin? Yani:
-
-LOWER_10 + RSI<30 → counter-trade risk'i bir kademe düşür
-UPPER_10 + RSI>70 → aynı mantık (pullback için SHORT risk'i düşür)
+# İyileştirme Fikirleri
 
 ================================================================================
 
-## İyileştirme 2: UPPER_10 + Overbought Durumunda Kar Koruma
+## FİKİR: 15m vs 1h Momentum Karışıklığı
 
 ### Problem
-XRP ve DOGE UPPER_10 + RSI>70 durumundayken HOLD yapıldı.
-Pullback geldi, +$0.45 → -$1.56 (XRP), +$0.90 → -$0.30 (DOGE)
-Toplam kaybedilen potansiyel kar: ~$3.21
+AI zone_weakening_combined_rule kuralını uygularken 1h momentum ile 15m momentum'u karıştırdı.
 
-### Önerilen Çözümler
-
-**Seçenek 1: Aggressive Profit Protection (Kısmi Kar Alımı)**
+**Örnek (Cycle 9 - DOGE):**
 ```
-Koşul: UPPER_10 + RSI>70 + unrealized_profit > $X
-Aksiyon: Kısmi kar al (%30-50)
-```
-Avantaj: Kârın bir kısmını korur, trend devam ederse kalan kısım kazanır
-Dezavantaj: Karmaşık, partial sale mantığı gerektirir
+1h momentum: WEAKENING
+15m momentum: STRENGTHENING
 
-**Seçenek 2: Trailing Stop Sıkılaştır**
-```
-Koşul: UPPER_10 + RSI>70
-Aksiyon: Stop loss'u entry price'a yaklaştır (breakeven veya küçük kar)
-```
-Avantaj: Basit, mevcut trailing stop sistemine entegre edilebilir
-Dezavantaj: Normal pullback'te erken tetiklenebilir
-
-**Seçenek 3: Full Exit on Extreme**
-```
-Koşul: UPPER_10 (percentile ≥ 95%) + RSI>75
-Aksiyon: Pozisyonu tamamen kapat
-```
-Avantaj: En agresif, kârı maximize eder
-Dezavantaj: Trend devam ederse büyük kar kaçırılabilir
-
-### Trade-off Matrisi
-| Yaklaşım        | Kâr Koruma | Trend Takibi | Karmaşıklık |
-|-----------------|------------|--------------|-------------|
-| Seçenek 1       | Orta       | Yüksek       | Yüksek      |
-| Seçenek 2       | Orta       | Orta         | Düşük       |
-| Seçenek 3       | Yüksek     | Düşük        | Düşük       |
-
-### Öneri
-Seçenek 2 (Trailing Stop Sıkılaştır) en dengeli görünüyor.
-Mevcut enhanced_exit_strategy içine eklenebilir.
-
-================================================================================
-
-## İyileştirme 3: Dinamik Erosion Threshold (Zone-Based)
-
-### Fikir
-Erosion tracking başlama eşiğini price_location'a göre dinamik yap:
-
-```python
-if price_location in ['LOWER_10', 'UPPER_10']:
-    erosion_rate = 0.03  # Daha erken tracking
-else:
-    erosion_rate = 0.05  # Normal tracking
-
-min_meaningful_profit = max(risk_usd * erosion_rate, 0.15)
+AI dedi: "UPPER_10 zone + 15m WEAKENING momentum"
+Gerçek: 15m momentum STRENGTHENING, 1h momentum WEAKENING
 ```
 
-### Mantık
-| Zone | Rate | Neden |
-|------|------|-------|
-| UPPER_10 | 0.03 | Fiyat tepede, pullback riski yüksek → küçük karları erken koru |
-| LOWER_10 | 0.03 | Bounce bölgesi, hızlı geri dönüş → erken tracking |
-| MIDDLE | 0.05 | Normal bölge, geniş hareket alanı ver |
+### Olası Çözümler
 
-### Örnek (margin $45):
-| Zone | Threshold | Sonuç |
-|------|-----------|-------|
-| UPPER_10 | $1.35 | Daha erken tracking |
-| MIDDLE | $2.25 | Normal tracking |
+1. **Prompt'u netleştir:** 
+   - "CHECK 15m MOMENTUM ONLY (not 1h)"
+   - Her koşula explicit "15m" prefix ekle
+
+2. **Veri sunumunu değiştir:**
+   - Market data'da momentum field'larını "momentum_1h", "momentum_15m" olarak ayır
+   - Karışıklığı önle
+
+3. **Kuralı basitleştir:**
+   - Sadece zone + RSI threshold kullan
+   - Momentum yerine RSI > 60 / RSI < 40 gibi sayısal değerler
 
 ### Durum
-✅ UYGULAND - 2025-12-08
+📋 BEKLEMEDE - Test edilecek
 
 ================================================================================
 
-## BUG: Partial Close Sonrası Erosion Yanlış Alarm
+## FİKİR: Extreme RSI + Zone Kuralı (Counter-Trend Fırsatı)
 
 ### Problem
-Partial close yapıldığında `peak_pnl` eski değerde kalıyor, ama pozisyon küçüldüğü için `unrealized_pnl` düşüyor. Bu yanlış erosion alarmına neden oluyor.
+TRX LOWER_10 zone + RSI 19.4 (extreme oversold) durumunda AI "Consider LONG counter-trend" 
+dedi ama counter_trade_analysis boş olduğu için açamadı.
 
-### Örnek
-```
-Partial close ÖNCE:
-  - Notional: $450, unrealized_pnl: +$3
-  - peak_pnl: $3
+**Backtest Sonucu (Cycle 88-98):**
+- Giriş: $0.2811, 10 cycle sonra: $0.281
+- Değişim: -0.04% (break-even)
+- RSI 19.4 → 21.9 (hafif recovery başladı)
 
-Partial close SONRA (%50 satış):
-  - Notional: $225, unrealized_pnl: +$1.50
-  - peak_pnl: $3 (hala eski!)
-  - Erosion: ($3 - $1.50) / $3 = 50% → SIGNIFICANT (YANLIŞ!)
-```
+### Öneri: Simetrik Extreme RSI Kuralı
 
-### Çözüm
-Partial close sonrası `peak_pnl`'i orantılı düşür:
-```python
-# execute_live_partial_close ve _close_partial_position sonrası:
-pos['peak_pnl'] = pos.get('peak_pnl', 0) * (1 - close_percent)
-```
+**LONG için:**
+- Zone: LOWER_10 (percentile < 10)
+- RSI (1h): < 25 (extreme oversold)
+- VEYA WEAKENING momentum
+→ Counter-trend LONG fırsatı değerlendir
+
+**SHORT için:**
+- Zone: UPPER_10 (percentile > 90)  
+- RSI (1h): > 75 (extreme overbought)
+- VEYA WEAKENING momentum
+→ Counter-trend SHORT fırsatı değerlendir
+
+### Uygulama Yeri
+1. `portfolio_manager.py` - confidence adjustment (runtime koruma)
+2. `deepseek_api.py` - AI prompt'a kural ekle
+3. `prompt_json_builders.py` - counter_trade_analysis'e extreme RSI koşulu ekle
+
+### Notlar
+- 15m alignment GEREKMESİN (RSI extreme zaten güçlü sinyal)
+- Volume > 0.50x gerektir (hard rule korunsun)
+- Risk azaltma için düşük confidence (0.40-0.55) kullan
 
 ### Durum
-✅ DÜZELTİLDİ - 2025-12-08
-- Live mode: check_and_execute_tp_sl içinde peak_pnl adjustment eklendi
-- Simulation mode: aynı fonksiyon içinde peak_pnl adjustment eklendi
+✅ TAMAMLANDI - Zone+Weakening risk modifier eklendi (prompt_json_builders.py)
+
+### Uygulanan Değişiklik
+- Zone bonus koşulları (15m timeframe):
+  - LOWER_10 + WEAKENING (BEARISH trend) = LONG için olumlu
+  - UPPER_10 + WEAKENING (BULLISH trend) = SHORT için olumlu
+  - LOWER_10 + RSI < 30 (BEARISH trend) = LONG için olumlu
+  - UPPER_10 + RSI > 70 (BULLISH trend) = SHORT için olumlu
+- Risk seviyesi sadece 1 kademe düşer (birden fazla koşul sağlansa bile):
+  - VERY_HIGH_RISK → HIGH_RISK
+  - HIGH_RISK → MEDIUM_RISK
+  - MEDIUM_RISK ve LOW_RISK aynı kalır
 
 ================================================================================
-
-## İyileştirme 4: Zone + WEAKENING Simetrik Koruma
-
-### Problem
-Mevcut kural RSI > 70 / RSI < 30 gerektiriyor. Ama:
-- DOGE LONG: RSI 65.46 (< 70) iken UPPER_10 + WEAKENING → koruma yok → -$5.91
-- XRP LONG: RSI 60.8 (< 70) iken UPPER_10 + WEAKENING → koruma yok → -$4.99
-- ASTER SHORT: LOWER_10 + WEAKENING → koruma yok → -$6.29
-
-### Çözüm
-```python
-# UPPER_10 + WEAKENING + LONG = TEHLİKE (×0.90)
-# LOWER_10 + WEAKENING + SHORT = TEHLİKE (×0.90)
-if momentum_15m == 'WEAKENING':
-    if zone_15m == 'UPPER_10' and direction == 'long':
-        confidence = confidence * 0.90
-    elif zone_15m == 'LOWER_10' and direction == 'short':
-        confidence = confidence * 0.90
-```
-
-### Durum
-✅ UYGULAND - 2025-12-08
-- portfolio_manager.py satır 3183-3193
-
-================================================================================
-
-## İyileştirme 5: Trailing Threshold 40% → 30%
-
-### Problem
-%30-40 progress aralığında trailing başlamadığı için kârların bir kısmı korunmuyor.
-
-### Çözüm
-TRAILING_PROGRESS_TRIGGER: 40.0 → 30.0
-
-### Durum
-✅ UYGULAND - 2025-12-08
-- .env ve .envexample güncellendi

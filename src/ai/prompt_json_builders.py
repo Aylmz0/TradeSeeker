@@ -109,8 +109,8 @@ def build_counter_trade_json(
             condition_1 = alignment_strength in ["STRONG", "MEDIUM"]
             condition_2 = (volume_3m or 0) / (avg_volume_3m or 1) > Config.VOLUME_RATIO_HIGH_THRESHOLD if avg_volume_3m else False
             # Condition 3: Extreme RSI (Counter-trend)
-            # If Bullish trend, we want to Short -> Need Overbought (>75)
-            # If Bearish trend, we want to Long -> Need Oversold (<25)
+            # If Bullish trend, we want to Short -> Need Overbought (>70)
+            # If Bearish trend, we want to Long -> Need Oversold (<30)
             condition_3 = (trend_htf == "BULLISH" and (rsi_3m or 50) > Config.RSI_OVERBOUGHT_THRESHOLD) or (trend_htf == "BEARISH" and (rsi_3m or 50) < Config.RSI_OVERSOLD_THRESHOLD)
             condition_4 = abs((price_3m or 0) - (ema20_3m or 0)) / (price_3m or 1) * 100 < 1.0 if price_3m and ema20_3m else False
             # Condition 5: MACD divergence (Counter-trend)
@@ -133,6 +133,40 @@ def build_counter_trade_json(
                 risk_level = "HIGH_RISK"  # Medium alignment with < 3 conditions is High Risk
             else:
                 risk_level = "VERY_HIGH_RISK"
+            
+            # Zone + Weakening Risk Modifier: Reduce risk by 1 level if conditions met
+            # LOWER_10 + WEAKENING (BEARISH trend) = favorable for LONG counter-trade
+            # UPPER_10 + WEAKENING (BULLISH trend) = favorable for SHORT counter-trade
+            # LOWER_10 + RSI < 30 (BEARISH trend) = favorable for LONG counter-trade
+            # UPPER_10 + RSI > 70 (BULLISH trend) = favorable for SHORT counter-trade
+            # NOTE: Only ONE level reduction even if multiple conditions are met
+            momentum_15m = indicators_15m.get('momentum', None) if has_15m else None
+            price_location_15m = indicators_15m.get('price_location', None) if has_15m else None
+            rsi_15m = format_number_for_json(indicators_15m.get('rsi_14', 50)) if has_15m else 50
+            
+            zone_bonus = False
+            
+            # Check Zone + Weakening conditions
+            if momentum_15m == "WEAKENING":
+                if trend_htf == "BEARISH" and price_location_15m == "LOWER_10":
+                    zone_bonus = True  # Favorable for LONG counter-trade
+                elif trend_htf == "BULLISH" and price_location_15m == "UPPER_10":
+                    zone_bonus = True  # Favorable for SHORT counter-trade
+            
+            # Check Zone + RSI extreme conditions (only if not already triggered by weakening)
+            if not zone_bonus:
+                if trend_htf == "BEARISH" and price_location_15m == "LOWER_10" and (rsi_15m or 50) < Config.RSI_OVERSOLD_THRESHOLD:
+                    zone_bonus = True  # LOWER_10 + RSI < 30 = favorable for LONG
+                elif trend_htf == "BULLISH" and price_location_15m == "UPPER_10" and (rsi_15m or 50) > Config.RSI_OVERBOUGHT_THRESHOLD:
+                    zone_bonus = True  # UPPER_10 + RSI > 70 = favorable for SHORT
+            
+            # Apply risk reduction if zone_bonus is True (only ONE level reduction)
+            if zone_bonus:
+                if risk_level == "VERY_HIGH_RISK":
+                    risk_level = "HIGH_RISK"
+                elif risk_level == "HIGH_RISK":
+                    risk_level = "MEDIUM_RISK"
+                # LOW_RISK stays LOW_RISK, MEDIUM_RISK stays MEDIUM_RISK
             
             analysis_list.append({
                 "coin": coin,
