@@ -40,6 +40,7 @@ class Config:
     SMART_COOLDOWN_LOSS: int = int(os.getenv('SMART_COOLDOWN_LOSS', '4'))
     SMART_COOLDOWN_WIN: int = int(os.getenv('SMART_COOLDOWN_WIN', '2'))
     EXTENDED_LOSS_CYCLES: int = int(os.getenv('EXTENDED_LOSS_CYCLES', '15'))  # Close position after this many negative cycles
+    EXTENDED_PROFIT_CYCLES: int = int(os.getenv('EXTENDED_PROFIT_CYCLES', '15'))  # Close position after this many positive cycles (take profit)
     
     # Risk Level Configuration
     RISK_LEVEL: str = os.getenv('RISK_LEVEL', 'medium').lower()

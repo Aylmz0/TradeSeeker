@@ -258,6 +258,7 @@ class PortfolioManager:
             for key in (
                 'confidence',
                 'loss_cycle_count',
+                'profit_cycle_count',
                 'trend_context',
                 'trend_alignment',
                 'entry_oid',
@@ -713,6 +714,7 @@ class PortfolioManager:
         self.portfolio_values_history = [self.total_value]
         for pos in self.positions.values():
             pos['loss_cycle_count'] = 0
+            pos['profit_cycle_count'] = 0
         self.last_history_reset_cycle = cycle_number
         self.cycles_since_history_reset = 0
         self.directional_cooldowns = {'long': 0, 'short': 0}
@@ -1390,11 +1392,16 @@ class PortfolioManager:
                     pnl_for_counter = pos.get('unrealized_pnl', 0.0)
                     if pnl_for_counter <= 0:
                         pos['loss_cycle_count'] = pos.get('loss_cycle_count', 0) + 1
+                        pos['profit_cycle_count'] = 0  # Reset profit counter when negative
                         new_count = pos['loss_cycle_count']
                         if new_count in (5, 8, 10):
                             print(f"⏳ LOSS CYCLE WATCH: {coin} {direction} negative for {new_count} cycles (PnL ${pnl_for_counter:.2f}).")
                     else:
                         pos['loss_cycle_count'] = 0
+                        pos['profit_cycle_count'] = pos.get('profit_cycle_count', 0) + 1  # Increment profit counter
+                        new_profit_count = pos['profit_cycle_count']
+                        if new_profit_count in (5, 8, 10, 12):
+                            print(f"💰 PROFIT CYCLE WATCH: {coin} {direction} profitable for {new_profit_count} cycles (PnL ${pnl_for_counter:.2f}).")
             elif coin in self.positions: print(f"⚠️ Invalid price for {coin}: {price}. PnL skip.")
 
         # Calculate total value correctly
@@ -1933,10 +1940,19 @@ class PortfolioManager:
         current_margin = position.get('margin_usd', 0)
         margin_used = position.get('margin_usd', position.get('notional_usd', 0) / max(position.get('leverage', 1), 1))
         loss_cycle_count = position.get('loss_cycle_count', 0)
+        profit_cycle_count = position.get('profit_cycle_count', 0)
         unrealized_pnl = position.get('unrealized_pnl', 0)
+        
+        # Extended loss exit - close after N negative cycles
         if loss_cycle_count >= Config.EXTENDED_LOSS_CYCLES and unrealized_pnl <= 0:
             reason = f"Position negative for {loss_cycle_count} cycles"
             print(f"⏳ Extended loss exit: {position['symbol']} {direction} closed ({reason}).")
+            return {"action": "close_position", "reason": reason}
+        
+        # Extended profit exit - take profit after N positive cycles
+        if profit_cycle_count >= Config.EXTENDED_PROFIT_CYCLES and unrealized_pnl > 0:
+            reason = f"Taking profit after {profit_cycle_count} profitable cycles (PnL ${unrealized_pnl:.2f})"
+            print(f"💰 Extended profit exit: {position['symbol']} {direction} closed ({reason}).")
             return {"action": "close_position", "reason": reason}
         
         # --- KADEMELİ LOSS CUTTING MEKANİZMASI (Margin tabanlı) ---

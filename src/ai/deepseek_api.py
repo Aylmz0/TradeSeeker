@@ -86,7 +86,6 @@ class DeepSeekAPI:
                             "HIGH_RISK": "MEDIUM alignment + <3 conditions. Evaluate carefully, prefer HOLD.",
                             "VERY_HIGH_RISK": "No alignment (15m+3m both follow HTF). Do NOT trade."
                         },
-                        "direction_rule": "Counter-trend direction = 15m+3m direction (NOT 1h direction).",
                         "restriction": "Do NOT trade if risk_level is VERY_HIGH_RISK. HIGH_RISK requires extreme caution."
                     },
                     "volume_rules": {
