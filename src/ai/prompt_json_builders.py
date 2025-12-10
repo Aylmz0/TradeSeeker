@@ -120,19 +120,21 @@ def build_counter_trade_json(
             
             total_met = sum([condition_1, condition_2, condition_3, condition_4, condition_5])
             
-            # Determine risk level (Stricter Logic - Updated User Request)
-            if alignment_strength == "STRONG" and total_met >= 4:
-                risk_level = "LOW_RISK"  # STRONG alignment + Very High Confluence
-            elif alignment_strength == "STRONG" and total_met >= 3:
-                risk_level = "MEDIUM_RISK"  # STRONG alignment + High Confluence
+            # Determine risk level (Updated Logic - User Request Dec 10)
+            # STRONG alignment = 15m+3m both counter
+            # MEDIUM alignment = 15m OR 3m counter (one of them)
+            if alignment_strength == "STRONG" and total_met >= 3:
+                risk_level = "LOW_RISK"  # STRONG + 3 or more conditions
+            elif alignment_strength == "STRONG" and total_met >= 1:
+                risk_level = "MEDIUM_RISK"  # STRONG + 1-2 conditions
             elif alignment_strength == "MEDIUM" and total_met >= 4:
-                risk_level = "MEDIUM_RISK"  # MEDIUM alignment + Very High Confluence
-            elif alignment_strength == "MEDIUM" and total_met >= 3:
-                risk_level = "MEDIUM_RISK"  # MEDIUM alignment + 3 conditions (relaxed)
+                risk_level = "LOW_RISK"  # MEDIUM + 4 or more conditions
+            elif alignment_strength == "MEDIUM" and total_met == 3:
+                risk_level = "MEDIUM_RISK"  # MEDIUM + exactly 3 conditions
             elif alignment_strength == "MEDIUM":
-                risk_level = "HIGH_RISK"  # Medium alignment with < 3 conditions is High Risk
+                risk_level = "HIGH_RISK"  # MEDIUM + less than 3 conditions
             else:
-                risk_level = "VERY_HIGH_RISK"
+                risk_level = "VERY_HIGH_RISK"  # No alignment (15m AND 3m both follow HTF trend)
             
             # Zone + Weakening Risk Modifier: Reduce risk by 1 level if conditions met
             # LOWER_10 + WEAKENING (BEARISH trend) = favorable for LONG counter-trade
