@@ -405,6 +405,7 @@ class BinanceOrderExecutor:
                 "confidence": 0.0,
                 "exit_plan": {},
                 "loss_cycle_count": 0,
+                "profit_cycle_count": 0,
                 "risk_usd": margin_usd,
                 "exchange_metadata": {
                     "symbol": symbol,

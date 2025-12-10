@@ -63,6 +63,10 @@ def build_counter_trade_json(
             ema20_htf = format_number_for_json(indicators_htf.get('ema_20'))
             price_3m = format_number_for_json(indicators_3m.get('current_price'))
             ema20_3m = format_number_for_json(indicators_3m.get('ema_20'))
+            
+            if price_htf is None or ema20_htf is None or price_3m is None or ema20_3m is None:
+                continue
+            
             rsi_3m = format_number_for_json(indicators_3m.get('rsi_14', 50))
             volume_3m = format_number_for_json(indicators_3m.get('volume', 0))
             avg_volume_3m = format_number_for_json(indicators_3m.get('avg_volume', 1))
@@ -79,8 +83,6 @@ def build_counter_trade_json(
                 if price_15m is not None and ema20_15m is not None:
                     trend_15m = "BULLISH" if price_15m > ema20_15m else "BEARISH"
             
-            if price_htf is None or ema20_htf is None or price_3m is None or ema20_3m is None:
-                continue
             
             # Determine trend directions
             trend_htf = "BULLISH" if price_htf > ema20_htf else "BEARISH"
@@ -89,7 +91,8 @@ def build_counter_trade_json(
             # Determine alignment strength for counter-trend
             # STRONG: 15m + 3m both align against 1h
             # MEDIUM: 15m VEYA 3m align against 1h
-            alignment_strength = None
+            # NONE: 15m AND 3m both follow 1h (no counter-trend)
+            alignment_strength = "NONE"  # Default to NONE (not Python None)
             if trend_15m and trend_3m:
                 # Counter-trend: 1h trend vs 3m/15m trend
                 if trend_htf == "BULLISH":
@@ -107,7 +110,7 @@ def build_counter_trade_json(
             
             # Evaluate conditions (calculate total_met without storing individual conditions)
             condition_1 = alignment_strength in ["STRONG", "MEDIUM"]
-            condition_2 = (volume_3m or 0) / (avg_volume_3m or 1) > Config.VOLUME_RATIO_HIGH_THRESHOLD if avg_volume_3m else False
+            condition_2 = (volume_3m or 0) / (avg_volume_3m or 1) > Config.VOLUME_QUALITY_THRESHOLDS['good'] if avg_volume_3m else False
             # Condition 3: Extreme RSI (Counter-trend)
             # If Bullish trend, we want to Short -> Need Overbought (>70)
             # If Bearish trend, we want to Long -> Need Oversold (<30)
@@ -181,7 +184,7 @@ def build_counter_trade_json(
                 },
                 "risk_level": risk_level,
                 "volume_ratio": format_number_for_json((volume_3m or 0) / avg_volume_3m) if avg_volume_3m and avg_volume_3m > 0 else 0.0,
-                "volume_strength": "STRONG" if (avg_volume_3m and avg_volume_3m > 0 and ((volume_3m or 0) / avg_volume_3m) > Config.VOLUME_RATIO_HIGH_THRESHOLD) else "WEAK" if (avg_volume_3m and avg_volume_3m > 0 and ((volume_3m or 0) / avg_volume_3m) < Config.VOLUME_RATIO_LOW_THRESHOLD) else "NORMAL",
+                "volume_strength": "STRONG" if (avg_volume_3m and avg_volume_3m > 0 and ((volume_3m or 0) / avg_volume_3m) > Config.VOLUME_QUALITY_THRESHOLDS['good']) else "WEAK" if (avg_volume_3m and avg_volume_3m > 0 and ((volume_3m or 0) / avg_volume_3m) < Config.VOLUME_QUALITY_THRESHOLDS['poor']) else "NORMAL",
                 "rsi_3m": rsi_3m
             })
         
