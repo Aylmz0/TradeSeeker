@@ -81,13 +81,13 @@ class DeepSeekAPI:
                         "definition": f"Trade direction is OPPOSITE to {HTF_LABEL} trend.",
                         "condition": "Evaluate 'risk_level' provided in counter_trade_analysis.",
                         "risk_level_rules": {
-                            "LOW_RISK": "STRONG alignment (15m+3m both counter) + 4+ conditions. EXECUTE.",
-                            "MEDIUM_RISK": "STRONG+3 conditions OR MEDIUM+4 conditions. EXECUTE if confidence > 0.65.",
-                            "HIGH_RISK": "MEDIUM alignment + <4 conditions. Do NOT trade.",
-                            "VERY_HIGH_RISK": "No alignment. Do NOT trade."
+                            "LOW_RISK": "STRONG+3 OR MEDIUM+4 conditions. EXECUTE.",
+                            "MEDIUM_RISK": "STRONG+1-2 OR MEDIUM+3 conditions. EXECUTE if confidence > 0.65.",
+                            "HIGH_RISK": "MEDIUM alignment + <3 conditions. Evaluate carefully, prefer HOLD.",
+                            "VERY_HIGH_RISK": "No alignment (15m+3m both follow HTF). Do NOT trade."
                         },
                         "direction_rule": "Counter-trend direction = 15m+3m direction (NOT 1h direction).",
-                        "restriction": "Do NOT trade if risk_level is HIGH_RISK or VERY_HIGH_RISK."
+                        "restriction": "Do NOT trade if risk_level is VERY_HIGH_RISK. HIGH_RISK requires extreme caution."
                     },
                     "volume_rules": {
                          "weakness_warning": "If volume ratio is <= 0.20x average, DO NOT TRADE. This is a hard rule.",
@@ -99,21 +99,37 @@ class DeepSeekAPI:
                         "STABLE": "Trend steady. Proceed with entry normally.",
                         "WEAKENING": "Trend losing conviction. Wait for momentum stabilization before entering. If 15m WEAKENING and 3m is opposite direction, trend conviction is very weak - prefer HOLD."
                     },
-                    "price_location_entry_timing": {
-                        "LOWER_10_SHORT": "If price in LOWER_10 zone and RSI < 30, wait for trend stabilization before opening new SHORT. High bounce probability.",
-                        "UPPER_10_LONG": "If price in UPPER_10 zone and RSI > 70, wait for trend stabilization before opening new LONG. High pullback probability."
-                    },
                     "zone_weakening_combined_rule": {
                         "description": "CRITICAL RULE: Zone + WEAKENING combination signals trend exhaustion",
                         "UPPER_10_WEAKENING": {
-                            "for_LONG_entry": "DO NOT open LONG. Trend exhausted at highs. Instead, evaluate SHORT opportunity.",
-                            "for_LONG_exit": "If you have LONG position: signal close_position immediately. Do NOT wait for stop loss.",
-                            "for_SHORT_entry": "GOOD opportunity. Trend reversing from highs. Proceed with SHORT if other conditions align."
+                            "for_LONG_entry": "DO NOT open LONG. Trend exhausted at highs. Prefer HOLD or evaluate SHORT.",
+                            "for_LONG_exit": "If you have LONG: signal close_position immediately. Do NOT wait for stop loss.",
+                            "for_SHORT_entry": "GOOD counter-trend opportunity. Proceed with SHORT if conditions align.",
+                            "for_SHORT_exit": "SHORT is SAFE at UPPER_10. Continue holding - trend favorably exhausting."
                         },
                         "LOWER_10_WEAKENING": {
-                            "for_SHORT_entry": "DO NOT open SHORT. Trend exhausted at lows. Instead, evaluate LONG opportunity.",
-                            "for_SHORT_exit": "If you have SHORT position: signal close_position immediately. Do NOT wait for stop loss.",
-                            "for_LONG_entry": "GOOD opportunity. Trend reversing from lows. Proceed with LONG if other conditions align."
+                            "for_SHORT_entry": "DO NOT open SHORT. Trend exhausted at lows. Prefer HOLD or evaluate LONG.",
+                            "for_SHORT_exit": "If you have SHORT: signal close_position immediately. Do NOT wait for stop loss.",
+                            "for_LONG_entry": "GOOD counter-trend opportunity. Proceed with LONG if conditions align.",
+                            "for_LONG_exit": "LONG is SAFE at LOWER_10. Continue holding - trend favorably exhausting."
+                        }
+                    },
+                    "zone_rsi_extreme_rule": {
+                        "description": "CRITICAL RULE: Zone + RSI extreme combination signals high reversal probability",
+                        "check_condition": "15m RSI and price_location",
+                        "LOWER_10_RSI_OVERSOLD": {
+                            "condition": "price_location = LOWER_10 AND RSI < 30",
+                            "for_SHORT_entry": "HIGH RISK for SHORT. Bounce probability high. Prefer HOLD or evaluate LONG.",
+                            "for_SHORT_exit": "If you have SHORT: signal close_position immediately. Bounce imminent.",
+                            "for_LONG_entry": "GOOD counter-trend opportunity. Proceed with LONG if volume supports.",
+                            "for_LONG_exit": "LONG is SAFE at oversold. Continue holding."
+                        },
+                        "UPPER_10_RSI_OVERBOUGHT": {
+                            "condition": "price_location = UPPER_10 AND RSI > 70",
+                            "for_LONG_entry": "HIGH RISK for LONG. Pullback probability high. Prefer HOLD or evaluate SHORT.",
+                            "for_LONG_exit": "If you have LONG: signal close_position immediately. Pullback imminent.",
+                            "for_SHORT_entry": "GOOD counter-trend opportunity. Proceed with SHORT if volume supports.",
+                            "for_SHORT_exit": "SHORT is SAFE at overbought. Continue holding."
                         }
                     }
                 },
@@ -146,7 +162,8 @@ class DeepSeekAPI:
                     }
                 },
                 "startup_behavior": {
-                    "cycles_1_to_3": "Observe unless an exceptional, well-supported setup appears.",
+                    "cycles_1_to_3": "Observe unless an exceptional, well-supported setup appears. Do NOT cite this rule after cycle 3.",
+                    "cycles_4_plus": "Normal trading mode. Apply all rules without startup caution. Trade when conditions are met.",
                     "general": "Avoid impulsive entries immediately after reset. Maintain up to 5 concurrent positions; choose quality over quantity."
                 }
             },
