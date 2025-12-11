@@ -3488,14 +3488,16 @@ class PortfolioManager:
                                     print(f"⚠️ WARNING: Counter-trend confidence {confidence:.2f} below recommended {counter_confidence_floor:.2f} - proceeding with AI decision")
                             print(f"⚠️ COUNTER-TREND DETECTED: {coin} - respecting AI decision with additional validation")
                             
-                            # Perform validation for counter-trend trades only
-                            validation_result = self.validate_counter_trade(coin, signal, indicators_3m, indicators_htf)
-                            
-                            if not validation_result['valid']:
-                                print(f"🚫 Counter-trend validation failed: {validation_result.get('reason', 'Unknown')}. Blocked for discipline.")
-                                execution_report['blocked'].append({'coin': coin, 'reason': 'counter_trend_validation_failed', 'confidence': confidence})
-                                trade['runtime_decision'] = 'blocked_counter_trend_validation'
-                                continue
+                            # DISABLED: Redundant validation - risk_level already calculated in prompt_json_builders.py
+                            # AI already validated risk_level (LOW/MEDIUM/HIGH) before making decision
+                            # This duplicate validation was using different criteria and blocking valid trades
+                            # validation_result = self.validate_counter_trade(coin, signal, indicators_3m, indicators_htf)
+                            # 
+                            # if not validation_result['valid']:
+                            #     print(f"🚫 Counter-trend validation failed: {validation_result.get('reason', 'Unknown')}. Blocked for discipline.")
+                            #     execution_report['blocked'].append({'coin': coin, 'reason': 'counter_trend_validation_failed', 'confidence': confidence})
+                            #     trade['runtime_decision'] = 'blocked_counter_trend_validation'
+                            #     continue
                     else:
                         guard_active = guard_cycles_since_flip is not None and guard_cycles_since_flip <= guard_window
                         if guard_active and last_flip_direction:

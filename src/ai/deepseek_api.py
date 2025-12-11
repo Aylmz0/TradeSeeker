@@ -113,24 +113,25 @@ class DeepSeekAPI:
                             "for_LONG_exit": "LONG is SAFE at LOWER_10. Continue holding - trend favorably exhausting."
                         }
                     },
-                    "zone_rsi_extreme_rule": {
-                        "description": "CRITICAL RULE: Zone + RSI extreme combination signals high reversal probability",
-                        "check_condition": "15m RSI and price_location",
-                        "LOWER_10_RSI_OVERSOLD": {
-                            "condition": "price_location = LOWER_10 AND RSI < 30",
-                            "for_SHORT_entry": "HIGH RISK for SHORT. Bounce probability high. Prefer HOLD or evaluate LONG.",
-                            "for_SHORT_exit": "If you have SHORT: signal close_position immediately. Bounce imminent.",
-                            "for_LONG_entry": "GOOD counter-trend opportunity. Proceed with LONG if volume supports.",
-                            "for_LONG_exit": "LONG is SAFE at oversold. Continue holding."
-                        },
-                        "UPPER_10_RSI_OVERBOUGHT": {
-                            "condition": "price_location = UPPER_10 AND RSI > 70",
-                            "for_LONG_entry": "HIGH RISK for LONG. Pullback probability high. Prefer HOLD or evaluate SHORT.",
-                            "for_LONG_exit": "If you have LONG: signal close_position immediately. Pullback imminent.",
-                            "for_SHORT_entry": "GOOD counter-trend opportunity. Proceed with SHORT if volume supports.",
-                            "for_SHORT_exit": "SHORT is SAFE at overbought. Continue holding."
-                        }
-                    }
+                    # DISABLED FOR A/B TESTING (zone+weakening remains active)
+                    # "zone_rsi_extreme_rule": {
+                    #     "description": "CRITICAL RULE: Zone + RSI extreme combination signals high reversal probability",
+                    #     "check_condition": "15m RSI and price_location",
+                    #     "LOWER_10_RSI_OVERSOLD": {
+                    #         "condition": "price_location = LOWER_10 AND RSI < 30",
+                    #         "for_SHORT_entry": "HIGH RISK for SHORT. Bounce probability high. Prefer HOLD or evaluate LONG.",
+                    #         "for_SHORT_exit": "If you have SHORT: signal close_position immediately. Bounce imminent.",
+                    #         "for_LONG_entry": "GOOD counter-trend opportunity. Proceed with LONG if volume supports.",
+                    #         "for_LONG_exit": "LONG is SAFE at oversold. Continue holding."
+                    #     },
+                    #     "UPPER_10_RSI_OVERBOUGHT": {
+                    #         "condition": "price_location = UPPER_10 AND RSI > 70",
+                    #         "for_LONG_entry": "HIGH RISK for LONG. Pullback probability high. Prefer HOLD or evaluate SHORT.",
+                    #         "for_LONG_exit": "If you have LONG: signal close_position immediately. Pullback imminent.",
+                    #         "for_SHORT_entry": "GOOD counter-trend opportunity. Proceed with SHORT if volume supports.",
+                    #         "for_SHORT_exit": "SHORT is SAFE at overbought. Continue holding."
+                    #     }
+                    # }
                 },
                 "exit_logic": {
                     "reversal_warning": {

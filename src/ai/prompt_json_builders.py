@@ -158,12 +158,13 @@ def build_counter_trade_json(
                 elif trend_htf == "BULLISH" and price_location_15m == "UPPER_10":
                     zone_bonus = True  # Favorable for SHORT counter-trade
             
+            # DISABLED FOR A/B TESTING (zone+weakening remains active)
             # Check Zone + RSI extreme conditions (only if not already triggered by weakening)
-            if not zone_bonus:
-                if trend_htf == "BEARISH" and price_location_15m == "LOWER_10" and (rsi_15m or 50) < Config.RSI_OVERSOLD_THRESHOLD:
-                    zone_bonus = True  # LOWER_10 + RSI < 30 = favorable for LONG
-                elif trend_htf == "BULLISH" and price_location_15m == "UPPER_10" and (rsi_15m or 50) > Config.RSI_OVERBOUGHT_THRESHOLD:
-                    zone_bonus = True  # UPPER_10 + RSI > 70 = favorable for SHORT
+            # if not zone_bonus:
+            #     if trend_htf == "BEARISH" and price_location_15m == "LOWER_10" and (rsi_15m or 50) < Config.RSI_OVERSOLD_THRESHOLD:
+            #         zone_bonus = True  # LOWER_10 + RSI < 30 = favorable for LONG
+            #     elif trend_htf == "BULLISH" and price_location_15m == "UPPER_10" and (rsi_15m or 50) > Config.RSI_OVERBOUGHT_THRESHOLD:
+            #         zone_bonus = True  # UPPER_10 + RSI > 70 = favorable for SHORT
             
             # Apply risk reduction if zone_bonus is True (only ONE level reduction)
             if zone_bonus:
