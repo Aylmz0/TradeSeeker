@@ -9,6 +9,8 @@ from typing import Dict, List, Any, Optional
 from config.config import Config
 from src.utils import RetryManager
 
+#add this ass a cycle counter analysez              
+
 # HTF_INTERVAL used in main.py, we can get it from Config or define it here
 HTF_INTERVAL = getattr(Config, 'HTF_INTERVAL', '1h') or '1h'
 
