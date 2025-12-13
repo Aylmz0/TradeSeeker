@@ -244,3 +244,142 @@ MAX_PROFIT_HOLD_CYCLES: int = 10  # N cycle kârdaysa al
 ⏳ BEKLEMEDE - Kullanıcı onayı ve implementasyon seçimi bekleniyor
 
 ================================================================================
+
+## Potansiyel Yeni İndikatörler (11 Aralık 2025)
+
+Binance'den alınan indikatör listesi değerlendirildi. Aşağıdaki 4 indikatör projeye 
+uygun görüldü ve gelecekte eklenebilir.
+
+---
+
+### 1. Supertrend 🟢 ÖNCELİKLİ
+
+**Ne:** ATR tabanlı trend takip indikatörü. Bollinger Bands + ATR kombinasyonu.
+
+**Nasıl Çalışır:**
+- Fiyat Supertrend çizgisinin üstünde → BULLISH
+- Fiyat Supertrend çizgisinin altında → BEARISH
+- Çizgi flip olduğunda trend değişimi sinyali
+
+**Neden Uygun:**
+- Mevcut `trend_flip_guard` mantığına mükemmel uyuyor
+- Tek bir indikatörle trend yönü + flip tespiti
+- False signal'ları azaltır (ATR volatiliteye göre ayarlanır)
+
+**Entegrasyon Önerisi:**
+- `market_data.py`: Supertrend hesapla (ATR + multiplier)
+- `portfolio_manager.py`: trend_flip_guard için kullan
+- Config: `SUPERTREND_PERIOD = 10`, `SUPERTREND_MULTIPLIER = 3.0`
+
+**Formül:**
+```python
+basic_upperband = (high + low) / 2 + multiplier * atr
+basic_lowerband = (high + low) / 2 - multiplier * atr
+# Trend: price > supertrend → UP, else DOWN
+```
+
+---
+
+### 2. DMI/ADX 🟢 ÖNCELİKLİ
+
+**Ne:** Directional Movement Index + Average Directional Index
+
+**Nasıl Çalışır:**
+- +DI: Positive directional movement (yukarı hareket gücü)
+- -DI: Negative directional movement (aşağı hareket gücü)
+- ADX: Trend gücü (0-100 arası, yön belirtmez)
+
+**Değerler:**
+- ADX < 20 → Trendless/Choppy market
+- ADX 20-40 → Trend var
+- ADX > 40 → Güçlü trend
+- +DI > -DI → Bullish
+- -DI > +DI → Bearish
+
+**Neden Uygun:**
+- Mevcut `efficiency_ratio` ile aynı amaç ama daha güvenilir
+- CHOPPY market tespiti için ideal
+- Trend gücünü ölçer (sadece yön değil)
+
+**Entegrasyon Önerisi:**
+- `market_data.py`: ADX hesapla (14 periyot)
+- CHOPPY detection: ADX < 20 ise choppy market
+- Config: `ADX_CHOPPY_THRESHOLD = 20`, `ADX_STRONG_TREND_THRESHOLD = 40`
+
+---
+
+### 3. MFI (Money Flow Index) 🟢 ÖNCELİKLİ
+
+**Ne:** Volume-weighted RSI. RSI'ın hacim dahil versiyonu.
+
+**Nasıl Çalışır:**
+- RSI gibi 0-100 arası
+- Hacim + fiyat hareketi birlikte değerlendiriliyor
+- "Smart money" hareketlerini yakalamaya çalışır
+
+**Değerler:**
+- MFI < 20 → Oversold (güçlü alım fırsatı)
+- MFI > 80 → Overbought (güçlü satış fırsatı)
+- MFI divergence: Fiyat yükseliyor + MFI düşüyor → reversal olabilir
+
+**Neden Uygun:**
+- Mevcut sistemde volume_ratio ve RSI ayrı ayrı var
+- MFI ikisini birleştirir → daha güçlü sinyal
+- Counter-trend fırsatları için ideal (extreme MFI + low volume_ratio)
+
+**Entegrasyon Önerisi:**
+- `market_data.py`: MFI hesapla
+- Counter-trend analysis'e ekle (extreme MFI bonus)
+- Config: `MFI_OVERSOLD = 20`, `MFI_OVERBOUGHT = 80`
+
+**Formül:**
+```python
+typical_price = (high + low + close) / 3
+raw_money_flow = typical_price * volume
+positive_flow = sum of money_flow when price up
+negative_flow = sum of money_flow when price down
+money_ratio = positive_flow / negative_flow
+MFI = 100 - (100 / (1 + money_ratio))
+```
+
+---
+
+### 4. Parabolic SAR 🟡 OPSİYONEL
+
+**Ne:** Stop and Reverse indikatörü. Trailing stop için tasarlanmış.
+
+**Nasıl Çalışır:**
+- Fiyatın altında noktalar → BULLISH (long için stop seviyesi)
+- Fiyatın üstünde noktalar → BEARISH (short için stop seviyesi)
+- Fiyat SAR'ı geçince trend flip sinyali
+
+**Değerler:**
+- SAR acceleration factor (AF): 0.02 başlangıç, 0.02 artış, 0.20 max
+- Trend devam ettikçe SAR fiyata yaklaşır
+
+**Neden Uygun:**
+- Mevcut trailing stop mekanizmasına alternatif
+- ATR-based trailing yerine SAR-based kullanılabilir
+- Daha dinamik stop seviyesi (trend hızlandıkça sıkılaşır)
+
+**Entegrasyon Önerisi:**
+- `market_data.py`: SAR hesapla
+- Trailing stop activation'da SAR değerini kullan
+- Config: `SAR_AF_START = 0.02`, `SAR_AF_INCREMENT = 0.02`, `SAR_AF_MAX = 0.20`
+
+**Not:** Mevcut ATR-based trailing stop iyi çalışıyor. SAR daha agresif kapatma 
+yapar, bu da kârı erken alabilir veya koruyabilir. Test gerektirir.
+
+---
+
+### Öncelik Sırası
+
+1. **DMI/ADX** - CHOPPY detection için en yararlı
+2. **Supertrend** - Trend flip guard için
+3. **MFI** - Volume-weighted RSI alternatifi
+4. **Parabolic SAR** - Trailing stop alternatifi (opsiyonel)
+
+### Durum
+⏳ BEKLEMEDE - Kullanıcı karar verecek
+
+================================================================================

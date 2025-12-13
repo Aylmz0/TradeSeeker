@@ -1034,7 +1034,7 @@ class PortfolioManager:
 
         # Hafifletilmiş caution penalty: 0.8 yerine 0.95
         if stats.get('caution_active'):
-            adjusted_confidence = max(adjusted_confidence * 0.95, adjusted_confidence - 0.03)
+            adjusted_confidence = max(adjusted_confidence * 0.90, adjusted_confidence - 0.7)
 
         trend_lower = current_trend.lower() if isinstance(current_trend, str) else 'unknown'
 
@@ -1306,9 +1306,9 @@ class PortfolioManager:
         
         # Set erosion rate based on zone
         if zone in ['LOWER_10', 'UPPER_10']:
-            erosion_rate = 0.03  # More sensitive at extremes
+            erosion_rate = 0.02  # More sensitive at extremes
         else:
-            erosion_rate = 0.05  # Normal sensitivity in MIDDLE
+            erosion_rate = 0.04  # Normal sensitivity in MIDDLE
         
         # Minimum meaningful profit threshold
         # Small profits are normal fluctuation, not worth triggering erosion alerts
@@ -3096,11 +3096,26 @@ class PortfolioManager:
             'skipped': [],
             'holds': [],
             'notes': [],
+            'debug_logs': [],  # Kritik konsol loglarını saklar (flip guard, confidence adjustments vb.)
             'timestamp': datetime.now().isoformat()
         }
         live_trading = getattr(self, 'is_live_trading', False)
         if live_trading:
             self.sync_live_account()
+
+        # Helper: Hem konsola yaz hem execution_report'a kaydet
+        def _log_debug(category: str, message: str, details: Dict = None):
+            """
+            Log kritik bilgileri hem konsola hem JSON'a.
+            Categories: 'confidence', 'flip_guard', 'volume', 'sizing', 'trend', 'block', 'info'
+            """
+            print(message)
+            execution_report['debug_logs'].append({
+                'category': category,
+                'message': message,
+                'details': details or {},
+                'timestamp': datetime.now().isoformat()
+            })
 
         # Slot Priority by Confidence: Sort entry signals by confidence (highest first)
         # This ensures when slots are limited, we pick the best signals
@@ -3209,7 +3224,8 @@ class PortfolioManager:
                                 confidence_adjustments.append(f"lower10_weak(-10%)")
                     
                     if confidence_adjustments:
-                        print(f"📉 Confidence adjusted for {coin}: {' '.join(confidence_adjustments)} → {confidence:.2f}")
+                        _log_debug('confidence', f"📉 Confidence adjusted for {coin}: {' '.join(confidence_adjustments)} → {confidence:.2f}", 
+                                   {'coin': coin, 'adjustments': confidence_adjustments, 'final_confidence': confidence})
                 except Exception as e:
                     pass  # Continue without adjustments
 
@@ -3371,7 +3387,8 @@ class PortfolioManager:
 
                     # HARD VOLUME FILTER (< 0.20)
                     if volume_ratio < 0.20:
-                        print(f"🚫 HARD VOLUME FILTER: {coin} volume ratio {volume_ratio:.2f} < 0.20. Trade blocked.")
+                        _log_debug('block', f"🚫 HARD VOLUME FILTER: {coin} volume ratio {volume_ratio:.2f} < 0.20. Trade blocked.",
+                                   {'coin': coin, 'volume_ratio': volume_ratio, 'threshold': 0.20})
                         execution_report['blocked'].append({
                             'coin': coin,
                             'reason': 'hard_volume_filter',
@@ -3384,7 +3401,8 @@ class PortfolioManager:
                         low_volume_threshold = 0.20 if not relax_mode_active_global else 0.15
                         if volume_ratio < low_volume_threshold:
                             if relax_mode_active_global:
-                                print(f"⚡ Relaxed mode: skipping low-volume penalty for {coin} (ratio {volume_ratio:.2f}x).")
+                                _log_debug('volume', f"⚡ Relaxed mode: skipping low-volume penalty for {coin} (ratio {volume_ratio:.2f}x).",
+                                           {'coin': coin, 'volume_ratio': volume_ratio, 'mode': 'relaxed'})
                             else:
                                 original_confidence = confidence
                                 # Hafifletilmiş penalty: 0.8 yerine 0.92 (sadece %8 düşüş)
@@ -3392,7 +3410,8 @@ class PortfolioManager:
                                 # Minimum confidence floor: AI'nın verdiği değerin %85'i altına düşmesin
                                 min_floor = original_confidence * 0.85
                                 confidence = max(confidence, min_floor, Config.MIN_CONFIDENCE)
-                                print(f"🥶 LOW VOLUME PENALTY: {coin} volume ratio {volume_ratio:.2f}x. Confidence {original_confidence:.2f} → {confidence:.2f}")
+                                _log_debug('volume', f"🥶 LOW VOLUME PENALTY: {coin} volume ratio {volume_ratio:.2f}x. Confidence {original_confidence:.2f} → {confidence:.2f}",
+                                           {'coin': coin, 'volume_ratio': volume_ratio, 'original_confidence': original_confidence, 'adjusted_confidence': confidence})
                                 if confidence < Config.MIN_CONFIDENCE:
                                     print(f"🚫 Low volume block: {coin} confidence {confidence:.2f} below minimum after penalty.")
                                     execution_report['blocked'].append({'coin': coin, 'reason': 'low_volume', 'volume_ratio': volume_ratio, 'confidence': confidence})
@@ -3413,7 +3432,8 @@ class PortfolioManager:
                     pre_bias_confidence = confidence
                     confidence = self.apply_directional_bias(signal, confidence, bias_metrics, current_trend)
                     if confidence != pre_bias_confidence:
-                        print(f"🧭 Directional bias adjustment: {coin} {signal} confidence {pre_bias_confidence:.2f} → {confidence:.2f}")
+                        _log_debug('confidence', f"🧭 Directional bias adjustment: {coin} {signal} confidence {pre_bias_confidence:.2f} → {confidence:.2f}",
+                                   {'coin': coin, 'signal': signal, 'original': pre_bias_confidence, 'adjusted': confidence})
                         trade['confidence'] = confidence
                     is_counter_trend = self._is_counter_trend_trade(coin, signal, indicators_3m, indicators_htf)
                     trend_classification = 'counter_trend' if is_counter_trend else 'trend_following'
@@ -3448,7 +3468,8 @@ class PortfolioManager:
                         relaxed_countertrend = self.relaxed_countertrend_cycles > 0
                         if relaxed_countertrend:
                             remaining_relax = self.relaxed_countertrend_cycles
-                            print(f"⚡ RELAXED COUNTER-TREND MODE: {coin} - skipping flip guard & validation ({remaining_relax} cycles remaining).")
+                            _log_debug('flip_guard', f"⚡ RELAXED COUNTER-TREND MODE: {coin} - skipping flip guard & validation ({remaining_relax} cycles remaining).",
+                                       {'coin': coin, 'mode': 'relaxed', 'cycles_remaining': remaining_relax})
                         else:
                             guard_active = guard_cycles_since_flip is not None and guard_cycles_since_flip <= guard_window
                             if guard_active:
@@ -3456,37 +3477,46 @@ class PortfolioManager:
                                 if guard_cycles_since_flip == 0:
                                     min_conf = 0.65  # Strictest: same cycle as flip (reduced from 0.70)
                                     if confidence < min_conf:
-                                        print(f"🚫 Flip guard confidence floor: {coin} {signal} confidence {confidence:.2f} < {min_conf:.2f} in same cycle after flip.")
+                                        _log_debug('flip_guard', f"🚫 Flip guard confidence floor: {coin} {signal} confidence {confidence:.2f} < {min_conf:.2f} in same cycle after flip.",
+                                                   {'coin': coin, 'signal': signal, 'confidence': confidence, 'min_required': min_conf, 'cycles_since_flip': 0})
                                         execution_report['blocked'].append({'coin': coin, 'reason': 'trend_flip_guard_confidence', 'classification': trend_classification})
                                         trade['runtime_decision'] = 'blocked_trend_flip_confidence'
                                         continue
                                     partial_margin_factor = min(partial_margin_factor, 0.7)
-                                    print(f"⏳ Trend flip guard: {coin} sizing capped at 70% in same-cycle counter-trend attempt (confidence {confidence:.2f}).")
+                                    _log_debug('sizing', f"⏳ Trend flip guard: {coin} sizing capped at 70% in same-cycle counter-trend attempt (confidence {confidence:.2f}).",
+                                               {'coin': coin, 'sizing_cap': 0.7, 'confidence': confidence, 'cycles_since_flip': 0})
                                 elif guard_cycles_since_flip == 1:
                                     min_conf = 0.60  # More relaxed: one cycle after flip (reduced from 0.65)
                                     if confidence < min_conf:
-                                        print(f"🚫 Flip guard confidence floor: {coin} {signal} confidence {confidence:.2f} < {min_conf:.2f} one cycle after flip.")
+                                        _log_debug('flip_guard', f"🚫 Flip guard confidence floor: {coin} {signal} confidence {confidence:.2f} < {min_conf:.2f} one cycle after flip.",
+                                                   {'coin': coin, 'signal': signal, 'confidence': confidence, 'min_required': min_conf, 'cycles_since_flip': 1})
                                         execution_report['blocked'].append({'coin': coin, 'reason': 'trend_flip_guard_confidence', 'classification': trend_classification})
                                         trade['runtime_decision'] = 'blocked_trend_flip_confidence'
                                         continue
                                     partial_margin_factor = min(partial_margin_factor, 0.8)
-                                    print(f"⏳ Trend flip guard (counter-trend): {coin} sizing capped at 80% one cycle after flip.")
+                                    _log_debug('sizing', f"⏳ Trend flip guard (counter-trend): {coin} sizing capped at 80% one cycle after flip.",
+                                               {'coin': coin, 'sizing_cap': 0.8, 'cycles_since_flip': 1})
                                 elif guard_cycles_since_flip == 2:
                                     min_conf = 0.55  # Most relaxed: two cycles after flip (reduced from 0.60)
                                     if confidence < min_conf:
-                                        print(f"🚫 Flip guard confidence floor: {coin} {signal} confidence {confidence:.2f} < {min_conf:.2f} two cycles after flip.")
+                                        _log_debug('flip_guard', f"🚫 Flip guard confidence floor: {coin} {signal} confidence {confidence:.2f} < {min_conf:.2f} two cycles after flip.",
+                                                   {'coin': coin, 'signal': signal, 'confidence': confidence, 'min_required': min_conf, 'cycles_since_flip': 2})
                                         execution_report['blocked'].append({'coin': coin, 'reason': 'trend_flip_guard_confidence', 'classification': trend_classification})
                                         trade['runtime_decision'] = 'blocked_trend_flip_confidence'
                                         continue
                                     partial_margin_factor = min(partial_margin_factor, 0.9)
-                                    print(f"⏳ Trend flip guard (counter-trend): {coin} sizing capped at 90% two cycles after flip.")
+                                    _log_debug('sizing', f"⏳ Trend flip guard (counter-trend): {coin} sizing capped at 90% two cycles after flip.",
+                                               {'coin': coin, 'sizing_cap': 0.9, 'cycles_since_flip': 2})
                             counter_confidence_floor = 0.65 if not relaxed_countertrend else 0.60
                             if confidence < counter_confidence_floor:
                                 if relaxed_countertrend:
-                                    print(f"⚠️ Relaxed mode: counter-trend confidence {confidence:.2f} below {counter_confidence_floor:.2f}, but allowing due to cooldown.")
+                                    _log_debug('info', f"⚠️ Relaxed mode: counter-trend confidence {confidence:.2f} below {counter_confidence_floor:.2f}, but allowing due to cooldown.",
+                                               {'coin': coin, 'confidence': confidence, 'floor': counter_confidence_floor})
                                 else:
-                                    print(f"⚠️ WARNING: Counter-trend confidence {confidence:.2f} below recommended {counter_confidence_floor:.2f} - proceeding with AI decision")
-                            print(f"⚠️ COUNTER-TREND DETECTED: {coin} - respecting AI decision with additional validation")
+                                    _log_debug('info', f"⚠️ WARNING: Counter-trend confidence {confidence:.2f} below recommended {counter_confidence_floor:.2f} - proceeding with AI decision",
+                                               {'coin': coin, 'confidence': confidence, 'recommended_floor': counter_confidence_floor})
+                            _log_debug('trend', f"⚠️ COUNTER-TREND DETECTED: {coin} - respecting AI decision with additional validation",
+                                       {'coin': coin, 'classification': 'counter_trend'})
                             
                             # DISABLED: Redundant validation - risk_level already calculated in prompt_json_builders.py
                             # AI already validated risk_level (LOW/MEDIUM/HIGH) before making decision
@@ -3508,17 +3538,20 @@ class PortfolioManager:
                                     # Hafifletilmiş: 0.90 yerine 0.97
                                     confidence = max(confidence * 0.97, confidence - 0.02, original_conf * 0.95)
                                     partial_margin_factor = min(partial_margin_factor, 0.7)
-                                    print(f"⏳ Trend flip guard (trend-following): {coin} confidence {original_conf:.2f} → {confidence:.2f} & sizing 50% immediately after flip.")
+                                    _log_debug('sizing', f"⏳ Trend flip guard (trend-following): {coin} confidence {original_conf:.2f} → {confidence:.2f} & sizing 50% immediately after flip.",
+                                               {'coin': coin, 'original_confidence': original_conf, 'adjusted_confidence': confidence, 'sizing_cap': 0.5, 'cycles_since_flip': 0})
                                 elif guard_cycles_since_flip == 1:
                                     # Hafifletilmiş: 0.95 yerine 0.98
                                     confidence = max(confidence * 0.98, confidence - 0.01, original_conf * 0.97)
                                     partial_margin_factor = min(partial_margin_factor, 0.8)
-                                    print(f"⏳ Trend flip guard (trend-following): {coin} confidence {original_conf:.2f} → {confidence:.2f} & sizing 70% one cycle after flip.")
+                                    _log_debug('sizing', f"⏳ Trend flip guard (trend-following): {coin} confidence {original_conf:.2f} → {confidence:.2f} & sizing 70% one cycle after flip.",
+                                               {'coin': coin, 'original_confidence': original_conf, 'adjusted_confidence': confidence, 'sizing_cap': 0.7, 'cycles_since_flip': 1})
                                 elif guard_cycles_since_flip == 2:
                                     # Hafifletilmiş: 0.98 yerine 0.99
                                     confidence = max(confidence * 0.99, original_conf * 0.98)
                                     partial_margin_factor = min(partial_margin_factor, 0.90)
-                                    print(f"⏳ Trend flip guard (trend-following): {coin} confidence {original_conf:.2f} → {confidence:.2f} & sizing 85% two cycles after flip.")
+                                    _log_debug('sizing', f"⏳ Trend flip guard (trend-following): {coin} confidence {original_conf:.2f} → {confidence:.2f} & sizing 85% two cycles after flip.",
+                                               {'coin': coin, 'original_confidence': original_conf, 'adjusted_confidence': confidence, 'sizing_cap': 0.85, 'cycles_since_flip': 2})
                                 trade['confidence'] = confidence
                         # Trend-following trade path - Hibrit yaklaşım (15m dahil)
                         trend_strength_result = self.get_trend_following_strength(coin, signal)
@@ -3544,8 +3577,10 @@ class PortfolioManager:
                             
                             # Logging - Güç seviyesi ve 15m bilgisi ile
                             ratio_str = f"{volume_ratio:.2f}" if volume_ratio is not None else "n/a"
-                            print(f"✅ TREND-FOLLOWING ({strength}): {coin} {alignment_info}")
-                            print(f"   Timeframes: 1h={trends['1h']}, 15m={trends['15m']}, 3m={trends['3m']} | Volume: {ratio_str}x")
+                            _log_debug('trend', f"✅ TREND-FOLLOWING ({strength}): {coin} {alignment_info}",
+                                       {'coin': coin, 'strength': strength, 'trends': trends, 'volume_ratio': ratio_str})
+                            _log_debug('trend', f"   Timeframes: 1h={trends['1h']}, 15m={trends['15m']}, 3m={trends['3m']} | Volume: {ratio_str}x",
+                                       {'coin': coin, 'timeframes': trends, 'volume_ratio': ratio_str})
                             
                             # Volume 0.5-0.8 arasinda ise normal devam et (0.5 carpani kaldirildi)
                             # Hard volume filter (<0.20) zaten kotu trade'leri engelliyor
