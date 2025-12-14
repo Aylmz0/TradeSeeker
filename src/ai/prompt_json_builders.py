@@ -31,7 +31,8 @@ def build_counter_trade_json(
     counter_trade_analysis: str,
     all_indicators: Dict[str, Dict[str, Dict[str, Any]]],
     available_coins: List[str],
-    htf_interval: str
+    htf_interval: str,
+    market_data = None  # YENİ: Funding Rate için market_data parametresi
 ) -> List[Dict[str, Any]]:
     """
     Build counter-trade analysis JSON from text analysis or indicators.
@@ -41,6 +42,7 @@ def build_counter_trade_json(
         all_indicators: Pre-fetched indicators dict
         available_coins: List of coins to analyze
         htf_interval: Higher timeframe interval (e.g., '1h')
+        market_data: RealMarketData instance for funding rate (optional)
     
     Returns:
         List of counter-trade analysis objects with 15m+3m alignment information
@@ -108,8 +110,24 @@ def build_counter_trade_json(
                     elif trend_15m == "BULLISH" or trend_3m == "BULLISH":
                         alignment_strength = "MEDIUM"  # 15m VEYA 3m BULLISH
             
-            # Evaluate conditions (calculate total_met without storing individual conditions)
-            condition_1 = alignment_strength in ["STRONG", "MEDIUM"]
+            # Evaluate 5 conditions
+            # Condition 1: Funding Rate Extreme (YENİ - zaman diliminden bağımsız)
+            # Negative funding = too many shorts = LONG counter-trend favored
+            # Positive funding = too many longs = SHORT counter-trend favored
+            condition_1 = False
+            if market_data:
+                try:
+                    funding_rate = market_data.get_funding_rate(coin)
+                    if funding_rate is not None:
+                        # BEARISH trend + negative funding = LONG counter-trend favored
+                        # BULLISH trend + positive funding = SHORT counter-trend favored
+                        if trend_htf == "BEARISH" and funding_rate < -0.0003:  # -0.03%
+                            condition_1 = True
+                        elif trend_htf == "BULLISH" and funding_rate > 0.0003:  # +0.03%
+                            condition_1 = True
+                except Exception:
+                    pass
+            
             condition_2 = (volume_3m or 0) / (avg_volume_3m or 1) > Config.VOLUME_QUALITY_THRESHOLDS['good'] if avg_volume_3m else False
             # Condition 3: Extreme RSI (Counter-trend)
             # If Bullish trend, we want to Short -> Need Overbought (>70)

@@ -1968,7 +1968,8 @@ Current live positions & performance:"""
             counter_trade_analysis,
             all_indicators,
             coins_to_analyze,  # Filtered list
-            HTF_INTERVAL
+z            HTF_INTERVAL,
+            self.market_data  # YENİ: Funding Rate hesaplaması için
         )
         
         # Trend reversal

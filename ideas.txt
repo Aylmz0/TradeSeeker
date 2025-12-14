@@ -383,3 +383,47 @@ yapar, bu da kârı erken alabilir veya koruyabilir. Test gerektirir.
 ⏳ BEKLEMEDE - Kullanıcı karar verecek
 
 ================================================================================
+
+## FİKİR: Counter-Trend Risk Scope Netleştirme (13 Aralık 2025)
+
+### Problem
+AI bazen trend-following trade'lere counter_trade_analysis risk_level'i yanlış uyguluyor.
+
+**Örnek:**
+```
+XRP: Tüm timeframe'ler BULLISH (trend-following LONG)
+AI: "VERY_HIGH_RISK prohibits entry" → HOLD (YANLIŞ!)
+```
+
+Oysa VERY_HIGH_RISK sadece counter-trend için geçerli. Trend-following'de bu kural uygulanmamalı.
+
+### Çözüm Seçenekleri
+
+**Option A - trend_following'e ekle:**
+```python
+"trend_following": {
+    "ignore_counter_risk": "If all 3 timeframes align, IGNORE counter_trade_analysis."
+}
+```
+
+**Option B - counter_trend'e ekle (UYGULANDI ✅):**
+```python
+"counter_trend": {
+    "scope": "risk_level applies ONLY when trading AGAINST 1h trend."
+}
+```
+
+**Option C - Her ikisine de ekle (en güvenli):**
+```python
+"trend_following": {
+    "ignore_counter_risk": "If 1h+15m+3m aligned → IGNORE counter_trade_analysis."
+},
+"counter_trend": {
+    "scope": "risk_level applies ONLY when trading AGAINST 1h trend."
+}
+```
+
+### Durum
+✅ Option B UYGULANDI (13 Aralık 2025)
+
+================================================================================
