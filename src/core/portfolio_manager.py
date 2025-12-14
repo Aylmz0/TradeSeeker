@@ -383,12 +383,27 @@ class PortfolioManager:
             print(f"⚠️ Unexpected Binance position sync error: {exc}")
 
     @staticmethod
-    def _calculate_realized_pnl(entry_price: float, exit_price: float, quantity: float, direction: str) -> float:
+    def _calculate_realized_pnl(entry_price: float, exit_price: float, quantity: float, direction: str, include_commission: bool = True) -> float:
+        """Calculate realized PnL with optional commission deduction for simulation realism.
+        
+        Commission is applied as round-trip (entry + exit) = 2 * SIMULATION_COMMISSION_RATE
+        """
         if quantity <= 0 or entry_price <= 0 or exit_price <= 0:
             return 0.0
+        
+        # Calculate raw PnL
         if direction == 'long':
-            return (exit_price - entry_price) * quantity
-        return (entry_price - exit_price) * quantity
+            raw_pnl = (exit_price - entry_price) * quantity
+        else:
+            raw_pnl = (entry_price - exit_price) * quantity
+        
+        # Deduct commission for simulation realism (round-trip: entry + exit)
+        if include_commission:
+            notional = (entry_price + exit_price) / 2 * quantity  # Average notional
+            commission = notional * Config.SIMULATION_COMMISSION_RATE * 2  # Round-trip (entry + exit)
+            raw_pnl -= commission
+        
+        return raw_pnl
 
     def execute_live_entry(
         self,
@@ -531,7 +546,7 @@ class PortfolioManager:
             )
             executed_qty = float(order.get("executedQty", 0.0))
             avg_price = float(order.get("avgPriceComputed", order.get("avgPrice", 0.0)))
-            pnl = self._calculate_realized_pnl(position.get("entry_price", 0.0), avg_price, executed_qty, direction)
+            pnl = self._calculate_realized_pnl(position.get("entry_price", 0.0), avg_price, executed_qty, direction, include_commission=False)  # Live: Binance already deducted
             self.sync_live_account()
             history_entry = {
                 "symbol": coin,
@@ -595,7 +610,7 @@ class PortfolioManager:
             avg_price = float(order.get("avgPriceComputed", order.get("avgPrice", 0.0)))
             if executed_qty <= 0:
                 return {"success": False, "error": "no_fill"}
-            pnl = self._calculate_realized_pnl(position.get("entry_price", 0.0), avg_price, executed_qty, direction)
+            pnl = self._calculate_realized_pnl(position.get("entry_price", 0.0), avg_price, executed_qty, direction, include_commission=False)  # Live: Binance already deducted
             # Sync account balance after partial close to get updated balance
             self.sync_live_account()
             history_entry = {
@@ -1666,6 +1681,11 @@ class PortfolioManager:
                 if direction == 'long': profit = (current_price - entry_price) * close_quantity
                 else: profit = (entry_price - current_price) * close_quantity
                 
+                # Deduct commission for simulation realism (entry commission for this portion + exit commission)
+                notional_closed = ((entry_price + current_price) / 2) * close_quantity
+                commission = notional_closed * Config.SIMULATION_COMMISSION_RATE * 2  # Round-trip
+                profit -= commission
+                
                 # Update position quantity
                 position['quantity'] = quantity * (1 - close_percent)
                 position['margin_usd'] = margin_used * (1 - close_percent)
@@ -1782,8 +1802,13 @@ class PortfolioManager:
 
                 if direction == 'long': profit = (current_price - entry_price) * quantity
                 else: profit = (entry_price - current_price) * quantity
+                
+                # Deduct commission for simulation realism (round-trip)
+                notional_closed = ((entry_price + current_price) / 2) * quantity
+                commission = notional_closed * Config.SIMULATION_COMMISSION_RATE * 2  # Round-trip
+                profit -= commission
 
-                self.current_balance += (margin_used + profit) # Return margin + PnL
+                self.current_balance += (margin_used + profit) # Return margin + PnL (commission already deducted)
 
                 print(f"   Closed PnL: ${format_num(profit, 2)}")
 
@@ -2580,159 +2605,10 @@ class PortfolioManager:
             # Trend-following trade - no adjustment
             return confidence
 
-    def validate_counter_trade(self, coin: str, signal: str, indicators_3m: Dict, indicators_htf: Dict) -> Dict[str, Any]:
-        """Validate counter-trade with multiple technical conditions (15m + 3m alignment for STRONG)"""
-        try:
-            if 'error' in indicators_3m or 'error' in indicators_htf:
-                return {"valid": False, "reason": "Indicator data error"}
-            
-            # Get 15m indicators for counter-trend validation
-            indicators_15m = self.market_data.get_technical_indicators(coin, '15m')
-            has_15m = indicators_15m and 'error' not in indicators_15m
-            
-            conditions_met: List[str] = []
-            conditions_met_count = 0
-            total_conditions_available = 6 if has_15m else 5  # 15m+3m alignment is a condition
-            score = 0.0
-            score_breakdown: List[str] = []
-            relaxed_cycles = getattr(self, 'relaxed_countertrend_cycles', 0)
-            relax_mode_active = relaxed_cycles > 0
-            
-            def _register(condition: bool, description: str, weight: float) -> None:
-                nonlocal conditions_met_count, score
-                if condition:
-                    conditions_met_count += 1
-                    conditions_met.append(description)
-                    score += weight
-                    score_breakdown.append(f"{description} (+{weight:.1f})")
+    # NOTE: validate_counter_trade() fonksiyonu kaldırıldı (13 Aralık 2025)
+    # Sebep: prompt_json_builders.py'de aynı mantık zaten mevcut (risk_level hesaplama)
+    # Bu fonksiyon çağrılmıyordu (yorum satırında kalmıştı - satır ~3537)
 
-            # --- STRICT 5-CRITERIA VALIDATION WITH DYNAMIC THRESHOLD ---
-            # 1. Trend Alignment (15m+3m) -> Determines Threshold (Strong=2, Medium=3)
-            # 2. Volume (> 1.5x average)
-            # 3. RSI (Extreme levels: >75 Short / <25 Long)
-            # 4. Technical Level (Price near EMA20 < 1%)
-            # 5. MACD Divergence
-
-            # Condition 1: Trend Alignment & Threshold Determination
-            price_3m = indicators_3m.get('current_price')
-            ema20_3m = indicators_3m.get('ema_20')
-            alignment_strength = "WEAK"
-            
-            if has_15m:
-                price_15m = indicators_15m.get('current_price')
-                ema20_15m = indicators_15m.get('ema_20')
-                if isinstance(price_3m, (int, float)) and isinstance(ema20_3m, (int, float)) and \
-                   isinstance(price_15m, (int, float)) and isinstance(ema20_15m, (int, float)):
-                    trend_15m = "BULLISH" if price_15m > ema20_15m else "BEARISH"
-                    trend_3m = "BULLISH" if price_3m > ema20_3m else "BEARISH"
-                    signal_direction = "BULLISH" if signal == 'buy_to_enter' else "BEARISH"
-                    
-                    if trend_15m == trend_3m == signal_direction:
-                        alignment_strength = "STRONG"
-                        _register(True, "STRONG Alignment (15m+3m)", 1.0)
-                    elif trend_15m == signal_direction or trend_3m == signal_direction:
-                        alignment_strength = "MEDIUM"
-                        _register(True, f"MEDIUM Alignment (15m={trend_15m}, 3m={trend_3m})", 1.0)
-            elif isinstance(price_3m, (int, float)) and isinstance(ema20_3m, (int, float)):
-                 # Fallback to 3m only
-                 trend_3m = "BULLISH" if price_3m > ema20_3m else "BEARISH"
-                 signal_direction = "BULLISH" if signal == 'buy_to_enter' else "BEARISH"
-                 if trend_3m == signal_direction:
-                     alignment_strength = "MEDIUM"
-                     _register(True, f"MEDIUM Alignment (3m={trend_3m})", 1.0)
-
-            if alignment_strength == "WEAK":
-                score_breakdown.append("Trend Alignment: WEAK")
-
-            # Condition 2: Volume confirmation (>1.0x average)
-            current_volume = indicators_3m.get('volume', 0)
-            avg_volume = indicators_3m.get('avg_volume', 1)
-            volume_ratio = current_volume / avg_volume if avg_volume > 0 else 0
-            if volume_ratio > 1.0:
-                _register(True, f"Volume {volume_ratio:.1f}x average", 1.0)
-            else:
-                score_breakdown.append(f"Volume {volume_ratio:.2f}x average (need >1.0x)")
-            
-            # Condition 3: Extreme RSI (relaxed thresholds)
-            rsi_3m = indicators_3m.get('rsi_14', 50)
-            if signal == 'buy_to_enter':
-                if rsi_3m < 30:
-                    _register(True, f"Extreme RSI ({rsi_3m:.1f} < 30)", 1.0)
-                else:
-                    score_breakdown.append(f"RSI {rsi_3m:.1f} (need < 30)")
-            elif signal == 'sell_to_enter':
-                if rsi_3m > 70:
-                    _register(True, f"Extreme RSI ({rsi_3m:.1f} > 70)", 1.0)
-                else:
-                    score_breakdown.append(f"RSI {rsi_3m:.1f} (need > 70)")
-            
-            # Condition 4: Price close to EMA20 (< 1%)
-            if isinstance(price_3m, (int, float)) and isinstance(ema20_3m, (int, float)) and price_3m:
-                price_ema_distance = abs(price_3m - ema20_3m) / price_3m * 100
-                if price_ema_distance < 1.0:
-                    _register(True, f"Price within 1% of EMA20 ({price_ema_distance:.2f}%)", 1.0)
-                else:
-                    score_breakdown.append(f"EMA Distance {price_ema_distance:.2f}% (need < 1.0%)")
-            
-            # Condition 5: MACD divergence supportive
-            macd_3m = indicators_3m.get('macd', 0)
-            macd_signal_3m = indicators_3m.get('macd_signal', 0)
-            if signal == 'buy_to_enter':
-                if macd_3m > macd_signal_3m:
-                    _register(True, "MACD divergence supportive (Bullish)", 1.0)
-                else:
-                    score_breakdown.append("MACD not supportive")
-            elif signal == 'sell_to_enter':
-                if macd_3m < macd_signal_3m:
-                    _register(True, "MACD divergence supportive (Bearish)", 1.0)
-                else:
-                    score_breakdown.append("MACD not supportive")
-
-            # Volume safety rail
-            if volume_ratio is not None:
-                volume_safety_floor = 0.15
-                if relax_mode_active:
-                    volume_safety_floor = 0.10
-                if volume_ratio < volume_safety_floor:
-                    return {
-                        "valid": False,
-                        "conditions_met": conditions_met,
-                        "total_conditions": conditions_met_count,
-                        "conditions_required": 5,
-                        "score": score,
-                        "score_threshold": 3.0,
-                        "score_breakdown": score_breakdown,
-                        "reason": f"Volume ratio {volume_ratio:.2f}x is below {volume_safety_floor:.2f}x minimum"
-                    }
-
-            # DYNAMIC THRESHOLD LOGIC (Matches prompt_json_builders.py)
-            # STRONG Alignment (15m+3m) -> Needs 3 conditions (Alignment + 2 more)
-            # MEDIUM Alignment (15m OR 3m) -> Needs 4 conditions (Alignment + 3 more)
-            required_conditions = 4
-            if alignment_strength == "STRONG":
-                required_conditions = 3
-            
-            valid = conditions_met_count >= required_conditions
-            
-            return {
-                "valid": valid,
-                "conditions_met": conditions_met,
-                "total_conditions": conditions_met_count,
-                "conditions_required": 5,
-                "score": round(score, 2),
-                "score_threshold": float(required_conditions),
-                "score_breakdown": score_breakdown,
-                "reason": (
-                    f"Counter-trend criteria met: {conditions_met_count}/5 conditions (Threshold: {required_conditions} for {alignment_strength})"
-                    if valid else
-                    f"Counter-trend criteria FAILED: {conditions_met_count}/5 conditions met (Need {required_conditions}+ for {alignment_strength})"
-                ),
-                "relax_mode_active": relax_mode_active,
-                "relaxed_cycles_remaining": relaxed_cycles if relax_mode_active else 0
-            }
-        except Exception as e:
-            print(f"⚠️ Counter-trade validation error for {coin}: {e}")
-            return {"valid": False, "reason": f"Validation error: {str(e)}"}
 
     def calculate_dynamic_risk(self, market_regime: str, confidence: float) -> float:
         """Calculate dynamic risk based on market regime and confidence"""
@@ -3507,7 +3383,7 @@ class PortfolioManager:
                                     partial_margin_factor = min(partial_margin_factor, 0.9)
                                     _log_debug('sizing', f"⏳ Trend flip guard (counter-trend): {coin} sizing capped at 90% two cycles after flip.",
                                                {'coin': coin, 'sizing_cap': 0.9, 'cycles_since_flip': 2})
-                            counter_confidence_floor = 0.65 if not relaxed_countertrend else 0.60
+                            counter_confidence_floor = 0.62 if not relaxed_countertrend else 0.58  # Sıkılaştırıldı (0.65→0.62, 0.60→0.58)
                             if confidence < counter_confidence_floor:
                                 if relaxed_countertrend:
                                     _log_debug('info', f"⚠️ Relaxed mode: counter-trend confidence {confidence:.2f} below {counter_confidence_floor:.2f}, but allowing due to cooldown.",
@@ -3515,19 +3391,8 @@ class PortfolioManager:
                                 else:
                                     _log_debug('info', f"⚠️ WARNING: Counter-trend confidence {confidence:.2f} below recommended {counter_confidence_floor:.2f} - proceeding with AI decision",
                                                {'coin': coin, 'confidence': confidence, 'recommended_floor': counter_confidence_floor})
-                            _log_debug('trend', f"⚠️ COUNTER-TREND DETECTED: {coin} - respecting AI decision with additional validation",
+                            _log_debug('trend', f"⚠️ COUNTER-TREND DETECTED: {coin} - respecting AI decision (risk_level from prompt_json_builders.py)",
                                        {'coin': coin, 'classification': 'counter_trend'})
-                            
-                            # DISABLED: Redundant validation - risk_level already calculated in prompt_json_builders.py
-                            # AI already validated risk_level (LOW/MEDIUM/HIGH) before making decision
-                            # This duplicate validation was using different criteria and blocking valid trades
-                            # validation_result = self.validate_counter_trade(coin, signal, indicators_3m, indicators_htf)
-                            # 
-                            # if not validation_result['valid']:
-                            #     print(f"🚫 Counter-trend validation failed: {validation_result.get('reason', 'Unknown')}. Blocked for discipline.")
-                            #     execution_report['blocked'].append({'coin': coin, 'reason': 'counter_trend_validation_failed', 'confidence': confidence})
-                            #     trade['runtime_decision'] = 'blocked_counter_trend_validation'
-                            #     continue
                     else:
                         guard_active = guard_cycles_since_flip is not None and guard_cycles_since_flip <= guard_window
                         if guard_active and last_flip_direction:

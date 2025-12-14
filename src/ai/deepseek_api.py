@@ -52,8 +52,8 @@ class DeepSeekAPI:
                         "limit": Config.SAME_DIRECTION_LIMIT,
                         "rule": f"If you have {Config.SAME_DIRECTION_LIMIT} LONGs, you CANNOT open another LONG. Same for SHORTs."
                     },
-                    "min_confidence": 0.4,
-                    "discipline": "Do not force trades. Holding cash is a valid and often superior position when no clear edge exists."
+                    "min_confidence": Config.MIN_CONFIDENCE,
+                    "discipline": "SNIPER MODE: Only trade high-probability setups. Holding cash is valid when no clear edge exists."
                 },
                 "risk_management": {
                     "risk_reward_ratio": "Maintain a positive risk/reward ratio.",
@@ -79,6 +79,7 @@ class DeepSeekAPI:
                         "confidence_threshold": 0.65,
                         "strong_setup_confidence": 0.70,
                         "definition": f"Trade direction is OPPOSITE to {HTF_LABEL} trend.",
+                        "scope": "risk_level applies ONLY when trading AGAINST 1h trend.",
                         "condition": "Evaluate 'risk_level' provided in counter_trade_analysis.",
                         "risk_level_rules": {
                             "LOW_RISK": "STRONG+3 OR MEDIUM+4 conditions. EXECUTE.",
@@ -89,8 +90,8 @@ class DeepSeekAPI:
                         "restriction": "Do NOT trade if risk_level is VERY_HIGH_RISK. HIGH_RISK requires extreme caution."
                     },
                     "volume_rules": {
-                         "weakness_warning": "If volume ratio is <= 0.20x average, DO NOT TRADE. This is a hard rule.",
-                         "low_volume_caution": "If volume ratio is 0.20-0.50x, reduce confidence significantly."
+                         "weakness_warning": "If volume ratio is <= 0.30x average, DO NOT TRADE. This is a hard rule (Sniper mode).",
+                         "low_volume_caution": "If volume ratio is 0.30-0.60x, reduce confidence significantly."
                     },
                     "momentum_conviction_rule": {
                         "description": "How 15m momentum quality affects entry timing",

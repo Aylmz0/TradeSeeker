@@ -32,7 +32,7 @@ class Config:
     
     # Risk Management
     MAX_LEVERAGE: int = int(os.getenv('MAX_LEVERAGE', '20'))  # Nof1ai blog: 20x leverage for medium risk
-    MIN_CONFIDENCE: float = float(os.getenv('MIN_CONFIDENCE', '0.4'))  # Nof1ai blog: medium risk
+    MIN_CONFIDENCE: float = float(os.getenv('MIN_CONFIDENCE', '0.60'))  # Sniper mode: only high confidence trades
     MAX_POSITIONS: int = int(os.getenv('MAX_POSITIONS', '5'))  # Nof1ai blog: 2-3 positions, but system uses 5
     RISK_PER_TRADE_USD: float = float(os.getenv('RISK_PER_TRADE_USD', '3.0'))  # Fixed dollar risk per trade
     
@@ -64,6 +64,8 @@ class Config:
     
     # Enhanced Trading Settings
     SHORT_ENHANCEMENT_MULTIPLIER: float = float(os.getenv('SHORT_ENHANCEMENT_MULTIPLIER', '1.15'))  # %15 daha büyük short
+    VOLUME_MINIMUM_THRESHOLD: float = float(os.getenv('VOLUME_MINIMUM_THRESHOLD', '0.30'))  # Sniper mode: minimum volume ratio
+    SIMULATION_COMMISSION_RATE: float = float(os.getenv('SIMULATION_COMMISSION_RATE', '0.0005'))  # 0.05% taker fee per side
     VOLUME_QUALITY_THRESHOLDS: dict = {
         'excellent': 2.5,  # >2.5x average volume
         'good': 1.8,       # >1.8x average volume

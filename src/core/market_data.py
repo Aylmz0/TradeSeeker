@@ -623,7 +623,7 @@ class RealMarketData:
             'funding_rate': funding_rate
         }
 
-    def detect_trend_reversal_signals(self, coin: str, indicators_3m: Dict[str, Any], indicators_htf: Dict[str, Any]) -> Dict[str, Any]:
+    def detect_trend_reversal_signals(self, coin: str, indicators_3m: Dict[str, Any], indicators_htf: Dict[str, Any], indicators_15m: Dict[str, Any] = None) -> Dict[str, Any]:
         """
         Detect potential trend reversal signals based on multi-timeframe analysis.
         Centralized logic to be used by both PerformanceMonitor and AI Prompt Builder.
@@ -632,6 +632,7 @@ class RealMarketData:
             coin: Coin symbol
             indicators_3m: 3m indicators
             indicators_htf: HTF indicators (1h/4h)
+            indicators_15m: 15m indicators (optional, for enhanced detection)
             
         Returns:
             Dictionary containing reversal signals and strength
@@ -685,6 +686,31 @@ class RealMarketData:
         # If HTF Bearish, look for Bullish MACD Cross
         elif trend_htf == "BEARISH" and macd_3m > macd_signal_3m:
             signals.append("MACD Bullish Cross in Bearish Trend")
+        
+        # 4. 15m Momentum Counter-Signal (YENİ - v2.3)
+        # 15m trend HTF'ye karşıysa VE momentum güçleniyorsa = Güçlü reversal sinyali
+        trend_15m = None
+        if indicators_15m and 'error' not in indicators_15m:
+            price_15m = indicators_15m.get('current_price')
+            ema20_15m = indicators_15m.get('ema_20')
+            sparkline_15m = indicators_15m.get('smart_sparkline', {})
+            momentum_15m = sparkline_15m.get('momentum', 'STABLE') if isinstance(sparkline_15m, dict) else 'STABLE'
+            structure_15m = sparkline_15m.get('structure', 'UNCLEAR') if isinstance(sparkline_15m, dict) else 'UNCLEAR'
+            
+            if price_15m and ema20_15m:
+                trend_15m = _determine_trend(price_15m, ema20_15m)
+                
+                # 15m trend HTF'ye karşı + Momentum STRENGTHENING = Güçlü reversal riski
+                if trend_htf == "BEARISH" and trend_15m == "BULLISH" and momentum_15m == "STRENGTHENING":
+                    signals.append(f"15m Bullish Reversal: trend={trend_15m}, momentum={momentum_15m}")
+                elif trend_htf == "BULLISH" and trend_15m == "BEARISH" and momentum_15m == "STRENGTHENING":
+                    signals.append(f"15m Bearish Reversal: trend={trend_15m}, momentum={momentum_15m}")
+                
+                # 15m structure da kontrol et (HH_HL = bullish yapı, LH_LL = bearish yapı)
+                if trend_htf == "BEARISH" and structure_15m == "HH_HL":
+                    signals.append(f"15m Bullish Structure (HH_HL) against Bearish HTF")
+                elif trend_htf == "BULLISH" and structure_15m == "LH_LL":
+                    signals.append(f"15m Bearish Structure (LH_LL) against Bullish HTF")
             
         # Determine Signal Strength
         strength = "NONE"
@@ -699,5 +725,6 @@ class RealMarketData:
             'signals': signals,
             'strength': strength,
             'trend_htf': trend_htf,
+            'trend_15m': trend_15m,
             'trend_3m': trend_3m
         }

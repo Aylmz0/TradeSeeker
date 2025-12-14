@@ -476,16 +476,15 @@ class PerformanceMonitor:
                 if indicators_cache and coin in indicators_cache:
                     coin_indicators = indicators_cache[coin]
                     indicators_3m = coin_indicators.get('3m', {})
+                    indicators_15m = coin_indicators.get('15m', {})  # 15m eklendi
                     indicators_htf = coin_indicators.get(HTF_INTERVAL, {})
-                    # Note: 15m is not strictly required by the centralized logic currently, 
-                    # but we can pass it if we update the method signature later.
-                    # For now, we stick to 3m vs HTF as the core check.
                 else:
                     indicators_3m = market_data.get_technical_indicators(coin, '3m')
+                    indicators_15m = market_data.get_technical_indicators(coin, '15m')  # 15m eklendi
                     indicators_htf = market_data.get_technical_indicators(coin, HTF_INTERVAL)
                 
-                # Call centralized logic
-                reversal_result = market_data.detect_trend_reversal_signals(coin, indicators_3m, indicators_htf)
+                # Call centralized logic with 15m support
+                reversal_result = market_data.detect_trend_reversal_signals(coin, indicators_3m, indicators_htf, indicators_15m)
                 reversal_results[coin] = reversal_result
                 
                 # Categorize coins by signal strength
