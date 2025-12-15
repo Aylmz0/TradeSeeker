@@ -384,6 +384,8 @@ yapar, bu da kârı erken alabilir veya koruyabilir. Test gerektirir.
 
 ================================================================================
 
+================================================================================
+
 ## FİKİR: Counter-Trend Risk Scope Netleştirme (13 Aralık 2025)
 
 ### Problem
@@ -425,5 +427,112 @@ Oysa VERY_HIGH_RISK sadece counter-trend için geçerli. Trend-following'de bu k
 
 ### Durum
 ✅ Option B UYGULANDI (13 Aralık 2025)
+
+================================================================================
+
+## FİKİR: WEAK Alignment Bloklama (16 Aralık 2025) - ÖNERİ 1
+
+### Problem
+AI "all BEARISH" dedi ama runtime 15m ve 3m'i BULLISH olarak gördü → Trade açıldı → Zarar.
+
+**Örnek (Cycle 130 - XRP -$7.40):**
+```
+AI dedi: "1h BEARISH, 15m BEARISH, 3m BEARISH" → All aligned SHORT
+Runtime dedi: "WEAK: Only 1h BEARISH (15m BULLISH, 3m BULLISH)"
+Sonuç: SHORT açıldı, fiyat yükseldi, -$7.40 zarar
+```
+
+**Sorunun kökü:**
+AI karar verirken kullandığı veri (~42 saniye önce) ile Runtime'ın kontrol ettiği veri arasında fark var.
+
+### Çözüm: Runtime VETO Mekanizması
+
+**Kod değişikliği (portfolio_manager.py):**
+```python
+# Mevcut: Sadece loglama
+_log_debug('trend', f"✅ TREND-FOLLOWING (WEAK): {coin} ...")
+
+# Yeni: Loglama + Bloklama
+if strength == "WEAK":
+    execution_report['blocked'].append({
+        'coin': coin, 
+        'reason': 'weak_alignment',
+        'details': f"15m={trend_15m}, 3m={trend_3m} vs signal={signal}"
+    })
+    trade['runtime_decision'] = 'blocked_weak_alignment'
+    continue  # Trade'i atla
+```
+
+**AI prompt değişikliği:** YOK (Runtime kontrolü)
+
+### Olası Etki
+- ❌ Kârlı trade'ler de bloklanabilir (Cycle 108 XRP +$2.71 kaçardı)
+- ✅ Zararlı trade'ler engellenir (Cycle 130 XRP -$7.40 önlenirdi)
+
+### Durum
+⏳ BEKLEMEDE - Daha fazla veri toplanacak
+
+================================================================================
+
+## FİKİR: RSI + Zone Bounce Risk Kontrolü (16 Aralık 2025) - ÖNERİ 2
+
+### Problem
+LOWER_10 zone + extreme oversold RSI (<25) olan coinlerde SHORT açılıyor → Bounce riski çok yüksek.
+
+**Örnek (Cycle 130 - XRP):**
+```
+Zone: LOWER_10 (dipte)
+RSI: 12.8 (çok oversold)
+Momentum: STRENGTHENING
+AI: "SHORT aç" → Fiyat bounce yaptı → -$7.40 zarar
+```
+
+### Çözüm: Extreme Zone + RSI Bloklama
+
+**Kod değişikliği (portfolio_manager.py):**
+```python
+# Runtime kontrolü - SHORT için bounce risk
+if signal == 'sell_to_enter':
+    zone_15m = indicators_15m.get('price_location', 'MIDDLE')
+    rsi_15m = indicators_15m.get('rsi_14', 50)
+    
+    if zone_15m == 'LOWER_10' and rsi_15m < 25:
+        execution_report['blocked'].append({
+            'coin': coin,
+            'reason': 'bounce_risk',
+            'details': f"LOWER_10 + RSI {rsi_15m:.1f} < 25"
+        })
+        trade['runtime_decision'] = 'blocked_bounce_risk'
+        continue
+
+# Runtime kontrolü - LONG için pullback risk
+if signal == 'buy_to_enter':
+    if zone_15m == 'UPPER_10' and rsi_15m > 75:
+        execution_report['blocked'].append({
+            'coin': coin,
+            'reason': 'pullback_risk', 
+            'details': f"UPPER_10 + RSI {rsi_15m:.1f} > 75"
+        })
+        trade['runtime_decision'] = 'blocked_pullback_risk'
+        continue
+```
+
+**AI prompt değişikliği:** YOK (Runtime kontrolü)
+
+### Neden Öneri 1'den Daha İyi
+- Daha hedefli: Sadece extreme durumları bloklar
+- Daha az false positive: Normal WEAK alignment trade'leri kaçırmaz
+- Açık kriter: Zone + RSI threshold (yoruma açık değil)
+
+### Olası Etki
+| Cycle | Coin | Zone | RSI | Sonuç | Bu Kontrol |
+|-------|------|------|-----|-------|------------|
+| 108 | XRP | LOWER_10 | 21.7 | +$2.71 | ❌ Bloklar (RSI<25) |
+| 130 | XRP | LOWER_10 | 21.7 | -$7.40 | ❌ Bloklar (RSI<25) |
+
+**Not:** Her iki trade de bloklanır. Net etki: +$4.69 tasarruf (kayıp önlendi - kâr kaçtı)
+
+### Durum
+⏳ BEKLEMEDE - Daha fazla veri toplanacak
 
 ================================================================================
