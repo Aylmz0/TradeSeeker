@@ -1968,7 +1968,7 @@ Current live positions & performance:"""
             counter_trade_analysis,
             all_indicators,
             coins_to_analyze,  # Filtered list
-z            HTF_INTERVAL,
+            HTF_INTERVAL,
             self.market_data  # YENİ: Funding Rate hesaplaması için
         )
         
@@ -2754,7 +2754,7 @@ All market data is provided in JSON format below. Each coin contains:
 
     def _tp_sl_monitoring_loop(self):
         """Background thread that checks TP/SL every 30 seconds"""
-        print("🔄 TP/SL monitoring loop started (30 second interval)")
+        print("🔄 TP/SL monitoring loop started (20 second interval)")
         while self.is_running:
             try:
                 # Check bot control file for pause/stop command
@@ -2822,14 +2822,39 @@ All market data is provided in JSON format below. Each coin contains:
                     # Update portfolio prices
                     self.portfolio.update_prices(valid_prices, increment_loss_counters=False)
                     
-                    # Run TP/SL check - all decisions made by 30-second monitoring (like simulation mode)
+                    # Flash Exit Check (V-Reversal) - now runs every 20 seconds
+                    if Config.FLASH_EXIT_ENABLED and self.portfolio.positions:
+                        flash_exits_triggered = False
+                        for coin, position in list(self.portfolio.positions.items()):
+                            if self.portfolio.check_flash_exit_conditions(coin, position):
+                                current_price = valid_prices.get(coin)
+                                if current_price:
+                                    if self.portfolio.is_live_trading:
+                                        live_result = self.portfolio.execute_live_close(
+                                            coin=coin, position=position, current_price=current_price,
+                                            reason="Flash Exit (V-Reversal) - 20s monitor"
+                                        )
+                                        if live_result.get('success'):
+                                            history_entry = live_result.get('history_entry')
+                                            if history_entry:
+                                                self.portfolio.add_to_history(history_entry)
+                                            del self.portfolio.positions[coin]
+                                            flash_exits_triggered = True
+                                    else:
+                                        # Paper trading close
+                                        self.portfolio.close_position(coin, current_price, reason="Flash Exit (V-Reversal) - 20s monitor")
+                                        flash_exits_triggered = True
+                        if flash_exits_triggered:
+                            print("🚨 20-SECOND FLASH EXIT: V-Reversal detected and closed")
+                    
+                    # Run TP/SL check - all decisions made by 20-second monitoring (like simulation mode)
                     # No Binance TP/SL orders - all managed by monitoring loop
                     positions_closed = self.portfolio.check_and_execute_tp_sl(valid_prices)
                     
                     if positions_closed:
-                        print(f"⏰ 30-SECOND TP/SL CHECK: Positions closed")
+                        print(f"⏰ 20-SECOND TP/SL CHECK: Positions closed")
                     else:
-                        print(f"⏰ 30-SECOND TP/SL CHECK: No triggers ({len(self.portfolio.positions)} positions monitored)")
+                        print(f"⏰ 20-SECOND TP/SL CHECK: No triggers ({len(self.portfolio.positions)} positions monitored)")
                 else:
                     print("⚠️ TP/SL monitoring: No valid prices available")
                 
@@ -2854,7 +2879,7 @@ All market data is provided in JSON format below. Each coin contains:
             
             # Wait 30 seconds before next check
             if self.is_running:
-                time.sleep(30)
+                time.sleep(20)
 
     def run_simulation(self, total_duration_hours: int = 168, cycle_interval_minutes: int = 2):
         """Run the simulation with dynamic cycle frequency and TP/SL monitoring"""
