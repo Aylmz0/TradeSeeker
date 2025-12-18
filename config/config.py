@@ -179,6 +179,13 @@ class Config:
     PERFORMANCE_SHARPE_LOW: float = float(os.getenv('PERFORMANCE_SHARPE_LOW', '0.0'))
     PERFORMANCE_PROFIT_FACTOR_CRITICAL: float = float(os.getenv('PERFORMANCE_PROFIT_FACTOR_CRITICAL', '0.8'))
     
+    # Erosion Rate Configuration
+    # Erosion = (peak_pnl - current_pnl) / peak_pnl
+    # min_meaningful_profit = margin_usd * erosion_rate
+    EROSION_RATE_EXTREME: float = float(os.getenv('EROSION_RATE_EXTREME', '0.012'))  # More sensitive at price extremes (UPPER_10/LOWER_10)
+    EROSION_RATE_NORMAL: float = float(os.getenv('EROSION_RATE_NORMAL', '0.02'))  # Normal sensitivity in MIDDLE zone
+    EROSION_MIN_PROFIT_USD: float = float(os.getenv('EROSION_MIN_PROFIT_USD', '0.15'))  # Minimum $0.15 to trigger erosion tracking
+    
     @classmethod
     def validate_config(cls) -> bool:
         """Validate that all required configuration is present."""
