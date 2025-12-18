@@ -725,35 +725,6 @@ class AlphaArenaDeepSeek:
                 'invalidation_condition': f'Error generating exit plan: {str(e)}'
             }
 
-    def get_market_regime(self) -> str:
-        """Detect overall market regime across all coins"""
-        try:
-            bullish_count = 0
-            bearish_count = 0
-            
-            for coin in self.market_data.available_coins:
-                indicators_htf = self.market_data.get_technical_indicators(coin, HTF_INTERVAL)
-                if 'error' in indicators_htf:
-                    continue
-                
-                price = indicators_htf.get('current_price')
-                ema20 = indicators_htf.get('ema_20')
-                
-                if price > ema20:
-                    bullish_count += 1
-                else:
-                    bearish_count += 1
-            
-            if bullish_count >= 4:  # At least 4 coins bullish
-                return "BULLISH"
-            elif bearish_count >= 4:  # At least 4 coins bearish
-                return "BEARISH"
-            else:
-                return "NEUTRAL"
-                
-        except Exception as e:
-            print(f"⚠️ Market regime detection error: {e}")
-            return "NEUTRAL"
 
     def detect_market_regime(
         self,
@@ -1947,18 +1918,31 @@ Current live positions & performance:"""
         # Data collection continues normally for regime calculation
         coins_to_analyze = []
         skipped_cooldown_coins = []
+        skipped_low_volume_coins = []
         
         for coin in self.market_data.available_coins:
             has_position = coin in self.portfolio.positions
             cooldown_cycles = coin_cooldowns.get(coin, 0)
             
+            # Check volume ratio for 0.3 hard rule
+            indicators_3m = all_indicators.get(coin, {}).get('3m', {})
+            current_volume = indicators_3m.get('volume', 0)
+            avg_volume = indicators_3m.get('avg_volume', 1)  # Default 1 to avoid division by zero
+            volume_ratio = current_volume / avg_volume if avg_volume > 0 else 0
+            
             if cooldown_cycles > 0 and not has_position:
                 skipped_cooldown_coins.append(f"{coin}({cooldown_cycles})")
+            elif volume_ratio < 0.3 and not has_position:
+                # Volume 0.3 hard rule: Skip low volume coins without position (same logic as cooldown)
+                skipped_low_volume_coins.append(f"{coin}(vol:{volume_ratio:.2f})")
             else:
                 coins_to_analyze.append(coin)
         
         if skipped_cooldown_coins:
             print(f"⏭️ Prompt optimization: Skipped cooldown coins (no position): {skipped_cooldown_coins}")
+        
+        if skipped_low_volume_coins:
+            print(f"⏭️ Prompt optimization: Skipped low volume coins (vol<0.3, no position): {skipped_low_volume_coins}")
         
         # Metadata
         metadata_json = build_metadata_json(minutes_running, current_time, self.invocation_count)
@@ -2158,48 +2142,6 @@ All market data is provided in JSON format below. Each coin contains:
         """Coin rotation disabled - always allow trading"""
         return True
 
-    def detect_market_regime_overall(self) -> str:
-        """Detect overall market regime across all coins"""
-        try:
-            bullish_count = 0
-            bearish_count = 0
-            neutral_count = 0
-            
-            for coin in self.market_data.available_coins:
-                indicators_htf = self.market_data.get_technical_indicators(coin, HTF_INTERVAL)
-                if 'error' in indicators_htf:
-                    continue
-                
-                price = indicators_htf.get('current_price')
-                ema20 = indicators_htf.get('ema_20')
-                
-                if not isinstance(price, (int, float)) or not isinstance(ema20, (int, float)) or ema20 == 0:
-                    continue
-
-                delta = (price - ema20) / ema20
-                if abs(delta) <= Config.EMA_NEUTRAL_BAND_PCT:
-                    neutral_count += 1
-                elif price > ema20:
-                    bullish_count += 1
-                else:
-                    bearish_count += 1
-            
-            if bullish_count >= 4:
-                return "BULLISH"
-            if bearish_count >= 4:
-                return "BEARISH"
-            if neutral_count >= 4:
-                return "NEUTRAL"
-
-            if bullish_count > bearish_count:
-                return "BULLISH" if bullish_count >= 3 else "NEUTRAL"
-            if bearish_count > bullish_count:
-                return "BEARISH" if bearish_count >= 3 else "NEUTRAL"
-                return "NEUTRAL"
-                
-        except Exception as e:
-            print(f"⚠️ Market regime detection error: {e}")
-            return "NEUTRAL"
 
     def calculate_optimal_cycle_frequency(self) -> int:
         """Calculate optimal cycle frequency based on market volatility"""
@@ -2234,14 +2176,6 @@ All market data is provided in JSON format below. Each coin contains:
             print(f"⚠️ Cycle frequency calculation error: {e}")
             return 120  # Default 2 minutes
 
-    def adjust_position_size_by_trend(self, base_size: float, market_regime: str, signal: str) -> float:
-        """Adjust position size based on market regime and signal direction"""
-        if market_regime == "BULLISH" and signal == "buy_to_enter":
-            return base_size * 1.2  # %20 daha büyük long
-        elif market_regime == "BEARISH" and signal == "sell_to_enter":
-            return base_size * 1.2  # %20 daha büyük short
-        else:
-            return base_size * 0.8  # %20 daha küçük counter-trend
 
     def track_performance_metrics(self, cycle_number: int):
         """Record basic performance metrics for each cycle"""

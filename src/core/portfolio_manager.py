@@ -1303,8 +1303,8 @@ class PortfolioManager:
         pos['erosion_pct'] = round(erosion_pct, 2)
         
         # Dynamic erosion rate based on price_location zone
-        # UPPER_10/LOWER_10: More sensitive (0.03) - price at extremes, protect profits earlier
-        # MIDDLE: Normal sensitivity (0.05) - give more room for fluctuation
+        # UPPER_10/LOWER_10: More sensitive (0.012) - price at extremes, protect profits earlier
+        # MIDDLE: Normal sensitivity (0.02) - give more room for fluctuation
         zone = None
         try:
             symbol = pos.get('symbol', '')
@@ -1319,18 +1319,22 @@ class PortfolioManager:
         except Exception:
             zone = 'MIDDLE'  # Default to MIDDLE on any error
         
-        # Set erosion rate based on zone
+        # Set erosion rate based on zone - USE CONFIG VALUES
         if zone in ['LOWER_10', 'UPPER_10']:
-            erosion_rate = 0.02  # More sensitive at extremes
+            erosion_rate = Config.EROSION_RATE_EXTREME  # More sensitive at extremes (default: 0.012)
         else:
-            erosion_rate = 0.04  # Normal sensitivity in MIDDLE
+            erosion_rate = Config.EROSION_RATE_NORMAL  # Normal sensitivity in MIDDLE (default: 0.02)
         
         # Minimum meaningful profit threshold
         # Small profits are normal fluctuation, not worth triggering erosion alerts
-        risk_usd = pos.get('risk_usd', 1.0)
-        if isinstance(risk_usd, str):  # Handle 'N/A' case
-            risk_usd = 1.0
-        min_meaningful_profit = max(risk_usd * erosion_rate, 0.15)  # Dynamic rate or $0.15 minimum
+        # Formula: min_meaningful_profit = margin_usd * erosion_rate
+        margin_usd = pos.get('margin_usd', 0.0)
+        if isinstance(margin_usd, str):  # Handle 'N/A' case
+            margin_usd = 0.0
+        
+        # Calculate min_meaningful_profit: margin_usd * erosion_rate OR EROSION_MIN_PROFIT_USD minimum
+        calculated_min_profit = margin_usd * erosion_rate
+        min_meaningful_profit = max(calculated_min_profit, Config.EROSION_MIN_PROFIT_USD)
         
         # Determine erosion status
         if peak_pnl <= 0:
@@ -2586,48 +2590,6 @@ class PortfolioManager:
             print(f"⚠️ Counter-trend detection error for {coin}: {e}")
             return False
 
-    def apply_market_regime_adjustment(self, confidence: float, signal: str, market_regime: str) -> float:
-        """Apply market regime based confidence adjustment (hafifletilmiş - 0.7 yerine 0.92)"""
-        original_confidence = confidence
-        if market_regime == "BEARISH" and signal == "buy_to_enter":
-            # Long in bearish market - counter-trade
-            # Hafifletilmiş: 0.7 yerine 0.92 (sadece %8 düşüş)
-            adjusted_confidence = max(confidence * 0.92, confidence - 0.05, original_confidence * 0.90)
-            print(f"📊 Market regime adjustment: BEARISH market, LONG signal → confidence {confidence:.2f} → {adjusted_confidence:.2f}")
-            return adjusted_confidence
-        elif market_regime == "BULLISH" and signal == "sell_to_enter":
-            # Short in bullish market - counter-trade
-            # Hafifletilmiş: 0.7 yerine 0.92 (sadece %8 düşüş)
-            adjusted_confidence = max(confidence * 0.92, confidence - 0.05, original_confidence * 0.90)
-            print(f"📊 Market regime adjustment: BULLISH market, SHORT signal → confidence {confidence:.2f} → {adjusted_confidence:.2f}")
-            return adjusted_confidence
-        else:
-            # Trend-following trade - no adjustment
-            return confidence
-
-    # NOTE: validate_counter_trade() fonksiyonu kaldırıldı (13 Aralık 2025)
-    # Sebep: prompt_json_builders.py'de aynı mantık zaten mevcut (risk_level hesaplama)
-    # Bu fonksiyon çağrılmıyordu (yorum satırında kalmıştı - satır ~3537)
-
-
-    def calculate_dynamic_risk(self, market_regime: str, confidence: float) -> float:
-        """Calculate dynamic risk based on market regime and confidence"""
-        base_risk = 50.0  # $50 base risk
-        
-        # Market regime adjustment
-        if "BEARISH" in market_regime:
-            base_risk *= 0.8  # Bearish market: reduce risk to $40
-        elif "BULLISH" in market_regime:
-            base_risk *= 1.2  # Bullish market: increase risk to $60
-        
-        # Confidence adjustment
-        if confidence >= 0.7:
-            base_risk *= 1.1  # High confidence: +10%
-        elif confidence <= 0.5:
-            base_risk *= 0.9  # Low confidence: -10%
-            
-        return min(base_risk, 60.0)  # Cap at $60 maximum risk
-
 
     def calculate_confidence_based_margin(self, confidence: float, available_cash: float, entry_price: float = None, stop_loss: float = None, leverage: int = 10) -> float:
         """
@@ -2688,19 +2650,6 @@ class PortfolioManager:
         else:
             return 0.30  # %30 for margin >= 50
 
-    def get_volume_threshold(self, market_regime: str, signal: str) -> float:
-        """Get volume threshold based on market regime and signal type"""
-        if signal == "buy_to_enter":
-            if "BULLISH" in market_regime:
-                return 0.6  # Bullish market: LONG >60% volume
-            else:
-                return 0.8  # Other markets: LONG >80% volume
-        elif signal == "sell_to_enter":
-            if "BEARISH" in market_regime:
-                return 0.3  # Bearish market: SHORT >30% volume
-            else:
-                return 0.4  # Other markets: SHORT >40% volume
-        return 0.8  # Default threshold
 
     def calculate_volume_quality_score(
         self,
@@ -3109,9 +3058,10 @@ class PortfolioManager:
                 # This block OVERRIDES all previous TP/SL logic (Choppy/Normal/AI)
                 # to ensure system stability based on market volatility.
                 
-                # 1. Get ATR (use HTF 1h ATR if available, else 3m ATR)
-                indicators_htf = self.market_data.get_technical_indicators(coin, HTF_INTERVAL)
-                atr_value = indicators_htf.get('atr_14')
+                # 1. Get ATR (use 15m ATR for tighter stops, else fallback to 3m ATR)
+                # 15m ATR preferred: balanced between noise filtering and responsive SL
+                indicators_15m = self.market_data.get_technical_indicators(coin, '15m')
+                atr_value = indicators_15m.get('atr_14')
                 if not isinstance(atr_value, (int, float)) or atr_value <= 0:
                     # Fallback to 3m ATR
                     indicators_3m = self.market_data.get_technical_indicators(coin, '3m')
