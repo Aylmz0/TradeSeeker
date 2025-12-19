@@ -39,6 +39,7 @@ class Config:
     # Smart Cooldown Settings
     SMART_COOLDOWN_LOSS: int = int(os.getenv('SMART_COOLDOWN_LOSS', '3'))
     SMART_COOLDOWN_WIN: int = int(os.getenv('SMART_COOLDOWN_WIN', '2'))
+    MAX_NEW_POSITIONS_PER_CYCLE: int = int(os.getenv('MAX_NEW_POSITIONS_PER_CYCLE', '3'))  # Max new positions per cycle
     EXTENDED_LOSS_CYCLES: int = int(os.getenv('EXTENDED_LOSS_CYCLES', '15'))  # Close position after this many negative cycles
     EXTENDED_PROFIT_CYCLES: int = int(os.getenv('EXTENDED_PROFIT_CYCLES', '15'))  # Close position after this many positive cycles (take profit)
     

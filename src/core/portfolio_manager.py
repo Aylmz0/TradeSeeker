@@ -854,7 +854,7 @@ class PortfolioManager:
             # Cooldown aktif olsa bile, yeni kayıplar geldiğinde tekrar kontrol et ve gerekirse yeniden aktif et
             loss_streak_usd = stats.get('loss_streak_loss_usd', 0.0)
             consecutive = stats['consecutive_losses']
-            should_activate = consecutive >= 3 or loss_streak_usd >= 5.0
+            should_activate = consecutive >= 2 or loss_streak_usd >= 4.0
             
             print(f"🔍 Cooldown check for {direction.upper()}: consecutive_losses={consecutive}, loss_streak_usd=${loss_streak_usd:.2f}, should_activate={should_activate}")
             
@@ -2966,6 +2966,9 @@ class PortfolioManager:
         if entry_signals:
             print(f"📊 Signal priority order: {entry_signals}")
 
+        # Same-cycle position limit tracking
+        new_positions_this_cycle = 0
+
         for coin, trade in sorted_decisions:
             if not isinstance(trade, dict): print(f"⚠️ Invalid trade data for {coin}: {type(trade)}"); continue
             if coin not in current_prices or not isinstance(current_prices[coin], (int, float)) or current_prices[coin] <= 0:
@@ -2978,6 +2981,13 @@ class PortfolioManager:
                     print(f"⚠️ {signal.upper()} {coin}: Position already open.")
                     execution_report['skipped'].append({'coin': coin, 'reason': 'position_exists', 'signal': signal})
                     trade['runtime_decision'] = 'skipped_existing_position'
+                    continue
+
+                # Same-cycle position limit check
+                if new_positions_this_cycle >= Config.MAX_NEW_POSITIONS_PER_CYCLE:
+                    print(f"🚫 Same-cycle limit ({Config.MAX_NEW_POSITIONS_PER_CYCLE}): Blocking {coin} {signal}")
+                    execution_report['blocked'].append({'coin': coin, 'reason': 'same_cycle_limit', 'signal': signal})
+                    trade['runtime_decision'] = 'blocked_same_cycle_limit'
                     continue
 
                 confidence = trade.get('confidence', 0.5) # Default 50% confidence if missing
@@ -3263,6 +3273,18 @@ class PortfolioManager:
                         trade['confidence'] = confidence
                     is_counter_trend = self._is_counter_trend_trade(coin, signal, indicators_3m, indicators_htf)
                     trend_classification = 'counter_trend' if is_counter_trend else 'trend_following'
+                    
+                    # Trend inconsistency check: EMA-based vs runtime trend
+                    # If AI/EMA says counter-trend but runtime says different, use min margin
+                    signal_direction = 'bullish' if signal == 'buy_to_enter' else 'bearish'
+                    runtime_counter_trend = (
+                        (signal == 'buy_to_enter' and current_trend == 'bearish') or
+                        (signal == 'sell_to_enter' and current_trend == 'bullish')
+                    )
+                    trend_inconsistent = (is_counter_trend != runtime_counter_trend)
+                    if trend_inconsistent:
+                        print(f"⚠️ TREND INCONSISTENCY {coin}: EMA counter_trend={is_counter_trend}, Runtime counter_trend={runtime_counter_trend}")
+                    
                     trade['trend_alignment'] = trend_classification
                     snapshot_parts = []
                     price_htf = indicators_htf.get('current_price')
@@ -3442,6 +3464,12 @@ class PortfolioManager:
                     print(f"📉 Applying partial margin ({partial_margin_factor*100:.0f}%): ${standard_margin:.2f} → ${reduced_margin:.2f}")
                     calculated_margin = max(reduced_margin, Config.MIN_POSITION_MARGIN_USD)
                 
+                # Trend inconsistency override: use minimum margin if trends disagree
+                if trend_inconsistent:
+                    original_margin = calculated_margin
+                    calculated_margin = Config.MIN_POSITION_MARGIN_USD
+                    print(f"⚠️ Trend inconsistency detected: Reducing margin ${original_margin:.2f} → ${calculated_margin:.2f} (MIN)")
+                
                 # MINIMUM $10 COIN MIKTARI KONTROLÜ
                 if calculated_margin < Config.MIN_POSITION_MARGIN_USD:
                     print(f"ℹ️ Calculated margin ${calculated_margin:.2f} below minimum ${Config.MIN_POSITION_MARGIN_USD:.2f}. Using minimum margin instead.")
@@ -3521,6 +3549,7 @@ class PortfolioManager:
                         'order_id': live_result.get('order', {}).get('orderId')
                     })
                     trade['runtime_decision'] = 'executed_live'
+                    new_positions_this_cycle += 1
                     continue
 
                 self.current_balance -= margin_usd # Deduct margin (simulation)
@@ -3574,6 +3603,7 @@ class PortfolioManager:
                     'margin_usd': margin_usd
                 })
                 trade['runtime_decision'] = 'executed'
+                new_positions_this_cycle += 1
 
             elif signal == 'close_position':
                 if not position:
