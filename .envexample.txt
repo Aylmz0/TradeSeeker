@@ -35,6 +35,7 @@ DYNAMIC_DIRECTION_LIMIT=2
 # Smart Cooldown Settings
 SMART_COOLDOWN_LOSS=4
 SMART_COOLDOWN_WIN=2
+MAX_NEW_POSITIONS_PER_CYCLE=3  # Max new positions per cycle (confidence sırasına göre)
 EXTENDED_LOSS_CYCLES=15
 
 # Position Size Configuration (Margin-based)

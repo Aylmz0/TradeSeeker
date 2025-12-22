@@ -1,0 +1,53 @@
+=== data-1 (FİLTRELİ) ANALİZİ ===
+Toplam trade: 63
+Toplam PnL: $-9.63
+
+Kapanış Nedenleri:
+  Profit Taking: 18 trade, PnL: $6.13
+  Stop Loss: 19 trade, PnL: $-4.08
+  AI Close: 24 trade, PnL: $-10.45
+  Profit Target: 1 trade
+  Other: 1 trade
+
+Karlı trade: 34 (54.0%)
+Zararlı trade: 25 (39.7%)
+Başabaş: 4
+
+Ortalama kar: $0.37
+Ortalama zarar: $-0.89
+
+En büyük 5 kayıp:
+  ASTER long: $-3.46 - Stop Loss (0.7233529407050882) hit
+  LINK short: $-2.36 - AI close_position signal
+  SOL short: $-2.25 - Position negative for 15 cycles
+  SOL short: $-2.06 - AI close_position signal
+  SOL long: $-1.73 - AI close_position signal
+
+=== COIN BAZINDA ANALİZ ===
+ASTER: 8 trade, PnL: $-2.13, Win rate: 38%
+DOGE: 15 trade, PnL: $0.46, Win rate: 60%
+LINK: 9 trade, PnL: $-5.01, Win rate: 33%
+SOL: 9 trade, PnL: $-4.99, Win rate: 44%
+TRX: 1 trade, PnL: $0.23, Win rate: 100%
+XRP: 21 trade, PnL: $1.81, Win rate: 67%
+
+=== DIRECTION BAZINDA ANALİZ ===
+LONG: 32 trade, PnL: $-3.19, Win rate: 53%
+SHORT: 31 trade, PnL: $-6.43, Win rate: 55%
+
+=== AI CLOSE ANALİZİ ===
+AI Close toplam: 24 trade
+AI Close karlı: 7
+AI Close zararlı: 13
+AI Close başabaş: 4
+AI Close toplam PnL: $-10.45
+
+=== STOP LOSS ANALİZİ ===
+SL ile karlı kapanan: 8
+SL ile zararlı kapanan: 11
+SL toplam PnL: $-4.08
+
+=== TRADE SÜRESİ ANALİZİ ===
+Ortalama trade süresi: 17.5 dakika
+Karlı trade ortalama süresi: 15.1 dk
+Zararlı trade ortalama süresi: 19.4 dk

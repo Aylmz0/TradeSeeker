@@ -2968,6 +2968,7 @@ class PortfolioManager:
 
         # Same-cycle position limit tracking
         new_positions_this_cycle = 0
+        trend_inconsistent = False  # Default - will be set in signal processing for entries
 
         for coin, trade in sorted_decisions:
             if not isinstance(trade, dict): print(f"⚠️ Invalid trade data for {coin}: {type(trade)}"); continue
@@ -2985,7 +2986,8 @@ class PortfolioManager:
 
                 # Same-cycle position limit check
                 if new_positions_this_cycle >= Config.MAX_NEW_POSITIONS_PER_CYCLE:
-                    print(f"🚫 Same-cycle limit ({Config.MAX_NEW_POSITIONS_PER_CYCLE}): Blocking {coin} {signal}")
+                    _log_debug('block', f"🚫 Same-cycle limit ({Config.MAX_NEW_POSITIONS_PER_CYCLE}): Blocking {coin} {signal}",
+                               {'coin': coin, 'signal': signal, 'limit': Config.MAX_NEW_POSITIONS_PER_CYCLE, 'opened': new_positions_this_cycle})
                     execution_report['blocked'].append({'coin': coin, 'reason': 'same_cycle_limit', 'signal': signal})
                     trade['runtime_decision'] = 'blocked_same_cycle_limit'
                     continue
@@ -3283,7 +3285,8 @@ class PortfolioManager:
                     )
                     trend_inconsistent = (is_counter_trend != runtime_counter_trend)
                     if trend_inconsistent:
-                        print(f"⚠️ TREND INCONSISTENCY {coin}: EMA counter_trend={is_counter_trend}, Runtime counter_trend={runtime_counter_trend}")
+                        _log_debug('trend', f"⚠️ TREND INCONSISTENCY {coin}: EMA counter_trend={is_counter_trend}, Runtime counter_trend={runtime_counter_trend}",
+                                   {'coin': coin, 'signal': signal, 'ema_counter_trend': is_counter_trend, 'runtime_counter_trend': runtime_counter_trend, 'current_trend': current_trend})
                     
                     trade['trend_alignment'] = trend_classification
                     snapshot_parts = []
@@ -3468,7 +3471,8 @@ class PortfolioManager:
                 if trend_inconsistent:
                     original_margin = calculated_margin
                     calculated_margin = Config.MIN_POSITION_MARGIN_USD
-                    print(f"⚠️ Trend inconsistency detected: Reducing margin ${original_margin:.2f} → ${calculated_margin:.2f} (MIN)")
+                    _log_debug('sizing', f"⚠️ Trend inconsistency: Reducing margin ${original_margin:.2f} → ${calculated_margin:.2f} (MIN)",
+                               {'coin': coin, 'original_margin': original_margin, 'reduced_margin': calculated_margin, 'reason': 'trend_inconsistency'})
                 
                 # MINIMUM $10 COIN MIKTARI KONTROLÜ
                 if calculated_margin < Config.MIN_POSITION_MARGIN_USD:

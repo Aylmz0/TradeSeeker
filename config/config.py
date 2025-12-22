@@ -62,6 +62,8 @@ class Config:
     EMA_NEUTRAL_BAND_PCT: float = float(os.getenv('EMA_NEUTRAL_BAND_PCT', '0.001'))  # 0.1% band around EMA
     INTRADAY_NEUTRAL_RSI_LOW: float = float(os.getenv('INTRADAY_NEUTRAL_RSI_LOW', '45.0'))
     INTRADAY_NEUTRAL_RSI_HIGH: float = float(os.getenv('INTRADAY_NEUTRAL_RSI_HIGH', '55.0'))
+    TREND_LONG_RSI_THRESHOLD: float = float(os.getenv('TREND_LONG_RSI_THRESHOLD', '50.0'))  # RSI >= for bullish confirmation
+    TREND_SHORT_RSI_THRESHOLD: float = float(os.getenv('TREND_SHORT_RSI_THRESHOLD', '50.0'))  # RSI <= for bearish confirmation
     
     # Enhanced Trading Settings
     SHORT_ENHANCEMENT_MULTIPLIER: float = float(os.getenv('SHORT_ENHANCEMENT_MULTIPLIER', '1.15'))  # %15 daha büyük short

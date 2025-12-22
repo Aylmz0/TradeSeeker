@@ -89,10 +89,7 @@ class DeepSeekAPI:
                         },
                         "restriction": "Do NOT trade if risk_level is VERY_HIGH_RISK. HIGH_RISK requires extreme caution."
                     },
-                    "volume_rules": {
-                         "weakness_warning": "If volume ratio is <= 0.30x average, DO NOT TRADE. This is a hard rule (Sniper mode).",
-                         "low_volume_caution": "If volume ratio is 0.30-0.60x, reduce confidence significantly."
-                    },
+                    # NOTE: Volume filtering is handled by runtime code - removed from prompt to avoid AI confusion
                     "momentum_conviction_rule": {
                         "description": "How 15m momentum quality affects entry timing",
                         "STRENGTHENING": "Trend accelerating. Proceed with entry normally.",
@@ -114,21 +111,7 @@ class DeepSeekAPI:
                             "for_LONG_exit": "LONG is SAFE at LOWER_10. Continue holding - trend favorably exhausting."
                         }
                     },
-                    "zone_strengthening_combined_rule": {
-                        "description": "Zone + STRENGTHENING = trend strong and accelerating. Favor trend-following.",
-                        "UPPER_10_STRENGTHENING": {
-                            "for_LONG_entry": "Valid entry. Trend accelerating, momentum supports continuation.",
-                            "for_LONG_exit": "Continue holding. Momentum still positive. Exit on WEAKENING, not STRENGTHENING.",
-                            "for_SHORT_entry": "Not recommended. Wait for WEAKENING signal before counter-trend.",
-                            "for_SHORT_exit": "Consider exit. Momentum accelerating against position."
-                        },
-                        "LOWER_10_STRENGTHENING": {
-                            "for_SHORT_entry": "Valid entry. Trend accelerating down, momentum supports continuation.",
-                            "for_SHORT_exit": "Continue holding. Momentum still negative. Exit on WEAKENING, not STRENGTHENING.",
-                            "for_LONG_entry": "Not recommended. Wait for WEAKENING signal before counter-trend.",
-                            "for_LONG_exit": "Consider exit. Momentum accelerating against position."
-                        }
-                    },
+                    # NOTE: zone_strengthening_combined_rule REMOVED - was causing AI confusion with conflicting signals
                     # DISABLED FOR A/B TESTING (zone+weakening remains active)
                     # "zone_rsi_extreme_rule": {
                     #     "description": "CRITICAL RULE: Zone + RSI extreme combination signals high reversal probability",
