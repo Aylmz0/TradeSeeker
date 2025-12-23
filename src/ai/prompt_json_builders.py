@@ -546,6 +546,37 @@ def build_market_data_json(
         if 'smart_sparkline' in indicators:
             current["smart_sparkline"] = indicators['smart_sparkline']
         
+        # ==================== NEW INDICATORS (v5.0) ====================
+        # Add new indicator data to AI prompt
+        
+        # ADX (Trend Strength)
+        if 'adx' in indicators:
+            current["adx"] = format_number_for_json(indicators.get('adx'))
+            current["trend_strength_adx"] = indicators.get('trend_strength_adx', 'UNKNOWN')
+        
+        # VWAP
+        if 'vwap' in indicators:
+            current["vwap"] = format_number_for_json(indicators.get('vwap'))
+            current["price_vs_vwap"] = indicators.get('price_vs_vwap', 'UNKNOWN')
+        
+        # Bollinger Bands
+        if 'bb_upper' in indicators:
+            current["bb_upper"] = format_number_for_json(indicators.get('bb_upper'))
+            current["bb_lower"] = format_number_for_json(indicators.get('bb_lower'))
+            current["bb_squeeze"] = indicators.get('bb_squeeze', False)
+            current["bb_signal"] = indicators.get('bb_signal', 'NORMAL')
+        
+        # OBV
+        if 'obv_trend' in indicators:
+            current["obv_trend"] = indicators.get('obv_trend', 'FLAT')
+            current["obv_divergence"] = indicators.get('obv_divergence', 'NONE')
+        
+        # SuperTrend
+        if 'supertrend_direction' in indicators:
+            current["supertrend_direction"] = indicators.get('supertrend_direction', 'UP')
+        
+        # ==================== END NEW INDICATORS ====================
+        
         # Build series with compression if needed
         price_series = indicators.get('price_series', [])
         rsi_series = indicators.get('rsi_14_series', [])

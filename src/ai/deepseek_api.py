@@ -197,10 +197,28 @@ class DeepSeekAPI:
                     "description": "Price pattern analysis. HTF (1h) includes full data (24h), 15m includes structure+momentum+price_location (6h).",
                     "key_level": "Nearest support or resistance (HTF only). strength = how many times tested (1-5). distance_pct = distance from price.",
                     "structure": {
-                        "HH_HL": "Higher Highs + Higher Lows = Bullish structure",
-                        "LH_LL": "Lower Highs + Lower Lows = Bearish structure",
-                        "RANGE": "Price consolidating, potential breakout",
-                        "UNCLEAR": "No clear pattern"
+                        "HH_HL": {
+                            "meaning": "Higher Highs + Higher Lows",
+                            "interpretation": "Bullish price structure. Uptrend intact."
+                        },
+                        "LH_LL": {
+                            "meaning": "Lower Highs + Lower Lows",
+                            "interpretation": "Bearish price structure. Downtrend intact."
+                        },
+                        "RANGE": {
+                            "meaning": "Price consolidating in tight range",
+                            "interpretation": "Breakout pending. Check bb_squeeze for timing."
+                        },
+                        "UNCLEAR": {
+                            "meaning": "No clear pattern",
+                            "interpretation": "Rely on other indicators."
+                        }
+                    },
+                    "structure_alignment": {
+                        "description": "Multi-timeframe structure comparison",
+                        "both_HH_HL": "Maximum bullish alignment (1h + 15m agree).",
+                        "both_LH_LL": "Maximum bearish alignment (1h + 15m agree).",
+                        "conflict": "Timeframes disagree - caution advised."
                     },
                     "momentum": "STRENGTHENING (trend accelerating) | STABLE | WEAKENING (trend losing steam)",
                     "price_location": {
@@ -215,7 +233,55 @@ class DeepSeekAPI:
                     },
                     "usage": "Use 15m data for shorter-term confirmation. Check price_location on both 1h and 15m when deciding entries."
                 },
-                "tags": "Analytical labels (e.g., 'Vol_High', 'RSI_Overbought'). Use as confirmation."
+                "tags": "Analytical labels (e.g., 'Vol_High', 'RSI_Overbought'). Use as confirmation.",
+                # ==================== NEW INDICATOR DEFINITIONS (v5.0) ====================
+                "adx": {
+                    "description": "Average Directional Index - trend STRENGTH measurement (0-100)",
+                    "interpretation": {
+                        "NO_TREND (0-15)": "No directional trend. Market ranging or choppy.",
+                        "WEAK (15-25)": "Trend starting to form but not confirmed.",
+                        "MODERATE (25-40)": "Trend present and confirmed.",
+                        "STRONG (40+)": "Strong directional trend in progress."
+                    },
+                    "note": "ADX does NOT show direction, only strength. Use +DI/-DI or price vs EMA for direction."
+                },
+                "vwap": {
+                    "description": "Volume Weighted Average Price (Rolling 4-hour)",
+                    "interpretation": {
+                        "ABOVE": "Price above institutional fair value.",
+                        "BELOW": "Price below institutional fair value."
+                    }
+                },
+                "bollinger_bands": {
+                    "description": "Volatility bands (2 std dev from 20-period SMA)",
+                    "bb_squeeze": "TRUE means volatility compressed - potential breakout imminent.",
+                    "bb_signal": {
+                        "OVERBOUGHT": "Price above upper band.",
+                        "OVERSOLD": "Price below lower band.",
+                        "NORMAL": "Price within bands."
+                    }
+                },
+                "obv": {
+                    "description": "On Balance Volume - cumulative volume flow",
+                    "obv_trend": {
+                        "RISING": "Volume accumulating (bullish).",
+                        "FALLING": "Volume distributing (bearish).",
+                        "FLAT": "No significant volume trend."
+                    },
+                    "obv_divergence": {
+                        "BULLISH": "Price down but volume accumulating - potential reversal up.",
+                        "BEARISH": "Price up but volume distributing - potential reversal down.",
+                        "NONE": "No divergence."
+                    }
+                },
+                "supertrend": {
+                    "description": "ATR-based trend indicator",
+                    "direction": {
+                        "UP": "Bullish trend signal.",
+                        "DOWN": "Bearish trend signal."
+                    }
+                }
+                # ==================== END NEW INDICATOR DEFINITIONS ====================
             },
             "response_schema": {
                 "format": "JSON",
