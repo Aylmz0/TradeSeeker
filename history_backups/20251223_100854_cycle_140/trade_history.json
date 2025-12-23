@@ -1,0 +1,93 @@
+[
+  {
+    "symbol": "DOGE",
+    "direction": "short",
+    "entry_price": 0.13025,
+    "exit_price": 0.13038,
+    "quantity": 5262.603228424317,
+    "notional_usd": 685.4540705022673,
+    "pnl": -1.36993455940723,
+    "entry_time": "2025-12-23T07:22:23.053081",
+    "exit_time": "2025-12-23T07:49:31.235743",
+    "leverage": 10,
+    "close_reason": "AI close_position signal"
+  },
+  {
+    "symbol": "SOL",
+    "direction": "long",
+    "entry_price": 124.51,
+    "exit_price": 124.47,
+    "quantity": 4.118925481126292,
+    "notional_usd": 512.8474116550346,
+    "pnl": -0.6775220523904895,
+    "entry_time": "2025-12-23T08:22:04.731641",
+    "exit_time": "2025-12-23T08:25:51.616843",
+    "leverage": 10,
+    "close_reason": "AI close_position signal"
+  },
+  {
+    "symbol": "TRX",
+    "direction": "short",
+    "entry_price": 0.284,
+    "exit_price": 0.2845,
+    "quantity": 1786.4797622065323,
+    "notional_usd": 507.36025246665514,
+    "pnl": -1.4010467535104736,
+    "entry_time": "2025-12-23T08:09:37.148771",
+    "exit_time": "2025-12-23T09:01:52.120489",
+    "leverage": 10,
+    "close_reason": "AI close_position signal"
+  },
+  {
+    "symbol": "XRP",
+    "direction": "short",
+    "entry_price": 1.877,
+    "exit_price": 1.8807,
+    "quantity": 239.88565482862973,
+    "notional_usd": 450.265374113338,
+    "pnl": -1.3382860854407097,
+    "entry_time": "2025-12-23T08:54:00.754242",
+    "exit_time": "2025-12-23T09:05:47.250372",
+    "leverage": 10,
+    "close_reason": "AI close_position signal"
+  },
+  {
+    "symbol": "XRP",
+    "direction": "short",
+    "entry_price": 1.8801,
+    "exit_price": 1.8845,
+    "quantity": 402.68828785702584,
+    "notional_usd": 757.0942499999943,
+    "pnl": -2.529808630804177,
+    "entry_time": "2025-12-23T09:21:45.587024",
+    "exit_time": "2025-12-23T09:34:17.212713",
+    "leverage": 10,
+    "close_reason": "AI close_position signal"
+  },
+  {
+    "symbol": "SOL",
+    "direction": "short",
+    "entry_price": 123.98,
+    "exit_price": 124.31,
+    "quantity": 2.0164542668172287,
+    "notional_usd": 250.0,
+    "pnl": -0.9157626230037069,
+    "entry_time": "2025-12-23T09:21:45.605051",
+    "exit_time": "2025-12-23T09:34:17.227565",
+    "leverage": 10,
+    "close_reason": "AI close_position signal"
+  },
+  {
+    "symbol": "XRP",
+    "direction": "long",
+    "entry_price": 1.8859,
+    "exit_price": 1.8851,
+    "quantity": 379.458489315447,
+    "notional_usd": 715.6207650000015,
+    "pnl": -1.0190357730565995,
+    "entry_time": "2025-12-23T09:45:51.399086",
+    "exit_time": "2025-12-23T09:49:54.106516",
+    "leverage": 10,
+    "close_reason": "AI close_position signal"
+  }
+]

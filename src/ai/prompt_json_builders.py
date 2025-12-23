@@ -139,7 +139,20 @@ def build_counter_trade_json(
             # If Bearish trend, we want to Long -> Need Bullish MACD (MACD > Signal)
             condition_5 = (trend_htf == "BULLISH" and (macd_3m or 0) < (macd_signal_3m or 0)) or (trend_htf == "BEARISH" and (macd_3m or 0) > (macd_signal_3m or 0))
             
-            total_met = sum([condition_1, condition_2, condition_3, condition_4, condition_5])
+            # Condition 6: Zone + Weakening (Counter-trend favorable setup)
+            # LOWER_10 + WEAKENING (BEARISH trend) = favorable for LONG counter-trade
+            # UPPER_10 + WEAKENING (BULLISH trend) = favorable for SHORT counter-trade
+            momentum_15m = indicators_15m.get('momentum', None) if has_15m else None
+            price_location_15m = indicators_15m.get('price_location', None) if has_15m else None
+            zone_15m = price_location_15m.get('zone', 'MIDDLE') if isinstance(price_location_15m, dict) else price_location_15m
+            condition_6 = False
+            if momentum_15m == "WEAKENING":
+                if trend_htf == "BEARISH" and zone_15m == "LOWER_10":
+                    condition_6 = True  # Favorable for LONG counter-trade
+                elif trend_htf == "BULLISH" and zone_15m == "UPPER_10":
+                    condition_6 = True  # Favorable for SHORT counter-trade
+            
+            total_met = sum([condition_1, condition_2, condition_3, condition_4, condition_5, condition_6])
             
             # Determine risk level (Updated Logic - User Request Dec 10)
             # STRONG alignment = 15m+3m both counter
@@ -157,40 +170,8 @@ def build_counter_trade_json(
             else:
                 risk_level = "VERY_HIGH_RISK"  # No alignment (15m AND 3m both follow HTF trend)
             
-            # Zone + Weakening Risk Modifier: Reduce risk by 1 level if conditions met
-            # LOWER_10 + WEAKENING (BEARISH trend) = favorable for LONG counter-trade
-            # UPPER_10 + WEAKENING (BULLISH trend) = favorable for SHORT counter-trade
-            # LOWER_10 + RSI < 30 (BEARISH trend) = favorable for LONG counter-trade
-            # UPPER_10 + RSI > 70 (BULLISH trend) = favorable for SHORT counter-trade
-            # NOTE: Only ONE level reduction even if multiple conditions are met
-            momentum_15m = indicators_15m.get('momentum', None) if has_15m else None
-            price_location_15m = indicators_15m.get('price_location', None) if has_15m else None
-            rsi_15m = format_number_for_json(indicators_15m.get('rsi_14', 50)) if has_15m else 50
-            
-            zone_bonus = False
-            
-            # Check Zone + Weakening conditions
-            if momentum_15m == "WEAKENING":
-                if trend_htf == "BEARISH" and price_location_15m == "LOWER_10":
-                    zone_bonus = True  # Favorable for LONG counter-trade
-                elif trend_htf == "BULLISH" and price_location_15m == "UPPER_10":
-                    zone_bonus = True  # Favorable for SHORT counter-trade
-            
-            # DISABLED FOR A/B TESTING (zone+weakening remains active)
-            # Check Zone + RSI extreme conditions (only if not already triggered by weakening)
-            # if not zone_bonus:
-            #     if trend_htf == "BEARISH" and price_location_15m == "LOWER_10" and (rsi_15m or 50) < Config.RSI_OVERSOLD_THRESHOLD:
-            #         zone_bonus = True  # LOWER_10 + RSI < 30 = favorable for LONG
-            #     elif trend_htf == "BULLISH" and price_location_15m == "UPPER_10" and (rsi_15m or 50) > Config.RSI_OVERBOUGHT_THRESHOLD:
-            #         zone_bonus = True  # UPPER_10 + RSI > 70 = favorable for SHORT
-            
-            # Apply risk reduction if zone_bonus is True (only ONE level reduction)
-            if zone_bonus:
-                if risk_level == "VERY_HIGH_RISK":
-                    risk_level = "HIGH_RISK"
-                elif risk_level == "HIGH_RISK":
-                    risk_level = "MEDIUM_RISK"
-                # LOW_RISK stays LOW_RISK, MEDIUM_RISK stays MEDIUM_RISK
+            # NOTE: Zone + Weakening is now Condition 6 (calculated above)
+            # No longer modifies risk level - it's counted as a condition instead
             
             analysis_list.append({
                 "coin": coin,

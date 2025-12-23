@@ -3132,14 +3132,14 @@ class PortfolioManager:
                         trend_strength_adx = indicators_15m.get('trend_strength_adx', 'MODERATE')
                         
                         if trend_strength_adx == "NO_TREND":
-                            confidence = confidence * 0.85
-                            confidence_adjustments.append(f"adx_no_trend({adx:.0f})(-15%)")
+                            confidence = confidence * 0.80  # Increased from 0.85 to 0.80 (-20%)
+                            confidence_adjustments.append(f"adx_no_trend({adx:.0f})(-20%)")
                         elif trend_strength_adx == "WEAK":
-                            confidence = confidence * 0.95
-                            confidence_adjustments.append(f"adx_weak({adx:.0f})(-5%)")
+                            confidence = confidence * 0.85  # Increased from 0.95 to 0.85 (-15%)
+                            confidence_adjustments.append(f"adx_weak({adx:.0f})(-15%)")
                         elif trend_strength_adx == "STRONG":
-                            confidence = confidence * 1.05
-                            confidence_adjustments.append(f"adx_strong({adx:.0f})(+5%)")
+                            confidence = confidence * 0.90  # Changed from 1.05 to 0.90 (-10%)
+                            confidence_adjustments.append(f"adx_strong({adx:.0f})(-10%)")
                         
                         # 2. VWAP-based confidence adjustment
                         price_vs_vwap = indicators_15m.get('price_vs_vwap', 'UNKNOWN')
@@ -3415,6 +3415,18 @@ class PortfolioManager:
                     if trend_inconsistent:
                         _log_debug('trend', f"⚠️ TREND INCONSISTENCY {coin}: EMA counter_trend={is_counter_trend}, Runtime counter_trend={runtime_counter_trend}",
                                    {'coin': coin, 'signal': signal, 'ema_counter_trend': is_counter_trend, 'runtime_counter_trend': runtime_counter_trend, 'current_trend': current_trend})
+                        # TREND MISMATCH GUARD: Block trade when AI and runtime disagree on trend classification
+                        # This prevents wrong rule application (counter-trend rules vs trend-following rules)
+                        print(f"🚫 TREND MISMATCH GUARD: Blocking {coin} - AI vs Runtime trend conflict (EMA: {'counter' if is_counter_trend else 'trend-following'}, Runtime: {'counter' if runtime_counter_trend else 'trend-following'})")
+                        execution_report['blocked'].append({
+                            'coin': coin,
+                            'reason': 'trend_mismatch_guard',
+                            'classification': trend_classification,
+                            'ema_counter_trend': is_counter_trend,
+                            'runtime_counter_trend': runtime_counter_trend
+                        })
+                        trade['runtime_decision'] = 'blocked_trend_mismatch'
+                        continue
                     
                     trade['trend_alignment'] = trend_classification
                     snapshot_parts = []
