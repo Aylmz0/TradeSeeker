@@ -1099,133 +1099,9 @@ class AlphaArenaDeepSeek:
         
         return f"Total Risk: ${total_risk:.2f}, Positions: {position_count}"
 
-    def _get_counter_trade_analysis_from_indicators(self, all_indicators: Dict[str, Dict[str, Dict[str, Any]]]) -> str:
-        """Get counter-trade analysis using pre-fetched indicators (OPTIMIZATION: No re-fetch)"""
-        analysis = []
-        
-        for coin in self.market_data.available_coins:
-            try:
-                # Use pre-fetched indicators
-                indicators_3m = all_indicators.get(coin, {}).get('3m', {})
-                indicators_htf = all_indicators.get(coin, {}).get(HTF_INTERVAL, {})
-                
-                if 'error' in indicators_3m or 'error' in indicators_htf:
-                    analysis.append(f"❌ {coin}: Data error - cannot analyze counter-trade conditions")
-                    continue
-                
-                # Extract key indicators
-                price_htf = indicators_htf.get('current_price')
-                ema20_htf = indicators_htf.get('ema_20')
-                price_3m = indicators_3m.get('current_price')
-                ema20_3m = indicators_3m.get('ema_20')
-                rsi_3m = indicators_3m.get('rsi_14', 50)
-                volume_3m = indicators_3m.get('volume', 0)
-                avg_volume_3m = indicators_3m.get('avg_volume', 1)
-                macd_3m = indicators_3m.get('macd', 0)
-                macd_signal_3m = indicators_3m.get('macd_signal', 0)
-                
-                # Determine higher timeframe trend direction
-                trend_htf = "BULLISH" if price_htf > ema20_htf else "BEARISH"
-                trend_3m = "BULLISH" if price_3m > ema20_3m else "BEARISH"
-                
-                # Counter-trade conditions analysis
-                conditions_met = 0
-                total_conditions = 5
-                conditions_details = []
-                
-                # Determine 15m trend if available
-                indicators_15m = all_indicators.get(coin, {}).get('15m', {})
-                price_15m = indicators_15m.get('current_price')
-                ema20_15m = indicators_15m.get('ema_20')
-                trend_15m = None
-                if isinstance(price_15m, (int, float)) and isinstance(ema20_15m, (int, float)):
-                    trend_15m = "BULLISH" if price_15m > ema20_15m else "BEARISH"
-
-                # Condition 1: Trend alignment (15m+3m vs HTF)
-                alignment_strength = "WEAK"
-                if trend_15m and trend_3m:
-                    if trend_htf == "BULLISH":
-                        if trend_15m == "BEARISH" and trend_3m == "BEARISH": alignment_strength = "STRONG"
-                        elif trend_15m == "BEARISH" or trend_3m == "BEARISH": alignment_strength = "MEDIUM"
-                    elif trend_htf == "BEARISH":
-                        if trend_15m == "BULLISH" and trend_3m == "BULLISH": alignment_strength = "STRONG"
-                        elif trend_15m == "BULLISH" or trend_3m == "BULLISH": alignment_strength = "MEDIUM"
-
-                if alignment_strength in ["STRONG", "MEDIUM"]:
-                    conditions_met += 1
-                    conditions_details.append(f"✅ Trend alignment ({alignment_strength})")
-                else:
-                    conditions_details.append("❌ Trend alignment weak")
-                
-                # Condition 2: Volume confirmation (>1.0x average)
-                volume_ratio = volume_3m / avg_volume_3m if avg_volume_3m > 0 else 0
-                if volume_ratio > 1.0:
-                    conditions_met += 1
-                    conditions_details.append(f"✅ Volume {volume_ratio:.1f}x average")
-                else:
-                    conditions_details.append(f"❌ Volume {volume_ratio:.1f}x average (need >1.0x)")
-                
-                # Condition 3: Extreme RSI
-                # If Bullish trend, we want to Short -> Need Overbought (>75)
-                # If Bearish trend, we want to Long -> Need Oversold (<25)
-                if (trend_htf == "BULLISH" and rsi_3m > 75) or (trend_htf == "BEARISH" and rsi_3m < 25):
-                    conditions_met += 1
-                    conditions_details.append(f"✅ Extreme RSI: {rsi_3m:.1f}")
-                else:
-                    conditions_details.append(f"❌ RSI: {rsi_3m:.1f} (need >75 for SHORT, <25 for LONG)")
-                
-                # Condition 4: Strong technical levels (price near EMA)
-                price_ema_distance = abs(price_3m - ema20_3m) / price_3m * 100
-                if price_ema_distance < 1.0:
-                    conditions_met += 1
-                    conditions_details.append(f"✅ Strong technical level ({price_ema_distance:.2f}% from EMA)")
-                else:
-                    conditions_details.append(f"❌ Weak technical level ({price_ema_distance:.2f}% from EMA)")
-                
-                # Condition 5: MACD divergence
-                # If Bullish trend, we want to Short -> Need Bearish MACD (MACD < Signal)
-                # If Bearish trend, we want to Long -> Need Bullish MACD (MACD > Signal)
-                if (trend_htf == "BULLISH" and macd_3m < macd_signal_3m) or (trend_htf == "BEARISH" and macd_3m > macd_signal_3m):
-                    conditions_met += 1
-                    conditions_details.append("✅ MACD divergence")
-                else:
-                    conditions_details.append("❌ No MACD divergence")
-                
-                # Determine counter-trade risk level and recommendation
-                if conditions_met >= 4:
-                    risk_level = "LOW_RISK"
-                    recommendation = "STRONG COUNTER-TRADE SETUP - Consider with high confidence (>0.75)"
-                elif conditions_met >= 3:
-                    risk_level = "MEDIUM_RISK"
-                    recommendation = "MODERATE COUNTER-TRADE SETUP - Consider with medium confidence (>0.65)"
-                elif conditions_met >= 2:
-                    risk_level = "HIGH_RISK"
-                    recommendation = "WEAK COUNTER-TRADE SETUP - Avoid or use very low confidence"
-                else:
-                    risk_level = "VERY_HIGH_RISK"
-                    recommendation = "NO COUNTER-TRADE SETUP - Focus on trend-following"
-                
-                # Build analysis string for this coin
-                htf_upper = HTF_LABEL.upper()
-                coin_analysis = f"""
-{coin} COUNTER-TRADE ANALYSIS:
-  {htf_upper} Trend: {trend_htf} | 3m Trend: {trend_3m}
-  Conditions Met: {conditions_met}/{total_conditions}
-  Risk Level: {risk_level}
-  Recommendation: {recommendation}
-  Conditions:
-    {chr(10).join(f'    {detail}' for detail in conditions_details)}
-"""
-                analysis.append(coin_analysis)
-                
-            except Exception as e:
-                analysis.append(f"❌ {coin}: Analysis error - {str(e)}")
-        
-        # Combine all analyses
-        if not analysis:
-            return "No counter-trade analysis available due to data errors"
-        
-        return "\n".join(analysis)
+    # NOTE: _get_counter_trade_analysis_from_indicators function REMOVED
+    # Reason: build_counter_trade_json in prompt_json_builders.py performs its own calculation
+    # and includes zone+weakening risk modifier logic. The legacy function was redundant.
 
     def format_suggestions(self, suggestions: List[str]) -> str:
         """
@@ -1398,8 +1274,7 @@ class AlphaArenaDeepSeek:
         # These don't need fresh market data, so can run in parallel
         enhanced_context = self.get_enhanced_context()
         
-        # Get counter-trade analysis using pre-fetched indicators (no re-fetch)
-        counter_trade_analysis = self._get_counter_trade_analysis_from_indicators(all_indicators)
+        # NOTE: counter_trade_analysis is now computed directly inside build_counter_trade_json
         
         # Get trend reversal detection using pre-fetched indicators (OPTIMIZATION 3: No re-fetch)
         from src.core.performance_monitor import PerformanceMonitor
@@ -1483,7 +1358,7 @@ Timeframes note: Unless stated otherwise in a section title, intraday series are
 
 {'='*20} REAL-TIME COUNTER-TRADE ANALYSIS {'='*20}
 
-{counter_trade_analysis}
+(Counter-trade analysis is now included in JSON format below)
 
 {'='*20} TREND REVERSAL DETECTION {'='*20}
 
@@ -1884,7 +1759,7 @@ Current live positions & performance:"""
         
         # Get enhanced context and other data
         enhanced_context = self.get_enhanced_context()
-        counter_trade_analysis = self._get_counter_trade_analysis_from_indicators(all_indicators)
+        # NOTE: counter_trade_analysis is now computed directly inside build_counter_trade_json
         
         # Get trend reversal detection
         from src.core.performance_monitor import PerformanceMonitor
@@ -1949,7 +1824,7 @@ Current live positions & performance:"""
         
         # Counter-trade analysis (only for tradeable coins)
         counter_trade_json = build_counter_trade_json(
-            counter_trade_analysis,
+            "",  # Legacy parameter, not used - function calculates internally
             all_indicators,
             coins_to_analyze,  # Filtered list
             HTF_INTERVAL,
