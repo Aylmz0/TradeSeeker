@@ -642,6 +642,71 @@ class PortfolioManager:
             print(f"❌ Unexpected Binance partial close error for {coin}: {exc}")
             return {"success": False, "error": str(exc)}
 
+    def close_position(self, coin: str, current_price: float, reason: str = "Manual Close") -> Dict[str, Any]:
+        """
+        Close a position in paper trading mode (simulation).
+        Includes commission deduction for realism.
+        
+        Args:
+            coin: Coin symbol
+            current_price: Current market price
+            reason: Reason for closing
+            
+        Returns:
+            Dict with success status and PnL
+        """
+        if coin not in self.positions:
+            return {"success": False, "error": "no_position"}
+        
+        position = self.positions[coin]
+        direction = position.get('direction', 'long')
+        entry_price = position.get('entry_price', 0)
+        quantity = position.get('quantity', 0)
+        margin_used = position.get('margin_usd', 0)
+        
+        if quantity <= 0 or entry_price <= 0:
+            return {"success": False, "error": "invalid_position_data"}
+        
+        # Calculate PnL
+        if direction == 'long':
+            profit = (current_price - entry_price) * quantity
+        else:
+            profit = (entry_price - current_price) * quantity
+        
+        # Deduct commission for simulation realism (round-trip: entry + exit)
+        notional = (entry_price + current_price) / 2 * quantity
+        commission = notional * Config.SIMULATION_COMMISSION_RATE * 2
+        profit -= commission
+        
+        # Update balance
+        self.current_balance += (margin_used + profit)
+        
+        # Create history entry
+        history_entry = {
+            "symbol": coin,
+            "direction": direction,
+            "entry_price": entry_price,
+            "exit_price": current_price,
+            "quantity": quantity,
+            "notional_usd": position.get('notional_usd', 0),
+            "pnl": profit,
+            "entry_time": position.get('entry_time', datetime.now().isoformat()),
+            "exit_time": datetime.now().isoformat(),
+            "leverage": position.get('leverage', 10),
+            "close_reason": reason
+        }
+        
+        self.add_to_history(history_entry)
+        
+        # Remove from active positions
+        del self.positions[coin]
+        
+        print(f"✅ PAPER CLOSE: {direction} {coin} @ ${format_num(current_price, 4)} (PnL: ${format_num(profit, 2)}, Commission: ${format_num(commission, 3)})")
+        
+        self.save_state()
+        
+        return {"success": True, "pnl": profit, "commission": commission}
+
     def _backup_historical_files(self, cycle_number: int) -> Optional[str]:
         """Create a timestamped backup for historical JSON files before wiping them."""
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
@@ -3059,6 +3124,69 @@ class PortfolioManager:
                             elif zone_15m == 'LOWER_10' and direction == 'short':
                                 confidence = confidence * 0.90
                                 confidence_adjustments.append(f"lower10_weak(-10%)")
+                        
+                        # ==================== NEW INDICATOR ADJUSTMENTS (v5.0) ====================
+                        
+                        # 1. ADX-based confidence adjustment
+                        adx = indicators_15m.get('adx', 25)
+                        trend_strength_adx = indicators_15m.get('trend_strength_adx', 'MODERATE')
+                        
+                        if trend_strength_adx == "NO_TREND":
+                            confidence = confidence * 0.85
+                            confidence_adjustments.append(f"adx_no_trend({adx:.0f})(-15%)")
+                        elif trend_strength_adx == "WEAK":
+                            confidence = confidence * 0.95
+                            confidence_adjustments.append(f"adx_weak({adx:.0f})(-5%)")
+                        elif trend_strength_adx == "STRONG":
+                            confidence = confidence * 1.05
+                            confidence_adjustments.append(f"adx_strong({adx:.0f})(+5%)")
+                        
+                        # 2. VWAP-based confidence adjustment
+                        price_vs_vwap = indicators_15m.get('price_vs_vwap', 'UNKNOWN')
+                        
+                        if direction == 'long' and price_vs_vwap == "BELOW":
+                            confidence = confidence * 0.95
+                            confidence_adjustments.append("vwap_below_long(-5%)")
+                        elif direction == 'short' and price_vs_vwap == "ABOVE":
+                            confidence = confidence * 0.95
+                            confidence_adjustments.append("vwap_above_short(-5%)")
+                        
+                        # 3. Bollinger-based confidence adjustment
+                        bb_signal = indicators_15m.get('bb_signal', 'NORMAL')
+                        bb_squeeze = indicators_15m.get('bb_squeeze', False)
+                        
+                        if bb_signal == "OVERBOUGHT" and direction == 'long':
+                            confidence = confidence * 0.90
+                            confidence_adjustments.append("bb_overbought_long(-10%)")
+                        elif bb_signal == "OVERSOLD" and direction == 'short':
+                            confidence = confidence * 0.90
+                            confidence_adjustments.append("bb_oversold_short(-10%)")
+                        
+                        if bb_squeeze:
+                            confidence = confidence * 0.95
+                            confidence_adjustments.append("bb_squeeze(-5%)")
+                        
+                        # 4. OBV divergence-based adjustment
+                        obv_divergence = indicators_15m.get('obv_divergence', 'NONE')
+                        
+                        if obv_divergence == "BEARISH" and direction == 'long':
+                            confidence = confidence * 0.85
+                            confidence_adjustments.append("obv_bearish_div(-15%)")
+                        elif obv_divergence == "BULLISH" and direction == 'short':
+                            confidence = confidence * 0.85
+                            confidence_adjustments.append("obv_bullish_div(-15%)")
+                        
+                        # 5. SuperTrend confirmation
+                        st_direction = indicators_15m.get('supertrend_direction', 'UP')
+                        
+                        if (direction == 'long' and st_direction == "UP") or (direction == 'short' and st_direction == "DOWN"):
+                            confidence = confidence * 1.03
+                            confidence_adjustments.append(f"st_confirms(+3%)")
+                        elif (direction == 'long' and st_direction == "DOWN") or (direction == 'short' and st_direction == "UP"):
+                            confidence = confidence * 0.97
+                            confidence_adjustments.append(f"st_against(-3%)")
+                        
+                        # ==================== END NEW INDICATOR ADJUSTMENTS ====================
                     
                     if confidence_adjustments:
                         _log_debug('confidence', f"📉 Confidence adjusted for {coin}: {' '.join(confidence_adjustments)} → {confidence:.2f}", 

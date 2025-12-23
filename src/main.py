@@ -2493,9 +2493,14 @@ All market data is provided in JSON format below. Each coin contains:
                                 else: 
                                     profit = (entry_price - current_price) * quantity
                                 
+                                # Deduct commission for simulation realism (round-trip: entry + exit)
+                                notional = (entry_price + current_price) / 2 * quantity
+                                commission = notional * Config.SIMULATION_COMMISSION_RATE * 2
+                                profit -= commission
+                                
                                 self.portfolio.current_balance += (margin_used + profit)
                                 
-                                print(f"✅ AI CLOSE: Closed {direction} {coin} @ ${format_num(current_price, 4)} (PnL: ${format_num(profit, 2)})")
+                                print(f"✅ AI CLOSE: Closed {direction} {coin} @ ${format_num(current_price, 4)} (PnL: ${format_num(profit, 2)}, Commission: ${format_num(commission, 3)})")
                                 
                                 history_entry = {
                                     "symbol": coin, "direction": direction, "entry_price": entry_price, "exit_price": current_price,

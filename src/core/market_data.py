@@ -194,7 +194,201 @@ class RealMarketData:
         atr = tr.ewm(com=period - 1, adjust=False).mean()
         return atr
 
+    # ==================== NEW INDICATORS (v5.0) ====================
+    
+    def calculate_adx(self, high: pd.Series, low: pd.Series, close: pd.Series, period: int = 14) -> tuple:
+        """
+        Calculate ADX (Average Directional Index) and DI values.
+        Returns: (adx, plus_di, minus_di)
+        - adx: Trend strength (0-100). >25 = trend exists, >40 = strong trend
+        - plus_di: Positive directional indicator
+        - minus_di: Negative directional indicator
+        """
+        if len(close) < period + 1:
+            return 0.0, 0.0, 0.0
+        
+        # True Range
+        tr1 = high - low
+        tr2 = abs(high - close.shift(1))
+        tr3 = abs(low - close.shift(1))
+        tr = pd.concat([tr1, tr2, tr3], axis=1).max(axis=1)
+        
+        # +DM and -DM
+        up_move = high - high.shift(1)
+        down_move = low.shift(1) - low
+        
+        plus_dm = up_move.where((up_move > down_move) & (up_move > 0), 0.0)
+        minus_dm = down_move.where((down_move > up_move) & (down_move > 0), 0.0)
+        
+        # Smoothed values (Wilder's smoothing)
+        atr = tr.ewm(span=period, adjust=False).mean()
+        plus_dm_smooth = plus_dm.ewm(span=period, adjust=False).mean()
+        minus_dm_smooth = minus_dm.ewm(span=period, adjust=False).mean()
+        
+        # +DI and -DI
+        plus_di = 100 * (plus_dm_smooth / atr.replace(0, np.nan)).fillna(0)
+        minus_di = 100 * (minus_dm_smooth / atr.replace(0, np.nan)).fillna(0)
+        
+        # DX and ADX
+        di_sum = plus_di + minus_di
+        di_diff = abs(plus_di - minus_di)
+        dx = 100 * (di_diff / di_sum.replace(0, np.nan)).fillna(0)
+        adx = dx.ewm(span=period, adjust=False).mean()
+        
+        return float(adx.iloc[-1]), float(plus_di.iloc[-1]), float(minus_di.iloc[-1])
 
+    def calculate_vwap(self, high: pd.Series, low: pd.Series, close: pd.Series, 
+                       volume: pd.Series, period: int = 60) -> float:
+        """
+        Calculate Rolling VWAP (Volume Weighted Average Price).
+        Args:
+            period: Rolling window (60 bars ≈ 4 hours for 4min cycle)
+        Returns:
+            float: Current VWAP value
+        """
+        if len(close) < period:
+            return float(close.iloc[-1]) if len(close) > 0 else 0.0
+        
+        # Typical Price
+        typical_price = (high + low + close) / 3
+        
+        # Rolling VWAP
+        tp_volume = typical_price * volume
+        rolling_tp_vol = tp_volume.rolling(window=period).sum()
+        rolling_vol = volume.rolling(window=period).sum()
+        
+        vwap = rolling_tp_vol / rolling_vol.replace(0, np.nan)
+        
+        return float(vwap.iloc[-1]) if pd.notna(vwap.iloc[-1]) else float(close.iloc[-1])
+
+    def calculate_bollinger_bands(self, close: pd.Series, period: int = 20, std_dev: float = 2.0) -> tuple:
+        """
+        Calculate Bollinger Bands.
+        Returns:
+            tuple: (upper_band, middle_band, lower_band, bandwidth, percent_b)
+            - bandwidth: (upper - lower) / middle - squeeze indicator
+            - percent_b: Where price is within bands (0 = lower, 1 = upper)
+        """
+        if len(close) < period:
+            price = float(close.iloc[-1]) if len(close) > 0 else 0.0
+            return price, price, price, 0.0, 0.5
+        
+        # Middle Band (SMA)
+        middle = close.rolling(window=period).mean()
+        
+        # Standard Deviation
+        std = close.rolling(window=period).std()
+        
+        # Upper and Lower Bands
+        upper = middle + (std_dev * std)
+        lower = middle - (std_dev * std)
+        
+        # Bandwidth (squeeze indicator)
+        bandwidth = ((upper - lower) / middle).fillna(0)
+        
+        # Percent B
+        band_range = upper - lower
+        percent_b = ((close - lower) / band_range.replace(0, np.nan)).fillna(0.5)
+        
+        return (
+            float(upper.iloc[-1]),
+            float(middle.iloc[-1]),
+            float(lower.iloc[-1]),
+            float(bandwidth.iloc[-1]),
+            float(percent_b.iloc[-1])
+        )
+
+    def calculate_obv(self, close: pd.Series, volume: pd.Series) -> tuple:
+        """
+        Calculate On Balance Volume and its trend.
+        Returns:
+            tuple: (obv, obv_trend, obv_divergence)
+            - obv: Current OBV value
+            - obv_trend: "RISING", "FALLING", "FLAT"
+            - obv_divergence: "BULLISH", "BEARISH", "NONE"
+        """
+        if len(close) < 10:
+            return 0.0, "FLAT", "NONE"
+        
+        # OBV calculation
+        obv = [0]
+        for i in range(1, len(close)):
+            if close.iloc[i] > close.iloc[i-1]:
+                obv.append(obv[-1] + volume.iloc[i])
+            elif close.iloc[i] < close.iloc[i-1]:
+                obv.append(obv[-1] - volume.iloc[i])
+            else:
+                obv.append(obv[-1])
+        
+        obv_series = pd.Series(obv)
+        current_obv = float(obv_series.iloc[-1])
+        
+        # OBV trend (last 10 bars)
+        obv_change = obv_series.iloc[-1] - obv_series.iloc[-10]
+        if obv_change > 0:
+            obv_trend = "RISING"
+        elif obv_change < 0:
+            obv_trend = "FALLING"
+        else:
+            obv_trend = "FLAT"
+        
+        # Simple divergence detection
+        price_change = close.iloc[-1] - close.iloc[-10]
+        divergence = "NONE"
+        
+        if price_change > 0 and obv_change < 0:
+            divergence = "BEARISH"  # Price up, OBV down = distribution
+        elif price_change < 0 and obv_change > 0:
+            divergence = "BULLISH"  # Price down, OBV up = accumulation
+        
+        return current_obv, obv_trend, divergence
+
+    def calculate_supertrend(self, high: pd.Series, low: pd.Series, close: pd.Series, 
+                             period: int = 10, multiplier: float = 3.0) -> tuple:
+        """
+        Calculate SuperTrend indicator.
+        Returns:
+            tuple: (supertrend_line, direction)
+            - supertrend_line: Current SuperTrend level (dynamic S/R)
+            - direction: "UP" (bullish) or "DOWN" (bearish)
+        """
+        if len(close) < period + 1:
+            return float(close.iloc[-1]) if len(close) > 0 else 0.0, "UP"
+        
+        # ATR
+        tr = pd.concat([
+            high - low,
+            abs(high - close.shift(1)),
+            abs(low - close.shift(1))
+        ], axis=1).max(axis=1)
+        atr = tr.ewm(span=period, adjust=False).mean()
+        
+        # Basic Bands
+        hl2 = (high + low) / 2
+        upper_band = hl2 + (multiplier * atr)
+        lower_band = hl2 - (multiplier * atr)
+        
+        # SuperTrend calculation
+        supertrend = pd.Series(index=close.index, dtype=float)
+        direction = pd.Series(index=close.index, dtype=int)
+        
+        supertrend.iloc[0] = upper_band.iloc[0]
+        direction.iloc[0] = 1  # Start with uptrend
+        
+        for i in range(1, len(close)):
+            if close.iloc[i] > supertrend.iloc[i-1]:
+                supertrend.iloc[i] = lower_band.iloc[i]
+                direction.iloc[i] = 1  # Uptrend
+            else:
+                supertrend.iloc[i] = upper_band.iloc[i]
+                direction.iloc[i] = -1  # Downtrend
+        
+        current_st = float(supertrend.iloc[-1])
+        current_dir = "UP" if direction.iloc[-1] == 1 else "DOWN"
+        
+        return current_st, current_dir
+
+    # ==================== END NEW INDICATORS ====================
 
     def _extract_semantic_features(self, prices: pd.Series, period: int = 24) -> Dict[str, Any]:
         """Extract semantic features from price series using numpy"""
@@ -452,6 +646,60 @@ class RealMarketData:
             # Efficiency Ratio (ER) Calculation for Choppy Regime Detection
             # Using 10 periods (30 mins for 3m interval)
             indicators['efficiency_ratio'] = self.calculate_efficiency_ratio(close_prices, period=10)
+            
+            # ==================== NEW INDICATORS (v5.0) ====================
+            
+            # 1. ADX/DMI - Trend Strength
+            adx, plus_di, minus_di = self.calculate_adx(df['high'], df['low'], df['close'], period=14)
+            indicators['adx'] = adx
+            indicators['plus_di'] = plus_di
+            indicators['minus_di'] = minus_di
+            
+            if adx >= 40:
+                indicators['trend_strength_adx'] = "STRONG"
+            elif adx >= 25:
+                indicators['trend_strength_adx'] = "MODERATE"
+            elif adx >= 15:
+                indicators['trend_strength_adx'] = "WEAK"
+            else:
+                indicators['trend_strength_adx'] = "NO_TREND"
+            
+            # 2. VWAP - Rolling 4-hour (60 bars for 4min cycle)
+            vwap = self.calculate_vwap(df['high'], df['low'], df['close'], df['volume'], period=60)
+            indicators['vwap'] = vwap
+            if vwap > 0:
+                vwap_distance_pct = ((current_price - vwap) / vwap) * 100
+                indicators['vwap_distance_pct'] = round(vwap_distance_pct, 3)
+                indicators['price_vs_vwap'] = "ABOVE" if current_price > vwap else "BELOW"
+            else:
+                indicators['vwap_distance_pct'] = 0.0
+                indicators['price_vs_vwap'] = "UNKNOWN"
+            
+            # 3. Bollinger Bands
+            bb_upper, bb_middle, bb_lower, bb_bandwidth, bb_percent_b = self.calculate_bollinger_bands(close_prices)
+            indicators['bb_upper'] = bb_upper
+            indicators['bb_lower'] = bb_lower
+            indicators['bb_bandwidth'] = bb_bandwidth
+            indicators['bb_squeeze'] = bb_bandwidth < 0.03  # Squeeze detection
+            
+            if current_price > bb_upper:
+                indicators['bb_signal'] = "OVERBOUGHT"
+            elif current_price < bb_lower:
+                indicators['bb_signal'] = "OVERSOLD"
+            else:
+                indicators['bb_signal'] = "NORMAL"
+            
+            # 4. OBV - On Balance Volume
+            obv, obv_trend, obv_divergence = self.calculate_obv(close_prices, df['volume'])
+            indicators['obv_trend'] = obv_trend
+            indicators['obv_divergence'] = obv_divergence
+            
+            # 5. SuperTrend
+            st_line, st_direction = self.calculate_supertrend(df['high'], df['low'], close_prices)
+            indicators['supertrend'] = st_line
+            indicators['supertrend_direction'] = st_direction
+            
+            # ==================== END NEW INDICATORS ====================
             
             indicators['price_series'] = close_prices.iloc[-hist_len:].round(4).where(pd.notna, None).tolist()
 
