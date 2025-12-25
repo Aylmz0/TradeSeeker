@@ -391,6 +391,8 @@ class DeepSeekAPI:
                     content = json.dumps(obj, indent=2)
                 else:
                     print("⚠️ No JSON object found in response")
+                    # Return safe hold response when no valid JSON found
+                    return self.get_safe_hold_decisions()
                     
             except Exception as e:
                 print(f"⚠️ JSON extraction warning: {e}")
@@ -399,6 +401,13 @@ class DeepSeekAPI:
                     content = content.replace("```json", "").replace("```", "")
                 elif "```" in content:
                     content = content.replace("```", "")
+                
+                # Final validation - if still not valid JSON, return safe hold
+                try:
+                    json.loads(content)
+                except:
+                    print(f"🚨 JSON parse failed completely, returning safe HOLD decisions")
+                    return self.get_safe_hold_decisions()
             
             return content.strip()
 

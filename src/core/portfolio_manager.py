@@ -3100,7 +3100,9 @@ class PortfolioManager:
                         if momentum_15m == 'WEAKENING':
                             confidence = confidence * 0.90
                             confidence_adjustments.append(f"momentum_weak(-10%)")
-                        
+                        elif momentum_15m == 'STRENGTHENING':
+                            confidence = confidence * 1.10
+                            confidence_adjustments.append(f"momentum_strong(+10%)")
                         # LOWER_10 + RSI<30 = SHORT için riskli (×0.90)
                         # UPPER_10 + RSI>70 = LONG için riskli (×0.90)
                         price_loc_15m = sparkline_15m.get('price_location', {}) if isinstance(sparkline_15m, dict) else {}
@@ -3126,6 +3128,15 @@ class PortfolioManager:
                                 confidence_adjustments.append(f"lower10_weak(-10%)")
                         
                         # ==================== NEW INDICATOR ADJUSTMENTS (v5.0) ====================
+                        
+                        # 0. Volume-based confidence adjustment (±5%)
+                        volume_ratio_3m = indicators_3m.get('volume_ratio', 1.0) if indicators_3m else 1.0
+                        if volume_ratio_3m < 0.7:
+                            confidence = confidence * 0.95
+                            confidence_adjustments.append(f"volume_weak({volume_ratio_3m:.2f})(-5%)")
+                        elif volume_ratio_3m > 1.5:
+                            confidence = confidence * 1.05
+                            confidence_adjustments.append(f"volume_strong({volume_ratio_3m:.2f})(+5%)")
                         
                         # 1. ADX-based confidence adjustment
                         adx = indicators_15m.get('adx', 25)
@@ -3351,10 +3362,13 @@ class PortfolioManager:
                     relax_cycles_global = getattr(self, 'relaxed_countertrend_cycles', 0)
                     relax_mode_active_global = relax_cycles_global > 0
 
-                    # HARD VOLUME FILTER (< 0.20)
-                    if volume_ratio < 0.20:
-                        _log_debug('block', f"🚫 HARD VOLUME FILTER: {coin} volume ratio {volume_ratio:.2f} < 0.20. Trade blocked.",
-                                   {'coin': coin, 'volume_ratio': volume_ratio, 'threshold': 0.20})
+                    # HARD VOLUME FILTER with position bypass
+                    volume_threshold = Config.VOLUME_MINIMUM_THRESHOLD  # From .env (default 0.30)
+                    has_existing_position = coin in self.positions
+                    
+                    if volume_ratio < volume_threshold and not has_existing_position:
+                        _log_debug('block', f"🚫 HARD VOLUME FILTER: {coin} volume ratio {volume_ratio:.2f} < {volume_threshold}. Trade blocked.",
+                                   {'coin': coin, 'volume_ratio': volume_ratio, 'threshold': volume_threshold})
                         execution_report['blocked'].append({
                             'coin': coin,
                             'reason': 'hard_volume_filter',
@@ -3362,6 +3376,9 @@ class PortfolioManager:
                         })
                         trade['runtime_decision'] = 'blocked_hard_volume_filter'
                         continue
+                    elif volume_ratio < volume_threshold and has_existing_position:
+                        _log_debug('info', f"⚡ Volume filter BYPASS for {coin}: existing position (vol={volume_ratio:.2f})",
+                                   {'coin': coin, 'volume_ratio': volume_ratio, 'bypass_reason': 'existing_position'})
 
                     if volume_ratio is not None:
                         low_volume_threshold = 0.20 if not relax_mode_active_global else 0.15
@@ -3394,6 +3411,31 @@ class PortfolioManager:
                     if isinstance(flip_cycle, int):
                         guard_cycles_since_flip = max(0, self.current_cycle_number - flip_cycle)
                     trade['trend_runtime'] = current_trend
+                    
+                    # ==================== AI/RUNTIME TREND CLASH DETECTION ====================
+                    # If AI signal direction conflicts with runtime trend → apply MIN_MARGIN
+                    # BULLISH trend + SHORT signal = counter-trend (clash)
+                    # BEARISH trend + LONG signal = counter-trend (clash)
+                    ai_runtime_clash = False
+                    if current_trend == 'BULLISH' and direction == 'short':
+                        ai_runtime_clash = True
+                        trade['classification'] = 'counter_trend'
+                    elif current_trend == 'BEARISH' and direction == 'long':
+                        ai_runtime_clash = True
+                        trade['classification'] = 'counter_trend'
+                    else:
+                        trade['classification'] = 'trend_following'
+                    
+                    if ai_runtime_clash:
+                        trade['forced_min_margin'] = True
+                        trade['forced_min_margin_reason'] = 'ai_runtime_trend_clash'
+                        # Apply confidence penalty for counter-trend trades
+                        original_conf = confidence
+                        confidence = confidence * 0.85  # -15% for counter-trend clash
+                        confidence_adjustments.append(f"trend_clash(-15%)")
+                        _log_debug('sizing', f"⚠️ AI/Runtime TREND CLASH: {coin} {direction.upper()} vs {current_trend} trend → MIN_MARGIN + confidence penalty",
+                                   {'coin': coin, 'direction': direction, 'runtime_trend': current_trend, 'original_conf': original_conf, 'new_conf': confidence})
+                    # ==================== END AI/RUNTIME CLASH ====================
 
                     pre_bias_confidence = confidence
                     confidence = self.apply_directional_bias(signal, confidence, bias_metrics, current_trend)
