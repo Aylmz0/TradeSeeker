@@ -3176,15 +3176,15 @@ class PortfolioManager:
                             confidence = confidence * 0.85
                             confidence_adjustments.append("obv_bullish_div(-15%)")
                         
-                        # 5. SuperTrend confirmation
+                        # 5. SuperTrend confirmation (v5.1: increased from ±3% to ±5%)
                         st_direction = indicators_15m.get('supertrend_direction', 'UP')
                         
                         if (direction == 'long' and st_direction == "UP") or (direction == 'short' and st_direction == "DOWN"):
-                            confidence = confidence * 1.03
-                            confidence_adjustments.append(f"st_confirms(+3%)")
+                            confidence = confidence * 1.05
+                            confidence_adjustments.append(f"st_confirms(+5%)")
                         elif (direction == 'long' and st_direction == "DOWN") or (direction == 'short' and st_direction == "UP"):
-                            confidence = confidence * 0.97
-                            confidence_adjustments.append(f"st_against(-3%)")
+                            confidence = confidence * 0.95
+                            confidence_adjustments.append(f"st_against(-5%)")
                         
                         # ==================== END NEW INDICATOR ADJUSTMENTS ====================
                     
@@ -3415,18 +3415,17 @@ class PortfolioManager:
                     if trend_inconsistent:
                         _log_debug('trend', f"⚠️ TREND INCONSISTENCY {coin}: EMA counter_trend={is_counter_trend}, Runtime counter_trend={runtime_counter_trend}",
                                    {'coin': coin, 'signal': signal, 'ema_counter_trend': is_counter_trend, 'runtime_counter_trend': runtime_counter_trend, 'current_trend': current_trend})
-                        # TREND MISMATCH GUARD: Block trade when AI and runtime disagree on trend classification
-                        # This prevents wrong rule application (counter-trend rules vs trend-following rules)
-                        print(f"🚫 TREND MISMATCH GUARD: Blocking {coin} - AI vs Runtime trend conflict (EMA: {'counter' if is_counter_trend else 'trend-following'}, Runtime: {'counter' if runtime_counter_trend else 'trend-following'})")
-                        execution_report['blocked'].append({
+                        # TREND MISMATCH GUARD v5.1: Instead of blocking, use MIN_MARGIN
+                        # This allows testing trades with disagreement at reduced risk
+                        print(f"⚠️ TREND MISMATCH: {coin} - Using MIN_MARGIN ($25) due to AI/Runtime trend conflict")
+                        trade['forced_min_margin'] = True  # Will be used later to cap margin at MIN_POSITION_MARGIN_USD
+                        execution_report['notes'].append({
                             'coin': coin,
-                            'reason': 'trend_mismatch_guard',
+                            'note': 'trend_mismatch_min_margin',
                             'classification': trend_classification,
                             'ema_counter_trend': is_counter_trend,
                             'runtime_counter_trend': runtime_counter_trend
                         })
-                        trade['runtime_decision'] = 'blocked_trend_mismatch'
-                        continue
                     
                     trade['trend_alignment'] = trend_classification
                     snapshot_parts = []
@@ -3607,12 +3606,12 @@ class PortfolioManager:
                     print(f"📉 Applying partial margin ({partial_margin_factor*100:.0f}%): ${standard_margin:.2f} → ${reduced_margin:.2f}")
                     calculated_margin = max(reduced_margin, Config.MIN_POSITION_MARGIN_USD)
                 
-                # Trend inconsistency override: use minimum margin if trends disagree
-                if trend_inconsistent:
+                # Trend mismatch override (v5.1): use minimum margin if AI/Runtime trends disagree
+                if trade.get('forced_min_margin'):
                     original_margin = calculated_margin
                     calculated_margin = Config.MIN_POSITION_MARGIN_USD
-                    _log_debug('sizing', f"⚠️ Trend inconsistency: Reducing margin ${original_margin:.2f} → ${calculated_margin:.2f} (MIN)",
-                               {'coin': coin, 'original_margin': original_margin, 'reduced_margin': calculated_margin, 'reason': 'trend_inconsistency'})
+                    _log_debug('sizing', f"⚠️ TREND MISMATCH: Using MIN_MARGIN ${Config.MIN_POSITION_MARGIN_USD:.0f} (was ${original_margin:.2f})",
+                               {'coin': coin, 'original_margin': original_margin, 'reduced_margin': calculated_margin, 'reason': 'trend_mismatch_min_margin'})
                 
                 # MINIMUM $10 COIN MIKTARI KONTROLÜ
                 if calculated_margin < Config.MIN_POSITION_MARGIN_USD:

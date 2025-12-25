@@ -605,8 +605,8 @@ class RealMarketData:
         close_prices = df['close']; current_price = close_prices.iloc[-1]; hist_len = self.indicator_history_length
         indicators = {'current_price': current_price}
         try:
-            ema_20_series = self.calculate_ema_series(close_prices, 20); ema_50_series = self.calculate_ema_series(close_prices, 50)
-            rsi_14_series = self.calculate_rsi_series(close_prices, 14); macd_line_series, macd_signal_series, macd_hist_series = self.calculate_macd_series(close_prices)
+            ema_20_series = self.calculate_ema_series(close_prices, 21); ema_50_series = self.calculate_ema_series(close_prices, 55)  # Fibonacci: 21, 55
+            rsi_14_series = self.calculate_rsi_series(close_prices, 13); macd_line_series, macd_signal_series, macd_hist_series = self.calculate_macd_series(close_prices)  # Fibonacci: 13
             atr_14_series = self.calculate_atr_series(df['high'], df['low'], df['close'], 14)
 
             indicators['ema_20'] = ema_20_series.iloc[-1]; indicators['ema_50'] = ema_50_series.iloc[-1]
@@ -620,8 +620,8 @@ class RealMarketData:
             indicators['macd_series'] = macd_line_series.iloc[-hist_len:].round(4).where(pd.notna, None).tolist()
 
             if interval == '3m':
-                 rsi_7_series = self.calculate_rsi_series(close_prices, 7)
-                 indicators['rsi_7'] = rsi_7_series.iloc[-1]
+                 rsi_7_series = self.calculate_rsi_series(close_prices, 8)  # Fibonacci: 8
+                 indicators['rsi_7'] = rsi_7_series.iloc[-1]  # Keep key as rsi_7 for compatibility
                  indicators['rsi_7_series'] = rsi_7_series.iloc[-hist_len:].round(3).where(pd.notna, None).tolist()
             if interval == HTF_INTERVAL:
                  atr_3_series = self.calculate_atr_series(df['high'], df['low'], df['close'], 3)
