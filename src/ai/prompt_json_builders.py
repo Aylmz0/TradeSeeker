@@ -530,31 +530,17 @@ def build_market_data_json(
         # ==================== NEW INDICATORS (v5.0) ====================
         # Add new indicator data to AI prompt
         
-        # ADX (Trend Strength)
+        # ADX (Trend Strength) - Keep in prompt
         if 'adx' in indicators:
             current["adx"] = format_number_for_json(indicators.get('adx'))
             current["trend_strength_adx"] = indicators.get('trend_strength_adx', 'UNKNOWN')
         
-        # VWAP
-        if 'vwap' in indicators:
-            current["vwap"] = format_number_for_json(indicators.get('vwap'))
-            current["price_vs_vwap"] = indicators.get('price_vs_vwap', 'UNKNOWN')
-        
-        # Bollinger Bands
-        if 'bb_upper' in indicators:
-            current["bb_upper"] = format_number_for_json(indicators.get('bb_upper'))
-            current["bb_lower"] = format_number_for_json(indicators.get('bb_lower'))
-            current["bb_squeeze"] = indicators.get('bb_squeeze', False)
-            current["bb_signal"] = indicators.get('bb_signal', 'NORMAL')
-        
-        # OBV
-        if 'obv_trend' in indicators:
-            current["obv_trend"] = indicators.get('obv_trend', 'FLAT')
-            current["obv_divergence"] = indicators.get('obv_divergence', 'NONE')
-        
-        # SuperTrend
-        if 'supertrend_direction' in indicators:
-            current["supertrend_direction"] = indicators.get('supertrend_direction', 'UP')
+        # NOTE: The following indicators are NOT sent to prompt anymore (v5.1 optimization)
+        # They only affect confidence in backend:
+        # - VWAP: affects confidence ±5%
+        # - Bollinger Bands: squeeze penalty -5%
+        # - OBV: divergence penalty -15%
+        # - SuperTrend: alignment ±5%
         
         # ==================== END NEW INDICATORS ====================
         
