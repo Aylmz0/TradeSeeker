@@ -495,8 +495,9 @@ class RealMarketData:
                         "distance_pct": round(distance_pct, 2)
                     }
         
-        # 3. PRICE STRUCTURE (HH_HL, LH_LL, RANGE, UNCLEAR)
-        structure = "UNCLEAR"
+        # 3. PRICE STRUCTURE (HH_HL, LH_LL, RANGE)
+        # Changed default from UNCLEAR to RANGE - more meaningful when peaks/valleys insufficient
+        structure = "RANGE"
         if len(peaks) >= 2 and len(valleys) >= 2:
             last_peaks = peaks[-2:]
             last_valleys = valleys[-2:]
