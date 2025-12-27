@@ -2020,8 +2020,12 @@ All market data is provided in JSON format below. Each coin contains:
 
 
     def calculate_optimal_cycle_frequency(self) -> int:
-        """Calculate optimal cycle frequency based on market volatility"""
+        """Calculate optimal cycle frequency based on market volatility
+        Uses CYCLE_INTERVAL_MINUTES from .env as the minimum value"""
         try:
+            # Get minimum from .env
+            min_interval = Config.CYCLE_INTERVAL_MINUTES * 60  # Convert to seconds
+            
             atr_values = []
             # Tüm coin'leri dahil et (ASTER dahil)
             for coin in self.market_data.available_coins:
@@ -2034,23 +2038,29 @@ All market data is provided in JSON format below. Each coin contains:
                         print(f"📊 {coin} ATR: {atr:.6f}")
             
             if not atr_values:
-                print("⚠️ No valid ATR values found, using default 2 minutes")
-                return 120
+                print(f"⚠️ No valid ATR values found, using .env value: {Config.CYCLE_INTERVAL_MINUTES} minutes")
+                return min_interval
             
             avg_atr = sum(atr_values) / len(atr_values)
             print(f"📊 Average ATR: {avg_atr:.6f}")
             
             # Adjust cycle frequency based on volatility
+            # But never go below .env minimum
             if avg_atr < 0.3:    # Düşük volatility
-                return 240       # 4 dakikada bir cycle
+                calculated = 240   # 4 dakikada bir cycle
             elif avg_atr < 0.6:  # Orta volatility  
-                return 180       # 3 dakikada bir cycle
+                calculated = 180   # 3 dakikada bir cycle
             else:                # Yüksek volatility
-                return 120       # 2 dakikada bir cycle
+                calculated = 120   # 2 dakikada bir cycle
+            
+            # Use the larger of calculated and .env minimum
+            result = max(calculated, min_interval)
+            print(f"🔄 Cycle interval: {result}s (min from .env: {min_interval}s)")
+            return result
                 
         except Exception as e:
             print(f"⚠️ Cycle frequency calculation error: {e}")
-            return 120  # Default 2 minutes
+            return Config.CYCLE_INTERVAL_MINUTES * 60  # Use .env value as fallback
 
 
     def track_performance_metrics(self, cycle_number: int):
@@ -2238,7 +2248,7 @@ All market data is provided in JSON format below. Each coin contains:
                     self.cycle_active = False
                     return
 
-                print("\n💭 DEEPSEEK ANALYZING...")
+                print("\n💭 AI ANALYZING...")
                 ai_response = self.deepseek.get_ai_decision(prompt)
                 
                 # Check bot control after AI API call (may have taken time in live mode)

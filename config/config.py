@@ -15,6 +15,12 @@ class Config:
     
     # API Keys
     DEEPSEEK_API_KEY: Optional[str] = os.getenv('DEEPSEEK_API_KEY')
+    MIMO_API_KEY: Optional[str] = os.getenv('MIMO_API_KEY')
+    MIMO_MODEL: str = os.getenv('MIMO_MODEL', 'mimo-v2-flash')
+    MIMO_THINKING_ENABLED: bool = os.getenv('MIMO_THINKING_ENABLED', 'false').lower() == 'true'
+    ZAI_API_KEY: Optional[str] = os.getenv('ZAI_API_KEY')
+    ZAI_MODEL: str = os.getenv('ZAI_MODEL', 'glm-4.5-flash')
+    ZAI_THINKING_ENABLED: bool = os.getenv('ZAI_THINKING_ENABLED', 'true').lower() == 'true'
     BINANCE_API_KEY: Optional[str] = os.getenv('BINANCE_API_KEY')
     BINANCE_SECRET_KEY: Optional[str] = os.getenv('BINANCE_SECRET_KEY')
     
@@ -113,7 +119,7 @@ class Config:
         'SOL': 1.0,   # AI'nın SL değerine saygı duy
         'TRX': 1.0,   # AI'nın SL değerine saygı duy
         'XRP': 1.0,   # AI'nın SL değerine saygı duy
-        'LINK': 1.0,  # AI'nın SL değerine saygı duy
+        'ETH': 1.0,   # AI'nın SL değerine saygı duy
         'DOGE': 1.0,  # AI'nın SL değerine saygı duy
         'ASTER': 1.0  # AI'nın SL değerine saygı duy
     }

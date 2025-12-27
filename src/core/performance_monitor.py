@@ -489,11 +489,11 @@ class PerformanceMonitor:
                 
                 # Categorize coins by signal strength
                 signal_strength = reversal_result.get('strength', 'NONE')
-                if signal_strength == "HIGH_LOSS_RISK":
+                if signal_strength in ["CRITICAL", "STRONG"]:
                     high_risk_coins.append(coin)
-                elif signal_strength == "MEDIUM_LOSS_RISK":
+                elif signal_strength == "MODERATE":
                     medium_risk_coins.append(coin)
-                elif signal_strength == "LOW_LOSS_RISK":
+                elif signal_strength == "WEAK":
                     low_risk_coins.append(coin)
                 else:
                     no_risk_coins.append(coin)
