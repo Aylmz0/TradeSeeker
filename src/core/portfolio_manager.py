@@ -3146,11 +3146,11 @@ class PortfolioManager:
                             confidence = confidence * 0.80  # Increased from 0.85 to 0.80 (-20%)
                             confidence_adjustments.append(f"adx_no_trend({adx:.0f})(-20%)")
                         elif trend_strength_adx == "WEAK":
-                            confidence = confidence * 0.85  # Increased from 0.95 to 0.85 (-15%)
-                            confidence_adjustments.append(f"adx_weak({adx:.0f})(-15%)")
+                            confidence = confidence * 0.90  # Simetrik: -10% (was -15%)
+                            confidence_adjustments.append(f"adx_weak({adx:.0f})(-10%)")
                         elif trend_strength_adx == "STRONG":
-                            confidence = confidence * 0.90  # Changed from 1.05 to 0.90 (-10%)
-                            confidence_adjustments.append(f"adx_strong({adx:.0f})(-10%)")
+                            confidence = confidence * 1.05  # Simetrik: +5% reward (was -10% penalty)
+                            confidence_adjustments.append(f"adx_strong({adx:.0f})(+5%)")
                         
                         # 2. VWAP-based confidence adjustment
                         price_vs_vwap = indicators_15m.get('price_vs_vwap', 'UNKNOWN')
@@ -3161,6 +3161,13 @@ class PortfolioManager:
                         elif direction == 'short' and price_vs_vwap == "ABOVE":
                             confidence = confidence * 0.95
                             confidence_adjustments.append("vwap_above_short(-5%)")
+                        # Simetrik VWAP ödülleri
+                        elif direction == 'long' and price_vs_vwap == "ABOVE":
+                            confidence = confidence * 1.05
+                            confidence_adjustments.append("vwap_above_long(+5%)")
+                        elif direction == 'short' and price_vs_vwap == "BELOW":
+                            confidence = confidence * 1.05
+                            confidence_adjustments.append("vwap_below_short(+5%)")
                         
                         # 3. Bollinger-based confidence adjustment
                         bb_signal = indicators_15m.get('bb_signal', 'NORMAL')
@@ -3196,6 +3203,15 @@ class PortfolioManager:
                         elif (direction == 'long' and st_direction == "DOWN") or (direction == 'short' and st_direction == "UP"):
                             confidence = confidence * 0.95
                             confidence_adjustments.append(f"st_against(-5%)")
+                        
+                        # 6. Zone Alignment Reward (Simetrik v4)
+                        price_location_15m = indicators_15m.get('price_location', 'MIDDLE')
+                        if direction == 'long' and price_location_15m == 'LOWER_10':
+                            confidence = confidence * 1.05
+                            confidence_adjustments.append("zone_aligned_long(+5%)")
+                        elif direction == 'short' and price_location_15m == 'UPPER_10':
+                            confidence = confidence * 1.05
+                            confidence_adjustments.append("zone_aligned_short(+5%)")
                         
                         # ==================== END NEW INDICATOR ADJUSTMENTS ====================
                     
@@ -3507,38 +3523,38 @@ class PortfolioManager:
                             if guard_active:
                                 # FIXED: Confidence threshold DECREASES over time (stricter → more relaxed)
                                 if guard_cycles_since_flip == 0:
-                                    min_conf = 0.65  # Strictest: same cycle as flip (reduced from 0.70)
+                                    min_conf = 0.60  # Toleranslı: was 0.65
                                     if confidence < min_conf:
                                         _log_debug('flip_guard', f"🚫 Flip guard confidence floor: {coin} {signal} confidence {confidence:.2f} < {min_conf:.2f} in same cycle after flip.",
                                                    {'coin': coin, 'signal': signal, 'confidence': confidence, 'min_required': min_conf, 'cycles_since_flip': 0})
                                         execution_report['blocked'].append({'coin': coin, 'reason': 'trend_flip_guard_confidence', 'classification': trend_classification})
                                         trade['runtime_decision'] = 'blocked_trend_flip_confidence'
                                         continue
-                                    partial_margin_factor = min(partial_margin_factor, 0.7)
-                                    _log_debug('sizing', f"⏳ Trend flip guard: {coin} sizing capped at 70% in same-cycle counter-trend attempt (confidence {confidence:.2f}).",
-                                               {'coin': coin, 'sizing_cap': 0.7, 'confidence': confidence, 'cycles_since_flip': 0})
+                                    partial_margin_factor = min(partial_margin_factor, 0.8)  # Toleranslı: was 0.7
+                                    _log_debug('sizing', f"⏳ Trend flip guard: {coin} sizing capped at 80% in same-cycle counter-trend attempt (confidence {confidence:.2f}).",
+                                               {'coin': coin, 'sizing_cap': 0.8, 'confidence': confidence, 'cycles_since_flip': 0})
                                 elif guard_cycles_since_flip == 1:
-                                    min_conf = 0.60  # More relaxed: one cycle after flip (reduced from 0.65)
+                                    min_conf = 0.55  # Toleranslı: was 0.60
                                     if confidence < min_conf:
                                         _log_debug('flip_guard', f"🚫 Flip guard confidence floor: {coin} {signal} confidence {confidence:.2f} < {min_conf:.2f} one cycle after flip.",
                                                    {'coin': coin, 'signal': signal, 'confidence': confidence, 'min_required': min_conf, 'cycles_since_flip': 1})
                                         execution_report['blocked'].append({'coin': coin, 'reason': 'trend_flip_guard_confidence', 'classification': trend_classification})
                                         trade['runtime_decision'] = 'blocked_trend_flip_confidence'
                                         continue
-                                    partial_margin_factor = min(partial_margin_factor, 0.8)
-                                    _log_debug('sizing', f"⏳ Trend flip guard (counter-trend): {coin} sizing capped at 80% one cycle after flip.",
-                                               {'coin': coin, 'sizing_cap': 0.8, 'cycles_since_flip': 1})
+                                    partial_margin_factor = min(partial_margin_factor, 0.9)  # Toleranslı: was 0.8
+                                    _log_debug('sizing', f"⏳ Trend flip guard (counter-trend): {coin} sizing capped at 90% one cycle after flip.",
+                                               {'coin': coin, 'sizing_cap': 0.9, 'cycles_since_flip': 1})
                                 elif guard_cycles_since_flip == 2:
-                                    min_conf = 0.55  # Most relaxed: two cycles after flip (reduced from 0.60)
+                                    min_conf = 0.50  # Toleranslı: was 0.55
                                     if confidence < min_conf:
                                         _log_debug('flip_guard', f"🚫 Flip guard confidence floor: {coin} {signal} confidence {confidence:.2f} < {min_conf:.2f} two cycles after flip.",
                                                    {'coin': coin, 'signal': signal, 'confidence': confidence, 'min_required': min_conf, 'cycles_since_flip': 2})
                                         execution_report['blocked'].append({'coin': coin, 'reason': 'trend_flip_guard_confidence', 'classification': trend_classification})
                                         trade['runtime_decision'] = 'blocked_trend_flip_confidence'
                                         continue
-                                    partial_margin_factor = min(partial_margin_factor, 0.9)
-                                    _log_debug('sizing', f"⏳ Trend flip guard (counter-trend): {coin} sizing capped at 90% two cycles after flip.",
-                                               {'coin': coin, 'sizing_cap': 0.9, 'cycles_since_flip': 2})
+                                    partial_margin_factor = min(partial_margin_factor, 1.0)  # Toleranslı: was 0.9 - tam margin
+                                    _log_debug('sizing', f"⏳ Trend flip guard (counter-trend): {coin} sizing at 100% two cycles after flip.",
+                                               {'coin': coin, 'sizing_cap': 1.0, 'cycles_since_flip': 2})
                             counter_confidence_floor = 0.62 if not relaxed_countertrend else 0.58  # Sıkılaştırıldı (0.65→0.62, 0.60→0.58)
                             if confidence < counter_confidence_floor:
                                 if relaxed_countertrend:

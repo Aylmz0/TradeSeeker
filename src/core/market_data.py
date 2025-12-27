@@ -20,7 +20,7 @@ class RealMarketData:
     def __init__(self):
         self.spot_url = "https://api.binance.com/api/v3"
         self.futures_url = "https://fapi.binance.com/fapi/v1"
-        self.available_coins = ['XRP', 'DOGE', 'ASTER', 'TRX', 'LINK', 'SOL']
+        self.available_coins = ['XRP', 'DOGE', 'ASTER', 'TRX', 'ETH', 'SOL']
         self.indicator_history_length = 10
         self.session = RetryManager.create_session_with_retry()
         self.preloaded_indicators: Dict[str, Dict[str, Dict[str, Any]]] = {}
@@ -124,8 +124,11 @@ class RealMarketData:
             return False
             
         # Check for insufficient volume (especially for low-cap coins like ASTR)
-        if volume_mean < 1000:  # Minimum average volume threshold
-            print(f"⚠️ Insufficient volume for {symbol} ({interval}): avg volume {volume_mean:.0f} < 1000")
+        # High-value coins like ETH, BTC have lower unit volume but higher $ volume
+        high_value_coins = ['ETH', 'BTC']
+        min_volume_threshold = 100 if symbol in high_value_coins else 1000
+        if volume_mean < min_volume_threshold:
+            print(f"⚠️ Insufficient volume for {symbol} ({interval}): avg volume {volume_mean:.0f} < {min_volume_threshold}")
             return False
             
         # Check for reasonable price movement
@@ -872,25 +875,31 @@ class RealMarketData:
             'funding_rate': funding_rate
         }
 
-    def detect_trend_reversal_signals(self, coin: str, indicators_3m: Dict[str, Any], indicators_htf: Dict[str, Any], indicators_15m: Dict[str, Any] = None) -> Dict[str, Any]:
+    def detect_trend_reversal_signals(self, coin: str, indicators_3m: Dict[str, Any], indicators_htf: Dict[str, Any], indicators_15m: Dict[str, Any] = None, position_direction: str = None) -> Dict[str, Any]:
         """
-        Detect potential trend reversal signals based on multi-timeframe analysis.
-        Centralized logic to be used by both PerformanceMonitor and AI Prompt Builder.
+        Detect potential trend reversal signals with weighted scoring.
         
-        Args:
-            coin: Coin symbol
-            indicators_3m: 3m indicators
-            indicators_htf: HTF indicators (1h/4h)
-            indicators_15m: 15m indicators (optional, for enhanced detection)
-            
-        Returns:
-            Dictionary containing reversal signals and strength
+        Weights:
+        - HTF trend reversal: +3
+        - 15m structure conflict: +3
+        - 15m momentum reversal: +2
+        - 3m trend reversal: +1
+        - RSI extreme: +1
+        - MACD divergence: +1
+        
+        Strength levels:
+        - NONE: score = 0
+        - WEAK: score 1-2
+        - MODERATE: score 3-4
+        - STRONG: score 5-7
+        - CRITICAL: score 8+
         """
+        score = 0
         signals = []
         
         if not indicators_3m or not indicators_htf:
-            return {'signals': [], 'strength': 'NONE'}
-            
+            return {'signals': [], 'score': 0, 'strength': 'NONE', 'trend_htf': None, 'trend_15m': None, 'trend_3m': None}
+        
         # Extract indicators
         price_3m = indicators_3m.get('current_price')
         ema20_3m = indicators_3m.get('ema_20')
@@ -901,10 +910,10 @@ class RealMarketData:
         price_htf = indicators_htf.get('current_price')
         ema20_htf = indicators_htf.get('ema_20')
         
-        if None in [price_3m, ema20_3m, rsi_3m, macd_3m, macd_signal_3m, price_htf, ema20_htf]:
-            return {'signals': [], 'strength': 'NONE'}
-            
-        # Determine trends with neutral band (matches portfolio_manager.py logic)
+        if None in [price_3m, ema20_3m, price_htf, ema20_htf]:
+            return {'signals': [], 'score': 0, 'strength': 'NONE', 'trend_htf': None, 'trend_15m': None, 'trend_3m': None}
+        
+        # Determine trends
         def _determine_trend(price: float, ema20: float) -> str:
             if ema20 == 0:
                 return "UNKNOWN"
@@ -915,63 +924,100 @@ class RealMarketData:
         
         trend_3m = _determine_trend(price_3m, ema20_3m)
         trend_htf = _determine_trend(price_htf, ema20_htf)
-        
-        # 1. Trend Conflict (HTF vs 3m)
-        if trend_htf != trend_3m:
-            signals.append(f"Trend Conflict: HTF {trend_htf} vs 3m {trend_3m}")
-            
-        # 2. RSI Extremes (Counter to HTF trend)
-        # If HTF Bullish, look for Overbought (potential top)
-        if trend_htf == "BULLISH" and rsi_3m > Config.RSI_OVERBOUGHT_THRESHOLD:
-            signals.append(f"RSI Overbought ({rsi_3m:.1f}) in Bullish Trend")
-        # If HTF Bearish, look for Oversold (potential bottom)
-        elif trend_htf == "BEARISH" and rsi_3m < Config.RSI_OVERSOLD_THRESHOLD:
-            signals.append(f"RSI Oversold ({rsi_3m:.1f}) in Bearish Trend")
-            
-        # 3. MACD Divergence (Counter to HTF trend)
-        # If HTF Bullish, look for Bearish MACD Cross
-        if trend_htf == "BULLISH" and macd_3m < macd_signal_3m:
-            signals.append("MACD Bearish Cross in Bullish Trend")
-        # If HTF Bearish, look for Bullish MACD Cross
-        elif trend_htf == "BEARISH" and macd_3m > macd_signal_3m:
-            signals.append("MACD Bullish Cross in Bearish Trend")
-        
-        # 4. 15m Momentum Counter-Signal (YENİ - v2.3)
-        # 15m trend HTF'ye karşıysa VE momentum güçleniyorsa = Güçlü reversal sinyali
         trend_15m = None
+        structure_15m = None
+        
+        # Extract 15m data if available
         if indicators_15m and 'error' not in indicators_15m:
             price_15m = indicators_15m.get('current_price')
             ema20_15m = indicators_15m.get('ema_20')
             sparkline_15m = indicators_15m.get('smart_sparkline', {})
-            momentum_15m = sparkline_15m.get('momentum', 'STABLE') if isinstance(sparkline_15m, dict) else 'STABLE'
             structure_15m = sparkline_15m.get('structure', 'UNCLEAR') if isinstance(sparkline_15m, dict) else 'UNCLEAR'
             
             if price_15m and ema20_15m:
                 trend_15m = _determine_trend(price_15m, ema20_15m)
-                
-                # 15m trend HTF'ye karşı + Momentum STRENGTHENING = Güçlü reversal riski
-                if trend_htf == "BEARISH" and trend_15m == "BULLISH" and momentum_15m == "STRENGTHENING":
-                    signals.append(f"15m Bullish Reversal: trend={trend_15m}, momentum={momentum_15m}")
-                elif trend_htf == "BULLISH" and trend_15m == "BEARISH" and momentum_15m == "STRENGTHENING":
-                    signals.append(f"15m Bearish Reversal: trend={trend_15m}, momentum={momentum_15m}")
-                
-                # 15m structure da kontrol et (HH_HL = bullish yapı, LH_LL = bearish yapı)
-                if trend_htf == "BEARISH" and structure_15m == "HH_HL":
-                    signals.append(f"15m Bullish Structure (HH_HL) against Bearish HTF")
-                elif trend_htf == "BULLISH" and structure_15m == "LH_LL":
-                    signals.append(f"15m Bearish Structure (LH_LL) against Bullish HTF")
-            
-        # Determine Signal Strength
-        strength = "NONE"
-        if len(signals) >= 3:
-            strength = "HIGH_LOSS_RISK"
-        elif len(signals) >= 2:
-            strength = "MEDIUM_LOSS_RISK"
-        elif len(signals) >= 1:
-            strength = "LOW_LOSS_RISK"
-            
+        
+        # If no position direction, detect general reversal signals
+        if not position_direction:
+            # Return basic trend info without scoring
+            return {
+                'signals': [],
+                'score': 0,
+                'strength': 'NONE',
+                'trend_htf': trend_htf,
+                'trend_15m': trend_15m,
+                'trend_3m': trend_3m
+            }
+        
+        # ===== WEIGHTED SCORING =====
+        
+        # 1. HTF trend reversal (+3)
+        if position_direction == 'long' and trend_htf == 'BEARISH':
+            score += 3
+            signals.append("htf_bearish_vs_long(+3)")
+        elif position_direction == 'short' and trend_htf == 'BULLISH':
+            score += 3
+            signals.append("htf_bullish_vs_short(+3)")
+        
+        # 2. 15m structure conflict (+3)
+        if structure_15m:
+            if position_direction == 'long' and structure_15m == 'LH_LL':
+                score += 3
+                signals.append("15m_lhll_vs_long(+3)")
+            elif position_direction == 'short' and structure_15m == 'HH_HL':
+                score += 3
+                signals.append("15m_hhhl_vs_short(+3)")
+        
+        # 3. 15m momentum reversal (+2)
+        if trend_15m:
+            if position_direction == 'long' and trend_15m == 'BEARISH':
+                score += 2
+                signals.append("15m_bearish_vs_long(+2)")
+            elif position_direction == 'short' and trend_15m == 'BULLISH':
+                score += 2
+                signals.append("15m_bullish_vs_short(+2)")
+        
+        # 4. 3m trend reversal (+1)
+        if position_direction == 'long' and trend_3m == 'BEARISH':
+            score += 1
+            signals.append("3m_bearish_vs_long(+1)")
+        elif position_direction == 'short' and trend_3m == 'BULLISH':
+            score += 1
+            signals.append("3m_bullish_vs_short(+1)")
+        
+        # 5. RSI extreme (+1)
+        if rsi_3m is not None:
+            if position_direction == 'long' and rsi_3m > Config.RSI_OVERBOUGHT_THRESHOLD:
+                score += 1
+                signals.append(f"rsi_overbought_{rsi_3m:.0f}(+1)")
+            elif position_direction == 'short' and rsi_3m < Config.RSI_OVERSOLD_THRESHOLD:
+                score += 1
+                signals.append(f"rsi_oversold_{rsi_3m:.0f}(+1)")
+        
+        # 6. MACD divergence (+1)
+        if macd_3m is not None and macd_signal_3m is not None:
+            if position_direction == 'long' and macd_3m < macd_signal_3m:
+                score += 1
+                signals.append("macd_bearish_cross(+1)")
+            elif position_direction == 'short' and macd_3m > macd_signal_3m:
+                score += 1
+                signals.append("macd_bullish_cross(+1)")
+        
+        # Determine strength from score
+        if score >= 8:
+            strength = "CRITICAL"
+        elif score >= 5:
+            strength = "STRONG"
+        elif score >= 3:
+            strength = "MODERATE"
+        elif score >= 1:
+            strength = "WEAK"
+        else:
+            strength = "NONE"
+        
         return {
             'signals': signals,
+            'score': score,
             'strength': strength,
             'trend_htf': trend_htf,
             'trend_15m': trend_15m,
