@@ -285,8 +285,68 @@ class PortfolioManager:
             merged[coin] = merged_pos
         return merged
 
+    def _update_erosion_stats(self, position: Dict[str, Any], current_price: float) -> None:
+        """
+        Update Peak PnL and Erosion tracking for a position.
+        
+        This enables the AI to detect profit erosion scenarios where a trade
+        was highly profitable but is now giving back gains.
+        
+        Updates position dict in-place with:
+        - peak_pnl: Highest unrealized profit reached ($)
+        - erosion_pct: Percentage of peak profit eroded (0.0-1.0+)
+        - erosion_status: NONE, MINOR, SIGNIFICANT, CRITICAL
+        """
+        if not position or not isinstance(current_price, (int, float)) or current_price <= 0:
+            return
+        
+        entry_price = position.get('entry_price', 0)
+        quantity = position.get('quantity', 0)
+        direction = position.get('direction', 'long')
+        
+        if entry_price <= 0 or quantity <= 0:
+            return
+        
+        # Calculate current unrealized PnL
+        if direction == 'long':
+            unrealized_pnl = (current_price - entry_price) * quantity
+        else:  # short
+            unrealized_pnl = (entry_price - current_price) * quantity
+        
+        # Update position's unrealized_pnl (keep in sync)
+        position['unrealized_pnl'] = unrealized_pnl
+        
+        # Get existing peak_pnl (default to 0)
+        peak_pnl = position.get('peak_pnl', 0.0)
+        
+        # Update peak if current is higher (only track positive peaks)
+        if unrealized_pnl > peak_pnl:
+            position['peak_pnl'] = unrealized_pnl
+            peak_pnl = unrealized_pnl
+        
+        # Calculate erosion percentage
+        if peak_pnl > 0:
+            erosion_pct = (peak_pnl - unrealized_pnl) / peak_pnl
+        else:
+            erosion_pct = 0.0
+        
+        position['erosion_pct'] = max(0.0, erosion_pct)  # Cannot be negative
+        
+        # Classify erosion status
+        if erosion_pct < 0.20:
+            erosion_status = "NONE"
+        elif erosion_pct < 0.50:
+            erosion_status = "MINOR"
+        elif erosion_pct < 1.0:
+            erosion_status = "SIGNIFICANT"
+        else:
+            erosion_status = "CRITICAL"  # Peak fully eroded or now losing
+        
+        position['erosion_status'] = erosion_status
+
     def sync_live_account(self):
         """Refresh balances and open positions from Binance when in live mode."""
+
         if not self.is_live_trading or not self.order_executor or not self.order_executor.is_live():
             return
         
@@ -326,6 +386,12 @@ class PortfolioManager:
             snapshot = self.order_executor.get_positions_snapshot()
             if isinstance(snapshot, dict):
                 self.positions = self._merge_live_positions(snapshot)
+                
+                # Update erosion tracking for each position
+                for coin, pos in self.positions.items():
+                    current_price = pos.get('current_price', 0)
+                    if current_price > 0:
+                        self._update_erosion_stats(pos, current_price)
                 
                 # Calculate total margin used from all open positions
                 # For cross margin, margin_usd might be 0, so calculate from notional/leverage
@@ -1668,6 +1734,10 @@ class PortfolioManager:
                 continue # Skip if price is invalid
 
             current_price = current_prices[coin]
+            
+            # Update erosion tracking (captures intraday peaks)
+            self._update_erosion_stats(position, current_price)
+            
             exit_plan = position.get('exit_plan', {})
             tp = exit_plan.get('profit_target')
             sl = exit_plan.get('stop_loss')
@@ -3223,52 +3293,8 @@ class PortfolioManager:
                 except Exception as e:
                     pass  # Continue without adjustments
 
-                # DYNAMIC VOLATILITY SCALING (ATR) - FINAL STABILIZATION
-                # This block OVERRIDES all previous TP/SL logic (Choppy/Normal/AI)
-                # to ensure system stability based on market volatility.
-                
-                # 1. Get ATR (use 15m ATR for tighter stops, else fallback to 3m ATR)
-                # 15m ATR preferred: balanced between noise filtering and responsive SL
-                indicators_15m = self.market_data.get_technical_indicators(coin, '15m')
-                atr_value = indicators_15m.get('atr_14')
-                if not isinstance(atr_value, (int, float)) or atr_value <= 0:
-                    # Fallback to 3m ATR
-                    indicators_3m = self.market_data.get_technical_indicators(coin, '3m')
-                    atr_value = indicators_3m.get('atr_14')
-                
-                # 2. Calculate Dynamic Targets
-                if isinstance(atr_value, (int, float)) and atr_value > 0:
-                    tp_distance = atr_value * Config.ATR_TP_MULTIPLIER
-                    sl_distance = atr_value * Config.ATR_SL_MULTIPLIER
-                    
-                    # Safety: Ensure minimum distance (0.3% of price) to cover fees/slippage
-                    min_distance = current_price * 0.003
-                    tp_distance = max(tp_distance, min_distance)
-                    sl_distance = max(sl_distance, min_distance)
-                    
-                    # Safety: Ensure maximum distance (5% of price) to prevent huge targets in pumps
-                    max_distance = current_price * 0.05
-                    tp_distance = min(tp_distance, max_distance)
-                    sl_distance = min(sl_distance, max_distance)
-                    
-                    if trade.get('signal') == 'buy_to_enter':
-                        trade['profit_target'] = current_price + tp_distance
-                        trade['stop_loss'] = current_price - sl_distance
-                    else: # sell_to_enter
-                        trade['profit_target'] = current_price - tp_distance
-                        trade['stop_loss'] = current_price + sl_distance
-                        
-                    print(f"🎯 DYNAMIC ATR TARGETS ({coin}): ATR=${atr_value:.4f}")
-                    print(f"   -> TP: ${trade['profit_target']:.4f} (Dist: {tp_distance:.4f} / {(tp_distance/current_price)*100:.2f}%)")
-                    print(f"   -> SL: ${trade['stop_loss']:.4f} (Dist: {sl_distance:.4f} / {(sl_distance/current_price)*100:.2f}%)")
-                    trade['tp_sl_source'] = 'dynamic_atr'
-                else:
-                    print(f"⚠️ ATR data missing for {coin}. Using default/AI targets.")
-                    # Fallback defaults if AI didn't provide them
-                    if not trade.get('profit_target'):
-                        trade['profit_target'] = current_price * 1.01 if trade.get('signal') == 'buy_to_enter' else current_price * 0.99
-                    if not trade.get('stop_loss'):
-                        trade['stop_loss'] = current_price * 0.99 if trade.get('signal') == 'buy_to_enter' else current_price * 1.01
+                # NOTE: TP/SL calculation removed - now handled exclusively by execute_live_entry
+                # using 1h ATR with Config.ATR_SL_MULTIPLIER and Config.ATR_TP_MULTIPLIER
 
                 direction = 'long' if signal == 'buy_to_enter' else 'short'
                 dominant_direction = None
