@@ -394,8 +394,8 @@ def build_position_slot_json(
     
     total_open = len(portfolio_positions)
     # Fix: Check direction without default value to avoid logic error
-    long_slots = sum(1 for p in portfolio_positions.values() if p.get('direction') == 'long')
-    short_slots = sum(1 for p in portfolio_positions.values() if p.get('direction') == 'short')
+    long_slots = sum(1 for p in portfolio_positions.values() if str(p.get('direction', '')).lower() == 'long')
+    short_slots = sum(1 for p in portfolio_positions.values() if str(p.get('direction', '')).lower() == 'short')
     
     # Get same direction limit from config if not provided
     if same_direction_limit is None:

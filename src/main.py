@@ -663,44 +663,29 @@ class AlphaArenaDeepSeek:
             return False
 
     def generate_advanced_exit_plan(self, coin: str, direction: str, entry_price: float) -> Dict[str, Any]:
-        """Generate advanced exit plan with momentum failure detection"""
+        """Generate advanced exit plan - TP/SL is now handled by execute_live_entry using Config multipliers"""
         try:
             indicators_htf = self.market_data.get_technical_indicators(coin, HTF_INTERVAL)
-            indicators_3m = self.market_data.get_technical_indicators(coin, '3m')
             
-            if 'error' in indicators_htf or 'error' in indicators_3m:
+            if 'error' in indicators_htf:
                 return {
                     'profit_target': None,
                     'stop_loss': None,
                     'invalidation_condition': 'Unable to generate exit plan due to data error'
                 }
             
-            current_price = indicators_3m.get('current_price', entry_price)
-            atr_14 = indicators_htf.get('atr_14', 0)
             rsi_14 = indicators_htf.get('rsi_14', 50)
-            ema_20 = indicators_htf.get('ema_20', current_price)
             htf_upper = HTF_LABEL.upper()
             
-            # Calculate TP/SL based on ATR
+            # Only generate invalidation conditions - TP/SL handled by execute_live_entry
             if direction == 'long':
-                # Long position: TP = entry + 2x ATR, SL = entry - 1x ATR
-                profit_target = entry_price + (atr_14 * 2)
-                stop_loss = entry_price - atr_14
-                
-                # Advanced invalidation conditions
                 if rsi_14 > 70:
                     invalidation_condition = f"If {htf_upper} RSI breaks back below 60, signaling momentum failure"
                 elif rsi_14 < 40:
                     invalidation_condition = f"If {htf_upper} RSI breaks above 50, signaling momentum recovery"
                 else:
                     invalidation_condition = f"If {htf_upper} price closes below {htf_upper} EMA20, signaling trend reversal"
-                    
             else:  # short
-                # Short position: TP = entry - 2x ATR, SL = entry + 1x ATR
-                profit_target = entry_price - (atr_14 * 2)
-                stop_loss = entry_price + atr_14
-                
-                # Advanced invalidation conditions
                 if rsi_14 < 30:
                     invalidation_condition = f"If {htf_upper} RSI breaks back above 40, signaling momentum failure"
                 elif rsi_14 > 60:
@@ -709,12 +694,10 @@ class AlphaArenaDeepSeek:
                     invalidation_condition = f"If {htf_upper} price closes above {htf_upper} EMA20, signaling trend reversal"
             
             return {
-                'profit_target': round(profit_target, 4),
-                'stop_loss': round(stop_loss, 4),
+                'profit_target': None,  # Handled by execute_live_entry
+                'stop_loss': None,      # Handled by execute_live_entry
                 'invalidation_condition': invalidation_condition,
-                'atr_based': True,
-                'rsi_context': f"{htf_upper} RSI: {rsi_14:.1f}",
-                'ema_context': f"{htf_upper} EMA20: {ema_20:.4f}"
+                'rsi_context': f"{htf_upper} RSI: {rsi_14:.1f}"
             }
             
         except Exception as e:
