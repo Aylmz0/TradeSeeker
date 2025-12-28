@@ -1791,34 +1791,22 @@ Current live positions & performance:"""
         # === COOLDOWN COIN FILTERING ===
         # Skip coins in cooldown that have no position from prompt (save tokens + focus AI)
         # Data collection continues normally for regime calculation
+        # NOTE: Volume filtering removed - AI handles via prompt rules (0.3x threshold)
         coins_to_analyze = []
         skipped_cooldown_coins = []
-        skipped_low_volume_coins = []
         
         for coin in self.market_data.available_coins:
             has_position = coin in self.portfolio.positions
             cooldown_cycles = coin_cooldowns.get(coin, 0)
             
-            # Check volume ratio using config threshold
-            indicators_3m = all_indicators.get(coin, {}).get('3m', {})
-            current_volume = indicators_3m.get('volume', 0)
-            avg_volume = indicators_3m.get('avg_volume', 1)  # Default 1 to avoid division by zero
-            volume_ratio = current_volume / avg_volume if avg_volume > 0 else 0
-            volume_threshold = Config.VOLUME_MINIMUM_THRESHOLD  # From .env (default 0.30)
-            
             if cooldown_cycles > 0 and not has_position:
                 skipped_cooldown_coins.append(f"{coin}({cooldown_cycles})")
-            elif volume_ratio < volume_threshold and not has_position:
-                # Volume hard rule: Skip low volume coins without position (same logic as cooldown)
-                skipped_low_volume_coins.append(f"{coin}(vol:{volume_ratio:.2f})")
             else:
+                # NOTE: Removed volume hard filter - AI will handle via prompt rules (0.3x threshold)
                 coins_to_analyze.append(coin)
         
         if skipped_cooldown_coins:
             print(f"⏭️ Prompt optimization: Skipped cooldown coins (no position): {skipped_cooldown_coins}")
-        
-        if skipped_low_volume_coins:
-            print(f"⏭️ Prompt optimization: Skipped low volume coins (vol<{volume_threshold}, no position): {skipped_low_volume_coins}")
         
         # Metadata
         metadata_json = build_metadata_json(minutes_running, current_time, self.invocation_count)
