@@ -50,7 +50,7 @@ def safe_file_read(filename: str, default_data: Any = None) -> Any:
         if not os.path.exists(file_path):
             return default_data
             
-        with open(file_path, 'r') as f:
+        with open(file_path, 'r', encoding='utf-8') as f:
 
             data = json.load(f)
             return data

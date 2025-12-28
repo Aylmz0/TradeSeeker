@@ -152,21 +152,60 @@ def build_counter_trade_json(
                 elif trend_htf == "BULLISH" and zone_15m == "UPPER_10":
                     condition_6 = True  # Favorable for SHORT counter-trade
             
-            total_met = sum([condition_1, condition_2, condition_3, condition_4, condition_5, condition_6])
+            # ==================== NEW CONDITIONS (v6.0) ====================
+            # Condition 7: VWAP Reversion (Price extended from fair value)
+            # If BULLISH trend and price > VWAP by 2% -> favorable for SHORT counter-trade
+            # If BEARISH trend and price < VWAP by 2% -> favorable for LONG counter-trade
+            condition_7 = False
+            if has_15m and 'vwap' in indicators_15m:
+                vwap = indicators_15m.get('vwap')
+                price = indicators_15m.get('current_price')
+                if vwap and price and vwap > 0:
+                    vwap_dist = ((price - vwap) / vwap) * 100
+                    if trend_htf == "BULLISH" and vwap_dist > 2.0:
+                        condition_7 = True  # Price expensive -> SHORT favorable
+                    elif trend_htf == "BEARISH" and vwap_dist < -2.0:
+                        condition_7 = True  # Price cheap -> LONG favorable
             
-            # Determine risk level (Updated Logic - User Request Dec 10)
+            # Condition 8: BB Extreme (Price at band extremes)
+            # If BULLISH trend and price at upper band -> favorable for SHORT counter-trade
+            # If BEARISH trend and price at lower band -> favorable for LONG counter-trade
+            condition_8 = False
+            if has_15m and 'bb_signal' in indicators_15m:
+                bb_signal = indicators_15m.get('bb_signal')
+                if trend_htf == "BULLISH" and bb_signal == "OVERBOUGHT":
+                    condition_8 = True  # Price at upper band -> SHORT favorable
+                elif trend_htf == "BEARISH" and bb_signal == "OVERSOLD":
+                    condition_8 = True  # Price at lower band -> LONG favorable
+            
+            # Condition 9: OBV Divergence (Volume not confirming price)
+            # If BULLISH trend but OBV BEARISH divergence -> favorable for SHORT counter-trade
+            # If BEARISH trend but OBV BULLISH divergence -> favorable for LONG counter-trade
+            condition_9 = False
+            if has_15m and 'obv_divergence' in indicators_15m:
+                obv_div = indicators_15m.get('obv_divergence')
+                if trend_htf == "BULLISH" and obv_div == "BEARISH":
+                    condition_9 = True  # Volume not confirming rally -> SHORT favorable
+                elif trend_htf == "BEARISH" and obv_div == "BULLISH":
+                    condition_9 = True  # Volume accumulating in downtrend -> LONG favorable
+            # ==================== END NEW CONDITIONS ====================
+            
+            total_met = sum([condition_1, condition_2, condition_3, condition_4, condition_5, condition_6, condition_7, condition_8, condition_9])
+            
+            # Determine risk level (Updated Logic - v6.0 HARDENED THRESHOLDS)
+            # Counter-trade is now MUCH harder to qualify as LOW_RISK
             # STRONG alignment = 15m+3m both counter
             # MEDIUM alignment = 15m OR 3m counter (one of them)
-            if alignment_strength == "STRONG" and total_met >= 3:
-                risk_level = "LOW_RISK"  # STRONG + 3 or more conditions
-            elif alignment_strength == "STRONG" and total_met >= 1:
-                risk_level = "MEDIUM_RISK"  # STRONG + 1-2 conditions
+            if alignment_strength == "STRONG" and total_met >= 5:
+                risk_level = "LOW_RISK"  # STRONG + 5 or more conditions (was 3)
+            elif alignment_strength == "STRONG" and total_met >= 3:
+                risk_level = "MEDIUM_RISK"  # STRONG + 3-4 conditions (was 1-2)
+            elif alignment_strength == "MEDIUM" and total_met >= 6:
+                risk_level = "LOW_RISK"  # MEDIUM + 6 or more conditions (was 4)
             elif alignment_strength == "MEDIUM" and total_met >= 4:
-                risk_level = "LOW_RISK"  # MEDIUM + 4 or more conditions
-            elif alignment_strength == "MEDIUM" and total_met == 3:
-                risk_level = "MEDIUM_RISK"  # MEDIUM + exactly 3 conditions
+                risk_level = "MEDIUM_RISK"  # MEDIUM + 4-5 conditions (was 3)
             elif alignment_strength == "MEDIUM":
-                risk_level = "HIGH_RISK"  # MEDIUM + less than 3 conditions
+                risk_level = "HIGH_RISK"  # MEDIUM + less than 4 conditions
             else:
                 risk_level = "VERY_HIGH_RISK"  # No alignment (15m AND 3m both follow HTF trend)
             
@@ -481,44 +520,51 @@ def build_market_data_json(
         if 'smart_sparkline' in indicators:
             current["smart_sparkline"] = indicators['smart_sparkline']
         
-        # ==================== NEW INDICATORS (v5.0) ====================
-        # Add new indicator data to AI prompt
+        # ==================== NEW INDICATORS (v5.0 -> v6.0 ACTIVATED) ====================
+        # These indicators are NOW ACTIVE in AI prompt for better decision making
         
-        # ADX (Trend Strength) - Keep in prompt
+        # ADX (Trend Strength)
         if 'adx' in indicators:
             current["adx"] = format_number_for_json(indicators.get('adx'))
             current["trend_strength_adx"] = indicators.get('trend_strength_adx', 'UNKNOWN')
         
-        # NOTE: The following indicators are NOT sent to prompt anymore (v5.1 optimization)
-        # They only affect confidence in backend:
-        # - VWAP: affects confidence ±5%
-        # - Bollinger Bands: squeeze penalty -5%
-        # - OBV: divergence penalty -15%
-        # - SuperTrend: alignment ±5%
+        # VWAP Distance (% deviation from fair value)
+        if 'vwap' in indicators and indicators['vwap']:
+            vwap_val = indicators['vwap']
+            current_price = indicators.get('current_price', 0)
+            if vwap_val > 0 and current_price > 0:
+                dist_pct = ((current_price - vwap_val) / vwap_val) * 100
+                current["vwap_dist_pct"] = round(dist_pct, 2)
+        
+        # Bollinger Band Width (% volatility squeeze indicator)
+        if 'bb_upper' in indicators and 'bb_lower' in indicators and 'bb_middle' in indicators:
+            upper = indicators['bb_upper']
+            lower = indicators['bb_lower']
+            middle = indicators['bb_middle']
+            if middle and middle > 0:
+                width_pct = ((upper - lower) / middle) * 100
+                current["bb_width_pct"] = round(width_pct, 2)
+            # Also include BB signal if available
+            if 'bb_signal' in indicators:
+                current["bb_signal"] = indicators.get('bb_signal')
+            if 'bb_squeeze' in indicators:
+                current["bb_squeeze"] = indicators.get('bb_squeeze')
+        
+        # OBV Trend and Divergence (Volume confirmation)
+        if 'obv_trend' in indicators:
+            current["obv_trend"] = indicators.get('obv_trend')
+        if 'obv_divergence' in indicators:
+            current["obv_divergence"] = indicators.get('obv_divergence')
+        
+        # SuperTrend Direction (ATR-based trend confirmation)
+        if 'supertrend_direction' in indicators:
+            current["supertrend_direction"] = indicators.get('supertrend_direction')
         
         # ==================== END NEW INDICATORS ====================
         
-        # Build series with compression if needed
-        price_series = indicators.get('price_series', [])
-        rsi_series = indicators.get('rsi_14_series', [])
-        
-        series = {}
-        
-        # Enforce max series length from Config
-        max_len = Config.JSON_SERIES_MAX_LENGTH
-        
-        # Compress series if too long
-        if len(price_series) > max_len:
-            compressed_price = compress_series(price_series, max_length=max_len)
-            series["price"] = compressed_price
-        else:
-            series["price"] = [format_number_for_json(p) for p in price_series]
-        
-        if len(rsi_series) > max_len:
-            compressed_rsi = compress_series(rsi_series, max_length=max_len)
-            series["rsi"] = compressed_rsi
-        else:
-            series["rsi"] = [format_number_for_json(r) for r in rsi_series]
+        # NOTE: Raw series data (price, rsi) REMOVED to reduce noise
+        # AI should rely on processed indicators (smart_sparkline, etc.) instead
+        series = {}  # Empty series - no raw data sent
         
         return {
             "current": current,

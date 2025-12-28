@@ -114,22 +114,17 @@ class RealMarketData:
             print(f"⚠️ Stuck price data for {symbol} ({interval}): only {df['close'].nunique()} unique prices")
             return False
             
-        # Enhanced volume validation - check for insufficient volume
+        # Volume validation - only check for zero/invalid volume
         volume_sum = df['volume'].sum()
-        volume_mean = df['volume'].mean()
         
-        # Check for zero volume
+        # Check for zero volume (data quality issue)
         if volume_sum == 0:
             print(f"⚠️ Zero volume for {symbol} ({interval})")
             return False
             
-        # Check for insufficient volume (especially for low-cap coins like ASTR)
-        # High-value coins like ETH, BTC have lower unit volume but higher $ volume
-        high_value_coins = ['ETH', 'BTC']
-        min_volume_threshold = 100 if symbol in high_value_coins else 1000
-        if volume_mean < min_volume_threshold:
-            print(f"⚠️ Insufficient volume for {symbol} ({interval}): avg volume {volume_mean:.0f} < {min_volume_threshold}")
-            return False
+        # NOTE: Removed hard volume threshold filter
+        # Volume quality is now handled by AI via prompt rules (0.3x threshold)
+        # This allows AI to see low-volume coins and make informed decisions
             
         # Check for reasonable price movement
         price_range = df['high'].max() - df['low'].min()

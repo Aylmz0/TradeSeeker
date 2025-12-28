@@ -461,49 +461,51 @@ class PortfolioManager:
                 position['risk_usd'] = position.get('margin_usd', margin_usd)
                 self._ensure_exit_plan(position, exit_plan)
                 
-                # Calculate and save kademeli stop loss to exit_plan (for 30-second monitoring)
-                # No Binance orders - all TP/SL decisions made by 30-second monitoring loop (like simulation mode)
+                # Calculate and save ATR-based stop loss to exit_plan (for 30-second monitoring)
+                # Backend Authority: AI's stop_loss suggestion is IGNORED - system uses ATR only
                 if executed_qty > 0:
-                    # Calculate margin-based stop loss using graduated loss cutting
-                    loss_multiplier = self.get_graduated_loss_multiplier(margin_usd)
+                    # Fetch HTF (1h) indicators for ATR value
+                    try:
+                        from src.core.market_data import RealMarketData
+                        market_data = RealMarketData()
+                        indicators_htf = market_data.get_technical_indicators(coin, HTF_INTERVAL)
+                        atr_value = indicators_htf.get('atr_14') if isinstance(indicators_htf, dict) else None
+                    except Exception as e:
+                        print(f"⚠️ ATR fetch failed for {coin}: {e}")
+                        atr_value = None
                     
-                    loss_threshold_usd = margin_usd * loss_multiplier
+                    # Fallback: If ATR unavailable, use 2% of price
+                    if not atr_value or atr_value <= 0:
+                        atr_value = avg_price * 0.02
+                        print(f"⚠️ ATR fallback for {coin}: Using 2% of price = ${atr_value:.4f}")
                     
-                    # Calculate stop loss price from loss threshold
+                    # Calculate stop distance using Config multiplier
+                    sl_distance = atr_value * Config.ATR_SL_MULTIPLIER
+                    tp_distance = atr_value * Config.ATR_TP_MULTIPLIER
+                    
+                    # Calculate stop loss and profit target based on direction
                     if direction == 'long':
-                        margin_based_stop_loss = avg_price - (loss_threshold_usd / executed_qty)
+                        final_stop_loss = avg_price - sl_distance
+                        final_profit_target = avg_price + tp_distance
                     else:  # short
-                        margin_based_stop_loss = avg_price + (loss_threshold_usd / executed_qty)
-                    
-                    # Use the tighter stop loss (closer to entry price = more conservative)
-                    # For long: higher stop_loss is tighter (closer to entry)
-                    # For short: lower stop_loss is tighter (closer to entry)
-                    if stop_loss is not None and stop_loss > 0:
-                        if direction == 'long':
-                            # For long: use the higher stop loss (more conservative)
-                            final_stop_loss = max(stop_loss, margin_based_stop_loss)
-                        else:  # short
-                            # For short: use the lower stop loss (more conservative)
-                            final_stop_loss = min(stop_loss, margin_based_stop_loss)
-                    else:
-                        final_stop_loss = margin_based_stop_loss
+                        final_stop_loss = avg_price + sl_distance
+                        final_profit_target = avg_price - tp_distance
                     
                     # Final validation: ensure stop loss direction is correct
                     if direction == 'long':
                         if final_stop_loss >= avg_price:
-                            # Stop loss cannot be at or above entry for long - recalculate from loss_threshold
-                            final_stop_loss = avg_price - (loss_threshold_usd / executed_qty)
+                            final_stop_loss = avg_price - (avg_price * 0.02)
                             print(f"⚠️ Final validation: Stop loss for {coin} LONG was invalid (>= entry), recalculated to ${format_num(final_stop_loss, 4)}")
                     else:  # short
                         if final_stop_loss <= avg_price:
-                            # Stop loss cannot be at or below entry for short - recalculate from loss_threshold
-                            final_stop_loss = avg_price + (loss_threshold_usd / executed_qty)
+                            final_stop_loss = avg_price + (avg_price * 0.02)
                             print(f"⚠️ Final validation: Stop loss for {coin} SHORT was invalid (<= entry), recalculated to ${format_num(final_stop_loss, 4)}")
                     
-                    # Save kademeli stop loss to exit_plan (will be checked by 30-second monitoring)
+                    # Save ATR-based stop loss and profit target to exit_plan
                     if final_stop_loss > 0:
                         exit_plan['stop_loss'] = final_stop_loss
-                        print(f"💾 Kademeli stop loss saved for {coin}: ${format_num(final_stop_loss, 4)} (${loss_threshold_usd:.2f} loss limit, {loss_multiplier*100:.1f}% of ${margin_usd:.2f} margin) - will be monitored by 30s loop")
+                        exit_plan['profit_target'] = final_profit_target
+                        print(f"💾 ATR-based SL/TP saved for {coin}: SL=${format_num(final_stop_loss, 4)}, TP=${format_num(final_profit_target, 4)} (ATR={atr_value:.4f} x {Config.ATR_SL_MULTIPLIER}/{Config.ATR_TP_MULTIPLIER}) - Backend Authority")
             return {
                 "success": True,
                 "order": order,

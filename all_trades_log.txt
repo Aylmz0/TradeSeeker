@@ -1,0 +1,886 @@
+
+==================================================
+CYCLE 116 - 2025-12-28T01:21:59.924111
+==================================================
+ACTION on XRP: buy_to_enter
+Decision Details: {
+  "signal": "buy_to_enter",
+  "leverage": 10,
+  "confidence": 0.75,
+  "profit_target": 1.87561,
+  "stop_loss": 1.8643900000000002,
+  "invalidation_condition": "Close if 1h price closes below 1h EMA20 * 0.998",
+  "tp_sl_source": "dynamic_atr",
+  "volume_quality_score": 20.0,
+  "volume_ratio_runtime": 0.2252,
+  "runtime_decision": "blocked_hard_volume_filter"
+}
+ACTION on DOGE: buy_to_enter
+Decision Details: {
+  "signal": "buy_to_enter",
+  "leverage": 10,
+  "confidence": 0.60755612821875,
+  "profit_target": 0.12428231651089089,
+  "stop_loss": 0.12334884,
+  "invalidation_condition": "Close if 1h price closes below 1h EMA20 * 0.998",
+  "tp_sl_source": "dynamic_atr",
+  "volume_quality_score": 20.0,
+  "volume_ratio_runtime": 0.3521,
+  "trend_runtime": "bearish",
+  "classification": "trend_following",
+  "forced_min_margin": true,
+  "trend_alignment": "trend_following",
+  "runtime_decision": "executed"
+}
+ACTION on ETH: buy_to_enter
+Decision Details: {
+  "signal": "buy_to_enter",
+  "leverage": 10,
+  "confidence": 0.51582504375,
+  "profit_target": 2953.47392,
+  "stop_loss": 2935.80608,
+  "invalidation_condition": "Close if 1h price closes below 1h EMA20 * 0.998",
+  "tp_sl_source": "dynamic_atr",
+  "volume_quality_score": 60.0,
+  "volume_ratio_runtime": 1.6075,
+  "trend_runtime": "neutral",
+  "classification": "trend_following",
+  "trend_alignment": "trend_following",
+  "runtime_decision": "executed"
+}
+ACTION on SOL: buy_to_enter
+Decision Details: {
+  "signal": "buy_to_enter",
+  "leverage": 10,
+  "confidence": 0.7,
+  "profit_target": 124.53446362134403,
+  "stop_loss": 123.76758,
+  "invalidation_condition": "Close if 1h price closes below 1h EMA20 * 0.998",
+  "tp_sl_source": "dynamic_atr",
+  "runtime_decision": "blocked_same_direction_limit"
+}
+
+--- CHAIN OF THOUGHTS ---
+I am analyzing the market data to identify high-probability trading setups. The global regime is BULLISH, which generally favors LONG positions, but I must adhere to the 'SNIPER MODE' discipline, only trading when a clear edge exists across multiple timeframes.
+
+**Asset Analysis:**
+
+1.  **XRP**:
+    *   **1h (HTF)**: Price (1.8719) is above EMA20 (1.8575), RSI is 68.2 (healthy), ADX is 41.9 (Strong trend). Structure is RANGE, but momentum is STRENGTHENING. Price is in UPPER_10 (94th percentile), which suggests caution, but the strong ADX indicates trend continuation is likely.
+    *   **15m**: Price (1.8717) > EMA20 (1.8656), RSI 63.1. Structure is HH_HL (bullish), momentum is STABLE.
+    *   **3m**: Price (1.87) < EMA20 (1.872), RSI 41.8. The 3m is currently bearish/cooling off.
+    *   **Counter-Trade Analysis**: Shows HIGH_RISK for counter-trend (shorting) because 3m is bearish while HTF/15m are bullish. This confirms the 3m dip is just noise.
+    *   **Volume**: 3m volume ratio is 0.46 (WEAK). This is a concern for immediate entry, but the 15m/1h trends are dominant.
+    *   **Decision**: The 1h and 15m trends are strong and bullish. The 3m dip offers a better entry price. This is a valid Trend Following LONG setup. I will enter with a tight stop loss below the 1h EMA20.
+
+2.  **DOGE**:
+    *   **1h**: Bullish (Price > EMA20, RSI 60.5). Structure HH_HL, momentum STRENGTHENING.
+    *   **15m**: Range, RSI 52.0, momentum STABLE.
+    *   **3m**: Price (0.12372) < EMA20 (0.12402), RSI 31.6 (Oversold). Volume ratio is 1.2 (Normal).
+    *   **Counter-Trade Analysis**: HIGH_RISK for shorting. The 3m oversold condition combined with strong 1h structure suggests a bounce.
+    *   **Decision**: 1h trend is bullish. 3m is oversold. This is a valid Trend Following LONG setup (buying the dip). I will enter.
+
+3.  **ASTER**:
+    *   **1h**: Neutral regime. Structure RANGE. RSI 59.2.
+    *   **15m**: Momentum WEAKENING, RSI 49.6.
+    *   **3m**: Price < EMA20, RSI 32.5. Volume is 0 (simulated data issue) or very low.
+    *   **Counter-Trade Analysis**: MEDIUM_RISK, STRONG alignment for counter-trend (Short). HTF Bullish, 15m/3m Bearish.
+    *   **Decision**: While there is a counter-trend signal, the HTF is Neutral/Bullish and the 15m momentum is weakening. The volume data is suspicious (0). I will avoid this due to ambiguity and lack of volume confirmation.
+
+4.  **TRX**:
+    *   **1h**: BULLISH, RSI 83.5 (Extreme Overbought), Price in UPPER_10 (100th percentile). ADX 64.8 (Extremely strong). Structure RANGE.
+    *   **15m**: Momentum WEAKENING, RSI 65.2.
+    *   **3m**: Price < EMA20, RSI 38.8.
+    *   **Counter-Trade Analysis**: HIGH_RISK for shorting.
+    *   **Decision**: The 1h RSI is > 75 and price is at the absolute top of the range. This triggers the *Zone + RSI* warning for pullback risk. Although the trend is strong, the risk of a correction is high. I will HOLD/AVOID new LONG entries here despite the trend. The risk/reward is poor.
+
+5.  **ETH**:
+    *   **1h**: Bullish (Price > EMA20), RSI 60.1. Structure RANGE, momentum STRENGTHENING.
+    *   **15m**: Bullish (Price > EMA20), RSI 56.9. Momentum STRENGTHENING.
+    *   **3m**: Price (2944.64) < EMA20 (2946.43), RSI 44.6. Volume ratio is 0.38 (WEAK).
+    *   **Counter-Trade Analysis**: HIGH_RISK for shorting.
+    *   **Decision**: 1h and 15m are aligned bullish with strengthening momentum. 3m is a dip. Volume is weak on the 3m, but the higher timeframe alignment is good. Valid Trend Following LONG.
+
+6.  **SOL**:
+    *   **1h**: Bullish (Price > EMA20), RSI 60.8. Structure HH_HL, momentum STABLE.
+    *   **15m**: Bullish (Price > EMA20), RSI 53.9. Momentum WEAKENING.
+    *   **3m**: Price (124.14) < EMA20 (124.40), RSI 35.4. Volume ratio 0.42 (WEAK).
+    *   **Counter-Trade Analysis**: HIGH_RISK for shorting.
+    *   **Decision**: 1h trend is bullish. 15m momentum is weakening, suggesting a pause. 3m is oversold. This is a valid Trend Following LONG setup (buying the dip in a strong trend). I will enter.
+
+**Risk & Slot Management:**
+-   Current Positions: 0.
+-   Slots Available: 5 total, 2 Long, 2 Short.
+-   I identified 4 potential LONG setups (XRP, DOGE, ETH, SOL). I will take all 4 as they are high-probability trend-following setups within the bullish regime.
+-   TRX is excluded due to extreme overbought conditions (high pullback risk).
+-   ASTER is excluded due to ambiguous signals.
+
+**Execution Plan:**
+-   **XRP**: Buy Long. Stop loss below 1h EMA20 * 0.998.
+-   **DOGE**: Buy Long. Stop loss below 1h EMA20 * 0.998.
+-   **ETH**: Buy Long. Stop loss below 1h EMA20 * 0.998.
+-   **SOL**: Buy Long. Stop loss below 1h EMA20 * 0.998.
+
+**Confidence Adjustment:**
+-   XRP: Confidence 0.75 (Strong trend, 3m dip).
+-   DOGE: Confidence 0.70 (Strong trend, 3m oversold).
+-   ETH: Confidence 0.70 (Strong trend, 3m dip).
+-   SOL: Confidence 0.70 (Strong trend, 3m dip).
+
+**Profit Targets:**
+-   Conservative targets based on ATR multiples or recent resistance levels.
+-   XRP: Target 1.89 (approx 2x ATR).
+-   DOGE: Target 0.125 (approx 1.5x ATR).
+-   ETH: Target 2955 (approx 1.5x ATR).
+-   SOL: Target 125.0 (approx 1.5x ATR).
+
+
+==================================================
+CYCLE 118 - 2025-12-28T01:27:51.324539
+==================================================
+ACTION on DOGE: close_position
+Decision Details: {
+  "signal": "close_position",
+  "leverage": 10,
+  "confidence": 0.60755612821875,
+  "profit_target": 0.0,
+  "stop_loss": 0.0,
+  "invalidation_condition": "Closing due to 3m bearish shift and profit protection"
+}
+ACTION on ETH: close_position
+Decision Details: {
+  "signal": "close_position",
+  "leverage": 10,
+  "confidence": 0.51582504375,
+  "profit_target": 0.0,
+  "stop_loss": 0.0,
+  "invalidation_condition": "Closing to prevent further loss on 3m bearish shift"
+}
+
+--- CHAIN OF THOUGHTS ---
+System Status: 389 minutes elapsed (Cycle 14). Market regime is BULLISH (Global). Positions: 2 LONG (DOGE, ETH). Slots: LONG_FULL (0 available), SHORT_AVAILABLE (2 available).\n\n**CRITICAL CONSTRAINT ANALYSIS:**\n- **DOGE LONG:** Open. 1h BULLISH, 15m RANGE/STABLE. 3m BEARISH. Counter-trade analysis shows HIGH_RISK (MEDIUM alignment, 2 conditions). Volume is WEAK. Price is near 1h UPPER_10.\n- **ETH LONG:** Open. 1h BULLISH, 15m RANGE/STRENGTHENING. 3m BEARISH. Counter-trade analysis shows HIGH_RISK (MEDIUM alignment, 2 conditions). Currently at -0.11 PnL (Unrealized).\n\n**DECISION LOGIC:**\n1. **DOGE:** The position is showing signs of exhaustion. 1h is UPPER_10, 15m momentum is STABLE (not strengthening), 3m is BEARISH. The counter-trade analysis flags HIGH_RISK. While the trend is technically intact, the 3m bearish shift and weak volume suggest a pause or pullback. The position is small (+0.16 PnL). I will **CLOSE** this position to free up a slot and reduce exposure to the weakening momentum.\n2. **ETH:** Similar to DOGE. 1h BULLISH but 3m BEARISH. Counter-trade analysis flags HIGH_RISK. The position is currently slightly negative (-0.11 PnL). The 15m momentum is STRENGTHENING, which is a positive factor, but the 3m bearish shift combined with the negative PnL makes this vulnerable. Given the HIGH_RISK flag and the system's "SNIPER MODE" discipline, I will **CLOSE** this position to preserve capital.\n3. **NEW TRADES:** LONG slots are full (0 available). SHORT slots are available (2). However, the global regime is BULLISH. While counter-trend shorts are possible, the provided counter-trade analysis for SHORT setups is not explicitly favorable (mostly HIGH_RISK for the current LONGs, but no clear SHORT setups listed in the analysis JSON for entry). The instruction says: "If a direction is FULL, do NOT force trades in the other direction unless they are LOW_RISK or MEDIUM_RISK." I do not see a LOW/MEDIUM RISK SHORT setup in the provided data for the available assets. Therefore, I will not open new SHORTs. I will close the existing LONGs and hold cash.\n\n**SUMMARY:**\n- **DOGE:** CLOSE (Profit Protection + 3m Bearish + High Risk).\n- **ETH:** CLOSE (Loss Protection + 3m Bearish + High Risk).\n- **XRP, SOL, TRX, ASTER:** HOLD (No position, no clear edge, or slots full).\n- **NEW ENTRIES:** None (Long slots full, Short setups not meeting LOW/MEDIUM RISK criteria).
+
+
+==================================================
+CYCLE 120 - 2025-12-28T01:33:58.251568
+==================================================
+ACTION on TRX: sell_to_enter
+Decision Details: {
+  "signal": "sell_to_enter",
+  "leverage": 10,
+  "confidence": 0.5688000000000001,
+  "profit_target": 0.28364649999999997,
+  "stop_loss": 0.2853535,
+  "invalidation_condition": "If 1h price closes above 1h EMA20 * 1.002",
+  "tp_sl_source": "dynamic_atr",
+  "volume_quality_score": 20.0,
+  "volume_ratio_runtime": 0.3245,
+  "trend_runtime": "bullish",
+  "classification": "trend_following",
+  "trend_alignment": "counter_trend",
+  "runtime_decision": "executed"
+}
+
+--- CHAIN OF THOUGHTS ---
+SYSTEM CHECK & OVERVIEW:
+- Current Time: 2025-12-28 01:33:34 (Cycle 16).
+- Account State: Balance $495.34. Total Positions: 0. Available Slots: 5.
+- Market Regime: Bullish (Global). However, specific assets show mixed signals.
+- Cooldown Status: LONG Direction is in COOLDOWN (1 consecutive loss). SHORT Direction is Active. DOGE/ETH Coin Cooldown active.
+- Constraints: Max 5 positions. Max 2 per direction. Counter-trend allowed if MEDIUM/LOW RISK.
+
+ANALYSIS PER ASSET:
+
+1. **XRP** (BULLISH Regime):
+    - Counter-Trade Analysis: HTF Bullish, 15m Bullish, 3m Bearish. Risk Level: HIGH_RISK. Volume: WEAK (0.067).
+    - Market Data: Price 1.8689. 1h Trend: Strong Bullish (ADX 41.9, EMA20 1.857). 15m: HH_HL, STABLE, RSI 58.9. 3m: RSI 38.3 (Oversold).
+    - Logic: HTF trend is strong, but 3m is pulling back. Counter-trend analysis flags HIGH RISK because 3m is bearish while HTF is bullish. However, this looks like a *dip* in a strong uptrend. The 3m RSI is 38, suggesting the pullback is losing steam. Volume is weak on the 3m, suggesting sellers are exhausted.
+    - Verdict: Trend-following logic applies. The 3m bearishness is likely just a pause. Since HTF is bullish, we can look for LONG entries. The counter-trade analysis warns of HIGH RISK for *counter-trend* (shorting), but I am looking to *join* the trend. The 3m RSI 38 is a good entry spot for a trend continuation. Volume is low, which is a concern, but not a hard block if other factors align.
+    - Decision: **LONG**. (Note: LONG direction is in cooldown, but this is a high conviction trend setup on a strong asset. The cooldown is directional, not coin-specific. However, I must respect the cooldown if it is a hard system block. The prompt says "If a direction (LONG or SHORT) is in cooldown, you MUST NOT propose any new trades in that direction." This is a hard constraint. I cannot open a LONG on XRP despite the setup because the LONG direction is in cooldown.)
+    - Correction: I cannot take LONGs. I must look for SHORTs or HOLD. XRP has a bullish HTF, so SHORTing is counter-trend. Counter-trade analysis says HIGH RISK. Volume is weak. I cannot short XRP.
+    - Action: **HOLD** (Cannot enter LONG due to cooldown, cannot enter SHORT due to HIGH RISK).
+
+2. **ASTER** (NEUTRAL Regime):
+    - Counter-Trade Analysis: HTF Bullish, 15m Bearish, 3m Bearish. Risk Level: MEDIUM_RISK. Volume: WEAK (0.054).
+    - Market Data: Price 0.715. 1h: Range, STABLE, RSI 59.2. 15m: Range, WEAKENING, RSI 47.1. 3m: RSI 31.3 (Oversold).
+    - Logic: HTF is Bullish (slightly), 15m is Bearish/Weakening. This is mixed. 3m is oversold (31.3). 
+    - Counter-Trend Check: If I want to LONG (trend following on HTF Bullish), 15m is Bearish (conflict). If I want to SHORT (following 15m Bearish), HTF is Bullish (conflict). 
+    - Zone/Weakening: 15m is WEAKENING. 
+    - Verdict: Mixed signals. No clear edge. 3m is oversold, so a bounce is possible. Volume is weak. 
+    - Action: **HOLD**. 
+
+3. **TRX** (BULLISH Regime):
+    - Counter-Trade Analysis: HTF Bullish, 15m Bullish, 3m Bearish. Risk Level: MEDIUM_RISK. Volume: STRONG (2.80).
+    - Market Data: Price 0.2845. 1h: UPPER_10, RSI 83.5 (Overbought), STRENGTHENING. 15m: RSI 63.6, WEAKENING. 3m: RSI 43.1.
+    - Logic: HTF is extremely strong but OVERBOUGHT (RSI 83.5, Upper 10). 15m is WEAKENING. 
+    - Zone/Weakening Rule: UPPER_10 + WEAKENING. "For LONG entry: DO NOT open LONG. Trend exhausted at highs." 
+    - Counter-Trend Check: HTF Bullish, 15m Bullish, 3m Bearish. Risk MEDIUM. Volume STRONG. 
+    - Since I cannot open LONG (Zone/Weakening rule), I must look at SHORT. SHORT is counter-trend to HTF. Risk is MEDIUM. 
+    - Can I take the SHORT? MEDIUM RISK allows execution if confidence > 0.65. The setup is: HTF Bullish (but overbought/exhausted), 15m Bullish (but weakening), 3m Bearish. Volume is strong (supporting the potential reversal). 
+    - However, the cooldown status: LONG direction is in cooldown. SHORT direction is active. 
+    - Verdict: Valid counter-trend SHORT opportunity. The HTF is overbought and 15m is weakening. 
+    - Decision: **SELL TO ENTER (SHORT)**.
+
+4. **SOL** (NEUTRAL Regime):
+    - Counter-Trade Analysis: HTF Bullish, 15m Bearish, 3m Bearish. Risk Level: MEDIUM_RISK. Volume: NORMAL (0.76).
+    - Market Data: Price 124.08. 1h: HH_HL, STABLE, RSI 60.8. 15m: Range, WEAKENING, RSI 49.8. 3m: RSI 33.8 (Oversold).
+    - Logic: HTF Bullish (HH_HL), 15m Bearish (Range, Weakening). 
+    - Counter-Trend Check: If I want to SHORT (follow 15m), HTF is Bullish. Risk MEDIUM. 
+    - 3m is oversold (33.8), which might offer support for a bounce, but 15m is weakening. 
+    - Zone/Weakening: 15m is in MIDDLE (not extreme), but WEAKENING. 
+    - Verdict: Mixed. 3m oversold suggests waiting for a bounce to enter SHORT, or a break of structure. 
+    - Action: **HOLD**. (Too close to 3m oversold for a fresh short without confirmation).
+
+SUMMARY OF DECISIONS:
+- XRP: HOLD (Cooldown block + Mixed signals).
+- ASTER: HOLD (Mixed signals).
+- TRX: SELL (Counter-trend SHORT, MEDIUM RISK, Volume Strong, Overbought).
+- SOL: HOLD (Mixed, 3m Oversold).
+
+RISK CHECK:
+- SHORT on TRX: Leverage 10. 
+- Slots: 0 open. SHORT slots available: 2. OK.
+- Cooldown: SHORT direction is Active. OK.
+- Directional Performance: Short performance is 0 trades (neutral). OK.
+
+EXECUTION:
+- Propose SHORT on TRX.
+- Others: HOLD.
+
+
+==================================================
+CYCLE 121 - 2025-12-28T01:36:57.169491
+==================================================
+ACTION on ASTER: sell_to_enter
+Decision Details: {
+  "signal": "sell_to_enter",
+  "leverage": 10,
+  "confidence": 0.68,
+  "profit_target": 0.712307361336383,
+  "stop_loss": 0.718148,
+  "invalidation_condition": "If 1h price closes above 1h EMA20 * 1.002",
+  "tp_sl_source": "dynamic_atr",
+  "volume_quality_score": 20.0,
+  "volume_ratio_runtime": 0.1789,
+  "runtime_decision": "blocked_hard_volume_filter"
+}
+
+--- CHAIN OF THOUGHTS ---
+SYSTEM CHECK & OVERVIEW:
+- Current Cycle: 17 (398 mins elapsed). Mode: Normal Trading (Cycle > 3).
+- Portfolio: $495.34 (Down from $500). 1 Open Position (TRX Short).
+- Cooldowns: DOGE/ETH in Coin Cooldown. No Directional Cooldowns.
+- Constraints: 1 Short open (Max 2). 4 Slots available.
+
+COIN ANALYSIS:
+
+1. **TRX (Existing Short Position)**:
+   - *Status*: Open Short (Conf 0.57, PnL $0). Entry at 0.2845.
+   - *1h Analysis*: Price 0.2850. Trend BULLISH (HTF). RSI 83.55 (**OVERBOUGHT**). Price Location UPPER_10 (100th percentile). Structure RANGE. Momentum STRENGTHENING.
+   - *15m Analysis*: RSI 63.70. Momentum WEAKENING. Structure RANGE.
+   - *3m Analysis*: Price 0.2845. RSI 43.65. Trend BULLISH (Counter to HTF).
+   - *Counter-Trade Analysis*: Risk Level HIGH_RISK. Alignment MEDIUM.
+   - *Reversal Analysis*: Score 0 (NONE).
+   - *Decision Logic*: We have a counter-trend short in a Strong Bullish HTF regime. RSI 83.55 suggests extreme overbought conditions, which validates the counter-trend play. However, HTF Momentum is STRENGTHENING, which fights the short. The position is flat (PnL 0). The 15m momentum is WEAKENING, which supports the short. The 3m trend is BULLISH, fighting us. 
+   - *Action*: The setup is high risk due to HTF trend. However, RSI extreme offers an edge. Since PnL is 0 and we are not yet in profit erosion, and the 15m momentum supports us, I will **HOLD** and monitor for the 15m momentum to continue or for price to hit stop loss. I will NOT add to this position due to HIGH_RISK.
+
+2. **XRP**:
+   - *1h Analysis*: Price 1.8719. Trend BULLISH. RSI 68.22. Price Location UPPER_10 (94th percentile). Structure RANGE. Momentum STRENGTHENING.
+   - *15m Analysis*: RSI 58.96. Momentum STABLE. Structure HH_HL (Bullish).
+   - *3m Analysis*: Price 1.8723. RSI 53.40. Trend BULLISH.
+   - *Counter-Trade Analysis*: Risk Level VERY_HIGH_RISK. Volume Ratio 0.087 (WEAK).
+   - *Decision Logic*: HTF is Bullish. Trend-following Long is the path. However, Counter-Trade Analysis flags VERY_HIGH_RISK (likely due to 3m alignment issues or volume). Volume is extremely low (0.087). Rule: "Do NOT enter with LOW volume". 
+   - *Action*: **HOLD** (No Entry). High risk + Low Volume = No Trade.
+
+3. **ASTER**:
+   - *1h Analysis*: Price 0.719. Trend NEUTRAL/RANGE. RSI 59.24. Structure RANGE.
+   - *15m Analysis*: RSI 47.10. Momentum WEAKENING. Structure RANGE.
+   - *3m Analysis*: Price 0.716. RSI 39.31. Trend BEARISH.
+   - *Counter-Trade Analysis*: Risk Level MEDIUM_RISK. Alignment STRONG (Bearish 15m+3m vs Bullish HTF). Volume Ratio 0.316 (WEAK).
+   - *Decision Logic*: This is a valid Counter-Trend Short setup (betting against weak 1h Bullish trend). Risk is MEDIUM. Alignment is STRONG (Bearish). RSI 39 on 3m is not extreme. Volume is weak but not critically low.
+   - *Constraint Check*: Short slots available (1). Same direction limit for Shorts is 2 (currently 1 open).
+   - *Action*: **SELL TO ENTER**. This is a valid counter-trend setup with MEDIUM risk and STRONG alignment. Confidence is estimated ~0.65-0.7.
+
+4. **SOL**:
+   - *1h Analysis*: Price 124.42. Trend BULLISH. RSI 60.85. Structure HH_HL. Momentum STABLE.
+   - *15m Analysis*: RSI 49.87. Momentum WEAKENING. Structure RANGE.
+   - *3m Analysis*: Price 124.35. RSI 50.20. Trend BULLISH.
+   - *Counter-Trade Analysis*: Risk Level HIGH_RISK. Volume Ratio 2.72 (STRONG).
+   - *Decision Logic*: HTF Bullish. Trend-following Long is preferred. 15m Momentum is WEAKENING. Rule: "For ENTRY: wait for 3m alignment". 3m is Bullish (RSI 50). Volume is Strong. However, Counter-Trade Analysis flags HIGH_RISK. This likely comes from the mixed signals (15m weakening vs HTF Bullish). 
+   - *Action*: **HOLD**. The HIGH_RISK flag combined with 15m WEAKENING suggests waiting for better confirmation or a pullback. Do not chase.
+
+5. **DOGE / ETH**:
+   - Both are in Coin Cooldown. **DO NOT TRADE**.
+
+SUMMARY OF DECISIONS:
+- TRX: HOLD (Monitoring).
+- XRP: HOLD (Low Volume/High Risk).
+- ASTER: SELL (Counter-trend MEDIUM_RISK, STRONG alignment).
+- SOL: HOLD (High Risk).
+- DOGE/ETH: HOLD (Cooldown).
+
+RISK MANAGEMENT:
+- New Trade (ASTER): Short. Leverage 10. Confidence 0.68. Stop Loss based on 1h EMA20 * 1.002. Profit Target based on ATR or structure.
+
+
+==================================================
+CYCLE 122 - 2025-12-28T01:40:02.539251
+==================================================
+ACTION on SOL: sell_to_enter
+Decision Details: {
+  "signal": "sell_to_enter",
+  "leverage": 10,
+  "confidence": 0.7110000000000001,
+  "profit_target": 123.73553637865596,
+  "stop_loss": 124.50238999999999,
+  "invalidation_condition": "If 1h price closes above 1h EMA20 * 1.002",
+  "tp_sl_source": "dynamic_atr",
+  "volume_quality_score": 20.0,
+  "volume_ratio_runtime": 0.5526,
+  "trend_runtime": "bullish",
+  "classification": "trend_following",
+  "trend_alignment": "counter_trend",
+  "runtime_decision": "executed"
+}
+
+--- CHAIN OF THOUGHTS ---
+SYSTEM CHECK & OVERVIEW:
+- Current Time: 2025-12-28 01:39:34. Cycle: 18 (Normal Mode).
+- Account: $495.07 (Down -0.99%). Cash: $419.50.
+- Positions: 1 SHORT (TRX) open. PnL: -$0.27 (Minor Erosion).
+- Slots: 4 Available. Short Slots: 1 Available.
+- Cooldown: None.
+- Global Regime: Bullish (3 Bullish, 0 Bearish, 3 Neutral).
+
+DETAILED ASSET ANALYSIS:
+
+1. XRP:
+   - Regime: BULLISH. Market Condition: CHOPPY.
+   - HTF (1h): Price $1.8719 > EMA20 $1.8576. RSI 68.2 (High). Structure: RANGE. Price Location: UPPER_10 (94%). Momentum: STRENGTHENING. ADX 41.9 (Strong).
+   - 15m: Price $1.8696 > EMA20 $1.8658. RSI 58.9. Structure: HH_HL. Momentum: STABLE. ADX 59.0 (Strong).
+   - 3m: Price $1.8713 < EMA20 $1.8713 (Barely). RSI 49.8. Trend: BEARISH (per Counter-Trade).
+   - Counter-Trade Analysis: HTF Bullish, 15m Bullish, 3m Bearish. Risk: HIGH_RISK. Volume: WEAK (0.07).
+   - Verdict: HTF/15m are strongly bullish, but 3m is bearish (pullback). Price is at UPPER_10 (94%) + RSI 68.2. High risk to enter LONG here immediately. However, the trend is strong. If 3m aligns, this is a trend continuation play. But with HIGH_RISK counter-trade status and weak volume, I should not chase the LONG aggressively. No valid SHORT setup (trend is up). HOLD.
+
+2. DOGE:
+   - Regime: BULLISH. Market Condition: TRENDING.
+   - HTF (1h): Price $0.1241 > EMA20 $0.1233. RSI 60.5. Structure: HH_HL. Momentum: STRENGTHENING. Price Location: MIDDLE (86%).
+   - 15m: Price $0.12374 ≈ EMA20. RSI 51.5. Structure: RANGE. Momentum: STRENGTHENING. ADX 38.1 (Moderate).
+   - 3m: Price $0.1238 < EMA20. RSI 41.3. Trend: BEARISH (per Counter-Trade).
+   - Counter-Trade Analysis: HTF Bullish, 15m Bullish, 3m Bearish. Risk: HIGH_RISK. Volume: WEAK (0.11).
+   - Verdict: Similar to XRP. Strong uptrend on HTF, but 3m pullback. HIGH_RISK to enter LONG now. No SHORT signal. HOLD.
+
+3. ASTER:
+   - Regime: NEUTRAL. Market Condition: CHOPPY.
+   - HTF (1h): Price $0.719 > EMA20 $0.713. RSI 59.2. Structure: RANGE. Momentum: STABLE. Price Location: MIDDLE (85%).
+   - 15m: Price $0.715 < EMA20 $0.716. RSI 47.1. Structure: RANGE. Momentum: WEAKENING. ADX 44.1 (Strong).
+   - 3m: Price $0.715 < EMA20 $0.717. RSI 34.6. Trend: BEARISH (per Counter-Trade).
+   - Counter-Trade Analysis: HTF Bullish, 15m Bearish, 3m Bearish. Alignment: STRONG. Risk: MEDIUM_RISK. Volume: STRONG (1.78).
+   - Verdict: HTF is technically Bullish, but 15m and 3m are Bearish. This is a potential counter-trend SHORT against the HTF, OR a trend continuation SHORT if HTF flips. However, HTF structure is RANGE (not confirmed bearish). Risk is MEDIUM. Volume is strong. RSI 3m is 34.6 (near oversold). This is a tricky setup. Given HTF is Bullish, SHORTING is counter-trend. MEDIUM_RISK allows execution if confidence > 0.65. I need to check confidence. The Counter-Trade data says MEDIUM alignment + 2 conditions. This is borderline. Given the volume and strong 15m/3m bearish momentum, a SHORT could work, but it's fighting the HTF. I will PASS due to HTF Bullish conflict and neutral regime, unless I see a clear break. HOLD.
+
+4. TRX (ACTIVE SHORT):
+   - Regime: BULLISH. Position: SHORT (Entry 0.2845). Current: 0.2846. PnL: -0.27.
+   - HTF: Price $0.285 > EMA20 $0.282. RSI 83.5 (Extremely Overbought). Structure: RANGE. Price Location: UPPER_10 (100%). Momentum: STRENGTHENING. ADX 64.8 (Very Strong).
+   - 15m: Price $0.2846 ≈ EMA20. RSI 63.7. Structure: RANGE. Momentum: WEAKENING. ADX 48.4 (Strong).
+   - 3m: Price $0.2846 < EMA20. RSI 45.9. Trend: BEARISH.
+   - Reversal Data: Score 0 (None). Erosion: NONE.
+   - Verdict: HTF is extremely bullish (RSI 83.5, UPPER_10). This is a dangerous spot for a SHORT. However, 15m momentum is WEAKENING and 3m is bearish. The Counter-Trade analysis for TRX was not provided in the latest CTA list (it's an open position), but the logic holds. RSI 83.5 on HTF suggests a pullback is due. The position is only -$0.27 (minor loss). The invalidation is 1h EMA20 * 1.002 = 0.2822 * 1.002 = 0.2827. Current price 0.2846 is above this. Wait, the exit plan says Stop Loss 0.2853535. The invalidation condition is "If 1h price closes above 1h EMA20 * 1.002". Let's calculate: EMA20=0.2822196419151563 * 1.002 = 0.2828. Current price 0.2846 > 0.2828. The condition is NOT met (it requires a CLOSE above). However, price is currently above the invalidation buffer. This is concerning. The position is underwater. 15m momentum is WEAKENING. I should consider closing if the structure breaks. But the HTF trend is STRONG. I will HOLD the SHORT for now because RSI 83.5 on HTF is a massive overextension, and 15m momentum is weakening. The risk is high, but the edge is mean reversion from extreme overbought. I will monitor closely.
+
+5. ETH:
+   - Regime: BULLISH. Market Condition: CHOPPY.
+   - HTF (1h): Price $2946.12 > EMA20 $2934.91. RSI 60.1. Structure: RANGE. Momentum: STRENGTHENING. Price Location: MIDDLE (90%).
+   - 15m: Price $2943.19 > EMA20 $2940.30. RSI 55.6. Structure: RANGE. Momentum: STRENGTHENING. ADX 47.2 (Strong).
+   - 3m: Price $2945.94 > EMA20 $2945.70. RSI 50.8. Trend: BULLISH (per Counter-Trade).
+   - Counter-Trade Analysis: HTF Bullish, 15m Bullish, 3m Bullish. Alignment: NONE. Risk: VERY_HIGH_RISK. Volume: WEAK (0.11).
+   - Verdict: All timeframes are bullish, but the Counter-Trade system flags "VERY_HIGH_RISK" with "Alignment: NONE". This likely means the alignment is unclear or the conditions aren't met. Volume is weak. This is a "no trade" zone. Trend is up, but entry is risky. HOLD.
+
+6. SOL:
+   - Regime: NEUTRAL. Market Condition: TRENDING.
+   - HTF (1h): Price $124.42 > EMA20 $123.56. RSI 60.8. Structure: HH_HL. Momentum: STABLE. Price Location: MIDDLE (87%).
+   - 15m: Price $124.08 < EMA20 $124.14. RSI 49.8. Structure: RANGE. Momentum: WEAKENING. ADX 42.7 (Strong).
+   - 3m: Price $124.13 < EMA20 $124.29. RSI 41.0. Trend: BEARISH (per Counter-Trade).
+   - Counter-Trade Analysis: HTF Bullish, 15m Bearish, 3m Bearish. Alignment: STRONG. Risk: MEDIUM_RISK. Volume: STRONG (2.55).
+   - Verdict: HTF is Bullish (HH_HL), but 15m and 3m are Bearish. This is a counter-trend SHORT opportunity. MEDIUM_RISK allows execution if confidence > 0.65. Volume is STRONG (2.55x). RSI 3m is 41 (not oversold). This looks like a valid counter-trend setup against the HTF. The HTF structure is HH_HL, so shorting is risky, but the momentum shift on 15m/3m is strong. I will evaluate a SHORT here. However, we have a SHORT slot available (1/2). This is a valid setup. Target: HTF Support $122.97. Stop: HTF EMA20 * 1.002 = 123.56 * 1.002 = 123.80. Entry ~124.13. Risk/Reward looks good. Confidence: 0.70 (due to strong volume and alignment).
+
+
+==================================================
+CYCLE 124 - 2025-12-28T01:45:58.721781
+==================================================
+ACTION on TRX: close_position
+Decision Details: {
+  "signal": "close_position",
+  "leverage": 10,
+  "confidence": 0.56,
+  "profit_target": 0.0,
+  "stop_loss": 0.0,
+  "invalidation_condition": "HTF Trend Strengthening against SHORT in UPPER_10 zone"
+}
+
+--- CHAIN OF THOUGHTS ---
+SYSTEM CHECK: 407 minutes elapsed. 20 invocations. Startup caution cycles are long past; full aggression permitted if edge exists.
+
+**RISK & SLOTS CHECK:**
+- Total Positions: 2 (Max 5). Slots Available: 3.
+- Short Slots Used: 2 (Max 2). Short Slots Available: 0.
+- Long Slots Available: 2.
+- Constraint Mode: SHORT_FULL_LONG_AVAILABLE. **CRITICAL:** I cannot open any new SHORT positions. I can only open LONG positions.
+- Current PnL: -0.87%. Account slightly down, but no directional cooldowns active.
+
+**COIN ANALYSIS:**
+
+1. **XRP:**
+   - HTF: Bullish (Price 1.8719 > EMA 1.857, RSI 68). Structure: RANGE (Upper 10). Momentum: STRENGTHENING.
+   - 15m: Bullish (Price > EMA, RSI 60). Structure: HH_HL. Momentum: STABLE.
+   - 3m: Bearish (Price < EMA, RSI 48). **COUNTER-TREND ANALYSIS:** HTF Bullish vs 3m Bearish. Risk Level: HIGH_RISK. Volume Ratio: 0.14 (LOW). 
+   - **Decision:** HIGH_RISK counter-trend setup with LOW volume. **DO NOT TRADE** (Counter-trend rules: HIGH_RISK -> Prefer HOLD). Even if I wanted to trend follow, 3m is bearish. HOLD.
+
+2. **DOGE:**
+   - HTF: Bullish (Price 0.1241 > EMA 0.1233, RSI 60). Structure: HH_HL. Momentum: STRENGTHENING.
+   - 15m: Neutral/Bearish (Price 0.12371 < EMA 0.12372, RSI 50). Structure: RANGE. Momentum: WEAKENING.
+   - 3m: Bearish (Price < EMA, RSI 36). 
+   - **COUNTER-TREND ANALYSIS:** HTF Bullish vs 15m/3m Bearish. Risk Level: MEDIUM_RISK. Volume Ratio: 0.045 (LOW). 
+   - **Decision:** MEDIUM_RISK, but volume is extremely LOW (< 0.20). Hard rule: Do NOT enter with LOW volume. HOLD.
+
+3. **ASTER:**
+   - HTF: Bullish (Price 0.719 > EMA 0.713, RSI 59). Structure: RANGE. Momentum: STABLE.
+   - 15m: Bearish (Price 0.715 < EMA 0.716, RSI 46). Structure: RANGE. Momentum: WEAKENING.
+   - 3m: Bearish (Price < EMA, RSI 33). 
+   - **COUNTER-TREND ANALYSIS:** HTF Bullish vs 15m/3m Bearish. Risk Level: MEDIUM_RISK. Volume Ratio: 0.0004 (CRITICAL LOW). 
+   - **Decision:** Volume is effectively zero. Hard rule violation. HOLD.
+
+4. **TRX (EXISTING SHORT):**
+   - Position: SHORT, PnL: -0.26 (Small loss). Confidence: 0.56.
+   - HTF: Bullish (Price 0.285 > EMA 0.282, RSI 83.5). Structure: RANGE (UPPER_10). Momentum: STRENGTHENING.
+   - 15m: Bearish (Price 0.2846 < EMA 0.2842, RSI 62). Structure: RANGE. Momentum: WEAKENING.
+   - 3m: Bearish.
+   - **Reversal Check:** Score 0 (None).
+   - **Erosion:** None.
+   - **Analysis:** This is a classic counter-trend short (HTF Bullish). I am SHORT while HTF is BULLISH. The HTF momentum is STRENGTHENING and RSI is 83.5 (Overbought but trending). The 15m momentum is WEAKENING, which supports the short slightly, but the HTF is the heavy weight. The price is in UPPER_10 on HTF. 
+   - **Zone + Momentum Rule (HTF):** UPPER_10 + STRENGTHENING. "Trend accelerating up." 
+   - **Decision:** The trend is accelerating against my position. However, I am in UPPER_10 (extreme high). The rule says "Wait for WEAKENING" to enter short, but I am already in. The HTF is STRENGTHENING. This is a dangerous spot for a short. I should exit to prevent a larger loss against a strengthening trend. **CLOSE TRX SHORT.**
+
+5. **ETH:**
+   - HTF: Bullish (Price 2946 > EMA 2934, RSI 60). Structure: RANGE. Momentum: STRENGTHENING.
+   - 15m: Bearish (Price 2944 < EMA 2940? Wait, EMA is 2940. Price 2944 > EMA 2940). Let me re-read 15m data. "price":2944.31, "ema20":2940.81. Price > EMA. RSI 56. Structure: LH_LL (Bearish). Momentum: STRENGTHENING.
+   - 3m: Bearish (Price < EMA, RSI 45).
+   - **COUNTER-TREND ANALYSIS:** HTF Bullish vs 3m Bearish. Risk Level: HIGH_RISK. Volume Ratio: 0.65 (Poor).
+   - **Decision:** HIGH_RISK counter-trend. HOLD.
+
+6. **SOL (EXISTING SHORT):**
+   - Position: SHORT, PnL: +0.54 (Profit). Confidence: 0.71.
+   - HTF: Bullish (Price 124.42 > EMA 123.56, RSI 60). Structure: HH_HL. Momentum: STABLE.
+   - 15m: Bearish (Price 124.04 < EMA 124.13, RSI 49). Structure: RANGE. Momentum: WEAKENING.
+   - 3m: Bearish.
+   - **Reversal Check:** Score 0.
+   - **Erosion:** None.
+   - **Analysis:** HTF is Bullish (HH_HL structure). 15m is Bearish with WEAKENING momentum. This is a counter-trend short. However, I am in profit. The HTF is not "Strengthening", it is "Stable". The 15m is "Weakening" (which supports my short). The HTF structure is HH_HL (Bullish). 
+   - **Risk:** Holding a short against HTF Bullish trend. 
+   - **Decision:** While I have profit, the HTF trend is intact (HH_HL). The 15m is weakening, giving me time. But if HTF is Bullish, I should be cautious. However, I have no reversal signals. I will **HOLD SOL** for now, but monitor closely. The profit buffer allows me to wait for a 15m structure break or HTF invalidation.
+
+**SUMMARY:**
+- **TRX:** Close (Trend accelerating against me, Upper 10). 
+- **SOL:** Hold (Profit buffer, 15m weakening supports me).
+- **New Entries:** None. All potential counter-trend entries are HIGH_RISK or have LOW volume. Short slots are full. Long slots are open, but no valid Long setups (High Risk counter-trends or no alignment).
+- **Action:** Close TRX. Hold SOL. No new trades.
+
+
+==================================================
+CYCLE 126 - 2025-12-28T01:51:59.258738
+==================================================
+ACTION on DOGE: sell_to_enter
+Decision Details: {
+  "signal": "sell_to_enter",
+  "leverage": 10,
+  "confidence": 0.7480000000000001,
+  "profit_target": 0.12325768348910911,
+  "stop_loss": 0.12419146,
+  "invalidation_condition": "If 1h price closes above 1h EMA20 * 1.002",
+  "tp_sl_source": "dynamic_atr",
+  "volume_quality_score": 20.0,
+  "volume_ratio_runtime": 0.3521,
+  "trend_runtime": "bearish",
+  "classification": "trend_following",
+  "trend_alignment": "trend_following",
+  "runtime_decision": "executed"
+}
+
+--- CHAIN OF THOUGHTS ---
+SYSTEM STARTUP: Cycle 22 (Normal Mode). 
+
+1. **REGIME ANALYSIS**: The global regime is BULLISH (3 bullish, 0 bearish, 3 neutral). However, individual assets show mixed signals. I must evaluate both LONG and SHORT paths per asset.
+
+2. **SOL (Existing SHORT)**:
+   - **Status**: Currently SHORT at 124.13, PnL +0.305. Confidence 0.71.
+   - **1h**: HTF Trend is BULLISH (Price 124.07 > EMA 123.53, RSI 56.7). Wait, the Counter-Trade Analysis says HTF is BULLISH. This means my SHORT is counter-trend.
+   - **15m**: Trend is BEARISH (Counter-Trade Analysis). Structure is RANGE, Momentum is WEAKENING. Price is in MIDDLE zone.
+   - **3m**: Trend is BEARISH. RSI 41.8.
+   - **Risk**: Counter-trend trade. Risk Level is MEDIUM_RISK (per Counter-Trade Analysis). Volume is NORMAL.
+   - **Exit Logic**: Check Reversal Data. Score is 0 (NONE). Erosion is NONE. Trend is still BEARISH on 15m/3m, supporting the short term, but HTF is bullish. 
+   - **Decision**: Since the short-term momentum (15m/3m) supports the position and there are no reversal signals, I will **HOLD**. However, I must be vigilant as the HTF is bullish.
+
+3. **XRP**:
+   - **1h**: BULLISH. Price 1.871 > EMA 1.857. RSI 67.8 (High). Price Location UPPER_10 (93rd percentile). ADX 41 (Strong). HTF Structure is RANGE.
+   - **15m**: BULLISH. Price 1.871 > EMA 1.866. RSI 60.9. Structure HH_HL. Momentum STABLE.
+   - **3m**: BULLISH. RSI 50.1.
+   - **Counter-Trade Analysis**: HTF BULLISH, 15m BULLISH, 3m BULLISH. Alignment: NONE (likely due to HTF structure being RANGE). Risk Level: VERY_HIGH_RISK. Volume Ratio: 0.26 (WEAK).
+   - **Zone/Weakening**: Price is UPPER_10. Momentum is STABLE (not WEAKENING). 
+   - **Decision**: Trend is up, but Risk Level is VERY_HIGH_RISK and Volume is WEAK. This suggests a high-risk entry. The system says "For counter-trend: Do NOT trade." But this is trend-following. The "VERY_HIGH_RISK" label in Counter-Trade Analysis for a trend-following setup usually implies the HTF is ambiguous or conflicting (Range). Given the UPPER_10 location and weak volume, I should be cautious. However, the trend is strong (ADX 41). I will **HOLD** (No entry) because the risk label is too high for a new entry, despite the trend.
+
+4. **DOGE**:
+   - **1h**: BULLISH. Price 0.1238 > EMA 0.1232. RSI 56.6. Structure HH_HL. Momentum STRENGTHENING.
+   - **15m**: NEUTRAL/BEARISH (Counter-Trade says BEARISH). Price 0.1237 < EMA 0.1237 (slightly below). RSI 50.8. Momentum WEAKENING. Structure RANGE.
+   - **3m**: BEARISH. RSI 45.4.
+   - **Counter-Trade Analysis**: HTF BULLISH, 15m BEARISH, 3m BEARISH. Alignment: STRONG. Risk Level: MEDIUM_RISK.
+   - **Zone/Weakening**: 15m Momentum is WEAKENING. This is a counter-trend signal against the HTF.
+   - **Decision**: Strong counter-trend setup (MEDIUM_RISK). 15m is WEAKENING while HTF is BULLISH. This suggests a pullback. However, the HTF is bullish (HH_HL, STRENGTHENING). A counter-trend SHORT here is valid per rules (MEDIUM_RISK). But wait, the rule says "If you have 2 LONGs, you CANNOT open another LONG." We have 0 LONGs. 
+   - **Volume**: 0.49 (WEAK). 
+   - **Action**: MEDIUM_RISK counter-trend. The rules allow execution if confidence > 0.65. I need to check if I have a slot. I have 4 slots available. Short slots available: 1. 
+   - **Setup**: SHORT DOGE. 
+   - **Confidence**: MEDIUM_RISK usually implies confidence around 0.65-0.7. 
+   - **Wait**: Let's check other assets first.
+
+5. **ASTER**:
+   - **1h**: BULLISH. Price 0.715 > EMA 0.712. RSI 53.8. Structure RANGE. Momentum STABLE.
+   - **15m**: BEARISH (Counter-Trade). Price 0.715 < EMA 0.716. RSI 46.9. Momentum WEAKENING. Structure RANGE.
+   - **3m**: BEARISH. RSI 37.2. Volume 0.18 (VERY LOW).
+   - **Counter-Trade Analysis**: HTF BULLISH, 15m BEARISH, 3m BEARISH. Alignment: STRONG. Risk Level: MEDIUM_RISK.
+   - **Volume**: 0.18 is < 0.20. **HARD RULE**: Do NOT enter with LOW volume. 
+   - **Decision**: **HOLD**. Volume is too low.
+
+6. **ETH**:
+   - **1h**: BULLISH. Price 2944 > EMA 2934. RSI 59.1. Structure RANGE. Momentum STRENGTHENING.
+   - **15m**: BULLISH. Price 2944 > EMA 2940. RSI 56.9. Structure LH_LL (Wait, LH_LL is bearish structure, but Counter-Trade says BULLISH). Momentum STRENGTHENING.
+   - **3m**: BEARISH. RSI 48.6.
+   - **Counter-Trade Analysis**: HTF BULLISH, 15m BULLISH, 3m BEARISH. Alignment: MEDIUM. Risk Level: HIGH_RISK.
+   - **Volume**: 0.39 (WEAK).
+   - **Decision**: HIGH_RISK. 3m is bearish while HTF/15m are bullish. This is a counter-trend entry against 3m (trend following on HTF). But Risk is HIGH. I should avoid.
+
+7. **TRX**: Not in Counter-Trade Analysis (likely neutral). Cooldown is active (Coin Cooldown: 2). **HOLD**.
+
+8. **Summary of Opportunities**:
+   - **DOGE**: Valid MEDIUM_RISK Counter-Trade SHORT. 15m/3m bearish vs HTF bullish. Volume is weak (0.49) but above 0.20. 
+   - **SOL**: Existing Short. Hold.
+   - **XRP**: Trend following but VERY_HIGH_RISK. Avoid.
+   - **ASTER**: Counter-trend but Volume < 0.20. Avoid.
+
+9. **Slot Check**:
+   - Total Open: 1 (SOL Short).
+   - Short Slots Used: 1. Short Slots Available: 1.
+   - Max Short Positions: 2 (Same Direction Limit). 
+   - I can open 1 more SHORT.
+
+10. **Final Decision**:
+    - **SOL**: HOLD (Existing Short).
+    - **DOGE**: SELL_TO_ENTER (Counter-trend SHORT, MEDIUM_RISK, 15m WEAKENING). Confidence ~0.68. Stop loss based on recent 15m resistance. Profit target based on support.
+    - **Others**: HOLD.
+
+
+==================================================
+CYCLE 127 - 2025-12-28T01:54:59.117119
+==================================================
+ACTION on XRP: buy_to_enter
+Decision Details: {
+  "signal": "buy_to_enter",
+  "leverage": 10,
+  "confidence": 0.72,
+  "profit_target": 1.8760112,
+  "stop_loss": 1.8647888000000001,
+  "invalidation_condition": "Close if 1h price closes below 1h EMA20 * 0.998",
+  "tp_sl_source": "dynamic_atr",
+  "volume_quality_score": 20.0,
+  "volume_ratio_runtime": 0.2252,
+  "runtime_decision": "blocked_hard_volume_filter"
+}
+ACTION on ETH: buy_to_enter
+Decision Details: {
+  "signal": "buy_to_enter",
+  "leverage": 10,
+  "confidence": 0.5224225443749999,
+  "profit_target": 2952.5310999999997,
+  "stop_loss": 2934.8689,
+  "invalidation_condition": "Close if 1h price closes below 1h EMA20 * 0.998",
+  "tp_sl_source": "dynamic_atr",
+  "volume_quality_score": 60.0,
+  "volume_ratio_runtime": 1.6075,
+  "trend_runtime": "neutral",
+  "classification": "trend_following",
+  "trend_alignment": "trend_following",
+  "runtime_decision": "executed"
+}
+
+--- CHAIN OF THOUGHTS ---
+SYSTEM STATUS: Cycle 23 (Normal Mode). PORTFOLIO: $495.37 (-0.93%). POSITIONS: 2 Shorts (SOL, DOGE). RISK: $175.57 margin used. AVAILABLE CASH: $318.74. CONSTRAINTS: Short slots FULL (2/2), Long slots AVAILABLE (0/2). COOLDOWN: TRX coin cooldown active.
+
+**1. MARKET REGIME & DIRECTION**
+- Global Regime: Bullish (3 Bullish, 3 Neutral). 
+- Position Bias: Short-heavy (2 Shorts open). 
+- Constraint: Short slots are FULL. I cannot open new SHORTS. Long slots are AVAILABLE.
+
+**2. ASSET ANALYSIS (Bullish Regime Context)**
+
+**XRP** (BULLISH Market)
+- 1h: Bullish (Price > EMA20, RSI 67.8, ADX 41.5 Strong). Structure: RANGE (Upper 10, 93% percentile). Momentum: STRENGTHENING.
+- 15m: Bullish (Price > EMA20, RSI 60.9, ADX 54.4 Strong). Structure: HH_HL. Momentum: STABLE.
+- 3m: Bearish (Price < EMA20, RSI 46.7). 
+- Volume: Ratio 0.87 (Normal).
+- Edge: Strong HTF Bullish trend. 3m is bearish (retracement). 
+- Decision: **BUY (Long)**. This is a Trend-Following setup. 1h/15m align Bullish. 3m provides entry timing (dip). Volume is acceptable.
+- Risk: HTF Price Location UPPER_10 (93%). RSI 67.8 (High but not extreme). Pullback risk exists but trend is Strong (ADX 41.5). 
+
+**DOGE** (NEUTRAL Market)
+- Position: SHORT (Open). PnL: +$0.32. 
+- 1h: Bullish (Structure HH_HL, Momentum STRENGTHENING). 
+- 15m: Bearish (Price < EMA20, RSI 50.8, Momentum WEAKENING). Structure: RANGE.
+- 3m: Bearish (Price < EMA20, RSI 42.7).
+- Analysis: Mixed signals. HTF is Bullish, but 15m/3m are Bearish. My open Short is countering the HTF trend (MEDIUM RISK per CTA). 
+- Status: The Short is working (small profit). However, HTF Momentum is STRENGTHENING. This is a warning for the Short. 
+- Decision: **HOLD**. The position has profit ($0.32) and no reversal signals (Score 0). I will hold but monitor closely. I will NOT add to this position (Slots full).
+
+**ASTER** (NEUTRAL Market)
+- 1h: Bullish (Price > EMA20, RSI 53.8). Structure: RANGE. Momentum: STABLE.
+- 15m: Bearish (Price < EMA20, RSI 46.9). Structure: RANGE. Momentum: WEAKENING.
+- 3m: Bearish (Price < EMA20, RSI 40.2).
+- Volume: Ratio 0.26 (WEAK). **Hard Rule: Do NOT enter with LOW volume.**
+- CTA Data: MEDIUM_RISK, STRONG alignment (Bearish). 
+- Decision: **HOLD**. No position. Volume is too low for entry. 
+
+**ETH** (BULLISH Market)
+- 1h: Bullish (Price > EMA20, RSI 59.1). Structure: RANGE (Upper 10, 86% percentile). Momentum: STRENGTHENING.
+- 15m: Bullish (Price > EMA20, RSI 56.9, ADX 45.4 Strong). Structure: LH_LL (Wait, data says LH_LL which is Bearish, but Price/EMA/RSI suggest Bullish. I will trust Price/EMA/RSI/ADX). Momentum: STRENGTHENING.
+- 3m: Bearish (Price < EMA20, RSI 44.0).
+- Volume: Ratio 0.69 (Normal).
+- Edge: Strong HTF Bullish trend. 3m is bearish (retracement).
+- Decision: **BUY (Long)**. Trend Following. 1h/15m align Bullish. 3m timing dip.
+- Risk: HTF Price Location UPPER_10 (86%). High pullback risk. However, Momentum is STRENGTHENING and ADX is Strong (45.4). 
+
+**SOL** (NEUTRAL Market)
+- Position: SHORT (Open). PnL: +$0.73.
+- 1h: Bullish (Price > EMA20, RSI 56.7, Structure HH_HL). Momentum: STABLE.
+- 15m: Bearish (Price < EMA20, RSI 49.0). Momentum: WEAKENING.
+- 3m: Bearish (Price < EMA20, RSI 37.9).
+- Analysis: Countering HTF Bullish trend (MEDIUM RISK). 
+- Status: Profitable. HTF Momentum is STABLE (not strengthening like DOGE). 
+- Decision: **HOLD**. Profitable Short. No reversal signals. 
+
+**TRX** (COOLDOWN)
+- Coin is in cooldown. No trade.
+
+**3. EXECUTION PLAN**
+- Short Slots are FULL (2/2). I cannot open new Shorts.
+- Long Slots are AVAILABLE (0/2). I can open Longs.
+- Valid Long Candidates: XRP, ETH.
+- XRP vs ETH: Both are valid. XRP has slightly better Volume (0.87 vs 0.69) and RSI (67.8 vs 59.1). ETH has stronger 15m ADX (45.4 vs 54.5 - both strong). 
+- Allocation: I have ~$318 cash. Max risk per position is 40% of cash (~$127). I will split allocation to enter both XRP and ETH to diversify within the Bullish regime.
+- Note: DO NOT open Shorts (Slots Full). DO NOT open Counter-Trend Shorts (Risk applies). 
+
+**4. RISK MANAGEMENT**
+- XRP Stop Loss: 1h EMA20 * 0.998. (1.8575 * 0.998 = 1.8538).
+- ETH Stop Loss: 1h EMA20 * 0.998. (2934.81 * 0.998 = 2928.94).
+- Invalidation: Strictly apply 0.2% buffer rule.
+
+
+==================================================
+CYCLE 130 - 2025-12-28T02:03:55.227343
+==================================================
+ACTION on ETH: close_position
+Decision Details: {
+  "signal": "close_position",
+  "leverage": 10,
+  "confidence": 0.52,
+  "profit_target": 0.0,
+  "stop_loss": 0.0,
+  "invalidation_condition": "Exit due to 15m LH_LL structure and 3m bearish trend."
+}
+
+--- CHAIN OF THOUGHTS ---
+System Status: Cycle 26 (Normal Mode). Portfolio: 2 open positions (1 LONG, 1 SHORT). Available Slots: 3. Account: $494.18 (Drawdown -1.16%). 
+
+**Market Regime:** Bullish bias (Global Regime Strength 0.67). However, current 1h trends are mixed (XRP RANGE, DOGE HH_HL, ASTER RANGE, TRX UPPER_10, ETH RANGE). No strong directional conviction across the board.
+
+**Asset Analysis:**
+
+1. **DOGE (ACTIVE SHORT):** Entry at 0.12382, Current 0.12383. PnL: -$0.08. 
+   - *1h:* Bullish (HH_HL, EMA 0.1233 > Price 0.1238? Wait, Price is slightly above EMA). RSI 56.1 (Neutral). 
+   - *15m:* RANGE, Momentum WEAKENING. 
+   - *3m:* Bearish trend, RSI 47.4. 
+   - *Counter Analysis:* HIGH_RISK (HTF Bullish, 3m Bearish). Volume 0.63x (Normal). 
+   - *Decision:* The short is counter-trend to the 1h HH_HL structure. The 15m momentum is WEAKENING, which according to *Zone Weakening Rule* (LOWER_10 or UPPER_10) doesn't strictly apply to MIDDLE zone, but WEAKENING generally suggests caution. However, the 3m is bearish, providing some temporary downside. The position is barely profitable. Given the HIGH_RISK counter-trend nature and 1h structure being bullish, I should look to exit. The reversal score is 0, but the structural conflict is high. I will **CLOSE** this position to free up margin and avoid counter-trend exposure against a bullish HTF.
+
+2. **ETH (ACTIVE LONG):** Entry at 2943.7, Current 2943.51. PnL: -$0.15. 
+   - *1h:* RANGE, EMA 2935 > Price 2943 (Bullish), RSI 57.7. 
+   - *15m:* LH_LL (Bearish Structure!), Momentum WEAKENING. 
+   - *3m:* Bearish trend, RSI 42.0. 
+   - *Counter Analysis:* HIGH_RISK (HTF Bullish/Range, 3m Bearish). 
+   - *Decision:* This is a critical failure. The 15m structure is LH_LL (Lower Highs, Lower Lows), which is a bearish reversal signal. Combined with 3m bearish trend and WEAKENING momentum, the thesis is invalidated. I must **CLOSE** this position immediately to prevent further erosion.
+
+3. **New Entries:**
+   - **XRP:** 1h RANGE (EMA 1.858 > Price 1.87), RSI 65.9. 15m HH_HL, Momentum WEAKENING. 3m Bearish. 
+     - *Counter Analysis:* HIGH_RISK. 
+     - *Zone Rule:* 15m is MIDDLE (not UPPER_10), so WEAKENING isn't an immediate 'DO NOT LONG', but it's slowing. 
+     - *Volume:* 0.81x (Normal). 
+     - *Verdict:* Mixed signals. 15m structure is bullish (HH_HL) but momentum is WEAKENING. 3m is bearish. No strong edge. HOLD.
+   - **TRX:** 1h UPPER_10 (92nd percentile), RSI 75.5 (Overbought), Momentum STRENGTHENING. 
+     - *15m:* RANGE, Momentum WEAKENING. 
+     - *3m:* Bearish. 
+     - *Zone Rule:* UPPER_10 + STRENGTHENING = Trend accelerating at highs. But 15m is WEAKENING. Conflict. 
+     - *Verdict:* High risk of pullback due to HTF RSI > 75. No entry.
+   - **ASTER:** 1h RANGE, RSI 52.4. 15m RANGE, Momentum WEAKENING. 3m Bearish (RSI 35.8). 
+     - *Counter Analysis:* MEDIUM_RISK (HTF Bullish, 15m/3m Bearish). Volume 0.41x (WEAK). 
+     - *Verdict:* Weak volume and mixed momentum. No entry.
+
+**Summary:** The market is chopping with mixed signals. My existing positions are showing weakness (ETH 15m LH_LL, DOGE counter-trend). I need to exit both and wait for a clearer setup. SNIPER MODE: No high-confidence entries available. I will close both positions.
+
+
+==================================================
+CYCLE 131 - 2025-12-28T02:06:55.549057
+==================================================
+ACTION on SOL: sell_to_enter
+Decision Details: {
+  "signal": "sell_to_enter",
+  "leverage": 10,
+  "confidence": 0.6615000000000001,
+  "profit_target": 123.62553637865597,
+  "stop_loss": 124.39206,
+  "invalidation_condition": "If 1h price closes above 1h EMA20 * 1.002",
+  "tp_sl_source": "dynamic_atr",
+  "volume_quality_score": 20.0,
+  "volume_ratio_runtime": 0.5526,
+  "trend_runtime": "bullish",
+  "classification": "trend_following",
+  "trend_alignment": "counter_trend",
+  "runtime_decision": "executed"
+}
+
+--- CHAIN OF THOUGHTS ---
+SYSTEM CHECK: 428 MINUTES ELAPSED (>>3 cycles). Startup caution DOES NOT APPLY. Market regime is BULLISH (Global). DOGE is in cooldown (1 cycle). ETH is in cooldown (3 cycles). COOLDOWN STATUS: LONG=0, SHORT=0. Position slots: 1 open (DOGE Short), 4 available. Same direction limit: Short slots used=1, available=1 (limit=2). Long slots available=2.
+
+ANALYSIS PER ASSET:
+
+1. **XRP**: 
+   - *Regime*: BULLISH. HTF Price=1.8701 > EMA=1.8586. RSI=65.9 (healthy). ADX=44.9 (Strong Trend).
+   - *15m*: Bullish (Price>EMA, RSI=58.9). Structure=HH_HL. Momentum=WEAKENING. Price Location=MIDDLE (82nd pct). 
+   - *3m*: Price=1.8707 < EMA=1.8709 (bearish). RSI=48.5. MACD negative.
+   - *Counter Analysis*: HTF Bull, 15m Bull, 3m Bear. Alignment=MEDIUM. Total Met=2. Risk=HIGH_RISK. Volume=WEAK (0.05). 
+   - *Decision*: Trend-following LONG is valid (1h+15m aligned), but 3m is bearish (wait for alignment). Counter-trend SHORT has HIGH_RISK + WEAK volume. DO NOT enter counter-trend. Wait for 3m alignment for LONG.
+
+2. **DOGE** (Open Short):
+   - *Position*: SHORT, PnL=-0.80. 
+   - *Regime*: BULLISH. HTF Structure=HH_HL (Bullish). Momentum=STRENGTHENING. 
+   - *15m*: Price=0.12379 > EMA. RSI=52.5. Momentum=WEAKENING. Structure=RANGE.
+   - *3m*: Price=0.12392 > EMA. RSI=53.7. MACD negative.
+   - *Reversal Check*: Score=0 (NONE). 
+   - *Erosion*: NONE (<20%). 
+   - *Invalidate Check*: HTF Price=0.12379. Stop Loss=0.12419146. Condition: Close if 1h price > 1h EMA * 1.002. Current HTF Price < Stop Loss. Position is valid but against HTF trend (Counter-trend short). 
+   - *Decision*: HTF is BULLISH (HH_HL + Strengthening). The short is counter-trend. However, 15m momentum is WEAKENING and we are in MIDDLE zone. No reversal signals yet. Keep position. DO NOT add to short.
+
+3. **ASTER**:
+   - *Regime*: NEUTRAL. HTF Structure=RANGE. Momentum=WEAKENING. RSI=52.4.
+   - *15m*: Structure=RANGE. Momentum=WEAKENING. RSI=44.2.
+   - *3m*: Price=0.715 < EMA=0.7158. RSI=43.2. Volume=WEAK (0.24).
+   - *Counter Analysis*: HTF Bull, 15m Bear, 3m Bear. Alignment=STRONG. Total Met=2. Risk=MEDIUM_RISK. Volume=WEAK (0.005). 
+   - *Decision*: Counter-trend SHORT (against HTF Bull) has MEDIUM_RISK. Volume is extremely low (0.005). Hard rule: Do NOT enter with LOW volume. Wait.
+
+4. **TRX**:
+   - *Regime*: BULLISH. HTF Price=0.2844 > EMA=0.2823. RSI=75.5 (Overbought). Price Location=UPPER_10 (92nd pct). ADX=59.5 (Strong).
+   - *15m*: Price=0.2844 > EMA. RSI=58.0. Momentum=WEAKENING. Structure=RANGE.
+   - *3m*: Price=0.2844 < EMA=0.2845. RSI=43.2.
+   - *Counter Analysis*: HTF Bull, 15m Bull, 3m Bear. Alignment=MEDIUM. Total Met=2. Risk=HIGH_RISK. Volume=NORMAL.
+   - *Zone Rule*: HTF UPPER_10 + RSI > 75. This indicates PULLBACK RISK. 15m Momentum is WEAKENING. 
+   - *Decision*: Trend-following LONG is risky due to Overbought/Upper 10 + Weakening. Counter-trend SHORT has HIGH_RISK. DO NOT trade. HOLD.
+
+5. **SOL**:
+   - *Regime*: NEUTRAL. HTF Structure=HH_HL (Bullish). Momentum=STRENGTHENING. RSI=55.7.
+   - *15m*: Price=123.98 < EMA=124.11. RSI=47.8. Momentum=WEAKENING. Structure=RANGE.
+   - *3m*: Price=124.02 < EMA=124.12. RSI=40.6. MACD negative.
+   - *Counter Analysis*: HTF Bull, 15m Bear, 3m Bear. Alignment=STRONG. Total Met=2. Risk=MEDIUM_RISK. Volume=NORMAL (0.85).
+   - *Decision*: Counter-trend SHORT (against HTF Bull) has MEDIUM_RISK. HTF Structure is HH_HL (Bullish), Momentum Strengthening. This is a valid counter-trend setup with MEDIUM risk. Short slots available=1. I will execute SHORT.
+
+SUMMARY:
+- **DOGE**: Hold Short (valid, no reversal).
+- **SOL**: Open SHORT (Counter-trend, MEDIUM risk, Normal volume).
+- **XRP**: Wait for 3m alignment for LONG.
+- **ASTER**: Wait for volume.
+- **TRX**: Avoid (Overbought/Upper 10).
+
+
+==================================================
+CYCLE 135 - 2025-12-28T02:22:55.900566
+==================================================
+ACTION on TRX: buy_to_enter
+Decision Details: {
+  "signal": "buy_to_enter",
+  "leverage": 10,
+  "confidence": 0.675,
+  "profit_target": 0.2850526,
+  "stop_loss": 0.2833474,
+  "invalidation_condition": "If 1h price closes below 1h EMA20 * 0.998",
+  "tp_sl_source": "dynamic_atr",
+  "volume_quality_score": 20.0,
+  "volume_ratio_runtime": 0.3245,
+  "trend_runtime": "bullish",
+  "classification": "trend_following",
+  "trend_alignment": "trend_following",
+  "runtime_decision": "executed"
+}
+
+--- CHAIN OF THOUGHTS ---
+Market Regime Analysis: The global regime is BULLISH (4 bullish, 0 bearish, 2 neutral). However, the immediate counter-trade analysis shows a mix of signals. I must respect the position slots: SHORT is FULL (2/2 used), LONG is AVAILABLE (0/2 used). Constraint instruction: "If a direction is FULL, do NOT force trades in the other direction unless they are LOW_RISK or MEDIUM_RISK (High Confidence alone is NOT enough)."
+
+Asset Analysis:
+
+1. **XRP**: HTF Bullish, 15m Bullish, 3m Bullish. Alignment: NONE (total_met: 1). Risk Level: VERY_HIGH_RISK. Volume: WEAK (0.46). RSI 3m: 58.2. Trend is bullish but lacks alignment and volume. Risk is VERY HIGH. Do not trade.
+
+2. **DOGE**: HTF Bullish, 15m Bullish, 3m Bullish. Alignment: NONE (total_met: 1). Risk Level: VERY_HIGH_RISK. Volume: WEAK (0.58). RSI 3m: 63.4. **Current Position**: SHORT. Price is moving against the position (Entry 0.12382, Current 0.12407). Reversal Score: 0 (NONE). Erosion: NONE. Trend is bullish, but position is short. HTF is Bullish. I should evaluate if I need to close this. The trend is against me. However, 15m momentum is WEAKENING (from smart_sparkline). Zone: MIDDLE. No immediate reversal signals (score 0). I will hold for now but monitor closely. No new SHORT entry allowed (slots full). No LONG entry (Risk VERY HIGH).
+
+3. **ASTER**: HTF Bullish, 15m Bearish, 3m Bullish. Alignment: MEDIUM (total_met: 2). Risk Level: HIGH_RISK. Volume: STRONG (2.23). RSI 3m: 53.2. Mixed signals (15m bearish vs HTF bullish). Risk is HIGH. Do not trade.
+
+4. **TRX**: HTF Bullish, 15m Bearish, 3m Bearish. Alignment: STRONG (total_met: 3). Risk Level: LOW_RISK. Volume: STRONG (3.50). RSI 3m: 40.9. This is a valid counter-trend setup (trading AGAINST HTF Bullish). Risk Level is LOW_RISK. Constraint: SHORT slots are FULL. LONG slots are AVAILABLE. Since this is a valid LOW_RISK counter-trend LONG opportunity, and LONG slots are available, I can execute this. The strategy allows counter-trend if risk level is LOW_RISK.
+
+5. **ETH**: HTF Bullish, 15m Bullish, 3m Bullish. Alignment: NONE (total_met: 1). Risk Level: VERY_HIGH_RISK. Volume: NORMAL (1.10). RSI 3m: 55.6. Risk is VERY HIGH. Do not trade.
+
+6. **SOL**: HTF Bullish, 15m Bullish, 3m Bullish. Alignment: NONE (total_met: 1). Risk Level: VERY_HIGH_RISK. Volume: WEAK (0.40). RSI 3m: 54.2. **Current Position**: SHORT. Price is moving against (Entry 124.02, Current 124.20). Reversal Score: 0 (NONE). Erosion: NONE. HTF is Bullish. Trend is against position. 15m momentum is WEAKENING. I will hold for now as no reversal signals are present, but it's risky. No new trades.
+
+Summary of Actions:
+- **TRX**: Execute LONG (Counter-trend, LOW_RISK, slots available).
+- **DOGE**: HOLD (Short position, trend against, but no reversal signals yet).
+- **SOL**: HOLD (Short position, trend against, but no reversal signals yet).
+- **Others**: No trade due to VERY_HIGH_RISK or HIGH_RISK or slots full.
+
+Risk Check: Total positions will be 3 (DOGE short, SOL short, TRX long). Max is 5. OK.
+
+
+==================================================
+CYCLE 137 - 2025-12-28T02:30:51.962802
+==================================================
+ACTION on TRX: close_position
+Decision Details: {
+  "signal": "close_position",
+  "leverage": 10,
+  "confidence": 0.675,
+  "profit_target": 0.284,
+  "stop_loss": 0.2842,
+  "invalidation_condition": "Close due to UPPER_10_WEAKENING risk"
+}
+
+--- CHAIN OF THOUGHTS ---
+System Reset Analysis: I am currently in Cycle 3 (33 invocations total, but the system has been reset recently based on the context). I must apply 'Startup Behavior' rules. Cycles 1-3: Observe unless an exceptional, well-supported setup appears. I will hold existing positions but will not open new ones unless conditions are exceptional.
+
+**Current Positions:**
+1. **SOL (SHORT):** Entry 124.02, Current 124.19. PnL -1.21. Confidence 0.66. 1h Trend BULLISH (HTF BULLISH). This is a counter-trend trade (is_counter_trend: true). 15m structure is LH_LL (bearish) but momentum is WEAKENING. Volume ratio is very low (0.23). Risk level for counter-trend is VERY_HIGH_RISK (per COUNTER_TRADE_ANALYSIS). Since I am in Cycle 3, I should be cautious. However, the trade is already open. I will monitor for exit.
+2. **TRX (LONG):** Entry 0.2842, Current 0.284. PnL -0.63. Confidence 0.67. 1h Trend BULLISH (HTF BULLISH). This is trend-following. 1h RSI is 75.5 (OVERBOUGHT) and price is in UPPER_10. 15m momentum is WEAKENING. This triggers the 'UPPER_10_WEAKENING' rule: 'Consider exit. Close if 3m structure shows LH_LL'. 3m RSI is 39.4 (neutralizing). I should consider exiting TRX to protect capital.
+
+**New Entry Analysis (Startup Mode):**
+*   **XRP:** HTF BULLISH, 15m BULLISH, 3m BULLISH. Alignment: NONE. Risk Level: VERY_HIGH_RISK. Volume: WEAK (0.30). Rules: 'VERY_HIGH_RISK: For counter-trend: Do NOT trade. For TREND-FOLLOWING: This risk level does NOT apply - proceed normally.' Wait, the rule says 'For TREND-FOLLOWING: This risk level does NOT apply'. However, the system warns 'Startup Behavior: Observe unless an exceptional, well-supported setup appears'. Is this exceptional? Volume is weak. Alignment is NONE. I will HOLD.
+*   **ASTER:** HTF BULLISH, 15m BEARISH, 3m BEARISH. Alignment: STRONG. Risk Level: MEDIUM_RISK. Volume: WEAK (0.19). This is a counter-trend SHORT (against HTF BULLISH). MEDIUM_RISK requires confidence > 0.65. In Startup mode, I should prefer HOLD.
+*   **ETH:** HTF BULLISH, 15m BULLISH, 3m BULLISH. Alignment: NONE. Risk Level: VERY_HIGH_RISK. Volume: WEAK. HOLD.
+
+**Constraints:**
+*   Long slots used: 1 (TRX). Long slots available: 1.
+*   Short slots used: 1 (SOL). Short slots available: 1.
+*   Cooldowns: Short direction has 3 losses (Cooldown active). I cannot open new SHORTs.
+
+**Decision:**
+1.  **TRX:** Exit LONG. Reason: UPPER_10_WEAKENING rule applies (1h price at upper 10%, 15m momentum weakening). This is a valid exit signal to protect against pullback.
+2.  **SOL:** Hold SHORT. Reason: It is counter-trend but already open. The 15m structure is LH_LL (bearish), supporting the short. However, volume is weak. I will hold but monitor closely.
+3.  **New Entries:** None. Startup cycle + Short cooldown + Mixed/Weak signals.
+

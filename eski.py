@@ -5,76 +5,55 @@ from openai import OpenAI
 from config.config import Config
 from src.utils import RetryManager, safe_file_read
 
-# Try to import Gemini SDK
-try:
-    from google import genai
-    from google.genai import types
-    GEMINI_AVAILABLE = True
-except ImportError:
-    GEMINI_AVAILABLE = False
-
 # HTF_INTERVAL used in prompt, we can get it from Config
 HTF_INTERVAL = getattr(Config, 'HTF_INTERVAL', '1h') or '1h'
 HTF_LABEL = HTF_INTERVAL
 
 class DeepSeekAPI:
-    """AI API integration with MiMo/Z.AI/DeepSeek support"""
+    """AI API integration with MiMo/DeepSeek support"""
 
     def __init__(self, api_key: str = None):
-        # Check for MiMo API key first (priority)
-        mimo_key = getattr(Config, 'MIMO_API_KEY', None)
-        zai_key = getattr(Config, 'ZAI_API_KEY', None)
+        # Check for MiMo API first (priority)
+        self.use_mimo = getattr(Config, 'USE_MIMO', False)
         
-        self.gemini_client = None
-        self.client = None
-        
-        if mimo_key:
-            # Use MiMo (Xiaomi AI - fast and free)
-            self.api_key = mimo_key
+        if self.use_mimo:
+            # MiMo API Configuration
+            self.api_key = getattr(Config, 'MIMO_API_KEY', None)
             self.base_url = "https://api.xiaomimimo.com/v1"
-            self.model = getattr(Config, 'MIMO_MODEL', 'mimo-v2-flash')
+            self.model = getattr(Config, 'MIMO_MODEL', 'MiMo-7B-RL')
             self.provider = "MiMo"
-            self.thinking_enabled = getattr(Config, 'MIMO_THINKING_ENABLED', False)
-            print(f"🤖 Using MiMo API with model: {self.model}")
-            self.client = OpenAI(
-                api_key=self.api_key, 
-                base_url=self.base_url,
-                timeout=180.0,
-                max_retries=2
-            )
-        elif zai_key:
-            # Use Z.AI (GLM models with thinking support)
-            self.api_key = zai_key
-            self.base_url = "https://api.z.ai/api/paas/v4/"
-            self.model = getattr(Config, 'ZAI_MODEL', 'glm-4.5-flash')
-            self.provider = "Z.AI"
-            self.thinking_enabled = getattr(Config, 'ZAI_THINKING_ENABLED', True)
-            print(f"🧠 Using Z.AI API with model: {self.model} (thinking: {self.thinking_enabled})")
-            self.client = OpenAI(
-                api_key=self.api_key, 
-                base_url=self.base_url,
-                timeout=180.0,
-                max_retries=2
-            )
+            
+            if not self.api_key:
+                print("❌ MIMO_API_KEY not found!")
+                print("ℹ️  Please check your .env file configuration.")
+                self.client = None
+            else:
+                print(f"🤖 Using MiMo API ({self.model})")
+                self.client = OpenAI(
+                    api_key=self.api_key,
+                    base_url=self.base_url,
+                    timeout=180.0,
+                    max_retries=2
+                )
         else:
-            # Fallback to DeepSeek
+            # DeepSeek API (default)
             self.api_key = api_key or Config.DEEPSEEK_API_KEY
             self.base_url = "https://api.deepseek.com"
             self.model = "deepseek-chat"
             self.provider = "DeepSeek"
-            self.thinking_enabled = False
             
-            if self.api_key:
+            if not self.api_key:
+                print("❌ DEEPSEEK_API_KEY not found!")
+                print("ℹ️  Please check your .env file configuration.")
+                self.client = None
+            else:
+                print("🤖 Using DeepSeek API")
                 self.client = OpenAI(
                     api_key=self.api_key, 
                     base_url=self.base_url,
                     timeout=180.0,
                     max_retries=2
                 )
-        
-        if not self.api_key:
-            print("❌ No API key found! Set MIMO_API_KEY, ZAI_API_KEY or DEEPSEEK_API_KEY in .env")
-            print("ℹ️  Please check your .env file configuration.")
 
     def _build_system_prompt(self) -> str:
         """
@@ -86,7 +65,7 @@ class DeepSeekAPI:
                 "role": "Zero-shot systematic trading model",
                 "competition": "Alpha Arena",
                 "objective": "Maximize PnL via perpetual futures trading",
-                "assets": ["XRP", "DOGE", "ASTER", "TRX", "ETH", "SOL"],
+                "assets": ["XRP", "DOGE", "ASTER", "TRX", "LINK", "SOL"],
                 "capital_settings": {
                     "initial_balance": Config.INITIAL_BALANCE
                 }
@@ -132,9 +111,19 @@ class DeepSeekAPI:
                             "MEDIUM_RISK": "STRONG+1-2 OR MEDIUM+3 conditions. EXECUTE if confidence > 0.65.",
                             "HIGH_RISK": "MEDIUM alignment + <3 conditions. Evaluate carefully, prefer HOLD.",
                             "VERY_HIGH_RISK": "No alignment for COUNTER-TREND (all timeframes follow HTF). For counter-trend: Do NOT trade. For TREND-FOLLOWING: This risk level does NOT apply - proceed normally."
+                        },
+                    },
+                    "volume_rule": {
+                        "threshold": "volume_ratio < 0.20 = LOW",
+                        "for_entry": "Do NOT enter with LOW volume.",
+                        "for_exit": "LOW volume ≠ exit signal.",
+                        "labels": {
+                            "excellent": "> 2.5x",
+                            "good": "> 1.8x",
+                            "fair": "> 1.2x",
+                            "poor": "< 0.7x"
                         }
                     },
-                    # NOTE: Volume filtering is handled by runtime code - removed from prompt to avoid AI confusion
                     "momentum_conviction_rule": {
                         "description": "How 15m momentum quality affects entry timing",
                         "STRENGTHENING": "Trend accelerating. Proceed with entry normally.",
@@ -145,13 +134,13 @@ class DeepSeekAPI:
                         "description": "CRITICAL RULE: Zone + WEAKENING combination signals trend exhaustion",
                         "UPPER_10_WEAKENING": {
                             "for_LONG_entry": "DO NOT open LONG. Trend exhausted at highs. Prefer HOLD or evaluate SHORT.",
-                            "for_LONG_exit": "Consider exit. Close if 15m structure shows LH_LL (lower highs, lower lows).",
+                            "for_LONG_exit": "Consider exit. Close if 3m structure shows LH_LL (lower highs, lower lows).",
                             "for_SHORT_entry": "GOOD counter-trend opportunity. Proceed with SHORT if conditions align.",
                             "for_SHORT_exit": "SHORT is SAFE at UPPER_10. Continue holding - trend favorably exhausting."
                         },
                         "LOWER_10_WEAKENING": {
                             "for_SHORT_entry": "DO NOT open SHORT. Trend exhausted at lows. Prefer HOLD or evaluate LONG.",
-                            "for_SHORT_exit": "Consider exit. Close if 15m structure shows HH_HL (higher highs, higher lows).",
+                            "for_SHORT_exit": "Consider exit. Close if 3m structure shows HH_HL (higher highs, higher lows).",
                             "for_LONG_entry": "GOOD counter-trend opportunity. Proceed with LONG if conditions align.",
                             "for_LONG_exit": "LONG is SAFE at LOWER_10. Continue holding - trend favorably exhausting."
                         }
@@ -171,31 +160,37 @@ class DeepSeekAPI:
                             "for_LONG_exit": "Consider exit. Momentum against."
                         }
                     },
-                    "volume_rule": {
-                        "threshold": "volume_ratio < 0.20 = LOW",
-                        "for_entry": "Do NOT enter with LOW volume.",
-                        "for_exit": "LOW volume ≠ exit signal.",
-                        "labels": {
-                            "excellent": "> 2.5x",
-                            "good": "> 1.8x",
-                            "fair": "> 1.2x",
-                            "poor": "< 0.7x"
-                        }
-                    }
+                    # DISABLED FOR A/B TESTING (zone+weakening remains active)
+                    # "zone_rsi_extreme_rule": {
+                    #     "description": "CRITICAL RULE: Zone + RSI extreme combination signals high reversal probability",
+                    #     "check_condition": "15m RSI and price_location",
+                    #     "LOWER_10_RSI_OVERSOLD": {
+                    #         "condition": "price_location = LOWER_10 AND RSI < 30",
+                    #         "for_SHORT_entry": "HIGH RISK for SHORT. Bounce probability high. Prefer HOLD or evaluate LONG.",
+                    #         "for_SHORT_exit": "If you have SHORT: signal close_position immediately. Bounce imminent.",
+                    #         "for_LONG_entry": "GOOD counter-trend opportunity. Proceed with LONG if volume supports.",
+                    #         "for_LONG_exit": "LONG is SAFE at oversold. Continue holding."
+                    #     },
+                    #     "UPPER_10_RSI_OVERBOUGHT": {
+                    #         "condition": "price_location = UPPER_10 AND RSI > 70",
+                    #         "for_LONG_entry": "HIGH RISK for LONG. Pullback probability high. Prefer HOLD or evaluate SHORT.",
+                    #         "for_LONG_exit": "If you have LONG: signal close_position immediately. Pullback imminent.",
+                    #         "for_SHORT_entry": "GOOD counter-trend opportunity. Proceed with SHORT if volume supports.",
+                    #         "for_SHORT_exit": "SHORT is SAFE at overbought. Continue holding."
+                    #     }
+                    # }
                 },
                 "exit_logic": {
                     "reversal_warning": {
                         "applicability": "Applies ONLY to EXISTING positions. Do NOT use for entries.",
-                        "definition": "Weighted scoring of signals AGAINST your current position.",
-                        "score_weights": "HTF(+3), 15m_structure(+3), 15m_momentum(+2), 3m(+1), RSI(+1), MACD(+1)",
-                        "action": "Consider closing based on strength level and PnL."
+                        "definition": "Momentum moving AGAINST your current position.",
+                        "strong_signal": "15m + 3m BOTH show reversal against position.",
+                        "action": "Consider closing ONLY if PnL is negative or thesis invalidated. Do NOT exit on weak 3m reversals alone."
                     },
                     "reversal_strength_definitions": {
-                        "NONE": "No reversal signals (score 0). Continue normally.",
-                        "WEAK": "Minor signals (score 1-2). Informational only.",
-                        "MODERATE": "Notable signals (score 3-4). Monitor closely.",
-                        "STRONG": "Significant signals (score 5-7). Consider exit if PnL negative.",
-                        "CRITICAL": "Multiple strong signals (score 8+). Urgent exit review."
+                        "STRONG": f"15m + 3m BOTH show reversal against position (but {HTF_LABEL} doesn't). Consider closing.",
+                        "MEDIUM": "Only 15m shows reversal against position. Monitor closely, protect profits if any.",
+                        "INFORMATIONAL": "Only 3m shows reversal against position. May be noise, continue watching."
                     },
                     "profit_erosion_rules": {
                         "description": "Rules for protecting profits based on peak_pnl erosion tracking",
@@ -250,28 +245,10 @@ class DeepSeekAPI:
                     "description": "Price pattern analysis. HTF (1h) includes full data (24h), 15m includes structure+momentum+price_location (6h).",
                     "key_level": "Nearest support or resistance (HTF only). strength = how many times tested (1-5). distance_pct = distance from price.",
                     "structure": {
-                        "HH_HL": {
-                            "meaning": "Higher Highs + Higher Lows",
-                            "interpretation": "Bullish price structure. Uptrend intact."
-                        },
-                        "LH_LL": {
-                            "meaning": "Lower Highs + Lower Lows",
-                            "interpretation": "Bearish price structure. Downtrend intact."
-                        },
-                        "RANGE": {
-                            "meaning": "Price consolidating in tight range",
-                            "interpretation": "Breakout pending. Check bb_squeeze for timing."
-                        },
-                        "UNCLEAR": {
-                            "meaning": "No clear pattern",
-                            "interpretation": "Rely on other indicators."
-                        }
-                    },
-                    "structure_alignment": {
-                        "description": "Multi-timeframe structure comparison",
-                        "both_HH_HL": "Maximum bullish alignment (1h + 15m agree).",
-                        "both_LH_LL": "Maximum bearish alignment (1h + 15m agree).",
-                        "conflict": "Timeframes disagree - caution advised."
+                        "HH_HL": "Higher Highs + Higher Lows = Bullish structure",
+                        "LH_LL": "Lower Highs + Lower Lows = Bearish structure",
+                        "RANGE": "Price consolidating, potential breakout",
+                        "UNCLEAR": "No clear pattern"
                     },
                     "momentum": "STRENGTHENING (trend accelerating) | STABLE | WEAKENING (trend losing steam)",
                     "price_location": {
@@ -286,55 +263,7 @@ class DeepSeekAPI:
                     },
                     "usage": "Use 15m data for shorter-term confirmation. Check price_location on both 1h and 15m when deciding entries."
                 },
-                "tags": "Analytical labels (e.g., 'Vol_High', 'RSI_Overbought'). Use as confirmation.",
-                # ==================== NEW INDICATOR DEFINITIONS (v5.0) ====================
-                "adx": {
-                    "description": "Average Directional Index - trend STRENGTH measurement (0-100)",
-                    "interpretation": {
-                        "NO_TREND (0-15)": "No directional trend. Market ranging or choppy.",
-                        "WEAK (15-25)": "Trend starting to form but not confirmed.",
-                        "MODERATE (25-40)": "Trend present and confirmed.",
-                        "STRONG (40+)": "Strong directional trend in progress."
-                    },
-                    "note": "ADX does NOT show direction, only strength. Use +DI/-DI or price vs EMA for direction."
-                },
-                "vwap": {
-                    "description": "Volume Weighted Average Price (Rolling 4-hour)",
-                    "interpretation": {
-                        "ABOVE": "Price above institutional fair value.",
-                        "BELOW": "Price below institutional fair value."
-                    }
-                },
-                "bollinger_bands": {
-                    "description": "Volatility bands (2 std dev from 20-period SMA)",
-                    "bb_squeeze": "TRUE means volatility compressed - potential breakout imminent.",
-                    "bb_signal": {
-                        "OVERBOUGHT": "Price above upper band.",
-                        "OVERSOLD": "Price below lower band.",
-                        "NORMAL": "Price within bands."
-                    }
-                },
-                "obv": {
-                    "description": "On Balance Volume - cumulative volume flow",
-                    "obv_trend": {
-                        "RISING": "Volume accumulating (bullish).",
-                        "FALLING": "Volume distributing (bearish).",
-                        "FLAT": "No significant volume trend."
-                    },
-                    "obv_divergence": {
-                        "BULLISH": "Price down but volume accumulating - potential reversal up.",
-                        "BEARISH": "Price up but volume distributing - potential reversal down.",
-                        "NONE": "No divergence."
-                    }
-                },
-                "supertrend": {
-                    "description": "ATR-based trend indicator",
-                    "direction": {
-                        "UP": "Bullish trend signal.",
-                        "DOWN": "Bearish trend signal."
-                    }
-                }
-                # ==================== END NEW INDICATOR DEFINITIONS ====================
+                "tags": "Analytical labels (e.g., 'Vol_High', 'RSI_Overbought'). Use as confirmation."
             },
             "response_schema": {
                 "format": "JSON",
@@ -356,7 +285,7 @@ class DeepSeekAPI:
                     "style": "Advanced Style",
                     "input_context": "Market data showing mixed signals...",
                     "output_example": {
-                        "CHAIN_OF_THOUGHTS": f"Advanced systematic analysis of all assets using {HTF_LABEL} (1h) trends, 15m momentum confirmation, and 3m entry timing.\\n\\nXRP: 1h bullish (price=0.54 > EMA20=0.52, RSI 62.5, ADX 32 MODERATE), 15m bullish (RSI 58, structure HH_HL, momentum STRENGTHENING), 3m bullish (RSI 60). All timeframes aligned bullish with volume ratio 1.2x. SuperTrend UP confirms direction. Price near support@0.52 adds confluence. Targeting $0.56.\\n\\nSOL: 1h bearish (ADX 35), 15m bearish, 3m bearish. Volume 0.85x (normal), OBV trend FALLING confirms. Strong trend-following SHORT setup.\\n\\nTRX: 1h bullish, 15m neutral, 3m bearish. ADX 18 WEAK (no clear trend). Mixed signals, near resistance. HOLD.\\n\\nDOGE: 1h bullish but RSI 72 (overbought), price_location UPPER_10, bb_signal OVERBOUGHT. Momentum WEAKENING. Zone_weakening rule: DO NOT LONG. HOLD.\\n\\nLINK: Volume ratio 0.15x (< 0.20). DO NOT TRADE per hard rule.\\n\\nASTER: Structure=RANGE, bb_squeeze=true (volatility compressed). No clear edge. HOLD.",
+                        "CHAIN_OF_THOUGHTS": f"Advanced systematic analysis of all assets using {HTF_LABEL} (1h) trends, 15m momentum confirmation, and 3m entry timing.\n\nXRP: 1h bullish (price=0.54 > EMA20=0.52, RSI 62.5), 15m bullish (RSI 58), 3m bullish (RSI 60). All three timeframes aligned bullish with volume ratio 1.2x. Price near support@0.52 (tested 3x) adds confluence. Open Interest increasing. Targeting $0.56 with stop below $0.48.\n\nSOL: 1h bearish, 15m bearish, 3m bearish. Volume 0.85x (normal). Strong trend-following SHORT setup.\n\nTRX: 1h bullish, 15m neutral, 3m bearish. Mixed signals, near resistance level. HOLD.\n\nDOGE: 1h bullish but RSI 72 (overbought). Momentum weakening. Waiting for pullback.\n\nLINK: Volume ratio 0.15x (< 0.20 threshold). DO NOT TRADE per hard rule.\n\nASTER: Structure=RANGE (consolidation), no clear directional edge. HOLD.",
                         "DECISIONS": {
                             "XRP": {
                                 "signal": "buy_to_enter",
@@ -376,7 +305,7 @@ class DeepSeekAPI:
                             },
                             "TRX": { "signal": "hold" },
                             "DOGE": { "signal": "hold" },
-                            "ETH": { "signal": "hold" },
+                            "LINK": { "signal": "hold" },
                             "ASTER": { "signal": "hold" }
                         }
                     }
@@ -386,11 +315,7 @@ class DeepSeekAPI:
         return json.dumps(system_structure) 
 
     def get_ai_decision(self, prompt: str) -> str:
-        """Get trading decision from AI API using structured JSON prompting"""
-        # Check if using Gemini
-        if self.provider == "Gemini" and self.gemini_client:
-            return self._get_gemini_decision(prompt)
-        
+        """Get trading decision from DeepSeek API using structured JSON prompting"""
         if not self.client:
             return self._get_simulation_response(prompt)
 
@@ -401,10 +326,9 @@ class DeepSeekAPI:
 
             print(f"🔄 Sending request to {self.provider} API (JSON Mode)... Payload Size: {len(prompt)} chars")
             
-            # Build request parameters
-            request_params = {
-                "model": self.model,
-                "messages": [
+            stream = self.client.chat.completions.create(
+                model=self.model,
+                messages=[
                     {
                         "role": "system", 
                         "content": self._build_system_prompt()
@@ -414,35 +338,22 @@ class DeepSeekAPI:
                         "content": user_message_content
                     }
                 ],
-                "temperature": 0.5,
-                "max_tokens": 4000,
-                "response_format": { "type": "json_object" },
-                "stream": True
-            }
-            
-            # Add thinking support for Z.AI
-            if self.provider == "Z.AI" and self.thinking_enabled:
-                request_params["temperature"] = 1.0  # Required for thinking mode
-                request_params["extra_body"] = {
-                    "thinking": {
-                        "type": "enabled"
-                    }
-                }
-            
-            stream = self.client.chat.completions.create(**request_params)
+                temperature=0.5,
+                max_tokens=4000,
+                response_format={ "type": "json_object" },
+                stream=True
+            )
 
             print("⏳ Receiving stream...", end="", flush=True)
             collected_content = []
             for chunk in stream:
-                # Safe access - check if choices exists and has content
-                if hasattr(chunk, 'choices') and chunk.choices and len(chunk.choices) > 0:
-                    delta = chunk.choices[0].delta
-                    if hasattr(delta, 'content') and delta.content:
-                        content_chunk = delta.content
-                        collected_content.append(content_chunk)
-                        # Optional: Print a dot every 10 chunks to show activity
-                        if len(collected_content) % 10 == 0:
-                            print(".", end="", flush=True)
+                # Safe access for MiMo API which may return empty choices
+                if chunk.choices and len(chunk.choices) > 0 and chunk.choices[0].delta.content:
+                    content_chunk = chunk.choices[0].delta.content
+                    collected_content.append(content_chunk)
+                    # Optional: Print a dot every 100 chars to show activity
+                    if len(collected_content) % 10 == 0:
+                        print(".", end="", flush=True)
             
             print(" ✅")
             content = "".join(collected_content)
@@ -463,137 +374,21 @@ class DeepSeekAPI:
                     content = json.dumps(obj, indent=2)
                 else:
                     print("⚠️ No JSON object found in response")
-                    # Return safe hold response when no valid JSON found
-                    return self.get_safe_hold_decisions()
                     
             except Exception as e:
                 print(f"⚠️ JSON extraction warning: {e}")
-                
-                # Try to repair common JSON issues
-                try:
-                    # Fix unterminated strings by finding the last complete JSON structure
-                    repaired = content
-                    
-                    # Count braces to find complete JSON
-                    brace_count = 0
-                    last_valid_pos = 0
-                    in_string = False
-                    escape_next = False
-                    
-                    for i, char in enumerate(repaired):
-                        if escape_next:
-                            escape_next = False
-                            continue
-                        if char == '\\':
-                            escape_next = True
-                            continue
-                        if char == '"' and not escape_next:
-                            in_string = not in_string
-                        if not in_string:
-                            if char == '{':
-                                brace_count += 1
-                            elif char == '}':
-                                brace_count -= 1
-                                if brace_count == 0:
-                                    last_valid_pos = i + 1
-                    
-                    if last_valid_pos > 0:
-                        repaired = repaired[:last_valid_pos]
-                        obj = json.loads(repaired)
-                        print(f"✅ JSON repaired successfully (truncated at pos {last_valid_pos})")
-                        return json.dumps(obj, indent=2)
-                except:
-                    pass
-                
                 # Fallback: try stripping markdown if extraction failed
                 if "```json" in content:
                     content = content.replace("```json", "").replace("```", "")
                 elif "```" in content:
                     content = content.replace("```", "")
-                
-                # Final validation - if still not valid JSON, return safe hold
-                try:
-                    json.loads(content)
-                except:
-                    print(f"🚨 JSON parse failed completely, returning safe HOLD decisions")
-                    return self.get_safe_hold_decisions()
             
             return content.strip()
 
         except Exception as e:
             # Detailed error logging
             error_type = type(e).__name__
-            print(f"❌ API error ({error_type}): {e}")
-            return self._get_error_response(f"{error_type}: {e}")
-
-    def _get_gemini_decision(self, prompt: str) -> str:
-        """Get trading decision from Gemini API with thinking support"""
-        try:
-            # Build the full prompt with system context
-            system_prompt = self._build_system_prompt()
-            user_message = f"Analyze the following market data JSON and provide decisions based on the system rules:\n\n{prompt}"
-            full_prompt = f"{system_prompt}\n\n{user_message}\n\nRespond with valid JSON only."
-            
-            print(f"🔄 Sending request to Gemini API... Payload Size: {len(prompt)} chars")
-            
-            # Build content
-            contents = [
-                types.Content(
-                    role="user",
-                    parts=[types.Part.from_text(text=full_prompt)],
-                )
-            ]
-            
-            # Configure thinking level and structured output
-            thinking_level = getattr(self, 'thinking_level', 'HIGH')
-            generate_config = types.GenerateContentConfig(
-                temperature=0.5,
-                thinking_config=types.ThinkingConfig(
-                    thinking_level=thinking_level,
-                ),
-                response_mime_type="application/json",  # Structured JSON output
-            )
-            
-            print("⏳ Receiving stream...", end="", flush=True)
-            collected_content = []
-            
-            for chunk in self.gemini_client.models.generate_content_stream(
-                model=self.model,
-                contents=contents,
-                config=generate_config,
-            ):
-                if chunk.text:
-                    collected_content.append(chunk.text)
-                    if len(collected_content) % 5 == 0:
-                        print(".", end="", flush=True)
-            
-            print(" ✅")
-            content = "".join(collected_content)
-            
-            # Extract JSON from response
-            try:
-                start_index = content.find('{')
-                if start_index != -1:
-                    json_candidate = content[start_index:]
-                    decoder = json.JSONDecoder()
-                    obj, _ = decoder.raw_decode(json_candidate)
-                    content = json.dumps(obj, indent=2)
-                else:
-                    print("⚠️ No JSON object found in Gemini response")
-                    return self.get_safe_hold_decisions()
-            except Exception as e:
-                print(f"⚠️ Gemini JSON extraction warning: {e}")
-                # Try to clean up
-                if "```json" in content:
-                    content = content.replace("```json", "").replace("```", "")
-                elif "```" in content:
-                    content = content.replace("```", "")
-            
-            return content.strip()
-            
-        except Exception as e:
-            error_type = type(e).__name__
-            print(f"❌ Gemini API error ({error_type}): {e}")
+            print(f"❌ {self.provider} API error ({error_type}): {e}")
             return self._get_error_response(f"{error_type}: {e}")
 
     def _get_simulation_response(self, prompt: str) -> str:
@@ -614,7 +409,7 @@ class DeepSeekAPI:
                 "TRX": { "signal": "hold" },
                 "DOGE": { "signal": "hold" },
                 "ASTER": { "signal": "hold" },
-                "ETH": { "signal": "hold" }
+                "LINK": { "signal": "hold" }
             }
         }
         return json.dumps(simulation_data, indent=2)
@@ -648,7 +443,7 @@ class DeepSeekAPI:
         """Generate safe hold decisions for all coins - Returns valid JSON string"""
         print("🛡️ Generating safe hold decisions")
         hold_decisions = {}
-        for coin in ['XRP', 'DOGE', 'ASTER', 'TRX', 'ETH', 'SOL']:
+        for coin in ['XRP', 'DOGE', 'ASTER', 'TRX', 'LINK', 'SOL']:
             hold_decisions[coin] = {"signal": "hold", "justification": "Safe mode: Holding due to API error"}
         
         safe_response = {

@@ -145,13 +145,13 @@ class DeepSeekAPI:
                         "description": "CRITICAL RULE: Zone + WEAKENING combination signals trend exhaustion",
                         "UPPER_10_WEAKENING": {
                             "for_LONG_entry": "DO NOT open LONG. Trend exhausted at highs. Prefer HOLD or evaluate SHORT.",
-                            "for_LONG_exit": "Consider exit. Close if 15m structure shows LH_LL (lower highs, lower lows).",
+                            "for_LONG_exit": "Consider exit. Close if 3m structure shows LH_LL (lower highs, lower lows).",
                             "for_SHORT_entry": "GOOD counter-trend opportunity. Proceed with SHORT if conditions align.",
                             "for_SHORT_exit": "SHORT is SAFE at UPPER_10. Continue holding - trend favorably exhausting."
                         },
                         "LOWER_10_WEAKENING": {
                             "for_SHORT_entry": "DO NOT open SHORT. Trend exhausted at lows. Prefer HOLD or evaluate LONG.",
-                            "for_SHORT_exit": "Consider exit. Close if 15m structure shows HH_HL (higher highs, higher lows).",
+                            "for_SHORT_exit": "Consider exit. Close if 3m structure shows HH_HL (higher highs, higher lows).",
                             "for_LONG_entry": "GOOD counter-trend opportunity. Proceed with LONG if conditions align.",
                             "for_LONG_exit": "LONG is SAFE at LOWER_10. Continue holding - trend favorably exhausting."
                         }
