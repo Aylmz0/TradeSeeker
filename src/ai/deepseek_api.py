@@ -105,7 +105,7 @@ class DeepSeekAPI:
                     "risk_reward_ratio": "Maintain a positive risk/reward ratio.",
                     "stop_loss_basis": "Logical technical level (e.g., recent support/resistance or ATR-based).",
                     "invalidation_requirement": "Must be explicit and INCLUDE A 0.2% BUFFER to prevent wick-outs (e.g., 'Close if price < EMA20 * 0.998' for LONG, '... > EMA20 * 1.002' for SHORT).",
-                    "CRITICAL_WARNING": "System has a HARD MARGIN STOP LOSS. Do NOT rely on wider stops."
+                    "CRITICAL_WARNING": "System handles TP/SL calculation. Your job is purely LOGIC: Signal, Confidence, and Invalidation."
                 }
             },
             "strategy": {
@@ -223,7 +223,7 @@ class DeepSeekAPI:
                 "Apply long and short strategies across all coins; choose the direction that offers the superior quantified edge.",
                 "Monitor volume vs. average volume, Open Interest, and Funding to measure conviction.",
                 "Employ multi-timeframe technical analysis (EMA, RSI, MACD, ATR, etc.).",
-                "Keep take-profit/stop-loss targets responsive and logical.",
+                "Keep valid invalidation conditions (structural breaks).",
                 "Manage exits proactively; do not wait for targets if data invalidates the thesis.",
                 "High-confidence setups (0.7-0.8+) justify higher exposure within risk limits.",
                 "Consider both trend-following and counter-trend opportunities equally; choose the setup with the best quantified edge.",
@@ -343,41 +343,44 @@ class DeepSeekAPI:
                 "DECISIONS": {
                     "COIN_TICKER": {
                         "signal": "buy_to_enter | sell_to_enter | hold | close_position",
+                        "strategy": "trend_following | counter_trend | risk_management",
                         "leverage": 10,
                         "confidence": "float (0.0-1.0)",
-                        "profit_target": "float",
-                        "stop_loss": "float",
                         "invalidation_condition": "string"
                     }
                 }
             },
             "few_shot_examples": [
                 {
-                    "style": "Advanced Style",
-                    "input_context": "Market data showing mixed signals...",
+                    "style": "Sherlock Holmes Style - Dense Data & Strict Logic",
+                    "input_context": "Market data including Erosion, Reversal, and Counter-Trade Analysis...",
                     "output_example": {
-                        "CHAIN_OF_THOUGHTS": f"Advanced systematic analysis of all assets using {HTF_LABEL} (1h) trends, 15m momentum confirmation, and 3m entry timing.\\n\\nXRP: 1h bullish (price=0.54 > EMA20=0.52, RSI 62.5, ADX 32 MODERATE), 15m bullish (RSI 58, structure HH_HL, momentum STRENGTHENING), 3m bullish (RSI 60). All timeframes aligned bullish with volume ratio 1.2x. SuperTrend UP confirms direction. Price near support@0.52 adds confluence. Targeting $0.56.\\n\\nSOL: 1h bearish (ADX 35), 15m bearish, 3m bearish. Volume 0.85x (normal), OBV trend FALLING confirms. Strong trend-following SHORT setup.\\n\\nTRX: 1h bullish, 15m neutral, 3m bearish. ADX 18 WEAK (no clear trend). Mixed signals, near resistance. HOLD.\\n\\nDOGE: 1h bullish but RSI 72 (overbought), price_location UPPER_10, bb_signal OVERBOUGHT. Momentum WEAKENING. Zone_weakening rule: DO NOT LONG. HOLD.\\n\\nLINK: Volume ratio 0.15x (< 0.20). DO NOT TRADE per hard rule.\\n\\nASTER: Structure=RANGE, bb_squeeze=true (volatility compressed). No clear edge. HOLD.",
+                        "CHAIN_OF_THOUGHTS": "Systematic execution: 1h Trend + 15m Momentum/Structure + 3m Timing + Risk Guardrails. Logic precedes decision.\\n\\nXRP: 1h Bullish (Price $0.54 > EMA20 $0.52, RSI 62, ADX 32 MODERATE). 15m Bullish (Structure HH_HL, Momentum STRENGTHENING). 3m Bullish (RSI 60). Confluence: SuperTrend UP + Volume 1.2x (Strong). Analysis: Perfect alignment across all timeframes. Risk: Erosion NONE. Decision: BUY_TO_ENTER (High Confidence Trend Follow).\\n\\nSOL (OPEN LONG): 1h Bearish (ADX 35 STRONG, Bullish Trend Broken). 15m Bearish (Structure LH_LL). Position Risk: Erosion SIGNIFICANT (Status: 50% drawdown). Reversal Score: MEDIUM (4/10). Rule: SIGNIFICANT Erosion + MEDIUM Reversal = Hard Close. Decision: CLOSE_POSITION (Preserve Capital).\\n\\nTRX: 1h Bullish. 15m Bearish (Deep Pullback). 3m Bearish (RSI 28 OVERSOLD). Context: Price at Bollinger Lower Band + Positive Funding. logic: Mean reversion setup within Bullish HTF trend. Counter-Trend Risk Level: LOW_RISK (Band Extreme + Support). Decision: SELL_TO_ENTER (Counter-Trend Short).\\n\\nDOGE: 1h Bullish but Price Location UPPER_10 (Resistance). 15m Momentum WEAKENING. Sparkline Tags: 'Vol_Low'. Logic: Buying at resistance w/ weak momentum = Bull Trap Risk. Decision: HOLD.\\n\\nASTER: Volume Ratio 0.15x (< 0.20 Hard Filter). BB Squeeze (Low Volatility). Decision: HOLD (No Edge).",
                         "DECISIONS": {
                             "XRP": {
                                 "signal": "buy_to_enter",
+                                "strategy": "trend_following",
                                 "leverage": 10,
-                                "confidence": 0.75,
-                                "profit_target": 0.56,
-                                "stop_loss": 0.48,
-                                "invalidation_condition": f"If {HTF_LABEL} price closes below {HTF_LABEL} EMA20 * 0.998"
+                                "confidence": 0.90,
+                                "invalidation_condition": "Close if 15m structure breaks to LH_LL or Price < EMA20"
                             },
                             "SOL": {
-                                "signal": "sell_to_enter",
+                                "signal": "close_position",
+                                "strategy": "risk_management",
                                 "leverage": 10,
-                                "confidence": 0.75,
-                                "profit_target": 185.0,
-                                "stop_loss": 198.0,
-                                "invalidation_condition": f"If {HTF_LABEL} price closes above {HTF_LABEL} EMA20 * 1.002"
+                                "confidence": 0.95,
+                                "invalidation_condition": "Profit Erosion > 50% limit breached"
                             },
-                            "TRX": { "signal": "hold" },
+                            "TRX": {
+                                "signal": "sell_to_enter",
+                                "strategy": "counter_trend",
+                                "leverage": 10,
+                                "confidence": 0.70,
+                                "invalidation_condition": "Close if price breaks above recent swing high"
+                            },
                             "DOGE": { "signal": "hold" },
-                            "ETH": { "signal": "hold" },
-                            "ASTER": { "signal": "hold" }
+                            "ASTER": { "signal": "hold" },
+                            "ETH": { "signal": "hold" }
                         }
                     }
                 }
@@ -606,8 +609,6 @@ class DeepSeekAPI:
                     "signal": "sell_to_enter",
                     "leverage": 10,
                     "confidence": 0.65,
-                    "profit_target": 185.0,
-                    "stop_loss": 198.0,
                     "invalidation_condition": "If price closes above 199.0"
                 },
                 "XRP": { "signal": "hold" },

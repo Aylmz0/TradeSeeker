@@ -285,64 +285,7 @@ class PortfolioManager:
             merged[coin] = merged_pos
         return merged
 
-    def _update_erosion_stats(self, position: Dict[str, Any], current_price: float) -> None:
-        """
-        Update Peak PnL and Erosion tracking for a position.
-        
-        This enables the AI to detect profit erosion scenarios where a trade
-        was highly profitable but is now giving back gains.
-        
-        Updates position dict in-place with:
-        - peak_pnl: Highest unrealized profit reached ($)
-        - erosion_pct: Percentage of peak profit eroded (0.0-1.0+)
-        - erosion_status: NONE, MINOR, SIGNIFICANT, CRITICAL
-        """
-        if not position or not isinstance(current_price, (int, float)) or current_price <= 0:
-            return
-        
-        entry_price = position.get('entry_price', 0)
-        quantity = position.get('quantity', 0)
-        direction = position.get('direction', 'long')
-        
-        if entry_price <= 0 or quantity <= 0:
-            return
-        
-        # Calculate current unrealized PnL
-        if direction == 'long':
-            unrealized_pnl = (current_price - entry_price) * quantity
-        else:  # short
-            unrealized_pnl = (entry_price - current_price) * quantity
-        
-        # Update position's unrealized_pnl (keep in sync)
-        position['unrealized_pnl'] = unrealized_pnl
-        
-        # Get existing peak_pnl (default to 0)
-        peak_pnl = position.get('peak_pnl', 0.0)
-        
-        # Update peak if current is higher (only track positive peaks)
-        if unrealized_pnl > peak_pnl:
-            position['peak_pnl'] = unrealized_pnl
-            peak_pnl = unrealized_pnl
-        
-        # Calculate erosion percentage
-        if peak_pnl > 0:
-            erosion_pct = (peak_pnl - unrealized_pnl) / peak_pnl
-        else:
-            erosion_pct = 0.0
-        
-        position['erosion_pct'] = max(0.0, erosion_pct)  # Cannot be negative
-        
-        # Classify erosion status
-        if erosion_pct < 0.20:
-            erosion_status = "NONE"
-        elif erosion_pct < 0.50:
-            erosion_status = "MINOR"
-        elif erosion_pct < 1.0:
-            erosion_status = "SIGNIFICANT"
-        else:
-            erosion_status = "CRITICAL"  # Peak fully eroded or now losing
-        
-        position['erosion_status'] = erosion_status
+
 
     def sync_live_account(self):
         """Refresh balances and open positions from Binance when in live mode."""
@@ -387,11 +330,9 @@ class PortfolioManager:
             if isinstance(snapshot, dict):
                 self.positions = self._merge_live_positions(snapshot)
                 
-                # Update erosion tracking for each position
+                # Update erosion tracking for each position using existing method
                 for coin, pos in self.positions.items():
-                    current_price = pos.get('current_price', 0)
-                    if current_price > 0:
-                        self._update_erosion_stats(pos, current_price)
+                    self._update_peak_pnl_tracking(coin, pos)
                 
                 # Calculate total margin used from all open positions
                 # For cross margin, margin_usd might be 0, so calculate from notional/leverage
@@ -1736,7 +1677,7 @@ class PortfolioManager:
             current_price = current_prices[coin]
             
             # Update erosion tracking (captures intraday peaks)
-            self._update_erosion_stats(position, current_price)
+            self._update_peak_pnl_tracking(coin, position)
             
             exit_plan = position.get('exit_plan', {})
             tp = exit_plan.get('profit_target')
