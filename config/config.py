@@ -115,14 +115,7 @@ class Config:
     FLASH_EXIT_VOLUME_SURGE_MIN: float = float(os.getenv('FLASH_EXIT_VOLUME_SURGE_MIN', '3.0'))  # Volume surge multiplier
     FLASH_EXIT_LOSS_TRIGGER_MULTIPLIER: float = float(os.getenv('FLASH_EXIT_LOSS_TRIGGER_MULTIPLIER', '1.002'))  # 0.2% loss trigger
     
-    COIN_SPECIFIC_STOP_LOSS_MULTIPLIERS: dict = {
-        'SOL': 1.0,   # AI'nın SL değerine saygı duy
-        'TRX': 1.0,   # AI'nın SL değerine saygı duy
-        'XRP': 1.0,   # AI'nın SL değerine saygı duy
-        'ETH': 1.0,   # AI'nın SL değerine saygı duy
-        'DOGE': 1.0,  # AI'nın SL değerine saygı duy
-        'ASTER': 1.0  # AI'nın SL değerine saygı duy
-    }
+
     
     # Dynamic Confidence-Based Position Sizing
     CONFIDENCE_BASED_RISK_PERCENTAGES: dict = {

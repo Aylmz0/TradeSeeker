@@ -250,9 +250,6 @@ class AlphaArenaDeepSeek:
             # Volume Confirmation
             volume_confidence = self.calculate_volume_confidence(coin)
             
-            # Counter-trade detection information
-            counter_trade_info = self.get_counter_trade_information(coin)
-            
             return {
                 'trend_strength': trend_strength,
                 'trend_direction': trend_direction,
@@ -260,7 +257,6 @@ class AlphaArenaDeepSeek:
                 'price_vs_ema20_htf': 'ABOVE' if price_htf > ema20_htf else 'BELOW',
                 'price_vs_ema20_3m': 'ABOVE' if price_3m > ema20_3m else 'BELOW',
                 'volume_confidence': volume_confidence,
-                'counter_trade_info': counter_trade_info,
                 'trend_htf': trend_label_htf
             }
             
@@ -268,98 +264,8 @@ class AlphaArenaDeepSeek:
             print(f"⚠️ Enhanced trend detection error for {coin}: {e}")
             return {'trend_strength': 0, 'trend_direction': 'NEUTRAL', 'ema_comparison': 'ERROR', 'volume_confidence': 0.0}
 
-    def get_counter_trade_information(self, coin: str) -> Dict[str, Any]:
-        """Get counter-trade information for AI decision making (information only, no blocking)"""
-        try:
-            indicators_htf = self.market_data.get_technical_indicators(coin, HTF_INTERVAL)
-            indicators_3m = self.market_data.get_technical_indicators(coin, '3m')
-            
-            if 'error' in indicators_htf or 'error' in indicators_3m:
-                return {'counter_trade_risk': 'UNKNOWN', 'conditions_met': 0, 'total_conditions': 5}
-            
-            price_htf = indicators_htf.get('current_price')
-            ema20_htf = indicators_htf.get('ema_20')
-            price_3m = indicators_3m.get('current_price')
-            ema20_3m = indicators_3m.get('ema_20')
-            rsi_3m = indicators_3m.get('rsi_14', 50)
-            volume_3m = indicators_3m.get('volume', 0)
-            avg_volume_3m = indicators_3m.get('avg_volume', 1)
-            macd_3m = indicators_3m.get('macd', 0)
-            macd_signal_3m = indicators_3m.get('macd_signal', 0)
-            
-            trend_htf = "BULLISH" if price_htf > ema20_htf else "BEARISH"
-            trend_3m = "BULLISH" if price_3m > ema20_3m else "BEARISH"
-            
-            conditions_met = 0
-            total_conditions = 5
-            conditions_details: List[str] = []
-            
-            # Condition 1: 3m trend alignment
-            if (trend_htf == "BULLISH" and price_3m < ema20_3m) or (trend_htf == "BEARISH" and price_3m > ema20_3m):
-                conditions_met += 1
-                conditions_details.append("✅ 3m trend alignment")
-            else:
-                conditions_details.append("❌ 3m trend misalignment")
-            
-            # Condition 2: Volume confirmation (>1.0x average)
-            volume_ratio = volume_3m / avg_volume_3m if avg_volume_3m > 0 else 0
-            if volume_ratio > 1.0:
-                conditions_met += 1
-                conditions_details.append(f"✅ Volume {volume_ratio:.1f}x average")
-            else:
-                conditions_details.append(f"❌ Volume {volume_ratio:.1f}x average (need >1.0x)")
-            
-            # Condition 3: Extreme RSI
-            if (trend_htf == "BULLISH" and rsi_3m < 25) or (trend_htf == "BEARISH" and rsi_3m > 75):
-                conditions_met += 1
-                conditions_details.append(f"✅ Extreme RSI: {rsi_3m:.1f}")
-            else:
-                conditions_details.append(f"❌ RSI: {rsi_3m:.1f} (need <25 for LONG, >75 for SHORT)")
-            
-            # Condition 4: Strong technical levels (price near EMA)
-            price_ema_distance = abs(price_3m - ema20_3m) / price_3m * 100 if price_3m else 100
-            if price_ema_distance < 1.0:
-                conditions_met += 1
-                conditions_details.append(f"✅ Strong technical level ({price_ema_distance:.2f}% from EMA)")
-            else:
-                conditions_details.append(f"❌ Weak technical level ({price_ema_distance:.2f}% from EMA)")
-            
-            # Condition 5: MACD divergence
-            if (trend_htf == "BULLISH" and macd_3m > macd_signal_3m) or (trend_htf == "BEARISH" and macd_3m < macd_signal_3m):
-                conditions_met += 1
-                conditions_details.append("✅ MACD divergence")
-            else:
-                conditions_details.append("❌ No MACD divergence")
-            
-            if conditions_met >= 4:
-                risk_level = "LOW_RISK"
-                recommendation = "STRONG COUNTER-TRADE SETUP - Consider with high confidence (>0.75)"
-            elif conditions_met >= 3:
-                risk_level = "MEDIUM_RISK"
-                recommendation = "MODERATE COUNTER-TRADE SETUP - Consider with medium confidence (>0.65)"
-            elif conditions_met >= 2:
-                risk_level = "HIGH_RISK"
-                recommendation = "WEAK COUNTER-TRADE SETUP - Avoid or use very low confidence"
-            else:
-                risk_level = "VERY_HIGH_RISK"
-                recommendation = "NO COUNTER-TRADE SETUP - Focus on trend-following"
-            
-            return {
-                'counter_trade_risk': risk_level,
-                'conditions_met': conditions_met,
-                'total_conditions': total_conditions,
-                'recommendation': recommendation,
-                'conditions_details': conditions_details,
-                'trend_htf': trend_htf,
-                'trend_3m': trend_3m,
-                'volume_ratio': round(volume_ratio, 2),
-                'rsi_3m': round(rsi_3m, 2),
-                'price_ema_distance_pct': round(price_ema_distance, 2)
-            }
-            
-        except Exception as e:
-            print(f"⚠️ Counter-trade information error for {coin}: {e}")
-            return {'counter_trade_risk': 'ERROR', 'conditions_met': 0, 'total_conditions': 5}
+    # NOTE: Legacy get_counter_trade_information function REMOVED
+    # Counter-trade analysis is now handled by build_counter_trade_json in prompt_json_builders.py
 
     def calculate_comprehensive_trend_strength(self, coin: str) -> Dict[str, Any]:
         """Calculate comprehensive trend strength using 5 technical indicators with weighted scoring"""
