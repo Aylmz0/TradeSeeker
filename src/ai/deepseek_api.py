@@ -103,9 +103,30 @@ class DeepSeekAPI:
                 },
                 "risk_management": {
                     "risk_reward_ratio": "Maintain a positive risk/reward ratio.",
-                    "stop_loss_basis": "Logical technical level (e.g., recent support/resistance or ATR-based).",
-                    "invalidation_requirement": "Must be explicit and INCLUDE A 0.2% BUFFER to prevent wick-outs (e.g., 'Close if price < EMA20 * 0.998' for LONG, '... > EMA20 * 1.002' for SHORT).",
-                    "CRITICAL_WARNING": "System handles TP/SL calculation. Your job is purely LOGIC: Signal, Confidence, and Invalidation."
+                    "invalidation_rules": {
+                        "requirement": "Every entry MUST have an explicit invalidation_condition.",
+                        "by_strategy": {
+                            "trend_following": {
+                                "basis": "EMA/Structure break",
+                                "rule": "Close if price crosses EMA20 (0.2% buffer) OR 15m structure reverses",
+                                "example_LONG": "Close if price < EMA20 * 0.998 or 15m structure LH_LL",
+                                "example_SHORT": "Close if price > EMA20 * 1.002 or 15m structure HH_HL"
+                            },
+                            "counter_trend": {
+                                "basis": "Swing Level break",
+                                "rule": "Close if price breaks recent swing high (SHORT) or swing low (LONG)",
+                                "warning": "Do NOT use EMA - price is expected on opposite side",
+                                "example_SHORT": "Close if price breaks above recent swing high",
+                                "example_LONG": "Close if price breaks below recent swing low"
+                            },
+                            "risk_management": {
+                                "basis": "Erosion + Reversal",
+                                "rule": "Close if erosion SIGNIFICANT + reversal MEDIUM or higher",
+                                "example": "Profit Erosion > 50% limit breached"
+                            }
+                        }
+                    },
+                    "CRITICAL_WARNING": "System handles TP/SL calculation. Your job: Signal, Confidence, Invalidation LOGIC."
                 }
             },
             "strategy": {

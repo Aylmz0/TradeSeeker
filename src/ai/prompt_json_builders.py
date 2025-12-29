@@ -128,12 +128,12 @@ def build_counter_trade_json(
                 except Exception:
                     pass
             
-            condition_2 = (volume_3m or 0) / (avg_volume_3m or 1) > Config.VOLUME_QUALITY_THRESHOLDS['good'] if avg_volume_3m else False
+            condition_2 = (volume_3m or 0) / (avg_volume_3m or 1) > 1.5 if avg_volume_3m else False  # 1.5x volume threshold for counter-trend
             # Condition 3: Extreme RSI (Counter-trend)
             # If Bullish trend, we want to Short -> Need Overbought (>70)
             # If Bearish trend, we want to Long -> Need Oversold (<30)
             condition_3 = (trend_htf == "BULLISH" and (rsi_3m or 50) > Config.RSI_OVERBOUGHT_THRESHOLD) or (trend_htf == "BEARISH" and (rsi_3m or 50) < Config.RSI_OVERSOLD_THRESHOLD)
-            condition_4 = abs((price_3m or 0) - (ema20_3m or 0)) / (price_3m or 1) * 100 < 1.0 if price_3m and ema20_3m else False
+            # condition_4 (EMA Proximity) REMOVED - not a meaningful counter-trend signal
             # Condition 5: MACD divergence (Counter-trend)
             # If Bullish trend, we want to Short -> Need Bearish MACD (MACD < Signal)
             # If Bearish trend, we want to Long -> Need Bullish MACD (MACD > Signal)
@@ -190,7 +190,7 @@ def build_counter_trade_json(
                     condition_9 = True  # Volume accumulating in downtrend -> LONG favorable
             # ==================== END NEW CONDITIONS ====================
             
-            total_met = sum([condition_1, condition_2, condition_3, condition_4, condition_5, condition_6, condition_7, condition_8, condition_9])
+            total_met = sum([condition_1, condition_2, condition_3, condition_5, condition_6, condition_7, condition_8, condition_9])  # 8 conditions (EMA removed)
             
             # Determine risk level (Updated Logic - v6.0 HARDENED THRESHOLDS)
             # Counter-trade is now MUCH harder to qualify as LOW_RISK
@@ -206,8 +206,10 @@ def build_counter_trade_json(
                 risk_level = "MEDIUM_RISK"  # MEDIUM + 4-5 conditions (was 3)
             elif alignment_strength == "MEDIUM":
                 risk_level = "HIGH_RISK"  # MEDIUM + less than 4 conditions
+            elif alignment_strength == "NONE" and total_met >= 8:
+                risk_level = "MEDIUM_RISK"  # No alignment BUT all 8 conditions met - allow with caution
             else:
-                risk_level = "VERY_HIGH_RISK"  # No alignment (15m AND 3m both follow HTF trend)
+                risk_level = "VERY_HIGH_RISK"  # No alignment and < 8 conditions
             
             # NOTE: Zone + Weakening is now Condition 6 (calculated above)
             # No longer modifies risk level - it's counted as a condition instead

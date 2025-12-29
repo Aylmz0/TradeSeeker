@@ -3301,22 +3301,14 @@ class PortfolioManager:
                 
 
                 
-                # 4. Coin-specific dynamic stop-loss adjustment
+
+                # 4. Get stop_loss from trade (if AI provided one)
                 stop_loss = trade.get('stop_loss')
                 try:
                     stop_loss = float(stop_loss) if stop_loss is not None else None
                 except (ValueError, TypeError):
                     stop_loss = None
-                
-                # Apply dynamic stop-loss multiplier
-                if stop_loss is not None:
-                    stop_loss_multiplier = Config.COIN_SPECIFIC_STOP_LOSS_MULTIPLIERS.get(coin, 1.0)
-                    if signal == 'buy_to_enter':
-                        stop_loss = current_price - ((current_price - stop_loss) * stop_loss_multiplier)
-                    else:  # sell_to_enter
-                        stop_loss = current_price + ((stop_loss - current_price) * stop_loss_multiplier)
-                    print(f"📊 Dynamic Stop-Loss: applied {stop_loss_multiplier}x multiplier for {coin}")
-                
+
                 # 5. Counter-Trend detection (validate only for counter trades) & indicator alignment
                 # Use cached indicators when available to keep prompt/execution consistent
                 current_trend = 'unknown'
@@ -3617,11 +3609,35 @@ class PortfolioManager:
                 
                 # Use dynamic confidence-based margin calculation instead of AI's quantity_usd
                 # This ensures position sizing is ratio-based and dynamic
+                
+                # FIX: Calculate ATR-based stop loss BEFORE margin calculation for proper volatility sizing
+                atr_stop_loss = None
+                try:
+                    # Fetch ATR from HTF (1h) for consistent SL calculation
+                    atr_value = indicators_htf.get('atr_14') if isinstance(indicators_htf, dict) else None
+                    if atr_value and atr_value > 0:
+                        sl_distance = atr_value * Config.ATR_SL_MULTIPLIER
+                        if signal == 'buy_to_enter':
+                            atr_stop_loss = current_price - sl_distance
+                        else:  # sell_to_enter
+                            atr_stop_loss = current_price + sl_distance
+                        print(f"📊 Pre-calculated ATR SL for sizing: {coin} ATR={atr_value:.6f} x {Config.ATR_SL_MULTIPLIER} -> SL=${atr_stop_loss:.6f}")
+                    else:
+                        # Fallback: 2% stop distance
+                        fallback_distance = current_price * 0.02
+                        if signal == 'buy_to_enter':
+                            atr_stop_loss = current_price - fallback_distance
+                        else:
+                            atr_stop_loss = current_price + fallback_distance
+                        print(f"⚠️ ATR unavailable for {coin}, using 2% fallback SL: ${atr_stop_loss:.6f}")
+                except Exception as e:
+                    print(f"⚠️ ATR SL calculation failed for {coin}: {e}")
+                
                 calculated_margin = self.calculate_confidence_based_margin(
                     confidence, 
                     self.current_balance,
                     entry_price=current_price,
-                    stop_loss=trade.get('stop_loss'),
+                    stop_loss=atr_stop_loss,  # Use ATR-based SL instead of AI's (None)
                     leverage=leverage
                 )
                 
