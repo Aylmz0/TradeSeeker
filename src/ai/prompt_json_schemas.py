@@ -2,37 +2,55 @@
 JSON Schema definitions for AI prompt data structures.
 Used for validation and documentation of JSON prompt format.
 """
-from typing import Dict, Any, List, Optional
-import json
+
+from typing import Any
 
 # JSON Prompt Format Version
 JSON_PROMPT_VERSION = "1.0"
 
-def get_counter_trade_schema() -> Dict[str, Any]:
+
+def get_counter_trade_schema() -> dict[str, Any]:
     """Schema for counter-trade analysis JSON."""
     return {
         "type": "object",
         "properties": {
             "coin": {"type": "string"},
             "htf_trend": {"type": "string", "enum": ["BULLISH", "BEARISH"]},
-            "15m_trend": {"type": ["string", "null"], "enum": ["BULLISH", "BEARISH", None]},  # ✅ Kısaltıldı: fifteen_m_trend → 15m_trend
-            "3m_trend": {"type": "string", "enum": ["BULLISH", "BEARISH"]},  # ✅ Kısaltıldı: three_m_trend → 3m_trend
-            "alignment_strength": {"type": ["string", "null"], "enum": ["STRONG", "MEDIUM", "WEAK", None]},
+            "15m_trend": {
+                "type": ["string", "null"],
+                "enum": ["BULLISH", "BEARISH", None],
+            },  # ✅ Kısaltıldı: fifteen_m_trend → 15m_trend
+            "3m_trend": {
+                "type": "string",
+                "enum": ["BULLISH", "BEARISH"],
+            },  # ✅ Kısaltıldı: three_m_trend → 3m_trend
+            "alignment_strength": {
+                "type": ["string", "null"],
+                "enum": ["STRONG", "MEDIUM", "WEAK", None],
+            },
             "conditions": {
                 "type": "object",
                 "properties": {
-                    "total_met": {"type": "integer", "minimum": 0, "maximum": 5}  # ✅ Sadece total_met (condition_1-5 kaldırıldı)
+                    "total_met": {
+                        "type": "integer",
+                        "minimum": 0,
+                        "maximum": 5,
+                    }  # ✅ Sadece total_met (condition_1-5 kaldırıldı)
                 },
-                "required": ["total_met"]
+                "required": ["total_met"],
             },
-            "risk_level": {"type": "string", "enum": ["LOW_RISK", "MEDIUM_RISK", "HIGH_RISK", "VERY_HIGH_RISK"]},
+            "risk_level": {
+                "type": "string",
+                "enum": ["LOW_RISK", "MEDIUM_RISK", "HIGH_RISK", "VERY_HIGH_RISK"],
+            },
             "volume_ratio": {"type": ["number", "null"]},
-            "rsi_3m": {"type": ["number", "null"]}
+            "rsi_3m": {"type": ["number", "null"]},
         },
-        "required": ["coin", "htf_trend", "3m_trend", "conditions", "risk_level"]
+        "required": ["coin", "htf_trend", "3m_trend", "conditions", "risk_level"],
     }
 
-def get_trend_reversal_schema() -> Dict[str, Any]:
+
+def get_trend_reversal_schema() -> dict[str, Any]:
     """Schema for trend reversal detection JSON."""
     return {
         "type": "object",
@@ -45,19 +63,34 @@ def get_trend_reversal_schema() -> Dict[str, Any]:
                 "type": "object",
                 "properties": {
                     "htf_reversal": {"type": "boolean"},  # ✅ Dinamik detection eklendi
-                    "15m_reversal": {"type": "boolean"},  # ✅ Dinamik detection eklendi (fifteen_m → 15m)
+                    "15m_reversal": {
+                        "type": "boolean"
+                    },  # ✅ Dinamik detection eklendi (fifteen_m → 15m)
                     "3m_reversal": {"type": "boolean"},  # ✅ Kısaltıldı: three_m → 3m
-                    "strength": {"type": "string", "enum": ["STRONG", "MEDIUM", "INFORMATIONAL", "NONE"]}
-                }
+                    "strength": {
+                        "type": "string",
+                        "enum": ["STRONG", "MEDIUM", "INFORMATIONAL", "NONE"],
+                    },
+                },
             },
-            "loss_risk_signal": {"type": "string", "enum": ["HIGH_LOSS_RISK", "MEDIUM_LOSS_RISK", "LOW_LOSS_RISK", "NO_LOSS_RISK"]},
+            "loss_risk_signal": {
+                "type": "string",
+                "enum": ["HIGH_LOSS_RISK", "MEDIUM_LOSS_RISK", "LOW_LOSS_RISK", "NO_LOSS_RISK"],
+            },
             "current_trend_htf": {"type": "string"},
-            "current_trend_3m": {"type": "string"}
+            "current_trend_3m": {"type": "string"},
         },
-        "required": ["coin", "has_position", "loss_risk_signal", "current_trend_htf", "current_trend_3m"]
+        "required": [
+            "coin",
+            "has_position",
+            "loss_risk_signal",
+            "current_trend_htf",
+            "current_trend_3m",
+        ],
     }
 
-def get_enhanced_context_schema() -> Dict[str, Any]:
+
+def get_enhanced_context_schema() -> dict[str, Any]:
     """Schema for enhanced context JSON."""
     return {
         "type": "object",
@@ -69,8 +102,8 @@ def get_enhanced_context_schema() -> Dict[str, Any]:
                     "long_positions": {"type": "integer"},
                     "short_positions": {"type": "integer"},
                     "total_margin_used": {"type": "number"},
-                    "total_unrealized_pnl": {"type": "number"}
-                }
+                    "total_unrealized_pnl": {"type": "number"},
+                },
             },
             "market_regime": {
                 "type": "object",
@@ -78,16 +111,16 @@ def get_enhanced_context_schema() -> Dict[str, Any]:
                     "global_regime": {"type": "string", "enum": ["BULLISH", "BEARISH", "NEUTRAL"]},
                     "bullish_count": {"type": "integer"},
                     "bearish_count": {"type": "integer"},
-                    "neutral_count": {"type": "integer"}
-                }
+                    "neutral_count": {"type": "integer"},
+                },
             },
             "performance_insights": {
                 "type": "object",
                 "properties": {
                     "total_return": {"type": "number"},
                     "sharpe_ratio": {"type": ["number", "null"]},
-                    "win_rate": {"type": ["number", "null"]}
-                }
+                    "win_rate": {"type": ["number", "null"]},
+                },
             },
             "directional_feedback": {
                 "type": "object",
@@ -97,57 +130,49 @@ def get_enhanced_context_schema() -> Dict[str, Any]:
                         "properties": {
                             "net_pnl": {"type": "number"},
                             "trades": {"type": "integer"},
-                            "win_rate": {"type": "number"}
-                        }
+                            "win_rate": {"type": "number"},
+                        },
                     },
                     "short_performance": {
                         "type": "object",
                         "properties": {
                             "net_pnl": {"type": "number"},
                             "trades": {"type": "integer"},
-                            "win_rate": {"type": "number"}
-                        }
-                    }
-                }
+                            "win_rate": {"type": "number"},
+                        },
+                    },
+                },
             },
             "risk_context": {
                 "type": "object",
                 "properties": {
                     "current_risk_usd": {"type": "number"},
                     "max_risk_allowed": {"type": "number"},
-                    "risk_utilization_pct": {"type": "number"}
-                }
+                    "risk_utilization_pct": {"type": "number"},
+                },
             },
-            "suggestions": {
-                "type": "array",
-                "items": {"type": "string"}
-            }
-        }
+            "suggestions": {"type": "array", "items": {"type": "string"}},
+        },
     }
 
-def get_cooldown_status_schema() -> Dict[str, Any]:
+
+def get_cooldown_status_schema() -> dict[str, Any]:
     """Schema for cooldown status JSON."""
     return {
         "type": "object",
         "properties": {
             "directional_cooldowns": {
                 "type": "object",
-                "additionalProperties": {
-                    "type": "integer"
-                }
+                "additionalProperties": {"type": "integer"},
             },
-            "coin_cooldowns": {
-                "type": "object",
-                "additionalProperties": {
-                    "type": "integer"
-                }
-            },
+            "coin_cooldowns": {"type": "object", "additionalProperties": {"type": "integer"}},
             "counter_trend_cooldown": {"type": "integer"},
-            "relaxed_countertrend_cycles": {"type": "integer"}
-        }
+            "relaxed_countertrend_cycles": {"type": "integer"},
+        },
     }
 
-def get_position_slot_schema() -> Dict[str, Any]:
+
+def get_position_slot_schema() -> dict[str, Any]:
     """Schema for position slot status JSON."""
     return {
         "type": "object",
@@ -156,7 +181,9 @@ def get_position_slot_schema() -> Dict[str, Any]:
             "max_positions": {"type": "integer"},
             "long_slots_used": {"type": "integer"},
             "short_slots_used": {"type": "integer"},
-            "same_direction_limit": {"type": "integer"},  # ✅ Eklendi: Aynı yönde maksimum pozisyon limiti
+            "same_direction_limit": {
+                "type": "integer"
+            },  # ✅ Eklendi: Aynı yönde maksimum pozisyon limiti
             "long_slots_available": {"type": "integer"},  # ✅ Eklendi: Kalan LONG slot sayısı
             "short_slots_available": {"type": "integer"},  # ✅ Eklendi: Kalan SHORT slot sayısı
             "available_slots": {"type": "integer"},
@@ -165,14 +192,24 @@ def get_position_slot_schema() -> Dict[str, Any]:
                 "properties": {
                     "coin": {"type": "string"},
                     "unrealized_pnl": {"type": "number"},
-                    "confidence": {"type": "number"}
-                }
-            }
+                    "confidence": {"type": "number"},
+                },
+            },
         },
-        "required": ["total_open", "max_positions", "available_slots", "same_direction_limit", "long_slots_used", "short_slots_used", "long_slots_available", "short_slots_available"]
+        "required": [
+            "total_open",
+            "max_positions",
+            "available_slots",
+            "same_direction_limit",
+            "long_slots_used",
+            "short_slots_used",
+            "long_slots_available",
+            "short_slots_available",
+        ],
     }
 
-def get_market_data_schema() -> Dict[str, Any]:
+
+def get_market_data_schema() -> dict[str, Any]:
     """Schema for market data JSON (per coin)."""
     return {
         "type": "object",
@@ -184,8 +221,8 @@ def get_market_data_schema() -> Dict[str, Any]:
                 "properties": {
                     "open_interest": {"type": ["number", "null"]},
                     "funding_rate": {"type": ["number", "null"]},
-                    "funding_rate_24h_avg": {"type": ["number", "null"]}
-                }
+                    "funding_rate_24h_avg": {"type": ["number", "null"]},
+                },
             },
             "timeframes": {
                 "type": "object",
@@ -201,21 +238,30 @@ def get_market_data_schema() -> Dict[str, Any]:
                                     "rsi": {"type": ["number", "null"]},
                                     "macd": {"type": ["number", "null"]},
                                     "atr": {"type": ["number", "null"]},
-                                    "volume": {"type": ["number", "null"]}
-                                }
+                                    "volume": {"type": ["number", "null"]},
+                                },
                             },
                             "series": {
                                 "type": "object",
                                 "properties": {
                                     "price": {"type": "array", "items": {"type": "number"}},
-                                    "ema20": {"type": "array", "items": {"type": ["number", "null"]}},
+                                    "ema20": {
+                                        "type": "array",
+                                        "items": {"type": ["number", "null"]},
+                                    },
                                     "rsi": {"type": "array", "items": {"type": ["number", "null"]}},
-                                    "macd": {"type": "array", "items": {"type": ["number", "null"]}},
+                                    "macd": {
+                                        "type": "array",
+                                        "items": {"type": ["number", "null"]},
+                                    },
                                     "atr": {"type": "array", "items": {"type": ["number", "null"]}},
-                                    "volume": {"type": "array", "items": {"type": ["number", "null"]}}
-                                }
-                            }
-                        }
+                                    "volume": {
+                                        "type": "array",
+                                        "items": {"type": ["number", "null"]},
+                                    },
+                                },
+                            },
+                        },
                     },
                     "15m": {
                         "type": "object",
@@ -230,22 +276,34 @@ def get_market_data_schema() -> Dict[str, Any]:
                                     "smart_sparkline": {
                                         "type": ["object", "null"],
                                         "properties": {
-                                            "structure": {"type": "string", "enum": ["HH_HL", "LH_LL", "RANGE", "UNCLEAR"]},
-                                            "momentum": {"type": "string", "enum": ["STRENGTHENING", "STABLE", "WEAKENING"]}
-                                        }
-                                    }
-                                }
+                                            "structure": {
+                                                "type": "string",
+                                                "enum": ["HH_HL", "LH_LL", "RANGE", "UNCLEAR"],
+                                            },
+                                            "momentum": {
+                                                "type": "string",
+                                                "enum": ["STRENGTHENING", "STABLE", "WEAKENING"],
+                                            },
+                                        },
+                                    },
+                                },
                             },
                             "series": {
                                 "type": "object",
                                 "properties": {
                                     "price": {"type": "array", "items": {"type": "number"}},
-                                    "ema20": {"type": "array", "items": {"type": ["number", "null"]}},
+                                    "ema20": {
+                                        "type": "array",
+                                        "items": {"type": ["number", "null"]},
+                                    },
                                     "rsi": {"type": "array", "items": {"type": ["number", "null"]}},
-                                    "macd": {"type": "array", "items": {"type": ["number", "null"]}}
-                                }
-                            }
-                        }
+                                    "macd": {
+                                        "type": "array",
+                                        "items": {"type": ["number", "null"]},
+                                    },
+                                },
+                            },
+                        },
                     },
                     "htf": {
                         "type": "object",
@@ -264,31 +322,50 @@ def get_market_data_schema() -> Dict[str, Any]:
                                             "key_level": {
                                                 "type": ["object", "null"],
                                                 "properties": {
-                                                    "type": {"type": "string", "enum": ["support", "resistance"]},
+                                                    "type": {
+                                                        "type": "string",
+                                                        "enum": ["support", "resistance"],
+                                                    },
                                                     "level": {"type": "number"},
-                                                    "strength": {"type": "integer", "minimum": 1, "maximum": 5},
-                                                    "distance_pct": {"type": "number"}
-                                                }
+                                                    "strength": {
+                                                        "type": "integer",
+                                                        "minimum": 1,
+                                                        "maximum": 5,
+                                                    },
+                                                    "distance_pct": {"type": "number"},
+                                                },
                                             },
-                                            "structure": {"type": "string", "enum": ["HH_HL", "LH_LL", "RANGE", "UNCLEAR"]},
-                                            "momentum": {"type": "string", "enum": ["STRENGTHENING", "STABLE", "WEAKENING"]}
-                                        }
-                                    }
-                                }
+                                            "structure": {
+                                                "type": "string",
+                                                "enum": ["HH_HL", "LH_LL", "RANGE", "UNCLEAR"],
+                                            },
+                                            "momentum": {
+                                                "type": "string",
+                                                "enum": ["STRENGTHENING", "STABLE", "WEAKENING"],
+                                            },
+                                        },
+                                    },
+                                },
                             },
                             "series": {
                                 "type": "object",
                                 "properties": {
                                     "price": {"type": "array", "items": {"type": "number"}},
-                                    "ema20": {"type": "array", "items": {"type": ["number", "null"]}},
+                                    "ema20": {
+                                        "type": "array",
+                                        "items": {"type": ["number", "null"]},
+                                    },
                                     "rsi": {"type": "array", "items": {"type": ["number", "null"]}},
-                                    "macd": {"type": "array", "items": {"type": ["number", "null"]}},
-                                    "atr": {"type": "array", "items": {"type": ["number", "null"]}}
-                                }
-                            }
-                        }
-                    }
-                }
+                                    "macd": {
+                                        "type": "array",
+                                        "items": {"type": ["number", "null"]},
+                                    },
+                                    "atr": {"type": "array", "items": {"type": ["number", "null"]}},
+                                },
+                            },
+                        },
+                    },
+                },
             },
             "position": {
                 "type": ["object", "null"],
@@ -309,16 +386,17 @@ def get_market_data_schema() -> Dict[str, Any]:
                         "properties": {
                             "profit_target": {"type": ["number", "null"]},
                             "stop_loss": {"type": ["number", "null"]},
-                            "invalidation_condition": {"type": ["string", "null"]}
-                        }
-                    }
-                }
-            }
+                            "invalidation_condition": {"type": ["string", "null"]},
+                        },
+                    },
+                },
+            },
         },
-        "required": ["coin", "market_regime", "timeframes"]
+        "required": ["coin", "market_regime", "timeframes"],
     }
 
-def get_portfolio_schema() -> Dict[str, Any]:
+
+def get_portfolio_schema() -> dict[str, Any]:
     """Schema for portfolio JSON."""
     return {
         "type": "object",
@@ -339,15 +417,16 @@ def get_portfolio_schema() -> Dict[str, Any]:
                         "current_price": {"type": "number"},
                         "unrealized_pnl": {"type": "number"},
                         "leverage": {"type": "integer"},
-                        "confidence": {"type": "number"}
-                    }
-                }
-            }
+                        "confidence": {"type": "number"},
+                    },
+                },
+            },
         },
-        "required": ["total_return_pct", "available_cash", "account_value"]
+        "required": ["total_return_pct", "available_cash", "account_value"],
     }
 
-def get_risk_status_schema() -> Dict[str, Any]:
+
+def get_risk_status_schema() -> dict[str, Any]:
     """Schema for risk status JSON."""
     return {
         "type": "object",
@@ -361,14 +440,15 @@ def get_risk_status_schema() -> Dict[str, Any]:
                     "min_position": {"type": "number"},
                     "max_positions": {"type": "integer"},
                     "available_cash_protection": {"type": "number"},
-                    "position_sizing_pct": {"type": "number"}
-                }
-            }
+                    "position_sizing_pct": {"type": "number"},
+                },
+            },
         },
-        "required": ["current_positions_count", "total_margin_used", "available_cash"]
+        "required": ["current_positions_count", "total_margin_used", "available_cash"],
     }
 
-def get_historical_context_schema() -> Dict[str, Any]:
+
+def get_historical_context_schema() -> dict[str, Any]:
     """Schema for historical context JSON."""
     return {
         "type": "object",
@@ -379,16 +459,14 @@ def get_historical_context_schema() -> Dict[str, Any]:
                 "type": "array",
                 "items": {
                     "type": "object",
-                    "properties": {
-                        "cycle": {"type": "integer"},
-                        "decisions": {"type": "object"}
-                    }
-                }
-            }
-        }
+                    "properties": {"cycle": {"type": "integer"}, "decisions": {"type": "object"}},
+                },
+            },
+        },
     }
 
-def get_full_prompt_schema() -> Dict[str, Any]:
+
+def get_full_prompt_schema() -> dict[str, Any]:
     """Schema for the complete JSON prompt structure."""
     return {
         "type": "object",
@@ -399,33 +477,27 @@ def get_full_prompt_schema() -> Dict[str, Any]:
                 "properties": {
                     "minutes_running": {"type": "integer"},
                     "current_time": {"type": "string"},
-                    "invocation_count": {"type": "integer"}
+                    "invocation_count": {"type": "integer"},
                 },
-                "required": ["minutes_running", "current_time", "invocation_count"]
+                "required": ["minutes_running", "current_time", "invocation_count"],
             },
-            "counter_trade_analysis": {
-                "type": "array",
-                "items": get_counter_trade_schema()
-            },
-            "trend_reversal_detection": {
-                "type": "array",
-                "items": get_trend_reversal_schema()
-            },
+            "counter_trade_analysis": {"type": "array", "items": get_counter_trade_schema()},
+            "trend_reversal_detection": {"type": "array", "items": get_trend_reversal_schema()},
             "enhanced_context": get_enhanced_context_schema(),
             "cooldown_status": get_cooldown_status_schema(),
             "position_slot_status": get_position_slot_schema(),
-            "market_data": {
-                "type": "array",
-                "items": get_market_data_schema()
-            },
+            "market_data": {"type": "array", "items": get_market_data_schema()},
             "portfolio": get_portfolio_schema(),
             "risk_status": get_risk_status_schema(),
-            "historical_context": get_historical_context_schema()
+            "historical_context": get_historical_context_schema(),
         },
-        "required": ["version", "metadata"]
+        "required": ["version", "metadata"],
     }
 
-def validate_json_against_schema(data: Dict[str, Any], schema: Dict[str, Any]) -> tuple[bool, Optional[str]]:
+
+def validate_json_against_schema(
+    data: dict[str, Any], schema: dict[str, Any]
+) -> tuple[bool, str | None]:
     """
     Simple JSON schema validation.
     Returns (is_valid, error_message).
@@ -436,20 +508,20 @@ def validate_json_against_schema(data: Dict[str, Any], schema: Dict[str, Any]) -
         if schema.get("type") == "object":
             if not isinstance(data, dict):
                 return False, f"Expected object, got {type(data).__name__}"
-            
+
             # Check required fields
             required = schema.get("required", [])
             for field in required:
                 if field not in data:
                     return False, f"Missing required field: {field}"
-            
+
             # Check properties
             properties = schema.get("properties", {})
             for key, value in data.items():
                 if key in properties:
                     prop_schema = properties[key]
                     prop_type = prop_schema.get("type")
-                    
+
                     if prop_type == "array":
                         if not isinstance(value, list):
                             return False, f"Field '{key}' should be array"
@@ -467,17 +539,16 @@ def validate_json_against_schema(data: Dict[str, Any], schema: Dict[str, Any]) -
                             return False, f"Field '{key}' should be number"
                     elif isinstance(prop_type, list):  # Union type like ["number", "null"]
                         if value is not None and not any(
-                            (t == "number" and isinstance(value, (int, float))) or
-                            (t == "string" and isinstance(value, str)) or
-                            (t == "integer" and isinstance(value, int)) or
-                            (t == "object" and isinstance(value, dict)) or
-                            (t == "array" and isinstance(value, list)) or
-                            (t == "null" and value is None)
+                            (t == "number" and isinstance(value, (int, float)))
+                            or (t == "string" and isinstance(value, str))
+                            or (t == "integer" and isinstance(value, int))
+                            or (t == "object" and isinstance(value, dict))
+                            or (t == "array" and isinstance(value, list))
+                            or (t == "null" and value is None)
                             for t in prop_type
                         ):
                             return False, f"Field '{key}' has invalid type"
-        
+
         return True, None
     except Exception as e:
         return False, f"Validation error: {str(e)}"
-

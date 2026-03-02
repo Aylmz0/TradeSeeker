@@ -5,18 +5,19 @@ Provides a thin REST client with request signing plus a higher-level executor
 that converts bot decisions into exchange orders and synchronized portfolio
 snapshots.
 """
+
 from __future__ import annotations
 
-import hmac
 import hashlib
+import hmac
 import json
 import logging
 import math
 import time
 import urllib.parse
 from dataclasses import dataclass
-from decimal import Decimal, ROUND_DOWN, getcontext
-from typing import Any, Dict, List, Optional, Tuple
+from decimal import ROUND_DOWN, Decimal, getcontext
+from typing import Any
 
 import requests
 
@@ -31,7 +32,9 @@ logger = logging.getLogger("AlphaArena.Binance")
 class BinanceAPIError(Exception):
     """Exception raised when Binance returns an error response."""
 
-    def __init__(self, message: str, status_code: Optional[int] = None, error_code: Optional[int] = None):
+    def __init__(
+        self, message: str, status_code: int | None = None, error_code: int | None = None
+    ):
         super().__init__(message)
         self.status_code = status_code
         self.error_code = error_code
@@ -46,7 +49,7 @@ class SymbolFilters:
     min_qty: float
     tick_size: float
     min_notional: float
-    leverage_brackets: Optional[List[Dict[str, Any]]] = None
+    leverage_brackets: list[dict[str, Any]] | None = None
 
 
 class BinanceFuturesClient:
@@ -54,8 +57,8 @@ class BinanceFuturesClient:
 
     def __init__(
         self,
-        api_key: Optional[str] = None,
-        secret_key: Optional[str] = None,
+        api_key: str | None = None,
+        secret_key: str | None = None,
         testnet: bool = False,
         recv_window: int = 5000,
         timeout: int = 30,
@@ -65,7 +68,9 @@ class BinanceFuturesClient:
         if not self.api_key or not self.secret_key:
             raise BinanceAPIError("Binance API key/secret not configured for live trading.")
 
-        self.base_url = "https://testnet.binancefuture.com" if testnet else "https://fapi.binance.com"
+        self.base_url = (
+            "https://testnet.binancefuture.com" if testnet else "https://fapi.binance.com"
+        )
         self.recv_window = recv_window
         self.timeout = timeout or Config.REQUEST_TIMEOUT
         self.session = requests.Session()
@@ -74,18 +79,20 @@ class BinanceFuturesClient:
     def _timestamp(self) -> int:
         return int(time.time() * 1000)
 
-    def _sign(self, payload: Dict[str, Any]) -> str:
+    def _sign(self, payload: dict[str, Any]) -> str:
         query_string = urllib.parse.urlencode(payload, doseq=True)
-        signature = hmac.new(self.secret_key.encode("utf-8"), query_string.encode("utf-8"), hashlib.sha256).hexdigest()
+        signature = hmac.new(
+            self.secret_key.encode("utf-8"), query_string.encode("utf-8"), hashlib.sha256
+        ).hexdigest()
         return signature
 
     def _request(
         self,
         method: str,
         path: str,
-        params: Optional[Dict[str, Any]] = None,
+        params: dict[str, Any] | None = None,
         signed: bool = False,
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         params = params.copy() if params else {}
         headers = {"X-MBX-APIKEY": self.api_key}
 
@@ -98,7 +105,9 @@ class BinanceFuturesClient:
 
         url = f"{self.base_url}{path}"
         try:
-            response = self.session.request(method, url, params=params, timeout=self.timeout, headers=headers)
+            response = self.session.request(
+                method, url, params=params, timeout=self.timeout, headers=headers
+            )
         except requests.RequestException as exc:
             raise BinanceAPIError(f"HTTP request failed: {exc}") from exc
 
@@ -118,42 +127,44 @@ class BinanceFuturesClient:
             raise BinanceAPIError(f"Failed to decode JSON response: {exc}") from exc
 
     # --- Public REST wrappers ---------------------------------------------
-    def get_exchange_info(self, symbols: List[str]) -> Dict[str, Any]:
+    def get_exchange_info(self, symbols: list[str]) -> dict[str, Any]:
         payload = {"symbols": json.dumps(symbols, separators=(",", ":"))}
         return self._request("GET", "/fapi/v1/exchangeInfo", params=payload, signed=False)
 
-    def get_mark_price(self, symbol: str) -> Dict[str, Any]:
+    def get_mark_price(self, symbol: str) -> dict[str, Any]:
         return self._request("GET", "/fapi/v1/premiumIndex", params={"symbol": symbol})
 
-    def change_leverage(self, symbol: str, leverage: int) -> Dict[str, Any]:
+    def change_leverage(self, symbol: str, leverage: int) -> dict[str, Any]:
         payload = {"symbol": symbol, "leverage": leverage}
         return self._request("POST", "/fapi/v1/leverage", params=payload, signed=True)
 
-    def set_margin_type(self, symbol: str, margin_type: str) -> Dict[str, Any]:
+    def set_margin_type(self, symbol: str, margin_type: str) -> dict[str, Any]:
         payload = {"symbol": symbol, "marginType": margin_type}
         return self._request("POST", "/fapi/v1/marginType", params=payload, signed=True)
 
-    def place_order(self, payload: Dict[str, Any], test: bool = False) -> Dict[str, Any]:
+    def place_order(self, payload: dict[str, Any], test: bool = False) -> dict[str, Any]:
         endpoint = "/fapi/v1/order/test" if test else "/fapi/v1/order"
         return self._request("POST", endpoint, params=payload, signed=True)
 
-    def cancel_all_orders(self, symbol: str) -> Dict[str, Any]:
-        return self._request("DELETE", "/fapi/v1/allOpenOrders", params={"symbol": symbol}, signed=True)
+    def cancel_all_orders(self, symbol: str) -> dict[str, Any]:
+        return self._request(
+            "DELETE", "/fapi/v1/allOpenOrders", params={"symbol": symbol}, signed=True
+        )
 
-    def get_balance(self) -> List[Dict[str, Any]]:
+    def get_balance(self) -> list[dict[str, Any]]:
         return self._request("GET", "/fapi/v2/balance", signed=True)
 
-    def get_account_info(self) -> Dict[str, Any]:
+    def get_account_info(self) -> dict[str, Any]:
         return self._request("GET", "/fapi/v2/account", signed=True)
 
-    def get_position_risk(self) -> List[Dict[str, Any]]:
+    def get_position_risk(self) -> list[dict[str, Any]]:
         return self._request("GET", "/fapi/v2/positionRisk", signed=True)
 
 
 class BinanceOrderExecutor:
     """High-level executor that handles sizing, rounding, and synchronization."""
 
-    def __init__(self, coins: List[str]):
+    def __init__(self, coins: list[str]):
         self.coins = coins
         self.symbol_map = {coin: f"{coin}USDT" for coin in coins}
         self.live = Config.TRADING_MODE == "live"
@@ -162,9 +173,9 @@ class BinanceOrderExecutor:
         self.default_leverage = Config.BINANCE_DEFAULT_LEVERAGE
         self.recv_window = Config.BINANCE_RECV_WINDOW
 
-        self.client: Optional[BinanceFuturesClient] = None
-        self.symbol_filters: Dict[str, SymbolFilters] = {}
-        self.symbol_leverage: Dict[str, int] = {}
+        self.client: BinanceFuturesClient | None = None
+        self.symbol_filters: dict[str, SymbolFilters] = {}
+        self.symbol_leverage: dict[str, int] = {}
 
         if not self.live:
             logger.info("BinanceOrderExecutor initialized in simulation mode.")
@@ -283,7 +294,7 @@ class BinanceOrderExecutor:
         else:
             return "SELL" if direction == "long" else "BUY"
 
-    def _extract_fill_details(self, order: Dict[str, Any]) -> Tuple[float, float]:
+    def _extract_fill_details(self, order: dict[str, Any]) -> tuple[float, float]:
         executed_qty = float(order.get("executedQty", order.get("origQty", "0")))
         avg_price = float(order.get("avgPrice", 0.0))
         if executed_qty > 0 and (avg_price == 0.0 or math.isclose(avg_price, 0.0)):
@@ -296,57 +307,52 @@ class BinanceOrderExecutor:
     def is_live(self) -> bool:
         return self.live and self.client is not None
 
-    def get_account_overview(self) -> Dict[str, float]:
+    def get_account_overview(self) -> dict[str, float]:
         """Get account overview including total wallet balance (equity) from Binance."""
         if not self.is_live():
             return {}
         assert self.client is not None
-        
-        overview = {
-            "availableBalance": 0.0,
-            "walletBalance": 0.0,
-            "totalWalletBalance": 0.0
-        }
-        
+
+        overview = {"availableBalance": 0.0, "walletBalance": 0.0, "totalWalletBalance": 0.0}
+
         # Use /fapi/v2/account to get total wallet balance (includes unrealized PnL)
         # This endpoint returns totalWalletBalance which = walletBalance + totalUnrealizedProfit
         account_info = self.client.get_account_info()
-        
+
         if account_info:
             # Binance /fapi/v2/account returns these fields:
             # - totalWalletBalance: Total equity (wallet balance + unrealized PnL)
             # - availableBalance: Available balance for trading
             # - walletBalance: Wallet balance (without unrealized PnL)
             # - totalUnrealizedProfit: Total unrealized profit/loss
-            
+
             # Try different possible field names (Binance uses totalWalletBalance)
-            total_wallet_balance = (
-                account_info.get("totalWalletBalance") or
-                account_info.get("totalEquity")
+            total_wallet_balance = account_info.get("totalWalletBalance") or account_info.get(
+                "totalEquity"
             )
-            
+
             if total_wallet_balance is not None:
                 try:
                     overview["totalWalletBalance"] = float(total_wallet_balance)
                 except (ValueError, TypeError):
                     pass
-            
+
             # Also get availableBalance and walletBalance from account info
             available = account_info.get("availableBalance")
             wallet_bal = account_info.get("walletBalance")
-            
+
             if available is not None:
                 try:
                     overview["availableBalance"] = float(available)
                 except (ValueError, TypeError):
                     pass
-            
+
             if wallet_bal is not None:
                 try:
                     overview["walletBalance"] = float(wallet_bal)
                 except (ValueError, TypeError):
                     pass
-        
+
         # Fallback: Also get available balance from balance endpoint
         # This is needed if account_info doesn't have availableBalance
         if overview["availableBalance"] == 0.0:
@@ -364,15 +370,15 @@ class BinanceOrderExecutor:
                         break
             except Exception:
                 pass
-        
+
         return overview
 
-    def get_positions_snapshot(self) -> Dict[str, Dict[str, Any]]:
+    def get_positions_snapshot(self) -> dict[str, dict[str, Any]]:
         if not self.is_live():
             return {}
         assert self.client is not None
         raw_positions = self.client.get_position_risk()
-        snapshot: Dict[str, Dict[str, Any]] = {}
+        snapshot: dict[str, dict[str, Any]] = {}
         for entry in raw_positions:
             symbol = entry.get("symbol")
             coin = next((c for c, s in self.symbol_map.items() if s == symbol), None)
@@ -388,7 +394,11 @@ class BinanceOrderExecutor:
             leverage = int(float(entry.get("leverage", self.default_leverage)))
             unrealized_pnl = float(entry.get("unRealizedProfit", 0.0))
             isolated_margin = entry.get("isolatedMargin")
-            margin_usd = float(isolated_margin) if isolated_margin is not None else abs(quantity * mark_price / max(leverage, 1))
+            margin_usd = (
+                float(isolated_margin)
+                if isolated_margin is not None
+                else abs(quantity * mark_price / max(leverage, 1))
+            )
 
             snapshot[coin] = {
                 "symbol": coin,
@@ -422,7 +432,7 @@ class BinanceOrderExecutor:
         leverage: int,
         price_reference: float,
         reduce_only: bool = False,
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         if not self.is_live():
             raise BinanceAPIError("Attempted to place live order while executor disabled.")
 
@@ -463,7 +473,7 @@ class BinanceOrderExecutor:
         direction: str,
         quantity: float,
         price_reference: float,
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         return self.place_market_order(
             coin=coin,
             direction=direction,
@@ -478,17 +488,17 @@ class BinanceOrderExecutor:
         coin: str,
         direction: str,
         stop_price: float,
-        quantity: Optional[float] = None,
-    ) -> Dict[str, Any]:
+        quantity: float | None = None,
+    ) -> dict[str, Any]:
         """
         Place a TAKE_PROFIT_MARKET order on Binance.
-        
+
         Args:
             coin: Coin symbol (e.g., 'BTC')
             direction: 'long' or 'short'
             stop_price: Price at which to trigger the take profit
             quantity: Optional quantity (if None, uses closePosition=true)
-        
+
         Returns:
             Order response from Binance
         """
@@ -535,17 +545,17 @@ class BinanceOrderExecutor:
         coin: str,
         direction: str,
         stop_price: float,
-        quantity: Optional[float] = None,
-    ) -> Dict[str, Any]:
+        quantity: float | None = None,
+    ) -> dict[str, Any]:
         """
         Place a STOP_MARKET order on Binance.
-        
+
         Args:
             coin: Coin symbol (e.g., 'BTC')
             direction: 'long' or 'short'
             stop_price: Price at which to trigger the stop loss
             quantity: Optional quantity (if None, uses closePosition=true)
-        
+
         Returns:
             Order response from Binance
         """
@@ -587,12 +597,11 @@ class BinanceOrderExecutor:
         assert self.client is not None
         return self.client.place_order(payload)
 
-    def cancel_all_orders_for_symbol(self, coin: str) -> Dict[str, Any]:
+    def cancel_all_orders_for_symbol(self, coin: str) -> dict[str, Any]:
         """Cancel all open orders (including TP/SL) for a symbol."""
         if not self.is_live():
             raise BinanceAPIError("Attempted to cancel orders while executor disabled.")
-        
+
         symbol = self.symbol_map[coin]
         assert self.client is not None
         return self.client.cancel_all_orders(symbol)
-

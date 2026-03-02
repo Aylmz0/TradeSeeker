@@ -1,28 +1,29 @@
 import json
-import time
-from typing import Dict, List, Any, Optional
+
 from openai import OpenAI
+
 from config.config import Config
-from src.utils import RetryManager, safe_file_read
+from src.utils import safe_file_read
 
 # HTF_INTERVAL used in prompt, we can get it from Config
-HTF_INTERVAL = getattr(Config, 'HTF_INTERVAL', '1h') or '1h'
+HTF_INTERVAL = getattr(Config, "HTF_INTERVAL", "1h") or "1h"
 HTF_LABEL = HTF_INTERVAL
+
 
 class DeepSeekAPI:
     """AI API integration with MiMo/DeepSeek support"""
 
     def __init__(self, api_key: str = None):
         # Check for MiMo API first (priority)
-        self.use_mimo = getattr(Config, 'USE_MIMO', False)
-        
+        self.use_mimo = getattr(Config, "USE_MIMO", False)
+
         if self.use_mimo:
             # MiMo API Configuration
-            self.api_key = getattr(Config, 'MIMO_API_KEY', None)
+            self.api_key = getattr(Config, "MIMO_API_KEY", None)
             self.base_url = "https://api.xiaomimimo.com/v1"
-            self.model = getattr(Config, 'MIMO_MODEL', 'MiMo-7B-RL')
+            self.model = getattr(Config, "MIMO_MODEL", "MiMo-7B-RL")
             self.provider = "MiMo"
-            
+
             if not self.api_key:
                 print("❌ MIMO_API_KEY not found!")
                 print("ℹ️  Please check your .env file configuration.")
@@ -30,10 +31,7 @@ class DeepSeekAPI:
             else:
                 print(f"🤖 Using MiMo API ({self.model})")
                 self.client = OpenAI(
-                    api_key=self.api_key,
-                    base_url=self.base_url,
-                    timeout=180.0,
-                    max_retries=2
+                    api_key=self.api_key, base_url=self.base_url, timeout=180.0, max_retries=2
                 )
         else:
             # DeepSeek API (default)
@@ -41,7 +39,7 @@ class DeepSeekAPI:
             self.base_url = "https://api.deepseek.com"
             self.model = "deepseek-chat"
             self.provider = "DeepSeek"
-            
+
             if not self.api_key:
                 print("❌ DEEPSEEK_API_KEY not found!")
                 print("ℹ️  Please check your .env file configuration.")
@@ -49,10 +47,7 @@ class DeepSeekAPI:
             else:
                 print("🤖 Using DeepSeek API")
                 self.client = OpenAI(
-                    api_key=self.api_key, 
-                    base_url=self.base_url,
-                    timeout=180.0,
-                    max_retries=2
+                    api_key=self.api_key, base_url=self.base_url, timeout=180.0, max_retries=2
                 )
 
     def _build_system_prompt(self) -> str:
@@ -66,38 +61,36 @@ class DeepSeekAPI:
                 "competition": "Alpha Arena",
                 "objective": "Maximize PnL via perpetual futures trading",
                 "assets": ["XRP", "DOGE", "ASTER", "TRX", "LINK", "SOL"],
-                "capital_settings": {
-                    "initial_balance": Config.INITIAL_BALANCE
-                }
+                "capital_settings": {"initial_balance": Config.INITIAL_BALANCE},
             },
             "constraints": {
                 "trading_rules": {
                     "max_simultaneous_positions": 5,
                     "same_direction_limit": {
                         "limit": Config.SAME_DIRECTION_LIMIT,
-                        "rule": f"If you have {Config.SAME_DIRECTION_LIMIT} LONGs, you CANNOT open another LONG. Same for SHORTs."
+                        "rule": f"If you have {Config.SAME_DIRECTION_LIMIT} LONGs, you CANNOT open another LONG. Same for SHORTs.",
                     },
                     "min_confidence": Config.MIN_CONFIDENCE,
-                    "discipline": "SNIPER MODE: Only trade high-probability setups. Holding cash is valid when no clear edge exists."
+                    "discipline": "SNIPER MODE: Only trade high-probability setups. Holding cash is valid when no clear edge exists.",
                 },
                 "risk_management": {
                     "risk_reward_ratio": "Maintain a positive risk/reward ratio.",
                     "stop_loss_basis": "Logical technical level (e.g., recent support/resistance or ATR-based).",
                     "invalidation_requirement": "Must be explicit and INCLUDE A 0.2% BUFFER to prevent wick-outs (e.g., 'Close if price < EMA20 * 0.998' for LONG, '... > EMA20 * 1.002' for SHORT).",
-                    "CRITICAL_WARNING": "System has a HARD MARGIN STOP LOSS. Do NOT rely on wider stops."
-                }
+                    "CRITICAL_WARNING": "System has a HARD MARGIN STOP LOSS. Do NOT rely on wider stops.",
+                },
             },
             "strategy": {
                 "philosophy": "Evaluate both LONG and SHORT paths. Bullish regimes support longs; bearish regimes support shorts.",
                 "neutral_regime_logic": {
                     "definition": "1h trend ambiguous. Note: 3m is for entry TIMING only - do not use 3m to define regime conflict.",
-                    "action": "Take direction with best quantified edge. Both LONG and SHORT are valid."
+                    "action": "Take direction with best quantified edge. Both LONG and SHORT are valid.",
                 },
                 "entry_logic": {
                     "trend_following": {
                         "priority": "High",
                         "condition": f"Price aligns with {HTF_LABEL} EMA20 + Volume support",
-                        "strong_signal": f"{HTF_LABEL} + 15m + 3m all align in same direction"
+                        "strong_signal": f"{HTF_LABEL} + 15m + 3m all align in same direction",
                     },
                     "counter_trend": {
                         "priority": "Conditional",
@@ -110,7 +103,7 @@ class DeepSeekAPI:
                             "LOW_RISK": "STRONG+3 OR MEDIUM+4 conditions. EXECUTE.",
                             "MEDIUM_RISK": "STRONG+1-2 OR MEDIUM+3 conditions. EXECUTE if confidence > 0.65.",
                             "HIGH_RISK": "MEDIUM alignment + <3 conditions. Evaluate carefully, prefer HOLD.",
-                            "VERY_HIGH_RISK": "No alignment for COUNTER-TREND (all timeframes follow HTF). For counter-trend: Do NOT trade. For TREND-FOLLOWING: This risk level does NOT apply - proceed normally."
+                            "VERY_HIGH_RISK": "No alignment for COUNTER-TREND (all timeframes follow HTF). For counter-trend: Do NOT trade. For TREND-FOLLOWING: This risk level does NOT apply - proceed normally.",
                         },
                     },
                     "volume_rule": {
@@ -121,14 +114,14 @@ class DeepSeekAPI:
                             "excellent": "> 2.5x",
                             "good": "> 1.8x",
                             "fair": "> 1.2x",
-                            "poor": "< 0.7x"
-                        }
+                            "poor": "< 0.7x",
+                        },
                     },
                     "momentum_conviction_rule": {
                         "description": "How 15m momentum quality affects entry timing",
                         "STRENGTHENING": "Trend accelerating. Proceed with entry normally.",
                         "STABLE": "Trend steady. Proceed with entry normally.",
-                        "WEAKENING": "Trend slowing but not reversing. For ENTRY: wait for 3m alignment. For EXIT: WEAKENING alone is NOT an exit signal - require structure reversal confirmation."
+                        "WEAKENING": "Trend slowing but not reversing. For ENTRY: wait for 3m alignment. For EXIT: WEAKENING alone is NOT an exit signal - require structure reversal confirmation.",
                     },
                     "zone_weakening_combined_rule": {
                         "description": "CRITICAL RULE: Zone + WEAKENING combination signals trend exhaustion",
@@ -136,14 +129,14 @@ class DeepSeekAPI:
                             "for_LONG_entry": "DO NOT open LONG. Trend exhausted at highs. Prefer HOLD or evaluate SHORT.",
                             "for_LONG_exit": "Consider exit. Close if 3m structure shows LH_LL (lower highs, lower lows).",
                             "for_SHORT_entry": "GOOD counter-trend opportunity. Proceed with SHORT if conditions align.",
-                            "for_SHORT_exit": "SHORT is SAFE at UPPER_10. Continue holding - trend favorably exhausting."
+                            "for_SHORT_exit": "SHORT is SAFE at UPPER_10. Continue holding - trend favorably exhausting.",
                         },
                         "LOWER_10_WEAKENING": {
                             "for_SHORT_entry": "DO NOT open SHORT. Trend exhausted at lows. Prefer HOLD or evaluate LONG.",
                             "for_SHORT_exit": "Consider exit. Close if 3m structure shows HH_HL (higher highs, higher lows).",
                             "for_LONG_entry": "GOOD counter-trend opportunity. Proceed with LONG if conditions align.",
-                            "for_LONG_exit": "LONG is SAFE at LOWER_10. Continue holding - trend favorably exhausting."
-                        }
+                            "for_LONG_exit": "LONG is SAFE at LOWER_10. Continue holding - trend favorably exhausting.",
+                        },
                     },
                     "zone_strengthening_combined_rule": {
                         "description": "Zone + STRENGTHENING = trend accelerating. Favor trend direction.",
@@ -151,14 +144,14 @@ class DeepSeekAPI:
                             "for_LONG_entry": "Valid. Trend accelerating up.",
                             "for_LONG_exit": "HOLD. Exit on WEAKENING.",
                             "for_SHORT_entry": "Wait for WEAKENING.",
-                            "for_SHORT_exit": "Consider exit. Momentum against."
+                            "for_SHORT_exit": "Consider exit. Momentum against.",
                         },
                         "LOWER_10_STRENGTHENING": {
                             "for_SHORT_entry": "Valid. Trend accelerating down.",
                             "for_SHORT_exit": "HOLD. Exit on WEAKENING.",
                             "for_LONG_entry": "Wait for WEAKENING.",
-                            "for_LONG_exit": "Consider exit. Momentum against."
-                        }
+                            "for_LONG_exit": "Consider exit. Momentum against.",
+                        },
                     },
                     # DISABLED FOR A/B TESTING (zone+weakening remains active)
                     # "zone_rsi_extreme_rule": {
@@ -185,34 +178,34 @@ class DeepSeekAPI:
                         "applicability": "Applies ONLY to EXISTING positions. Do NOT use for entries.",
                         "definition": "Momentum moving AGAINST your current position.",
                         "strong_signal": "15m + 3m BOTH show reversal against position.",
-                        "action": "Consider closing ONLY if PnL is negative or thesis invalidated. Do NOT exit on weak 3m reversals alone."
+                        "action": "Consider closing ONLY if PnL is negative or thesis invalidated. Do NOT exit on weak 3m reversals alone.",
                     },
                     "reversal_strength_definitions": {
                         "STRONG": f"15m + 3m BOTH show reversal against position (but {HTF_LABEL} doesn't). Consider closing.",
                         "MEDIUM": "Only 15m shows reversal against position. Monitor closely, protect profits if any.",
-                        "INFORMATIONAL": "Only 3m shows reversal against position. May be noise, continue watching."
+                        "INFORMATIONAL": "Only 3m shows reversal against position. May be noise, continue watching.",
                     },
                     "profit_erosion_rules": {
                         "description": "Rules for protecting profits based on peak_pnl erosion tracking",
                         "fields": {
                             "peak_pnl": "Highest profit reached for this position ($)",
                             "erosion_pct": "How much of peak profit has eroded (%)",
-                            "erosion_status": "NONE (<20%), MINOR (20-50%), SIGNIFICANT (50-100%), CRITICAL (>100%)"
+                            "erosion_status": "NONE (<20%), MINOR (20-50%), SIGNIFICANT (50-100%), CRITICAL (>100%)",
                         },
                         "actions": {
                             "NONE": "Normal fluctuation. Continue with existing exit plan.",
                             "MINOR": "Watch closely. Tighten mental stop if reversal signals appear.",
                             "SIGNIFICANT": "Over 50% of peak profit eroded. Close if reversal_strength >= MEDIUM.",
-                            "CRITICAL": "Peak profit fully eroded or now losing. Close unless trend still strongly supports position."
+                            "CRITICAL": "Peak profit fully eroded or now losing. Close unless trend still strongly supports position.",
                         },
-                        "combined_decision": "Combine erosion_status with reversal_strength: SIGNIFICANT/CRITICAL + MEDIUM/STRONG reversal = close position."
-                    }
+                        "combined_decision": "Combine erosion_status with reversal_strength: SIGNIFICANT/CRITICAL + MEDIUM/STRONG reversal = close position.",
+                    },
                 },
                 "startup_behavior": {
                     "cycles_1_to_3": "Observe unless an exceptional, well-supported setup appears. Do NOT cite this rule after cycle 3.",
                     "cycles_4_plus": "Normal trading mode. Apply all rules without startup caution. Trade when conditions are met.",
-                    "general": "Avoid impulsive entries immediately after reset. Maintain up to 5 concurrent positions; choose quality over quantity."
-                }
+                    "general": "Avoid impulsive entries immediately after reset. Maintain up to 5 concurrent positions; choose quality over quantity.",
+                },
             },
             "advanced_playbook": [
                 "Apply long and short strategies across all coins; choose the direction that offers the superior quantified edge.",
@@ -222,7 +215,7 @@ class DeepSeekAPI:
                 "Manage exits proactively; do not wait for targets if data invalidates the thesis.",
                 "High-confidence setups (0.7-0.8+) justify higher exposure within risk limits.",
                 "Consider both trend-following and counter-trend opportunities equally; choose the setup with the best quantified edge.",
-                "BE AGGRESSIVE but disciplined - Take calculated risks based on technical analysis."
+                "BE AGGRESSIVE but disciplined - Take calculated risks based on technical analysis.",
             ],
             "analysis_process": [
                 "1. Check global and per-asset regime data.",
@@ -232,13 +225,13 @@ class DeepSeekAPI:
                 "5. Check alignment across all three timeframes.",
                 "6. Incorporate Volume, Open Interest, Funding.",
                 "7. Decide direction based on strongest quantified edge.",
-                "8. Verify constraints (Position Slots) before proposing."
+                "8. Verify constraints (Position Slots) before proposing.",
             ],
             "data_protocol": {
                 "series_order": "OLDEST -> NEWEST",
                 "indicators": ["Price", "EMA", "RSI", "MACD", "Volume", "Open Interest", "Funding"],
                 "syntax_requirement": "Compare values explicitly (e.g., 'price=2.5 > EMA=2.4')",
-                "authoritative_source": "Treat the supplied data as the authoritative source for every decision."
+                "authoritative_source": "Treat the supplied data as the authoritative source for every decision.",
             },
             "enhanced_context_definitions": {
                 "smart_sparkline": {
@@ -248,7 +241,7 @@ class DeepSeekAPI:
                         "HH_HL": "Higher Highs + Higher Lows = Bullish structure",
                         "LH_LL": "Lower Highs + Lower Lows = Bearish structure",
                         "RANGE": "Price consolidating, potential breakout",
-                        "UNCLEAR": "No clear pattern"
+                        "UNCLEAR": "No clear pattern",
                     },
                     "momentum": "STRENGTHENING (trend accelerating) | STABLE | WEAKENING (trend losing steam)",
                     "price_location": {
@@ -256,14 +249,14 @@ class DeepSeekAPI:
                         "zone": {
                             "LOWER_10": "Price in bottom 10% of period range. When combined with RSI < 25, this indicates the asset may be at a short-term bottom with high bounce probability. Consider reducing SHORT confidence or waiting for confirmation.",
                             "UPPER_10": "Price in top 10% of period range. When combined with RSI > 75, this indicates the asset may be at a short-term top with high pullback probability. Consider reducing LONG confidence or waiting for confirmation.",
-                            "MIDDLE": "Price in normal range. No extreme location-based risk."
+                            "MIDDLE": "Price in normal range. No extreme location-based risk.",
                         },
                         "percentile": "0-100 scale. 0 = at period low, 100 = at period high.",
-                        "guidance": "This is NOT a hard rule. Trend can continue through support/resistance. Use price_location + RSI together to assess risk. If LOWER_10 + RSI<25, mention bounce risk in analysis. If UPPER_10 + RSI>75, mention pullback risk."
+                        "guidance": "This is NOT a hard rule. Trend can continue through support/resistance. Use price_location + RSI together to assess risk. If LOWER_10 + RSI<25, mention bounce risk in analysis. If UPPER_10 + RSI>75, mention pullback risk.",
                     },
-                    "usage": "Use 15m data for shorter-term confirmation. Check price_location on both 1h and 15m when deciding entries."
+                    "usage": "Use 15m data for shorter-term confirmation. Check price_location on both 1h and 15m when deciding entries.",
                 },
-                "tags": "Analytical labels (e.g., 'Vol_High', 'RSI_Overbought'). Use as confirmation."
+                "tags": "Analytical labels (e.g., 'Vol_High', 'RSI_Overbought'). Use as confirmation.",
             },
             "response_schema": {
                 "format": "JSON",
@@ -276,9 +269,9 @@ class DeepSeekAPI:
                         "confidence": "float (0.0-1.0)",
                         "profit_target": "float",
                         "stop_loss": "float",
-                        "invalidation_condition": "string"
+                        "invalidation_condition": "string",
                     }
-                }
+                },
             },
             "few_shot_examples": [
                 {
@@ -293,7 +286,7 @@ class DeepSeekAPI:
                                 "confidence": 0.75,
                                 "profit_target": 0.56,
                                 "stop_loss": 0.48,
-                                "invalidation_condition": f"If {HTF_LABEL} price closes below {HTF_LABEL} EMA20 * 0.998"
+                                "invalidation_condition": f"If {HTF_LABEL} price closes below {HTF_LABEL} EMA20 * 0.998",
                             },
                             "SOL": {
                                 "signal": "sell_to_enter",
@@ -301,18 +294,18 @@ class DeepSeekAPI:
                                 "confidence": 0.75,
                                 "profit_target": 185.0,
                                 "stop_loss": 198.0,
-                                "invalidation_condition": f"If {HTF_LABEL} price closes above {HTF_LABEL} EMA20 * 1.002"
+                                "invalidation_condition": f"If {HTF_LABEL} price closes above {HTF_LABEL} EMA20 * 1.002",
                             },
-                            "TRX": { "signal": "hold" },
-                            "DOGE": { "signal": "hold" },
-                            "LINK": { "signal": "hold" },
-                            "ASTER": { "signal": "hold" }
-                        }
-                    }
+                            "TRX": {"signal": "hold"},
+                            "DOGE": {"signal": "hold"},
+                            "LINK": {"signal": "hold"},
+                            "ASTER": {"signal": "hold"},
+                        },
+                    },
                 }
-            ]
+            ],
         }
-        return json.dumps(system_structure) 
+        return json.dumps(system_structure)
 
     def get_ai_decision(self, prompt: str) -> str:
         """Get trading decision from DeepSeek API using structured JSON prompting"""
@@ -324,24 +317,20 @@ class DeepSeekAPI:
             # We wrap it in a clear instruction
             user_message_content = f"Analyze the following market data JSON and provide decisions based on the system rules:\n\n{prompt}"
 
-            print(f"🔄 Sending request to {self.provider} API (JSON Mode)... Payload Size: {len(prompt)} chars")
-            
+            print(
+                f"🔄 Sending request to {self.provider} API (JSON Mode)... Payload Size: {len(prompt)} chars"
+            )
+
             stream = self.client.chat.completions.create(
                 model=self.model,
                 messages=[
-                    {
-                        "role": "system", 
-                        "content": self._build_system_prompt()
-                    },
-                    {
-                        "role": "user", 
-                        "content": user_message_content
-                    }
+                    {"role": "system", "content": self._build_system_prompt()},
+                    {"role": "user", "content": user_message_content},
                 ],
                 temperature=0.5,
                 max_tokens=4000,
-                response_format={ "type": "json_object" },
-                stream=True
+                response_format={"type": "json_object"},
+                stream=True,
             )
 
             print("⏳ Receiving stream...", end="", flush=True)
@@ -354,27 +343,27 @@ class DeepSeekAPI:
                     # Optional: Print a dot every 100 chars to show activity
                     if len(collected_content) % 10 == 0:
                         print(".", end="", flush=True)
-            
+
             print(" ✅")
             content = "".join(collected_content)
-            
+
             # Robust JSON extraction using JSONDecoder
             try:
                 # Find the first '{'
-                start_index = content.find('{')
+                start_index = content.find("{")
                 if start_index != -1:
                     # Slice from the first '{' to the end
                     json_candidate = content[start_index:]
-                    
+
                     # Use raw_decode to parse the JSON object and ignore trailing data
                     decoder = json.JSONDecoder()
                     obj, end_index = decoder.raw_decode(json_candidate)
-                    
+
                     # Re-serialize to ensure valid JSON string is returned
                     content = json.dumps(obj, indent=2)
                 else:
                     print("⚠️ No JSON object found in response")
-                    
+
             except Exception as e:
                 print(f"⚠️ JSON extraction warning: {e}")
                 # Fallback: try stripping markdown if extraction failed
@@ -382,7 +371,7 @@ class DeepSeekAPI:
                     content = content.replace("```json", "").replace("```", "")
                 elif "```" in content:
                     content = content.replace("```", "")
-            
+
             return content.strip()
 
         except Exception as e:
@@ -403,14 +392,14 @@ class DeepSeekAPI:
                     "confidence": 0.65,
                     "profit_target": 185.0,
                     "stop_loss": 198.0,
-                    "invalidation_condition": "If price closes above 199.0"
+                    "invalidation_condition": "If price closes above 199.0",
                 },
-                "XRP": { "signal": "hold" },
-                "TRX": { "signal": "hold" },
-                "DOGE": { "signal": "hold" },
-                "ASTER": { "signal": "hold" },
-                "LINK": { "signal": "hold" }
-            }
+                "XRP": {"signal": "hold"},
+                "TRX": {"signal": "hold"},
+                "DOGE": {"signal": "hold"},
+                "ASTER": {"signal": "hold"},
+                "LINK": {"signal": "hold"},
+            },
         }
         return json.dumps(simulation_data, indent=2)
 
@@ -420,21 +409,26 @@ class DeepSeekAPI:
             cached_cycles = safe_file_read("data/cycle_history.json", default_data=[])
             if not cached_cycles:
                 return self.get_safe_hold_decisions()
-            
+
             for cycle in reversed(cached_cycles[-5:]):  # Last 5 cycles
-                decisions = cycle.get('decisions', {})
+                decisions = cycle.get("decisions", {})
                 if decisions and isinstance(decisions, dict):
-                    valid_signals = [d for d in decisions.values() if isinstance(d, dict) and d.get('signal') in ['buy_to_enter', 'sell_to_enter']]
+                    valid_signals = [
+                        d
+                        for d in decisions.values()
+                        if isinstance(d, dict)
+                        and d.get("signal") in ["buy_to_enter", "sell_to_enter"]
+                    ]
                     if valid_signals:
                         print("🔄 Using cached decisions from recent successful cycle")
                         fallback_response = {
                             "CHAIN_OF_THOUGHTS": "API Error - Using cached decisions from recent successful cycle. Continuing with established strategy.",
-                            "DECISIONS": decisions
+                            "DECISIONS": decisions,
                         }
                         return json.dumps(fallback_response, indent=2)
-            
+
             return self.get_safe_hold_decisions()
-            
+
         except Exception as e:
             print(f"⚠️ Cache retrieval error: {e}")
             return self.get_safe_hold_decisions()
@@ -443,22 +437,29 @@ class DeepSeekAPI:
         """Generate safe hold decisions for all coins - Returns valid JSON string"""
         print("🛡️ Generating safe hold decisions")
         hold_decisions = {}
-        for coin in ['XRP', 'DOGE', 'ASTER', 'TRX', 'LINK', 'SOL']:
-            hold_decisions[coin] = {"signal": "hold", "justification": "Safe mode: Holding due to API error"}
-        
+        for coin in ["XRP", "DOGE", "ASTER", "TRX", "LINK", "SOL"]:
+            hold_decisions[coin] = {
+                "signal": "hold",
+                "justification": "Safe mode: Holding due to API error",
+            }
+
         safe_response = {
             "CHAIN_OF_THOUGHTS": "API Error - Operating in safe mode. Holding all positions/cash to preserve capital.",
-            "DECISIONS": hold_decisions
+            "DECISIONS": hold_decisions,
         }
         return json.dumps(safe_response, indent=2)
 
     def _get_error_response(self, error_message: str) -> str:
         """Enhanced error response with intelligent recovery"""
         print(f"🔧 Enhanced error handling for: {error_message}")
-        
-        error_type = type(error_message).__name__ if isinstance(error_message, Exception) else str(error_message)
-        
+
+        error_type = (
+            type(error_message).__name__
+            if isinstance(error_message, Exception)
+            else str(error_message)
+        )
+
         if "Connection" in error_type or "Timeout" in error_type:
             return self.get_cached_decisions()
-        
+
         return self.get_safe_hold_decisions()
