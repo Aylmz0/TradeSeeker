@@ -1,0 +1,138 @@
+{
+  "current_balance": 381.10,
+  "positions": {
+    "TRX": {
+      "symbol": "TRX",
+      "direction": "long",
+      "quantity": 2560.571905521294,
+      "entry_price": 0.2851,
+      "entry_time": "2025-12-28T23:18:04.521204",
+      "current_price": 0.2852,
+      "unrealized_pnl": 0.2560571905521012,
+      "notional_usd": 730.019050264121,
+      "margin_usd": 73.0019050264121,
+      "leverage": 10,
+      "liquidation_price": 0.25944100000000003,
+      "confidence": 0.74,
+      "exit_plan": {
+        "stop_loss": 0.282249,
+        "profit_target": 0.28937650000000004,
+        "invalidation_condition": "Close if price < 15m EMA20 * 0.998"
+      },
+      "risk_usd": 73.0019050264121,
+      "loss_cycle_count": 0,
+      "entry_volume": 3421.9,
+      "entry_avg_volume": 248401.385,
+      "entry_volume_ratio": 1.4892811487343358,
+      "entry_atr_14": 0.00014902845601050057,
+      "trend_alignment": "trend_following",
+      "trend_context": {
+        "trend_at_entry": "bullish",
+        "alignment": "trend_following",
+        "cycle": 15
+      },
+      "trailing": {},
+      "sl_oid": -1,
+      "tp_oid": -1,
+      "entry_oid": -1,
+      "wait_for_fill": false,
+      "peak_pnl": 0.5121143811042024,
+      "peak_pnl_cycle": null,
+      "erosion_from_peak": 0.2561,
+      "erosion_pct": 50.0,
+      "erosion_status": "NONE",
+      "profit_cycle_count": 5
+    },
+    "ETH": {
+      "symbol": "ETH",
+      "direction": "long",
+      "quantity": 0.1613291067660807,
+      "entry_price": 2946.0,
+      "entry_time": "2025-12-28T23:20:58.484975",
+      "current_price": 2952.51,
+      "unrealized_pnl": 1.0502524850472206,
+      "notional_usd": 475.2755485328737,
+      "margin_usd": 47.52755485328737,
+      "leverage": 10,
+      "liquidation_price": 2680.86,
+      "confidence": 0.77,
+      "exit_plan": {
+        "stop_loss": 2916.54,
+        "profit_target": 2990.19,
+        "invalidation_condition": "Close if price < 15m EMA20 * 0.998"
+      },
+      "risk_usd": 63.370073137716496,
+      "loss_cycle_count": 0,
+      "entry_volume": 22.1443,
+      "entry_avg_volume": 390.54348500000003,
+      "entry_volume_ratio": 0.9160603460073081,
+      "entry_atr_14": 3.444009179857154,
+      "trend_alignment": "trend_following",
+      "trend_context": {
+        "trend_at_entry": "bullish",
+        "alignment": "trend_following",
+        "cycle": 16
+      },
+      "trailing": {},
+      "sl_oid": -1,
+      "tp_oid": -1,
+      "entry_oid": -1,
+      "wait_for_fill": false,
+      "peak_pnl": 1.2906328541286456,
+      "peak_pnl_cycle": null,
+      "erosion_from_peak": 0.2404,
+      "erosion_pct": 18.62,
+      "erosion_status": "NONE",
+      "profit_cycle_count": 6
+    }
+  },
+  "total_value": 502.94,
+  "total_return": 0.59,
+  "initial_balance": 500.0,
+  "trade_count": 4,
+  "last_updated": "2025-12-28T23:51:44.735972",
+  "sharpe_ratio": -54.79726400550139,
+  "directional_bias": {
+    "long": {
+      "rolling": [
+        0.3295377095636541,
+        0.37888770956364654,
+        0.7097832475654398,
+        0.20760878097852953
+      ],
+      "net_pnl": 1.62581744767127,
+      "trades": 4,
+      "wins": 4,
+      "losses": 0,
+      "consecutive_losses": 0,
+      "consecutive_wins": 4,
+      "caution_active": false,
+      "caution_win_progress": 0,
+      "loss_streak_loss_usd": 0.0
+    },
+    "short": {
+      "rolling": [],
+      "net_pnl": 0.0,
+      "trades": 0,
+      "wins": 0,
+      "losses": 0,
+      "consecutive_losses": 0,
+      "consecutive_wins": 0,
+      "caution_active": false,
+      "caution_win_progress": 0,
+      "loss_streak_loss_usd": 0.0
+    }
+  },
+  "last_history_reset_cycle": 0,
+  "cycles_since_history_reset": 26,
+  "directional_cooldowns": {
+    "long": 1,
+    "short": 0
+  },
+  "relaxed_countertrend_cycles": 3,
+  "counter_trend_cooldown": 0,
+  "counter_trend_consecutive_losses": 0,
+  "coin_cooldowns": {
+    "ETH": 2
+  }
+}

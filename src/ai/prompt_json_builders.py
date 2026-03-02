@@ -192,24 +192,24 @@ def build_counter_trade_json(
             
             total_met = sum([condition_1, condition_2, condition_3, condition_5, condition_6, condition_7, condition_8, condition_9])  # 8 conditions (EMA removed)
             
-            # Determine risk level (Updated Logic - v6.0 HARDENED THRESHOLDS)
-            # Counter-trade is now MUCH harder to qualify as LOW_RISK
-            # STRONG alignment = 15m+3m both counter
-            # MEDIUM alignment = 15m OR 3m counter (one of them)
-            if alignment_strength == "STRONG" and total_met >= 5:
-                risk_level = "LOW_RISK"  # STRONG + 5 or more conditions (was 3)
+            # Determine risk level (Updated Logic - User Request)
+            # Counter-trade risk assessment based on alignment and conditions met
+            if alignment_strength == "STRONG" and total_met >= 4:
+                risk_level = "LOW_RISK"  # STRONG + 4 or more conditions
             elif alignment_strength == "STRONG" and total_met >= 3:
-                risk_level = "MEDIUM_RISK"  # STRONG + 3-4 conditions (was 1-2)
-            elif alignment_strength == "MEDIUM" and total_met >= 6:
-                risk_level = "LOW_RISK"  # MEDIUM + 6 or more conditions (was 4)
+                risk_level = "MEDIUM_RISK"  # STRONG + 3 conditions
+            elif alignment_strength == "MEDIUM" and total_met >= 5:
+                risk_level = "LOW_RISK"  # MEDIUM + 5 or more conditions
             elif alignment_strength == "MEDIUM" and total_met >= 4:
-                risk_level = "MEDIUM_RISK"  # MEDIUM + 4-5 conditions (was 3)
+                risk_level = "MEDIUM_RISK"  # MEDIUM + 4 conditions
             elif alignment_strength == "MEDIUM":
                 risk_level = "HIGH_RISK"  # MEDIUM + less than 4 conditions
             elif alignment_strength == "NONE" and total_met >= 8:
-                risk_level = "MEDIUM_RISK"  # No alignment BUT all 8 conditions met - allow with caution
+                risk_level = "LOW_RISK"  # NONE + 8 conditions (All)
+            elif alignment_strength == "NONE" and total_met >= 7:
+                risk_level = "MEDIUM_RISK"  # NONE + 7 conditions
             else:
-                risk_level = "VERY_HIGH_RISK"  # No alignment and < 8 conditions
+                risk_level = "VERY_HIGH_RISK"  # No alignment and < 7 conditions
             
             # NOTE: Zone + Weakening is now Condition 6 (calculated above)
             # No longer modifies risk level - it's counted as a condition instead

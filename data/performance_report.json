@@ -1,0 +1,416 @@
+[
+  {
+    "analysis_period": "Last 9 cycles (Total: 9)",
+    "timestamp": "2025-12-28T23:04:37.602716",
+    "trading_activity": {
+      "total_decisions": 54,
+      "entry_signals": 1,
+      "hold_signals": 53,
+      "close_signals": 0,
+      "decision_rate": 1.8518518518518516
+    },
+    "trade_performance": {
+      "total_trades": 3,
+      "winning_trades": 3,
+      "losing_trades": 0,
+      "break_even_trades": 0,
+      "profitability_index": 100.0,
+      "total_pnl": 1.42,
+      "average_pnl": 0.47,
+      "profit_factor": Infinity,
+      "largest_win": 0.71,
+      "largest_loss": 0.33
+    },
+    "portfolio_performance": {
+      "initial_balance": 500.0,
+      "current_balance": 501.4182086666927,
+      "total_value": 501.4182086666927,
+      "total_return": 0.28,
+      "sharpe_ratio": 512.64,
+      "sortino_ratio": 0.0,
+      "max_drawdown": 0.0,
+      "open_positions": 0
+    },
+    "coin_performance": {
+      "ETH": {
+        "trades": 3,
+        "total_pnl": 1.4182086666927405,
+        "wins": 3,
+        "losses": 0,
+        "profitability_index": 100.0,
+        "avg_pnl": 0.4727362222309135
+      }
+    },
+    "recommendations": [
+      "[INFO] Recorded return 0.28% within analysis window; below growth target"
+    ]
+  },
+  {
+    "analysis_period": "Last 10 cycles (Total: 13)",
+    "timestamp": "2025-12-28T23:16:35.351237",
+    "trading_activity": {
+      "total_decisions": 60,
+      "entry_signals": 1,
+      "hold_signals": 59,
+      "close_signals": 0,
+      "decision_rate": 1.6666666666666667
+    },
+    "trade_performance": {
+      "total_trades": 3,
+      "winning_trades": 3,
+      "losing_trades": 0,
+      "break_even_trades": 0,
+      "profitability_index": 100.0,
+      "total_pnl": 1.42,
+      "average_pnl": 0.47,
+      "profit_factor": Infinity,
+      "largest_win": 0.71,
+      "largest_loss": 0.33
+    },
+    "portfolio_performance": {
+      "initial_balance": 500.0,
+      "current_balance": 440.4072455743973,
+      "total_value": 440.4072455743973,
+      "total_return": -11.92,
+      "sharpe_ratio": -82.239,
+      "sortino_ratio": 0.0,
+      "max_drawdown": 0.0,
+      "open_positions": 0
+    },
+    "coin_performance": {
+      "ETH": {
+        "trades": 3,
+        "total_pnl": 1.4182086666927405,
+        "wins": 3,
+        "losses": 0,
+        "profitability_index": 100.0,
+        "avg_pnl": 0.4727362222309135
+      }
+    },
+    "recommendations": [
+      "[INFO] Recorded return -11.92% within analysis window; below growth target"
+    ]
+  },
+  {
+    "analysis_period": "Last 10 cycles (Total: 14)",
+    "timestamp": "2025-12-28T23:17:42.424253",
+    "trading_activity": {
+      "total_decisions": 60,
+      "entry_signals": 1,
+      "hold_signals": 59,
+      "close_signals": 0,
+      "decision_rate": 1.6666666666666667
+    },
+    "trade_performance": {
+      "total_trades": 3,
+      "winning_trades": 3,
+      "losing_trades": 0,
+      "break_even_trades": 0,
+      "profitability_index": 100.0,
+      "total_pnl": 1.42,
+      "average_pnl": 0.47,
+      "profit_factor": Infinity,
+      "largest_win": 0.71,
+      "largest_loss": 0.33
+    },
+    "portfolio_performance": {
+      "initial_balance": 500.0,
+      "current_balance": 440.4072455743973,
+      "total_value": 440.4072455743973,
+      "total_return": -11.92,
+      "sharpe_ratio": -512.64,
+      "sortino_ratio": 0.0,
+      "max_drawdown": 0.0,
+      "open_positions": 0
+    },
+    "coin_performance": {
+      "ETH": {
+        "trades": 3,
+        "total_pnl": 1.4182086666927405,
+        "wins": 3,
+        "losses": 0,
+        "profitability_index": 100.0,
+        "avg_pnl": 0.4727362222309135
+      }
+    },
+    "recommendations": [
+      "[INFO] Recorded return -11.92% within analysis window; below growth target"
+    ]
+  },
+  {
+    "analysis_period": "Last 10 cycles (Total: 15)",
+    "timestamp": "2025-12-28T23:20:40.248949",
+    "trading_activity": {
+      "total_decisions": 60,
+      "entry_signals": 2,
+      "hold_signals": 58,
+      "close_signals": 0,
+      "decision_rate": 3.3333333333333335
+    },
+    "trade_performance": {
+      "total_trades": 3,
+      "winning_trades": 3,
+      "losing_trades": 0,
+      "break_even_trades": 0,
+      "profitability_index": 100.0,
+      "total_pnl": 1.42,
+      "average_pnl": 0.47,
+      "profit_factor": Infinity,
+      "largest_win": 0.71,
+      "largest_loss": 0.33
+    },
+    "portfolio_performance": {
+      "initial_balance": 500.0,
+      "current_balance": 367.4053405479852,
+      "total_value": 440.6633027649494,
+      "total_return": -11.87,
+      "sharpe_ratio": -161.235,
+      "sortino_ratio": 0.0,
+      "max_drawdown": 0.0,
+      "open_positions": 1
+    },
+    "coin_performance": {
+      "ETH": {
+        "trades": 3,
+        "total_pnl": 1.4182086666927405,
+        "wins": 3,
+        "losses": 0,
+        "profitability_index": 100.0,
+        "avg_pnl": 0.4727362222309135
+      }
+    },
+    "recommendations": [
+      "[INFO] Recorded return -11.87% within analysis window; below growth target"
+    ]
+  },
+  {
+    "analysis_period": "Last 10 cycles (Total: 16)",
+    "timestamp": "2025-12-28T23:23:40.251119",
+    "trading_activity": {
+      "total_decisions": 60,
+      "entry_signals": 3,
+      "hold_signals": 57,
+      "close_signals": 0,
+      "decision_rate": 5.0
+    },
+    "trade_performance": {
+      "total_trades": 3,
+      "winning_trades": 3,
+      "losing_trades": 0,
+      "break_even_trades": 0,
+      "profitability_index": 100.0,
+      "total_pnl": 1.42,
+      "average_pnl": 0.47,
+      "profit_factor": Infinity,
+      "largest_win": 0.71,
+      "largest_loss": 0.33
+    },
+    "portfolio_performance": {
+      "initial_balance": 500.0,
+      "current_balance": 304.0352674102687,
+      "total_value": 440.51049620272755,
+      "total_return": -11.9,
+      "sharpe_ratio": -117.351,
+      "sortino_ratio": 0.0,
+      "max_drawdown": 0.0,
+      "open_positions": 2
+    },
+    "coin_performance": {
+      "ETH": {
+        "trades": 3,
+        "total_pnl": 1.4182086666927405,
+        "wins": 3,
+        "losses": 0,
+        "profitability_index": 100.0,
+        "avg_pnl": 0.4727362222309135
+      }
+    },
+    "recommendations": [
+      "[INFO] Recorded return -11.90% within analysis window; below growth target"
+    ]
+  },
+  {
+    "analysis_period": "Last 10 cycles (Total: 17)",
+    "timestamp": "2025-12-28T23:25:05.450536",
+    "trading_activity": {
+      "total_decisions": 60,
+      "entry_signals": 3,
+      "hold_signals": 57,
+      "close_signals": 0,
+      "decision_rate": 5.0
+    },
+    "trade_performance": {
+      "total_trades": 3,
+      "winning_trades": 3,
+      "losing_trades": 0,
+      "break_even_trades": 0,
+      "profitability_index": 100.0,
+      "total_pnl": 1.42,
+      "average_pnl": 0.47,
+      "profit_factor": Infinity,
+      "largest_win": 0.71,
+      "largest_loss": 0.33
+    },
+    "portfolio_performance": {
+      "initial_balance": 500.0,
+      "current_balance": 304.0352674102687,
+      "total_value": 440.3534692054753,
+      "total_return": -11.93,
+      "sharpe_ratio": -517.681,
+      "sortino_ratio": 0.0,
+      "max_drawdown": 0.0,
+      "open_positions": 2
+    },
+    "coin_performance": {
+      "ETH": {
+        "trades": 3,
+        "total_pnl": 1.4182086666927405,
+        "wins": 3,
+        "losses": 0,
+        "profitability_index": 100.0,
+        "avg_pnl": 0.4727362222309135
+      }
+    },
+    "recommendations": [
+      "[INFO] Recorded return -11.93% within analysis window; below growth target"
+    ]
+  },
+  {
+    "analysis_period": "Last 10 cycles (Total: 18)",
+    "timestamp": "2025-12-28T23:28:03.309957",
+    "trading_activity": {
+      "total_decisions": 60,
+      "entry_signals": 3,
+      "hold_signals": 57,
+      "close_signals": 0,
+      "decision_rate": 5.0
+    },
+    "trade_performance": {
+      "total_trades": 3,
+      "winning_trades": 3,
+      "losing_trades": 0,
+      "break_even_trades": 0,
+      "profitability_index": 100.0,
+      "total_pnl": 1.42,
+      "average_pnl": 0.47,
+      "profit_factor": Infinity,
+      "largest_win": 0.71,
+      "largest_loss": 0.33
+    },
+    "portfolio_performance": {
+      "initial_balance": 500.0,
+      "current_balance": 304.0352674102687,
+      "total_value": 439.7898928591724,
+      "total_return": -12.04,
+      "sharpe_ratio": -164.899,
+      "sortino_ratio": 0.0,
+      "max_drawdown": 0.0,
+      "open_positions": 2
+    },
+    "coin_performance": {
+      "ETH": {
+        "trades": 3,
+        "total_pnl": 1.4182086666927405,
+        "wins": 3,
+        "losses": 0,
+        "profitability_index": 100.0,
+        "avg_pnl": 0.4727362222309135
+      }
+    },
+    "recommendations": [
+      "[INFO] Recorded return -12.04% within analysis window; below growth target"
+    ]
+  },
+  {
+    "analysis_period": "Last 10 cycles (Total: 19)",
+    "timestamp": "2025-12-28T23:31:03.311148",
+    "trading_activity": {
+      "total_decisions": 60,
+      "entry_signals": 3,
+      "hold_signals": 57,
+      "close_signals": 0,
+      "decision_rate": 5.0
+    },
+    "trade_performance": {
+      "total_trades": 3,
+      "winning_trades": 3,
+      "losing_trades": 0,
+      "break_even_trades": 0,
+      "profitability_index": 100.0,
+      "total_pnl": 1.42,
+      "average_pnl": 0.47,
+      "profit_factor": Infinity,
+      "largest_win": 0.71,
+      "largest_loss": 0.33
+    },
+    "portfolio_performance": {
+      "initial_balance": 500.0,
+      "current_balance": 304.0352674102687,
+      "total_value": 439.9685120784768,
+      "total_return": -12.01,
+      "sharpe_ratio": -119.109,
+      "sortino_ratio": 0.0,
+      "max_drawdown": 0.0,
+      "open_positions": 2
+    },
+    "coin_performance": {
+      "ETH": {
+        "trades": 3,
+        "total_pnl": 1.4182086666927405,
+        "wins": 3,
+        "losses": 0,
+        "profitability_index": 100.0,
+        "avg_pnl": 0.4727362222309135
+      }
+    },
+    "recommendations": [
+      "[INFO] Recorded return -12.01% within analysis window; below growth target"
+    ]
+  },
+  {
+    "analysis_period": "Last 10 cycles (Total: 20)",
+    "timestamp": "2025-12-28T23:34:03.314803",
+    "trading_activity": {
+      "total_decisions": 60,
+      "entry_signals": 3,
+      "hold_signals": 57,
+      "close_signals": 0,
+      "decision_rate": 5.0
+    },
+    "trade_performance": {
+      "total_trades": 3,
+      "winning_trades": 3,
+      "losing_trades": 0,
+      "break_even_trades": 0,
+      "profitability_index": 100.0,
+      "total_pnl": 1.42,
+      "average_pnl": 0.47,
+      "profit_factor": Infinity,
+      "largest_win": 0.71,
+      "largest_loss": 0.33
+    },
+    "portfolio_performance": {
+      "initial_balance": 500.0,
+      "current_balance": 304.0352674102687,
+      "total_value": 440.48683460040183,
+      "total_return": -11.9,
+      "sharpe_ratio": -97.091,
+      "sortino_ratio": 0.0,
+      "max_drawdown": 0.0,
+      "open_positions": 2
+    },
+    "coin_performance": {
+      "ETH": {
+        "trades": 3,
+        "total_pnl": 1.4182086666927405,
+        "wins": 3,
+        "losses": 0,
+        "profitability_index": 100.0,
+        "avg_pnl": 0.4727362222309135
+      }
+    },
+    "recommendations": [
+      "[INFO] Recorded return -11.90% within analysis window; below growth target"
+    ]
+  }
+]

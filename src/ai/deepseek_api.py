@@ -149,10 +149,10 @@ class DeepSeekAPI:
                         "scope": "risk_level applies ONLY when trading AGAINST 1h trend.",
                         "condition": "Evaluate 'risk_level' provided in counter_trade_analysis.",
                         "risk_level_rules": {
-                            "LOW_RISK": "STRONG+3 OR MEDIUM+4 conditions. EXECUTE.",
-                            "MEDIUM_RISK": "STRONG+1-2 OR MEDIUM+3 conditions. EXECUTE if confidence > 0.65.",
-                            "HIGH_RISK": "MEDIUM alignment + <3 conditions. Evaluate carefully, prefer HOLD.",
-                            "VERY_HIGH_RISK": "No alignment for COUNTER-TREND (all timeframes follow HTF). For counter-trend: Do NOT trade. For TREND-FOLLOWING: This risk level does NOT apply - proceed normally."
+                            "LOW_RISK": "STRONG+4 OR MEDIUM+5 conditions. EXECUTE.",
+                            "MEDIUM_RISK": "STRONG+3 OR MEDIUM+4 conditions OR NONE+7 conditions. EXECUTE if high confidence.",
+                            "HIGH_RISK": "Counter-trend setup is too weak. Do NOT trade. (Wait for better alignment).",
+                            "VERY_HIGH_RISK": "No alignment/conditions. Do NOT trade counter-trend. (Trend-Following unaffected)."
                         }
                     },
                     # NOTE: Volume filtering is handled by runtime code - removed from prompt to avoid AI confusion

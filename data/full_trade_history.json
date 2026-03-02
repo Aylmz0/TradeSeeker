@@ -1,0 +1,41 @@
+[
+  {
+    "symbol": "ETH",
+    "direction": "long",
+    "entry_price": 2943.02,
+    "exit_price": 2950.88,
+    "quantity": 0.0670739580430986,
+    "notional_usd": 148.05,
+    "pnl": 0.3295377095636541,
+    "entry_time": "2025-12-28T22:42:47.462092",
+    "exit_time": "2025-12-28T22:49:43.615868",
+    "leverage": 10,
+    "close_reason": "Profit taking at 0.2% gain (25%)"
+  },
+  {
+    "symbol": "ETH",
+    "direction": "long",
+    "entry_price": 2943.02,
+    "exit_price": 2953.5,
+    "quantity": 0.05030546853232395,
+    "notional_usd": 111.03750000000001,
+    "pnl": 0.37888770956364654,
+    "entry_time": "2025-12-28T22:42:47.462092",
+    "exit_time": "2025-12-28T22:50:24.206350",
+    "leverage": 10,
+    "close_reason": "Profit taking at 0.3% gain (25%)"
+  },
+  {
+    "symbol": "ETH",
+    "direction": "long",
+    "entry_price": 2943.02,
+    "exit_price": 2950.67,
+    "quantity": 0.15091640559697184,
+    "notional_usd": 444.15000000000003,
+    "pnl": 0.7097832475654398,
+    "entry_time": "2025-12-28T22:42:47.462092",
+    "exit_time": "2025-12-28T22:56:23.758196",
+    "leverage": 10,
+    "close_reason": "Stop Loss (2950.777322) hit"
+  }
+]
