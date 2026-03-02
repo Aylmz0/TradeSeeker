@@ -244,7 +244,6 @@ DECISIONS
     def get_cached_decisions(self) -> str:
         """Get cached decisions from recent successful cycles"""
         try:
-
             cached_cycles = safe_file_read("cycle_history.json", default_data=[])
             if not cached_cycles:
                 return self.get_safe_hold_decisions()
@@ -673,7 +672,6 @@ class RealMarketData:
 
         # Method 3: Use cached price from previous cycle
         try:
-
             cached_prices = safe_file_read("portfolio_state.json", default_data={})
             if "positions" in cached_prices:
                 for pos_coin, position in cached_prices["positions"].items():
@@ -1035,16 +1033,22 @@ class PortfolioManager:
 
             # Traditional TP/SL checks (only if no enhanced exit triggered)
             if close_reason is None and tp is not None:
-                if direction == "long" and current_price >= tp:
-                    close_reason = f"Profit Target ({tp}) hit"
-                elif direction == "short" and current_price <= tp:
+                if (
+                    direction == "long"
+                    and current_price >= tp
+                    or direction == "short"
+                    and current_price <= tp
+                ):
                     close_reason = f"Profit Target ({tp}) hit"
 
             # Check SL (only if TP not hit)
             if close_reason is None and sl is not None:
-                if direction == "long" and current_price <= sl:
-                    close_reason = f"Stop Loss ({sl}) hit"
-                elif direction == "short" and current_price >= sl:
+                if (
+                    direction == "long"
+                    and current_price <= sl
+                    or direction == "short"
+                    and current_price >= sl
+                ):
                     close_reason = f"Stop Loss ({sl}) hit"
 
             # Execute Close if triggered
@@ -1838,8 +1842,7 @@ class PortfolioManager:
                         f"⚠️ Invalid confidence ({confidence}) or leverage ({leverage}) for {coin}. Skipping."
                     )
                     continue
-                if leverage < 1:
-                    leverage = 1
+                leverage = max(leverage, 1)
                 # Enforce maximum leverage limit from config
                 if leverage > Config.MAX_LEVERAGE:
                     print(
@@ -2432,13 +2435,9 @@ class AlphaArenaDeepSeek:
             trend_direction = "BULLISH" if price > ema_20 else "BEARISH"
 
             # Regime classification
-            if rsi > 70 and macd < 0:
+            if rsi > 70 and macd < 0 or rsi < 30 and macd > 0:
                 return f"{trend_direction}_REVERSAL"
-            elif rsi < 30 and macd > 0:
-                return f"{trend_direction}_REVERSAL"
-            elif rsi > 60:
-                return f"{trend_direction}_TREND"
-            elif rsi < 40:
+            elif rsi > 60 or rsi < 40:
                 return f"{trend_direction}_TREND"
             elif 45 <= rsi <= 55:
                 return f"{trend_direction}_RANGING"

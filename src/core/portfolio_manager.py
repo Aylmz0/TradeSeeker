@@ -577,12 +577,11 @@ class PortfolioManager:
                             print(
                                 f"⚠️ Final validation: Stop loss for {coin} LONG was invalid (>= entry), recalculated to ${format_num(final_stop_loss, 4)}"
                             )
-                    else:  # short
-                        if final_stop_loss <= avg_price:
-                            final_stop_loss = avg_price + (avg_price * 0.02)
-                            print(
-                                f"⚠️ Final validation: Stop loss for {coin} SHORT was invalid (<= entry), recalculated to ${format_num(final_stop_loss, 4)}"
-                            )
+                    elif final_stop_loss <= avg_price:
+                        final_stop_loss = avg_price + (avg_price * 0.02)
+                        print(
+                            f"⚠️ Final validation: Stop loss for {coin} SHORT was invalid (<= entry), recalculated to ${format_num(final_stop_loss, 4)}"
+                        )
 
                     # Save ATR-based stop loss and profit target to exit_plan
                     if final_stop_loss > 0:
@@ -1337,9 +1336,7 @@ class PortfolioManager:
                     current_trend == "bearish"
                     and intraday_trend == "bullish"
                     and rsi_3m >= Config.INTRADAY_NEUTRAL_RSI_HIGH
-                ):
-                    current_trend = "neutral"
-                elif (
+                ) or (
                     current_trend == "bullish"
                     and intraday_trend == "bearish"
                     and rsi_3m <= Config.INTRADAY_NEUTRAL_RSI_LOW
@@ -1704,59 +1701,58 @@ class PortfolioManager:
                     self.total_value = self.current_balance
             else:
                 self.total_value = self.current_balance
+        # With positions: Calculate margin used (for cross margin, calculate from notional/leverage)
+        # OPTIMIZATION: In live mode, total_value was already calculated in sync_live_account()
+        # Only recalculate in simulation mode or if sync_live_account() wasn't called
+        elif self.is_live_trading and self.order_executor and self.order_executor.is_live():
+            # In live mode, total_value should already be set by sync_live_account()
+            # But we recalculate here to ensure consistency after price updates
+            # Use the unrealized_pnl values we just updated (which preserve Binance values)
+            total_margin_used = 0.0
+            total_unrealized_pnl = 0.0
+
+            for pos in self.positions.values():
+                # Get unrealized PnL (should be Binance value in live mode)
+                pnl = pos.get("unrealized_pnl", 0.0)
+                if isinstance(pnl, (int, float)):
+                    total_unrealized_pnl += pnl
+
+                # Get margin (for cross margin, margin_usd might be 0, so calculate from notional/leverage)
+                margin = pos.get("margin_usd", 0.0)
+                if margin <= 0:
+                    notional = pos.get("notional_usd", 0.0)
+                    leverage = pos.get("leverage", 1)
+                    if notional > 0 and leverage > 0:
+                        margin = notional / leverage
+                if isinstance(margin, (int, float)) and margin > 0:
+                    total_margin_used += margin
+
+            # Total value = Available cash + Margin used + Unrealized PnL
+            # In live mode, unrealized_pnl should be from Binance (includes funding fees)
+            self.total_value = self.current_balance + total_margin_used + total_unrealized_pnl
         else:
-            # With positions: Calculate margin used (for cross margin, calculate from notional/leverage)
-            # OPTIMIZATION: In live mode, total_value was already calculated in sync_live_account()
-            # Only recalculate in simulation mode or if sync_live_account() wasn't called
-            if self.is_live_trading and self.order_executor and self.order_executor.is_live():
-                # In live mode, total_value should already be set by sync_live_account()
-                # But we recalculate here to ensure consistency after price updates
-                # Use the unrealized_pnl values we just updated (which preserve Binance values)
-                total_margin_used = 0.0
-                total_unrealized_pnl = 0.0
+            # Simulation mode: calculate manually
+            total_margin_used = 0.0
+            total_unrealized_pnl = 0.0
 
-                for pos in self.positions.values():
-                    # Get unrealized PnL (should be Binance value in live mode)
-                    pnl = pos.get("unrealized_pnl", 0.0)
-                    if isinstance(pnl, (int, float)):
-                        total_unrealized_pnl += pnl
+            for pos in self.positions.values():
+                # Get unrealized PnL (manually calculated in simulation mode)
+                pnl = pos.get("unrealized_pnl", 0.0)
+                if isinstance(pnl, (int, float)):
+                    total_unrealized_pnl += pnl
 
-                    # Get margin (for cross margin, margin_usd might be 0, so calculate from notional/leverage)
-                    margin = pos.get("margin_usd", 0.0)
-                    if margin <= 0:
-                        notional = pos.get("notional_usd", 0.0)
-                        leverage = pos.get("leverage", 1)
-                        if notional > 0 and leverage > 0:
-                            margin = notional / leverage
-                    if isinstance(margin, (int, float)) and margin > 0:
-                        total_margin_used += margin
+                # Get margin (for cross margin, margin_usd might be 0, so calculate from notional/leverage)
+                margin = pos.get("margin_usd", 0.0)
+                if margin <= 0:
+                    notional = pos.get("notional_usd", 0.0)
+                    leverage = pos.get("leverage", 1)
+                    if notional > 0 and leverage > 0:
+                        margin = notional / leverage
+                if isinstance(margin, (int, float)) and margin > 0:
+                    total_margin_used += margin
 
-                # Total value = Available cash + Margin used + Unrealized PnL
-                # In live mode, unrealized_pnl should be from Binance (includes funding fees)
-                self.total_value = self.current_balance + total_margin_used + total_unrealized_pnl
-            else:
-                # Simulation mode: calculate manually
-                total_margin_used = 0.0
-                total_unrealized_pnl = 0.0
-
-                for pos in self.positions.values():
-                    # Get unrealized PnL (manually calculated in simulation mode)
-                    pnl = pos.get("unrealized_pnl", 0.0)
-                    if isinstance(pnl, (int, float)):
-                        total_unrealized_pnl += pnl
-
-                    # Get margin (for cross margin, margin_usd might be 0, so calculate from notional/leverage)
-                    margin = pos.get("margin_usd", 0.0)
-                    if margin <= 0:
-                        notional = pos.get("notional_usd", 0.0)
-                        leverage = pos.get("leverage", 1)
-                        if notional > 0 and leverage > 0:
-                            margin = notional / leverage
-                    if isinstance(margin, (int, float)) and margin > 0:
-                        total_margin_used += margin
-
-                # Total value = Available cash + Margin used + Unrealized PnL
-                self.total_value = self.current_balance + total_margin_used + total_unrealized_pnl
+            # Total value = Available cash + Margin used + Unrealized PnL
+            self.total_value = self.current_balance + total_margin_used + total_unrealized_pnl
 
         if self.initial_balance > 0:
             self.total_return = (
@@ -1908,14 +1904,13 @@ class PortfolioManager:
                 leverage = position.get("leverage", 1)
                 if notional > 0 and leverage > 0:
                     margin_used = notional / leverage
+                # Fallback 2: Calculate from entry_price and quantity
+                elif entry_price > 0 and quantity > 0:
+                    notional = entry_price * quantity
+                    leverage = position.get("leverage", 10)
+                    margin_used = notional / leverage
                 else:
-                    # Fallback 2: Calculate from entry_price and quantity
-                    if entry_price > 0 and quantity > 0:
-                        notional = entry_price * quantity
-                        leverage = position.get("leverage", 10)
-                        margin_used = notional / leverage
-                    else:
-                        margin_used = 0
+                    margin_used = 0
 
             # Debug log if margin_used is still 0
             if margin_used <= 0:
@@ -2049,9 +2044,12 @@ class PortfolioManager:
 
             # Traditional TP/SL checks (only if no enhanced exit triggered)
             if close_reason is None and tp is not None:
-                if direction == "long" and current_price >= tp:
-                    close_reason = f"Profit Target ({tp}) hit"
-                elif direction == "short" and current_price <= tp:
+                if (
+                    direction == "long"
+                    and current_price >= tp
+                    or direction == "short"
+                    and current_price <= tp
+                ):
                     close_reason = f"Profit Target ({tp}) hit"
 
             # Check SL (only if TP not hit)
@@ -2059,9 +2057,12 @@ class PortfolioManager:
             if close_reason is None:
                 # Check exit_plan stop_loss first
                 if sl is not None:
-                    if direction == "long" and current_price <= sl:
-                        close_reason = f"Stop Loss ({sl}) hit"
-                    elif direction == "short" and current_price >= sl:
+                    if (
+                        direction == "long"
+                        and current_price <= sl
+                        or direction == "short"
+                        and current_price >= sl
+                    ):
                         close_reason = f"Stop Loss ({sl}) hit"
 
                 # If no exit_plan stop_loss or it didn't trigger, check margin-based kademeli stop loss
@@ -2084,9 +2085,12 @@ class PortfolioManager:
                         # No minimum distance adjustment needed
 
                         # Check if current price hit margin-based stop loss
-                        if direction == "long" and current_price <= margin_based_stop_loss:
-                            close_reason = f"Margin-based Stop Loss ({format_num(margin_based_stop_loss, 4)}) hit (${loss_threshold_usd:.2f} loss limit, {loss_multiplier * 100:.1f}% of ${margin_used:.2f} margin)"
-                        elif direction == "short" and current_price >= margin_based_stop_loss:
+                        if (
+                            direction == "long"
+                            and current_price <= margin_based_stop_loss
+                            or direction == "short"
+                            and current_price >= margin_based_stop_loss
+                        ):
                             close_reason = f"Margin-based Stop Loss ({format_num(margin_based_stop_loss, 4)}) hit (${loss_threshold_usd:.2f} loss limit, {loss_multiplier * 100:.1f}% of ${margin_used:.2f} margin)"
 
             # Execute Close if triggered
@@ -2343,7 +2347,7 @@ class PortfolioManager:
         else:
             unrealized_loss_usd = max(0.0, (current_price - entry_price) * position["quantity"])
 
-        if unrealized_loss_usd >= loss_threshold_usd and loss_threshold_usd > 0:
+        if unrealized_loss_usd >= loss_threshold_usd > 0:
             print(
                 f"🛑 KADEMELİ LOSS CUTTING: {direction} {position['symbol']} ${unrealized_loss_usd:.2f} zarar (eşik: ${loss_threshold_usd:.2f}). Pozisyon kapatılıyor."
             )
@@ -3086,8 +3090,7 @@ class PortfolioManager:
         dist_pct = abs(entry_price - stop_loss) / entry_price
 
         # Safety: Avoid division by zero or extremely small stops (<0.2%)
-        if dist_pct < 0.002:
-            dist_pct = 0.002  # Min 0.2% stop distance assumption
+        dist_pct = max(dist_pct, 0.002)  # Min 0.2% stop distance assumption
 
         # 3. Calculate Base Position Size (Notional) for Fixed Risk
         # Risk = Notional * Dist_Pct  =>  Notional = Risk / Dist_Pct
@@ -3540,8 +3543,7 @@ class PortfolioManager:
                         f"⚠️ Invalid confidence ({confidence}) or leverage ({leverage}) for {coin}. Skipping."
                     )
                     continue
-                if leverage < 1:
-                    leverage = 1
+                leverage = max(leverage, 1)
                 # Enforce maximum leverage limit from config
                 if leverage > Config.MAX_LEVERAGE:
                     print(
@@ -3950,10 +3952,12 @@ class PortfolioManager:
                     # BULLISH trend + SHORT signal = counter-trend (clash)
                     # BEARISH trend + LONG signal = counter-trend (clash)
                     ai_runtime_clash = False
-                    if current_trend == "BULLISH" and direction == "short":
-                        ai_runtime_clash = True
-                        trade["classification"] = "counter_trend"
-                    elif current_trend == "BEARISH" and direction == "long":
+                    if (
+                        current_trend == "BULLISH"
+                        and direction == "short"
+                        or current_trend == "BEARISH"
+                        and direction == "long"
+                    ):
                         ai_runtime_clash = True
                         trade["classification"] = "counter_trend"
                     else:
@@ -4325,9 +4329,7 @@ class PortfolioManager:
                                     signal == "buy_to_enter"
                                     and price_htf_follow >= ema20_htf_follow
                                     and price_3m >= ema20_3m
-                                ):
-                                    trend_aligned = True
-                                elif (
+                                ) or (
                                     signal == "sell_to_enter"
                                     and price_htf_follow <= ema20_htf_follow
                                     and price_3m <= ema20_3m
@@ -4371,9 +4373,7 @@ class PortfolioManager:
                                     signal == "buy_to_enter"
                                     and price_htf_follow >= ema20_htf_follow
                                     and price_3m >= ema20_3m
-                                ):
-                                    trend_aligned = True
-                                elif (
+                                ) or (
                                     signal == "sell_to_enter"
                                     and price_htf_follow <= ema20_htf_follow
                                     and price_3m <= ema20_3m
@@ -4666,17 +4666,13 @@ class PortfolioManager:
                         # Strong reversal for long: 15m turns bearish OR 3m shows strong breakdown (Price << EMA)
                         price_3m = indicators_3m.get("current_price", 0)
                         ema_3m = indicators_3m.get("ema_20", 0)
-                        if trend_15m == "bearish":
-                            strong_reversal = True
-                        elif price_3m < ema_3m * 0.998:  # 0.2% below EMA
+                        if trend_15m == "bearish" or price_3m < ema_3m * 0.998:
                             strong_reversal = True
                     else:  # short
                         # Strong reversal for short: 15m turns bullish OR 3m shows strong breakout (Price >> EMA)
                         price_3m = indicators_3m.get("current_price", 0)
                         ema_3m = indicators_3m.get("ema_20", 0)
-                        if trend_15m == "bullish":
-                            strong_reversal = True
-                        elif price_3m > ema_3m * 1.002:  # 0.2% above EMA
+                        if trend_15m == "bullish" or price_3m > ema_3m * 1.002:
                             strong_reversal = True
 
                     if not strong_reversal:

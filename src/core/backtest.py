@@ -202,11 +202,9 @@ class BacktestEngine:
         peak = self.portfolio_values[0]
         max_drawdown = 0
         for value in self.portfolio_values:
-            if value > peak:
-                peak = value
+            peak = max(peak, value)
             drawdown = (peak - value) / peak
-            if drawdown > max_drawdown:
-                max_drawdown = drawdown
+            max_drawdown = max(max_drawdown, drawdown)
 
         # Trade statistics
         winning_trades = [t for t in self.trade_history if t["pnl"] > 0]
@@ -422,9 +420,7 @@ class AdvancedRiskManager:
 
             risk_level = Config.RISK_LEVEL.lower()
 
-            if risk_level == "low":
-                max_concentration = 1.0  # 100% per position - konsantrasyon limiti kaldırıldı
-            elif risk_level == "high":
+            if risk_level == "low" or risk_level == "high":
                 max_concentration = 1.0  # 100% per position - konsantrasyon limiti kaldırıldı
             else:  # medium
                 max_concentration = 1.0  # 100% per position - konsantrasyon limiti kaldırıldı

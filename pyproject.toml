@@ -13,10 +13,21 @@ line-length = 100
 # I: isort
 # B: flake8-bugbear
 # UP: pyupgrade
-lint.select = ["E", "F", "I", "B", "UP"]
+# SIM: flake8-simplify (Sadeleştirme)
+# N: pep8-naming (İsimlendirme)
+# PTH: flake8-use-pathlib (Modern dosya yolları)
+# PL: Pylint (Kurumsal standartlar)
+# TID: flake8-tidy-imports (Düzenli importlar)
+# C90: mccabe (Karmaşıklık kontrolü)
+lint.select = ["E", "F", "I", "B", "UP", "SIM", "N", "PTH", "PL", "TID", "C90"]
 
 # Göz ardı edilecek hata kodları
-lint.ignore = []
+# PLR2004: "Magic numbers" uyarısını kapatalım (Trading projelerinde sayısal değerler çok sık kullanılır)
+lint.ignore = ["PLR2004"]
+
+[tool.ruff.lint.mccabe]
+# Karmaşıklık eşiği (Bir fonksiyon en fazla 10 birim karmaşık olabilir)
+max-complexity = 10
 
 [tool.ruff.format]
 # Kod formatlama stili

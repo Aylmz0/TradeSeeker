@@ -261,17 +261,20 @@ class AlphaArenaDeepSeek:
 
             # Multi-timeframe alignment bonus (1h + 15m + 3m)
             alignment_count = 0
-            if price_htf > ema20_htf and price_15m > ema20_15m and price_3m > ema20_3m:
-                alignment_count = 3
-            elif price_htf < ema20_htf and price_15m < ema20_15m and price_3m < ema20_3m:
+            if (
+                price_htf > ema20_htf
+                and price_15m > ema20_15m
+                and price_3m > ema20_3m
+                or price_htf < ema20_htf
+                and price_15m < ema20_15m
+                and price_3m < ema20_3m
+            ):
                 alignment_count = 3
             elif (
                 (price_htf > ema20_htf and price_15m > ema20_15m)
                 or (price_htf > ema20_htf and price_3m > ema20_3m)
                 or (price_15m > ema20_15m and price_3m > ema20_3m)
-            ):
-                alignment_count = 2
-            elif (
+            ) or (
                 (price_htf < ema20_htf and price_15m < ema20_15m)
                 or (price_htf < ema20_htf and price_3m < ema20_3m)
                 or (price_15m < ema20_15m and price_3m < ema20_3m)
@@ -640,17 +643,18 @@ class AlphaArenaDeepSeek:
                     )
                 else:
                     invalidation_condition = f"If {htf_upper} price closes below {htf_upper} EMA20, signaling trend reversal"
-            else:  # short
-                if rsi_14 < 30:
-                    invalidation_condition = (
-                        f"If {htf_upper} RSI breaks back above 40, signaling momentum failure"
-                    )
-                elif rsi_14 > 60:
-                    invalidation_condition = (
-                        f"If {htf_upper} RSI breaks below 50, signaling momentum recovery"
-                    )
-                else:
-                    invalidation_condition = f"If {htf_upper} price closes above {htf_upper} EMA20, signaling trend reversal"
+            elif rsi_14 < 30:
+                invalidation_condition = (
+                    f"If {htf_upper} RSI breaks back above 40, signaling momentum failure"
+                )
+            elif rsi_14 > 60:
+                invalidation_condition = (
+                    f"If {htf_upper} RSI breaks below 50, signaling momentum recovery"
+                )
+            else:
+                invalidation_condition = (
+                    f"If {htf_upper} price closes above {htf_upper} EMA20, signaling trend reversal"
+                )
 
             return {
                 "profit_target": None,  # Handled by execute_live_entry
@@ -1997,7 +2001,6 @@ All market data is provided in JSON format below. Each coin contains:
 
         # Validate JSON if enabled
         if Config.VALIDATE_JSON_PROMPTS:
-
             pass
 
         return prompt

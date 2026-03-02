@@ -116,9 +116,12 @@ def build_counter_trade_json(
                     if funding_rate is not None:
                         # BEARISH trend + negative funding = LONG counter-trend favored
                         # BULLISH trend + positive funding = SHORT counter-trend favored
-                        if trend_htf == "BEARISH" and funding_rate < -0.0003:  # -0.03%
-                            condition_1 = True
-                        elif trend_htf == "BULLISH" and funding_rate > 0.0003:  # +0.03%
+                        if (
+                            trend_htf == "BEARISH"
+                            and funding_rate < -0.0003
+                            or trend_htf == "BULLISH"
+                            and funding_rate > 0.0003
+                        ):  # -0.03%
                             condition_1 = True
                 except Exception:
                     pass

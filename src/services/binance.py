@@ -32,9 +32,7 @@ logger = logging.getLogger("AlphaArena.Binance")
 class BinanceAPIError(Exception):
     """Exception raised when Binance returns an error response."""
 
-    def __init__(
-        self, message: str, status_code: int | None = None, error_code: int | None = None
-    ):
+    def __init__(self, message: str, status_code: int | None = None, error_code: int | None = None):
         super().__init__(message)
         self.status_code = status_code
         self.error_code = error_code
