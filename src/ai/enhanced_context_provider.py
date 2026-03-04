@@ -35,7 +35,7 @@ class EnhancedContextProvider:
 
                     return json.loads(content)
         except Exception as e:
-            print(f"⚠️ Error reading {file_path}: {e}")
+            print(f"[WARNING] Error reading {file_path}: {e}")
         return default_data if default_data is not None else []
 
     def get_enhanced_position_context(self, portfolio_state: dict) -> dict[str, Any]:
@@ -172,7 +172,7 @@ class EnhancedContextProvider:
                     "price_vs_ema20": price_vs_ema20,
                 }
             except Exception as e:
-                print(f"⚠️ Market regime calculation error for {coin}: {e}")
+                print(f"[WARNING] Market regime calculation error for {coin}: {e}")
                 coin_regimes[coin] = {"regime": "error", "score": 0, "price_vs_ema20": "unknown"}
 
         coin_count = len(market_data.available_coins) if market_data.available_coins else 0
@@ -360,7 +360,7 @@ class EnhancedContextProvider:
             return enhanced_context
 
         except Exception as e:
-            print(f"❌ Enhanced context generation error: {e}")
+            print(f"[ERROR] Enhanced context generation error: {e}")
             return {"error": f"Context generation failed: {str(e)}"}
 
     def generate_suggestions(self, portfolio_state: dict, market_regime: dict) -> list[str]:
@@ -376,7 +376,7 @@ class EnhancedContextProvider:
         )
 
         if current_regime == "bearish" and len(positions) >= 3:
-            suggestions.append("[INFO] Bearish regime detected with ≥3 open positions")
+            suggestions.append("[INFO] Bearish regime detected with >=3 open positions")
         elif current_regime == "bullish" and len(positions) == 0:
             suggestions.append("[INFO] Bullish regime detected with zero current exposure")
 
@@ -387,17 +387,17 @@ class EnhancedContextProvider:
     def print_enhanced_context(self, context: dict):
         """Prints enhanced context in formatted way"""
         if "error" in context:
-            print(f"❌ Enhanced context error: {context['error']}")
+            print(f"[ERROR] Enhanced context error: {context['error']}")
             return
 
         print(f"\n{'=' * 60}")
-        print("🎯 ENHANCED CONTEXT FOR AI DECISION MAKING")
+        print("[INFO] ENHANCED CONTEXT FOR AI DECISION MAKING")
         print(f"{'=' * 60}")
 
         # Position Context
         position_context = context.get("position_context", {})
         if position_context:
-            print("\n📊 POSITION CONTEXT:")
+            print("\n[STATS] POSITION CONTEXT:")
             for symbol, data in position_context.items():
                 pnl = data.get("unrealized_pnl", 0)
                 remaining_pct = data.get(
@@ -410,7 +410,7 @@ class EnhancedContextProvider:
 
         # Market Regime
         market_regime = context.get("market_regime", {})
-        print("\n🌐 MARKET REGIME:")
+        print("\n[INFO] MARKET REGIME:")
         print(f"   Current: {market_regime.get('current_regime', 'unknown')}")
         print(f"   Strength: {market_regime.get('regime_strength', 0)}")
 
@@ -418,22 +418,22 @@ class EnhancedContextProvider:
         performance = context.get("performance_insights", {})
         insights = performance.get("insights", [])
         if insights:
-            print("\n💡 PERFORMANCE INSIGHTS:")
+            print("\n[INFO] PERFORMANCE INSIGHTS:")
             for insight in insights:
-                print(f"   • {insight}")
+                print(f"   - {insight}")
 
         # Risk Context
         risk_context = context.get("risk_context", {})
-        print("\n🛡️ RISK CONTEXT:")
+        print("\n[STATS] RISK CONTEXT:")
         print(f"   Total Risk: ${risk_context.get('total_risk_usd', 0):.2f}")
         print(f"   Positions: {risk_context.get('position_count', 0)}")
 
         # Suggestions
         suggestions = context.get("suggestions", [])
         if suggestions:
-            print("\n🎯 SUGGESTIONS (Non-binding):")
+            print("\n[INFO] SUGGESTIONS (Non-binding):")
             for suggestion in suggestions:
-                print(f"   • {suggestion}")
+                print(f"   - {suggestion}")
 
         print(f"\n{'=' * 60}")
 
@@ -442,7 +442,7 @@ class EnhancedContextProvider:
 def main():
     """Test enhanced context provider"""
     provider = EnhancedContextProvider()
-    print("🔍 Generating enhanced context for AI decision making...")
+    print("[INFO] Generating enhanced context for AI decision making...")
     context = provider.generate_enhanced_context()
     provider.print_enhanced_context(context)
 

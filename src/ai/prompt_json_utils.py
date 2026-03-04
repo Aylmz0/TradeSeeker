@@ -204,7 +204,7 @@ def estimate_token_count(text: str) -> int:
     Returns:
         Estimated token count
     """
-    # Rough estimation: 1 token ≈ 4 characters
+    # Rough estimation: 1 token ~ 4 characters
     # This is a simple heuristic, actual tokenization varies by model
     return len(text) // 4
 

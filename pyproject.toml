@@ -4,29 +4,29 @@ version = "0.1.0"
 requires-python = ">=3.10"
 
 [tool.ruff]
-# Satır uzunluğu sınırı
+# Line length limit
 line-length = 100
 
-# İzlenecek hata kodları
+# Followed error codes
 # E: pycodestyle errors
 # F: Pyflakes
 # I: isort
 # B: flake8-bugbear
 # UP: pyupgrade
-# SIM: flake8-simplify (Sadeleştirme)
-# N: pep8-naming (İsimlendirme)
-# PTH: flake8-use-pathlib (Modern dosya yolları)
-# PL: Pylint (Kurumsal standartlar)
-# TID: flake8-tidy-imports (Düzenli importlar)
-# C90: mccabe (Karmaşıklık kontrolü)
+# SIM: flake8-simplify (Simplification)
+# N: pep8-naming (Naming)
+# PTH: flake8-use-pathlib (Modern file paths)
+# PL: Pylint (Corporate standards)
+# TID: flake8-tidy-imports (Tidy imports)
+# C90: mccabe (Complexity control)
 lint.select = ["E", "F", "I", "B", "UP", "SIM", "N", "PTH", "PL", "TID", "C90"]
 
-# Göz ardı edilecek hata kodları
-# PLR2004: "Magic numbers" uyarısını kapatalım (Trading projelerinde sayısal değerler çok sık kullanılır)
+# Ignored error codes
+# PLR2004: Disable magic numbers warning (frequently used in trading projects)
 lint.ignore = ["PLR2004"]
 
 [tool.ruff.lint.mccabe]
-# Karmaşıklık eşiği (Bir fonksiyon en fazla 10 birim karmaşık olabilir)
+# Complexity threshold (A function can be at most 10 units complex)
 max-complexity = 10
 
 [tool.ruff.format]

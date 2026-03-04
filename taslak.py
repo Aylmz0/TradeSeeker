@@ -5,7 +5,7 @@ import requests
 from config.config import Config
 from src.utils import RetryManager, safe_file_read
 
-# Config'den HTF ayarlarını al
+# Get HTF settings from Config
 HTF_INTERVAL = getattr(Config, "HTF_INTERVAL", "1h") or "1h"
 HTF_LABEL = HTF_INTERVAL
 
@@ -20,13 +20,13 @@ class DeepSeekAPI:
         self.session = RetryManager.create_session_with_retry()
 
         if not self.api_key:
-            print("❌ DEEPSEEK_API_KEY not found!")
-            print("ℹ️  Please check your .env file configuration.")
+            print("[ERROR] DEEPSEEK_API_KEY not found!")
+            print("[INFO] Please check your .env file configuration.")
 
     def _build_system_prompt(self) -> str:
         """
-        Sistem talimatlarını yapılandırılmış JSON formatında oluşturur.
-        Bu yapı AI'ın kuralları 'kesin kısıtlamalar' olarak algılamasını sağlar.
+        Creates system instructions in structured JSON format.
+        This structure ensures AI perceives the rules as 'strict constraints'.
         """
         system_structure = {
             "agent_profile": {
@@ -109,8 +109,8 @@ class DeepSeekAPI:
                 "Authorization": f"Bearer {self.api_key}",
             }
 
-            # Kullanıcı prompt'unu da JSON bağlamına alabiliriz (isteğe bağlı ama önerilir)
-            # Şimdilik string olarak bırakıyoruz ama açık bir talimat ekliyoruz.
+            # We could also include the user prompt in the JSON context (optional but recommended)
+            # Leaving as string for now but adding clear instructions.
             user_message_content = f"Analyze the following market data JSON and provide decisions based on the system rules:\n\n{prompt}"
 
             data = {
@@ -119,12 +119,12 @@ class DeepSeekAPI:
                     {"role": "system", "content": self._build_system_prompt()},
                     {"role": "user", "content": user_message_content},
                 ],
-                "temperature": 0.5,  # JSON tutarlılığı için temperature düşürüldü
+                "temperature": 0.5,  # Temperature lowered for JSON consistency
                 "max_tokens": 4096,
                 "response_format": {"type": "json_object"},  # DeepSeek JSON modu aktif
             }
 
-            print("🔄 Sending request to DeepSeek API (JSON Mode)...")
+            print("[INFO] Sending request to DeepSeek API (JSON Mode)...")
             response = requests.post(self.base_url, json=data, headers=headers, timeout=120)
             response.raise_for_status()
 
@@ -135,19 +135,19 @@ class DeepSeekAPI:
             return result["choices"][0]["message"]["content"]
 
         except requests.exceptions.Timeout:
-            print("❌ DeepSeek API request timed out.")
+            print("[ERROR] DeepSeek API request timed out.")
             return self._get_error_response("API Timeout")
         except requests.exceptions.RequestException as e:
-            print(f"❌ DeepSeek API request failed: {e}")
+            print(f"[ERROR] DeepSeek API request failed: {e}")
             return self._get_error_response(f"API Request Failed: {e}")
         except Exception as e:
-            print(f"❌ DeepSeek API error: {e}")
+            print(f"[ERROR] DeepSeek API error: {e}")
             return self._get_error_response(f"General API Error: {e}")
 
     def _get_simulation_response(self, prompt: str) -> str:
         """Simulation response without API"""
-        print("⚠️  Using simulation mode...")
-        # JSON formatında simülasyon cevabı
+        print("[WARNING] Using simulation mode...")
+        # Simulation response in JSON format
         simulation_data = {
             "CHAIN_OF_THOUGHTS": f"Simulation Mode: Assuming market pullback. Shorting SOL based on simulated {HTF_LABEL} resistance. Aiming for 1:1.5 R/R using simulated ATR. Holding others.",
             "DECISIONS": {
@@ -185,7 +185,7 @@ class DeepSeekAPI:
                         and d.get("signal") in ["buy_to_enter", "sell_to_enter"]
                     ]
                     if valid_signals:
-                        print("🔄 Using cached decisions from recent successful cycle")
+                        print("[INFO] Using cached decisions from recent successful cycle")
                         fallback_response = {
                             "CHAIN_OF_THOUGHTS": "API Error - Using cached decisions from recent successful cycle. Continuing with established strategy.",
                             "DECISIONS": decisions,
@@ -195,12 +195,12 @@ class DeepSeekAPI:
             return self.get_safe_hold_decisions()
 
         except Exception as e:
-            print(f"⚠️ Cache retrieval error: {e}")
+            print(f"[WARNING] Cache retrieval error: {e}")
             return self.get_safe_hold_decisions()
 
     def get_safe_hold_decisions(self) -> str:
         """Generate safe hold decisions for all coins"""
-        print("🛡️ Generating safe hold decisions")
+        print("[INFO] Generating safe hold decisions")
         hold_decisions = {}
         for coin in ["XRP", "DOGE", "ASTER", "ADA", "LINK", "SOL"]:
             hold_decisions[coin] = {
@@ -216,7 +216,7 @@ class DeepSeekAPI:
 
     def _get_error_response(self, error_message: str) -> str:
         """Enhanced error response with intelligent recovery"""
-        print(f"🔧 Enhanced error handling for: {error_message}")
+        print(f"[INFO] Enhanced error handling for: {error_message}")
 
         error_type = (
             type(error_message).__name__

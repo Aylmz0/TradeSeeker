@@ -169,7 +169,7 @@ def force_close_position():
         if not coin_to_close:
             return jsonify({"status": "error", "message": "Coin not specified"}), 400
 
-        logger.info(f"🔔 MANUAL CLOSE REQUEST RECEIVED for: {coin_to_close}")
+        logger.info(f"[INFO] MANUAL CLOSE REQUEST RECEIVED for: {coin_to_close}")
 
         override_command = {
             "timestamp": datetime.now().isoformat(),
@@ -211,7 +211,7 @@ def set_bot_control():
         }
 
         safe_file_write("data/bot_control.json", control_data)
-        logger.info(f"🔔 Bot control: {action.upper()} command sent successfully")
+        logger.info(f"[INFO] Bot control: {action.upper()} command sent successfully")
 
         return jsonify(
             {
@@ -280,7 +280,7 @@ if __name__ == "__main__":
     PORT = 8002
     HOST = "0.0.0.0"
 
-    logger.info(f"🚀 Flask Admin Panel Server starting on {HOST}:{PORT}...")
+    logger.info(f"[INFO] Flask Admin Panel Server starting on {HOST}:{PORT}...")
     logger.info(f"   Project Root: {PROJECT_ROOT}")
     logger.info(f"   Template Dir: {TEMPLATE_DIR}")
     logger.info("   Don't forget to start your bot (src/main.py) in a separate terminal.")

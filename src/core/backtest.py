@@ -330,20 +330,20 @@ class AdvancedRiskManager:
         risk_level = Config.RISK_LEVEL.lower()
 
         if risk_level == "low":
-            # Low: Yavaş ve kararlı kazanç - muhafazakar
+            # Low: Slow and steady gains - conservative
             self.max_portfolio_risk = 0.015  # 1.5% portfolio risk
             self.max_position_risk = 0.008  # 0.8% position risk
             self.max_position_size_usd = 30.0  # $30 maximum per position
         elif risk_level == "high":
-            # High: Çok riskli - agresif
+            # High: Very high risk - aggressive
             self.max_portfolio_risk = 0.15  # 15% portfolio risk
             self.max_position_risk = 0.10  # 10% position risk
             self.max_position_size_usd = 80.0  # $80 maximum per position
         else:  # medium (default)
-            # Medium: Nof1ai mantığı - agresif ama kontrollü
+            # Medium: Logic-based - aggressive but controlled
             # $50 maximum per position with flexible sizing
-            self.max_portfolio_risk = 0.08  # 8% portfolio risk (daha muhafazakar)
-            self.max_position_risk = 0.04  # 4% position risk (daha muhafazakar)
+            self.max_portfolio_risk = 0.08  # 8% portfolio risk (more conservative)
+            self.max_position_risk = 0.04  # 4% position risk (more conservative)
             self.max_position_size_usd = 50.0  # $50 maximum per position
 
         # Override with custom values if provided
@@ -421,9 +421,9 @@ class AdvancedRiskManager:
             risk_level = Config.RISK_LEVEL.lower()
 
             if risk_level == "low" or risk_level == "high":
-                max_concentration = 1.0  # 100% per position - konsantrasyon limiti kaldırıldı
+                max_concentration = 1.0  # 100% per position - concentration limit removed
             else:  # medium
-                max_concentration = 1.0  # 100% per position - konsantrasyon limiti kaldırıldı
+                max_concentration = 1.0  # 100% per position - concentration limit removed
 
         # Check if any single position is too concentrated
         # Use dynamic balance calculation (current_balance + total_margin)
@@ -439,7 +439,7 @@ class AdvancedRiskManager:
 
         for symbol, position in current_positions.items():
             position_concentration = position.get("margin_usd", 0) / dynamic_total_balance
-            # Konsantrasyon limiti kaldırıldı - her zaman True döndür
+            # Concentration limit removed - always return True
             # if position_concentration > max_concentration:
             #     logging.warning(f"Position {symbol} exceeds concentration limit: {position_concentration:.2%} > {max_concentration:.0%}")
             #     return False

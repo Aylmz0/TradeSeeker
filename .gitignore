@@ -1,5 +1,12 @@
 .env
 .venv
+project_venv/
 __pycache__/
-#data/
-#history_backups/
+data/
+archive/
+*.log
+*.json
+!requirements.txt
+!package.json
+Nof1Monk.txt
+all_trades_log.txt

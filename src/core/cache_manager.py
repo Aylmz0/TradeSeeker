@@ -235,7 +235,7 @@ def fetch_all_indicators_parallel(
         ...     market_data, ['BTC', 'ETH'], '1h'
         ... )
     """
-    print("🔄 Fetching all indicators in parallel...")
+    print("[INFO] Fetching all indicators in parallel...")
     start_time = time.time()
 
     all_indicators = {}  # {coin: {interval: indicators}}
@@ -277,7 +277,7 @@ def fetch_all_indicators_parallel(
             all_sentiment[coin] = sentiment
 
     elapsed = time.time() - start_time
-    print(f"✅ Fetched all indicators in {elapsed:.2f}s (parallel)")
+    print(f"[SUCCESS] Fetched all indicators in {elapsed:.2f}s (parallel)")
 
     return all_indicators, all_sentiment
 
@@ -294,7 +294,7 @@ class SmartIndicatorCache:
     Example:
         >>> cache = SmartIndicatorCache(htf_interval='1h')
         >>> indicators = cache.get_indicators('BTC', '15m', market_data)
-        💾 BTC 15m: Cache HIT (or MISS)
+        [INFO] BTC 15m: Cache HIT (or MISS)
     """
 
     def __init__(self, htf_interval: str = "1h"):
@@ -331,7 +331,7 @@ class SmartIndicatorCache:
                 return market_data_instance.get_technical_indicators(coin, interval)
             else:
                 # Force fresh for cacheable intervals
-                print(f"🌐 {coin} {interval}: Force fresh (cache bypass)")
+                print(f"[FETCH] {coin} {interval}: Force fresh (cache bypass)")
                 data = market_data_instance.get_technical_indicators(coin, interval)
                 # Update cache even when forced fresh
                 if interval in self.cacheable_intervals:
@@ -346,18 +346,18 @@ class SmartIndicatorCache:
         if cached:
             self.hits += 1
             self.api_calls_saved += 1
-            print(f"💾 {coin} {interval}: Cache HIT")
+            print(f"[CACHE] {coin} {interval}: Cache HIT")
             return cached
 
         # Cache miss, fetch from API
         self.misses += 1
-        print(f"🌐 {coin} {interval}: Cache MISS, fetching from API")
+        print(f"[FETCH] {coin} {interval}: Cache MISS, fetching from API")
         fresh_data = market_data_instance.get_technical_indicators(coin, interval)
 
         # Cache with smart TTL
         ttl = self._calculate_smart_ttl(interval)
         self._set_to_cache(coin, interval, fresh_data, ttl)
-        print(f"💾 {coin} {interval}: Cached (TTL={ttl}s)")
+        print(f"[CACHE] {coin} {interval}: Cached (TTL={ttl}s)")
 
         return fresh_data
 
@@ -438,7 +438,7 @@ class SmartIndicatorCache:
             del self.cache[key]
 
         if expired_keys:
-            print(f"🧹 Cleared {len(expired_keys)} expired cache entries")
+            print(f"[CLEANUP] Cleared {len(expired_keys)} expired cache entries")
 
         return len(expired_keys)
 
@@ -464,7 +464,7 @@ class SmartIndicatorCache:
         """Print cache statistics"""
         stats = self.get_stats()
         print("\n" + "=" * 50)
-        print("💾 SMART CACHE STATISTICS")
+        print("[STATS] SMART CACHE STATISTICS")
         print("=" * 50)
         print(f"Cache Entries:     {stats['total_entries']}")
         print(f"Hits:              {stats['hits']}")
@@ -484,7 +484,7 @@ class SmartIndicatorCache:
         """Clear all cache and reset stats"""
         self.cache.clear()
         self.reset_stats()
-        print("🧹 Cache cleared completely")
+        print("[CLEANUP] Cache cleared completely")
 
 
 # Global cache instance (will be initialized with HTF from config)
@@ -534,7 +534,7 @@ def fetch_all_indicators_with_cache(
         # Fallback to non-cached version
         return fetch_all_indicators_parallel(market_data_instance, available_coins, htf_interval)
 
-    print("🔄 Fetching indicators with smart cache...")
+    print("[INFO] Fetching indicators with smart cache...")
     start_time = time.time()
 
     # Get global cache instance
@@ -594,7 +594,7 @@ def fetch_all_indicators_with_cache(
     cache_info = (
         f"Cache: {stats['hits']}/{stats['hits'] + stats['misses']} hits ({stats['hit_rate_pct']}%)"
     )
-    print(f"✅ Fetched in {elapsed:.2f}s (parallel + cache) | {cache_info}")
+    print(f"[SUCCESS] Fetched in {elapsed:.2f}s (parallel + cache) | {cache_info}")
 
     # Periodically clear expired entries
     cache.clear_expired()

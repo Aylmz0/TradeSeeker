@@ -28,7 +28,7 @@ def build_counter_trade_json(
     all_indicators: dict[str, dict[str, dict[str, Any]]],
     available_coins: list[str],
     htf_interval: str,
-    market_data=None,  # YENİ: Funding Rate için market_data parametresi
+    market_data=None,  # NEW: market_data parameter for Funding Rate
 ) -> list[dict[str, Any]]:
     """
     Build counter-trade analysis JSON from text analysis or indicators.
@@ -87,7 +87,7 @@ def build_counter_trade_json(
 
             # Determine alignment strength for counter-trend
             # STRONG: 15m + 3m both align against 1h
-            # MEDIUM: 15m VEYA 3m align against 1h
+            # MEDIUM: 15m OR 3m align against 1h
             # NONE: 15m AND 3m both follow 1h (no counter-trend)
             alignment_strength = "NONE"  # Default to NONE (not Python None)
             if trend_15m and trend_3m:
@@ -97,16 +97,16 @@ def build_counter_trade_json(
                     if trend_15m == "BEARISH" and trend_3m == "BEARISH":
                         alignment_strength = "STRONG"  # 15m+3m both BEARISH (against 1h BULLISH)
                     elif trend_15m == "BEARISH" or trend_3m == "BEARISH":
-                        alignment_strength = "MEDIUM"  # 15m VEYA 3m BEARISH
+                        alignment_strength = "MEDIUM"  # 15m OR 3m BEARISH
                 elif trend_htf == "BEARISH":
                     # Counter-trend LONG: 15m and 3m should be BULLISH
                     if trend_15m == "BULLISH" and trend_3m == "BULLISH":
                         alignment_strength = "STRONG"  # 15m+3m both BULLISH (against 1h BEARISH)
                     elif trend_15m == "BULLISH" or trend_3m == "BULLISH":
-                        alignment_strength = "MEDIUM"  # 15m VEYA 3m BULLISH
+                        alignment_strength = "MEDIUM"  # 15m OR 3m BULLISH
 
             # Evaluate 5 conditions
-            # Condition 1: Funding Rate Extreme (YENİ - zaman diliminden bağımsız)
+            # Condition 1: Funding Rate Extreme (NEW - timeframe independent)
             # Negative funding = too many shorts = LONG counter-trend favored
             # Positive funding = too many longs = SHORT counter-trend favored
             condition_1 = False
@@ -718,7 +718,7 @@ def build_portfolio_json(portfolio: Any) -> dict[str, Any]:
             positions_list.append(
                 {
                     "symbol": coin,
-                    "direction": pos.get("direction", "long"),  # ✅ Eklendi
+                    "direction": pos.get("direction", "long"),  # [INFO] Added
                     "quantity": format_number_for_json(pos.get("quantity", 0)),
                     "entry_price": format_number_for_json(pos.get("entry_price", 0)),
                     "current_price": format_number_for_json(pos.get("current_price", 0)),

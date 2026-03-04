@@ -553,13 +553,12 @@ async function updateBotStatus() {
             if (botStatusText) botStatusText.textContent = status.toUpperCase();
 
             if (status === 'paused') {
-                if (botControlText) botControlText.textContent = '▶️ RESUME';
+                if (botControlText) botControlText.textContent = 'RESUME';
                 if (botControlBtn) {
-                    botControlBtn.classList.remove('bg-indigo-600', 'hover:bg-indigo-700');
                     botControlBtn.classList.add('bg-green-600', 'hover:bg-green-700');
                 }
             } else {
-                if (botControlText) botControlText.textContent = '⏸️ PAUSE';
+                if (botControlText) botControlText.textContent = 'PAUSE';
                 if (botControlBtn) {
                     botControlBtn.classList.remove('bg-green-600', 'hover:bg-green-700');
                     botControlBtn.classList.add('bg-indigo-600', 'hover:bg-indigo-700');
@@ -600,7 +599,7 @@ async function refreshPerformance() {
     const originalText = btn.textContent;
 
     try {
-        btn.textContent = '🔄 Analyzing...';
+        btn.textContent = 'Analyzing...';
         btn.disabled = true;
 
         const response = await fetch(apiUrl('/api/performance/refresh'), {
@@ -612,7 +611,7 @@ async function refreshPerformance() {
             const result = await response.json();
             if (result.status === 'success') {
                 await loadPerformanceData();
-                alert('✅ Performance analysis completed successfully!');
+                alert('Performance analysis completed successfully!');
             } else {
                 throw new Error(result.message || 'Unknown error');
             }
@@ -620,8 +619,8 @@ async function refreshPerformance() {
             throw new Error('Failed to refresh performance data');
         }
     } catch (error) {
-        console.error('Performance refresh error:', error);
-        alert(`❌ Failed to refresh performance: ${error.message}`);
+        console.error('Performance refresh order:', error);
+        alert(`Failed to refresh performance: ${error.message}`);
     } finally {
         btn.textContent = originalText;
         btn.disabled = false;

@@ -21,7 +21,7 @@ class MockMarketData:
         key = f"{coin}_{interval}"
         self.call_count[key] = self.call_count.get(key, 0) + 1
 
-        print(f"  📡 API CALL #{self.call_count[key]}: {coin} {interval}")
+        print(f"  [INFO] API CALL #{self.call_count[key]}: {coin} {interval}")
 
         return {
             "price": 42000.0,
@@ -52,7 +52,7 @@ def test_cache_strategy():
     assert actual_3m_calls == expected_3m_calls, (
         f"3m should always fetch fresh! Expected {expected_3m_calls}, got {actual_3m_calls}"
     )
-    print(f"  ✅ PASS: 3m called API {actual_3m_calls} times (never cached)")
+    print(f"  [SUCCESS] PASS: 3m called API {actual_3m_calls} times (never cached)")
 
     # Test 2: 15m should be cached
     print("\n[Test 2] 15m interval (should cache):")
@@ -65,7 +65,7 @@ def test_cache_strategy():
     assert actual_15m_calls == expected_15m_calls, (
         f"15m should cache! Expected {expected_15m_calls}, got {actual_15m_calls}"
     )
-    print(f"  ✅ PASS: 15m called API {actual_15m_calls} time, then 2 cache hits")
+    print(f"  [SUCCESS] PASS: 15m called API {actual_15m_calls} time, then 2 cache hits")
 
     # Test 3: 1h should be cached
     print("\n[Test 3] 1h interval (should cache):")
@@ -78,7 +78,7 @@ def test_cache_strategy():
     assert actual_1h_calls == expected_1h_calls, (
         f"1h should cache! Expected {expected_1h_calls}, got {actual_1h_calls}"
     )
-    print(f"  ✅ PASS: 1h called API {actual_1h_calls} time, then 2 cache hits")
+    print(f"  [SUCCESS] PASS: 1h called API {actual_1h_calls} time, then 2 cache hits")
 
     # Print cache stats
     print("\n" + "-" * 60)
@@ -104,7 +104,7 @@ def test_ttl_calculation():
         assert ttl >= 30, f"TTL too low for {interval}"
         assert ttl < 7200, f"TTL too high for {interval}"
 
-    print("  ✅ PASS: All TTL calculations within reasonable range")
+    print("  [SUCCESS] PASS: All TTL calculations within reasonable range")
 
 
 def test_cache_expiration():
@@ -123,7 +123,7 @@ def test_cache_expiration():
     # Should hit cache immediately
     cached = cache._get_from_cache("TEST_15m")
     assert cached is not None, "Cache should hit immediately"
-    print("  ✅ Immediate fetch: Cache HIT")
+    print("  [SUCCESS] Immediate fetch: Cache HIT")
 
     # Wait for expiration
     print("  Waiting 2 seconds for expiration...")
@@ -132,7 +132,7 @@ def test_cache_expiration():
     # Should miss cache after expiration
     cached = cache._get_from_cache("TEST_15m")
     assert cached is None, "Cache should expire after TTL"
-    print("  ✅ After 2s: Cache MISS (expired)")
+    print("  [SUCCESS] After 2s: Cache MISS (expired)")
 
     # Test clear_expired
     cache._set_to_cache("EXPIRE1", "15m", {"price": 100}, ttl=1)
@@ -140,7 +140,7 @@ def test_cache_expiration():
     time.sleep(2)
 
     cleared = cache.clear_expired()
-    print(f"  ✅ Cleared {cleared} expired entries")
+    print(f"  [SUCCESS] Cleared {cleared} expired entries")
 
 
 def test_multiple_coins():
@@ -169,16 +169,16 @@ def test_multiple_coins():
         calls = mock_data.call_count.get(f"{coin}_15m", 0)
         assert calls == 1, f"{coin} should be called once, got {calls}"
 
-    print(f"  ✅ PASS: All {len(coins)} coins cached correctly")
+    print(f"  [SUCCESS] PASS: All {len(coins)} coins cached correctly")
 
     cache.print_stats()
 
 
 def run_all_tests():
     """Run all tests"""
-    print("\n" + "🧪 " * 20)
+    print("\n" + "=" * 20)
     print("SMART INDICATOR CACHE - TEST SUITE")
-    print("🧪 " * 20)
+    print("=" * 20)
 
     try:
         test_cache_strategy()
@@ -186,16 +186,16 @@ def run_all_tests():
         test_cache_expiration()
         test_multiple_coins()
 
-        print("\n" + "✅ " * 20)
+        print("\n" + "=" * 20)
         print("ALL TESTS PASSED!")
-        print("✅ " * 20 + "\n")
+        print("=" * 20 + "\n")
         return 0
 
     except AssertionError as e:
-        print(f"\n❌ TEST FAILED: {e}\n")
+        print(f"\n[ERROR] TEST FAILED: {e}\n")
         return 1
     except Exception as e:
-        print(f"\n❌ ERROR: {e}\n")
+        print(f"\n[ERROR]: {e}\n")
         import traceback
 
         traceback.print_exc()

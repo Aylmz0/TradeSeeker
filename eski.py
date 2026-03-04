@@ -25,11 +25,11 @@ class DeepSeekAPI:
             self.provider = "MiMo"
 
             if not self.api_key:
-                print("❌ MIMO_API_KEY not found!")
-                print("ℹ️  Please check your .env file configuration.")
+                print("[ERROR] MIMO_API_KEY not found!")
+                print("[INFO] Please check your .env file configuration.")
                 self.client = None
             else:
-                print(f"🤖 Using MiMo API ({self.model})")
+                print(f"[AI] Using MiMo API ({self.model})")
                 self.client = OpenAI(
                     api_key=self.api_key, base_url=self.base_url, timeout=180.0, max_retries=2
                 )
@@ -41,11 +41,11 @@ class DeepSeekAPI:
             self.provider = "DeepSeek"
 
             if not self.api_key:
-                print("❌ DEEPSEEK_API_KEY not found!")
-                print("ℹ️  Please check your .env file configuration.")
+                print("[ERROR] DEEPSEEK_API_KEY not found!")
+                print("[INFO] Please check your .env file configuration.")
                 self.client = None
             else:
-                print("🤖 Using DeepSeek API")
+                print("[AI] Using DeepSeek API")
                 self.client = OpenAI(
                     api_key=self.api_key, base_url=self.base_url, timeout=180.0, max_retries=2
                 )
@@ -109,7 +109,7 @@ class DeepSeekAPI:
                     "volume_rule": {
                         "threshold": "volume_ratio < 0.20 = LOW",
                         "for_entry": "Do NOT enter with LOW volume.",
-                        "for_exit": "LOW volume ≠ exit signal.",
+                        "for_exit": "LOW volume != exit signal.",
                         "labels": {
                             "excellent": "> 2.5x",
                             "good": "> 1.8x",
@@ -318,7 +318,7 @@ class DeepSeekAPI:
             user_message_content = f"Analyze the following market data JSON and provide decisions based on the system rules:\n\n{prompt}"
 
             print(
-                f"🔄 Sending request to {self.provider} API (JSON Mode)... Payload Size: {len(prompt)} chars"
+                f"[INFO] Sending request to {self.provider} API (JSON Mode)... Payload Size: {len(prompt)} chars"
             )
 
             stream = self.client.chat.completions.create(
@@ -333,7 +333,7 @@ class DeepSeekAPI:
                 stream=True,
             )
 
-            print("⏳ Receiving stream...", end="", flush=True)
+            print("[WAIT] Receiving stream...", end="", flush=True)
             collected_content = []
             for chunk in stream:
                 # Safe access for MiMo API which may return empty choices
@@ -344,7 +344,7 @@ class DeepSeekAPI:
                     if len(collected_content) % 10 == 0:
                         print(".", end="", flush=True)
 
-            print(" ✅")
+            print(" [SUCCESS]")
             content = "".join(collected_content)
 
             # Robust JSON extraction using JSONDecoder
@@ -362,10 +362,10 @@ class DeepSeekAPI:
                     # Re-serialize to ensure valid JSON string is returned
                     content = json.dumps(obj, indent=2)
                 else:
-                    print("⚠️ No JSON object found in response")
+                    print("[WARNING] No JSON object found in response")
 
             except Exception as e:
-                print(f"⚠️ JSON extraction warning: {e}")
+                print(f"[WARNING] JSON extraction warning: {e}")
                 # Fallback: try stripping markdown if extraction failed
                 if "```json" in content:
                     content = content.replace("```json", "").replace("```", "")
@@ -377,12 +377,12 @@ class DeepSeekAPI:
         except Exception as e:
             # Detailed error logging
             error_type = type(e).__name__
-            print(f"❌ {self.provider} API error ({error_type}): {e}")
+            print(f"[ERROR] {self.provider} API error ({error_type}): {e}")
             return self._get_error_response(f"{error_type}: {e}")
 
     def _get_simulation_response(self, prompt: str) -> str:
         """Simulation response without API - Returns valid JSON string"""
-        print("⚠️  Using simulation mode...")
+        print("[WARNING] Using simulation mode...")
         simulation_data = {
             "CHAIN_OF_THOUGHTS": f"Simulation Mode: Assuming market pullback. Shorting SOL based on simulated {HTF_LABEL} resistance. Aiming for 1:1.5 R/R using simulated ATR. Holding others.",
             "DECISIONS": {
@@ -420,7 +420,7 @@ class DeepSeekAPI:
                         and d.get("signal") in ["buy_to_enter", "sell_to_enter"]
                     ]
                     if valid_signals:
-                        print("🔄 Using cached decisions from recent successful cycle")
+                        print("[INFO] Using cached decisions from recent successful cycle")
                         fallback_response = {
                             "CHAIN_OF_THOUGHTS": "API Error - Using cached decisions from recent successful cycle. Continuing with established strategy.",
                             "DECISIONS": decisions,
@@ -430,12 +430,12 @@ class DeepSeekAPI:
             return self.get_safe_hold_decisions()
 
         except Exception as e:
-            print(f"⚠️ Cache retrieval error: {e}")
+            print(f"[WARNING] Cache retrieval error: {e}")
             return self.get_safe_hold_decisions()
 
     def get_safe_hold_decisions(self) -> str:
         """Generate safe hold decisions for all coins - Returns valid JSON string"""
-        print("🛡️ Generating safe hold decisions")
+        print("[INFO] Generating safe hold decisions")
         hold_decisions = {}
         for coin in ["XRP", "DOGE", "ASTER", "TRX", "LINK", "SOL"]:
             hold_decisions[coin] = {
@@ -451,7 +451,7 @@ class DeepSeekAPI:
 
     def _get_error_response(self, error_message: str) -> str:
         """Enhanced error response with intelligent recovery"""
-        print(f"🔧 Enhanced error handling for: {error_message}")
+        print(f"[INFO] Enhanced error handling for: {error_message}")
 
         error_type = (
             type(error_message).__name__

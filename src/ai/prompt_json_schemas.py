@@ -19,11 +19,11 @@ def get_counter_trade_schema() -> dict[str, Any]:
             "15m_trend": {
                 "type": ["string", "null"],
                 "enum": ["BULLISH", "BEARISH", None],
-            },  # ✅ Kısaltıldı: fifteen_m_trend → 15m_trend
+            },  # [INFO] Shortened: fifteen_m_trend -> 15m_trend
             "3m_trend": {
                 "type": "string",
                 "enum": ["BULLISH", "BEARISH"],
-            },  # ✅ Kısaltıldı: three_m_trend → 3m_trend
+            },  # [INFO] Shortened: three_m_trend -> 3m_trend
             "alignment_strength": {
                 "type": ["string", "null"],
                 "enum": ["STRONG", "MEDIUM", "WEAK", None],
@@ -35,7 +35,7 @@ def get_counter_trade_schema() -> dict[str, Any]:
                         "type": "integer",
                         "minimum": 0,
                         "maximum": 5,
-                    }  # ✅ Sadece total_met (condition_1-5 kaldırıldı)
+                    }  # [INFO] Only total_met (condition_1-5 removed)
                 },
                 "required": ["total_met"],
             },
@@ -62,11 +62,11 @@ def get_trend_reversal_schema() -> dict[str, Any]:
             "reversal_signals": {
                 "type": "object",
                 "properties": {
-                    "htf_reversal": {"type": "boolean"},  # ✅ Dinamik detection eklendi
+                    "htf_reversal": {"type": "boolean"},  # [INFO] Dynamic detection added
                     "15m_reversal": {
                         "type": "boolean"
-                    },  # ✅ Dinamik detection eklendi (fifteen_m → 15m)
-                    "3m_reversal": {"type": "boolean"},  # ✅ Kısaltıldı: three_m → 3m
+                    },  # [INFO] Dynamic detection added (fifteen_m -> 15m)
+                    "3m_reversal": {"type": "boolean"},  # [INFO] Shortened: three_m -> 3m
                     "strength": {
                         "type": "string",
                         "enum": ["STRONG", "MEDIUM", "INFORMATIONAL", "NONE"],
@@ -183,9 +183,9 @@ def get_position_slot_schema() -> dict[str, Any]:
             "short_slots_used": {"type": "integer"},
             "same_direction_limit": {
                 "type": "integer"
-            },  # ✅ Eklendi: Aynı yönde maksimum pozisyon limiti
-            "long_slots_available": {"type": "integer"},  # ✅ Eklendi: Kalan LONG slot sayısı
-            "short_slots_available": {"type": "integer"},  # ✅ Eklendi: Kalan SHORT slot sayısı
+            },  # [INFO] Added: Max position limit in same direction
+            "long_slots_available": {"type": "integer"},  # [INFO] Added: Remaining LONG slots
+            "short_slots_available": {"type": "integer"},  # [INFO] Added: Remaining SHORT slots
             "available_slots": {"type": "integer"},
             "weakest_position": {
                 "type": ["object", "null"],

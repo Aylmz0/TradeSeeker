@@ -50,26 +50,26 @@ class AlphaArenaDeepSeek:
         self.enhanced_exit_enabled = True  # Enhanced exit strategy control flag
         self.cycle_active = False  # Track whether a trading cycle is executing
         self.current_cycle_number = 0
-        # Trend flip cooldown yönetimi PortfolioManager tarafında tutulur.
+        # Trend flip cooldown management is handled in PortfolioManager.
         self.latest_indicator_cache: dict[str, dict[str, dict[str, Any]]] = {}
         self.history_reset_interval = Config.HISTORY_RESET_INTERVAL
 
     def get_max_positions_for_cycle(self, cycle_number: int) -> int:
-        """Cycle bazlı maximum pozisyon limiti - Kademeli artış sistemi, MAX_POSITIONS ile sınırlı"""
+        """Cycle-based maximum position limit - Gradual increase system, limited by MAX_POSITIONS"""
         from config.config import Config
 
         max_allowed = Config.MAX_POSITIONS
 
         if cycle_number == 1:
-            return min(1, max_allowed)  # Cycle 1: max 1 pozisyon (veya MAX_POSITIONS)
+            return min(1, max_allowed)  # Cycle 1: max 1 position (or MAX_POSITIONS)
         elif cycle_number == 2:
-            return min(2, max_allowed)  # Cycle 2: max 2 pozisyon (veya MAX_POSITIONS)
+            return min(2, max_allowed)  # Cycle 2: max 2 positions (or MAX_POSITIONS)
         elif cycle_number == 3:
-            return min(3, max_allowed)  # Cycle 3: max 3 pozisyon (veya MAX_POSITIONS)
+            return min(3, max_allowed)  # Cycle 3: max 3 positions (or MAX_POSITIONS)
         elif cycle_number == 4:
-            return min(4, max_allowed)  # Cycle 4: max 4 pozisyon (veya MAX_POSITIONS)
+            return min(4, max_allowed)  # Cycle 4: max 4 positions (or MAX_POSITIONS)
         else:
-            return max_allowed  # Cycle 5+: MAX_POSITIONS değerini kullan
+            return max_allowed  # Cycle 5+: Uses MAX_POSITIONS value
 
     def _apply_directional_capacity_filter(
         self, decisions: dict[str, dict]
@@ -115,7 +115,7 @@ class AlphaArenaDeepSeek:
                     "justification": f"Directional cooldown active ({remaining} cycles remaining)",
                 }
                 print(
-                    f"⏸️ Directional cooldown: Blocking {direction.upper()} entry for {coin} ({remaining} cycles remaining)."
+                    f"[PAUSED] Directional cooldown: Blocking {direction.upper()} entry for {coin} ({remaining} cycles remaining)."
                 )
                 continue
 
@@ -138,7 +138,7 @@ class AlphaArenaDeepSeek:
         cycles_elapsed = getattr(self.portfolio, "cycles_since_history_reset", 0)
         if cycles_elapsed >= interval:
             print(
-                f"🧭 Bias control: {cycles_elapsed} cycles since last reset (interval {interval}). Resetting history."
+                f"[BIAS CONTROL] Bias control: {cycles_elapsed} cycles since last reset (interval {interval}). Resetting history."
             )
             self.portfolio.reset_historical_data(cycle_number)
             self.invocation_count = 0
@@ -168,7 +168,7 @@ class AlphaArenaDeepSeek:
             return trend_aligned
 
         except Exception as e:
-            print(f"⚠️ Trend alignment error for {coin}: {e}")
+            print(f"[WARNING] Trend alignment error for {coin}: {e}")
             return False
 
     def check_momentum_alignment(self, coin: str) -> bool:
@@ -208,7 +208,7 @@ class AlphaArenaDeepSeek:
             return momentum_aligned
 
         except Exception as e:
-            print(f"⚠️ Momentum alignment error for {coin}: {e}")
+            print(f"[WARNING] Momentum alignment error for {coin}: {e}")
             return False
 
     def enhanced_trend_detection(self, coin: str) -> dict[str, Any]:
@@ -300,7 +300,7 @@ class AlphaArenaDeepSeek:
             }
 
         except Exception as e:
-            print(f"⚠️ Enhanced trend detection error for {coin}: {e}")
+            print(f"[WARNING] Enhanced trend detection error for {coin}: {e}")
             return {
                 "trend_strength": 0,
                 "trend_direction": "NEUTRAL",
@@ -345,11 +345,8 @@ class AlphaArenaDeepSeek:
 
             # Weighted average - each indicator has different importance
             total_strength = (
-                rsi_strength * 0.20  # %20 ağırlık
-                + macd_strength * 0.25  # %25 ağırlık (en önemli)
-                + volume_strength * 0.15  # %15 ağırlık
-                + bb_strength * 0.20  # %20 ağırlık
-                + ma_strength * 0.20  # %20 ağırlık
+                + bb_strength * 0.20  # 20% weight
+                + ma_strength * 0.20  # 20% weight
             )
 
             # Determine trend direction
@@ -371,7 +368,7 @@ class AlphaArenaDeepSeek:
             }
 
         except Exception as e:
-            print(f"⚠️ Comprehensive trend strength error for {coin}: {e}")
+            print(f"[WARNING] Comprehensive trend strength error for {coin}: {e}")
             return {"strength_score": 0, "trend_direction": "UNCLEAR", "component_scores": {}}
 
     def analyze_rsi_strength(self, rsi: float) -> float:
@@ -445,7 +442,7 @@ class AlphaArenaDeepSeek:
                 return 0.2  # No trend (consolidation)
 
         except Exception as e:
-            print(f"⚠️ Bollinger Bands analysis error: {e}")
+            print(f"[WARNING] Bollinger Bands analysis error: {e}")
             return 0.5
 
     def analyze_moving_averages_strength(self, price: float, ema20: float, ema50: float) -> float:
@@ -464,7 +461,7 @@ class AlphaArenaDeepSeek:
                 return 0.3  # No clear alignment
 
         except Exception as e:
-            print(f"⚠️ Moving Averages analysis error: {e}")
+            print(f"[WARNING] Moving Averages analysis error: {e}")
             return 0.5
 
     def determine_trend_direction(
@@ -551,7 +548,7 @@ class AlphaArenaDeepSeek:
                 return 0.1
 
         except Exception as e:
-            print(f"⚠️ Volume confidence calculation error for {coin}: {e}")
+            print(f"[WARNING] Volume confidence calculation error for {coin}: {e}")
             return 0.0
 
     def calculate_volume_quality_score(
@@ -585,11 +582,11 @@ class AlphaArenaDeepSeek:
                 return 20.0
 
         except Exception as e:
-            print(f"⚠️ Volume quality score calculation error for {coin}: {e}")
+            print(f"[WARNING] Volume quality score calculation error for {coin}: {e}")
             return 0.0
 
     def should_enhance_short_sizing(self, coin: str) -> bool:
-        """Check if short position should be enhanced (%15 daha büyük)"""
+        """Check if short position should be enhanced (15% larger)"""
         try:
             indicators_3m = self.market_data.get_technical_indicators(coin, "3m")
             indicators_htf = self.market_data.get_technical_indicators(coin, HTF_INTERVAL)
@@ -598,7 +595,7 @@ class AlphaArenaDeepSeek:
                 return False
 
             # Enhanced short conditions:
-            # 1. 3m RSI > 70 (aşırı alım)
+            # 1. 3m RSI > 70 (overbought)
             rsi_3m = indicators_3m.get("rsi_14", 50)
             # 2. Volume > 1.5x average
             volume_ratio = indicators_3m.get("volume", 0) / indicators_3m.get("avg_volume", 1)
@@ -611,7 +608,7 @@ class AlphaArenaDeepSeek:
             return rsi_3m > 70 and volume_ratio > 1.5 and trend_bearish
 
         except Exception as e:
-            print(f"⚠️ Enhanced short sizing check error for {coin}: {e}")
+            print(f"[WARNING] Enhanced short sizing check error for {coin}: {e}")
             return False
 
     def generate_advanced_exit_plan(
@@ -664,7 +661,7 @@ class AlphaArenaDeepSeek:
             }
 
         except Exception as e:
-            print(f"⚠️ Advanced exit plan generation error for {coin}: {e}")
+            print(f"[WARNING] Advanced exit plan generation error for {coin}: {e}")
             return {
                 "profit_target": None,
                 "stop_loss": None,
@@ -757,7 +754,7 @@ class AlphaArenaDeepSeek:
                 return "NEUTRAL"
 
         except Exception as e:
-            print(f"⚠️ Regime detection error for {coin}: {e}")
+            print(f"[WARNING] Regime detection error for {coin}: {e}")
             return "UNCLEAR"
 
     def get_trading_context(self) -> dict[str, Any]:
@@ -805,7 +802,7 @@ class AlphaArenaDeepSeek:
             }
 
         except Exception as e:
-            print(f"⚠️ Trading context error: {e}")
+            print(f"[WARNING] Trading context error: {e}")
             return {
                 "recent_decisions": [],
                 "market_behavior": "Error in context analysis",
@@ -898,7 +895,7 @@ class AlphaArenaDeepSeek:
             provider = EnhancedContextProvider()
             return provider.generate_enhanced_context()
         except Exception as e:
-            print(f"⚠️ Enhanced context error: {e}")
+            print(f"[WARNING] Enhanced context error: {e}")
             return {"error": f"Enhanced context failed: {str(e)}"}
 
     def format_position_context(self, position_context: dict) -> str:
@@ -944,7 +941,7 @@ class AlphaArenaDeepSeek:
             )
             counter_note = ""
             if trend_alignment == "COUNTER_TREND":
-                counter_note = " | Counter-trend position — hold unless invalidation triggers."
+                counter_note = " | Counter-trend position - hold unless invalidation triggers."
 
             formatted += (
                 f"  {symbol}: ${pnl:.2f} PnL, {remaining_pct}% to target, {time_in_trade}min in trade | "
@@ -1019,7 +1016,7 @@ class AlphaArenaDeepSeek:
 
         formatted = ""
         for insight in insights:
-            formatted += f"  • {insight}\n"
+            formatted += f"  - {insight}\n"
         return formatted
 
     def format_directional_feedback(self, directional_feedback: dict) -> str:
@@ -1101,7 +1098,7 @@ class AlphaArenaDeepSeek:
 
         formatted = ""
         for suggestion in suggestions:
-            formatted += f"  • {suggestion}\n"
+            formatted += f"  - {suggestion}\n"
         return formatted
 
     def format_trend_reversal_analysis(self, trend_reversal_analysis: dict) -> str:
@@ -1136,7 +1133,7 @@ class AlphaArenaDeepSeek:
                 signal_type = signal.get("type", "Unknown")
                 strength = signal.get("strength", "Unknown")
                 description = signal.get("description", "No description")
-                formatted += f"  • {signal_type} ({strength}): {description}\n"
+                formatted += f"  - {signal_type} ({strength}): {description}\n"
 
         if not formatted:
             return "Trend reversal analysis: No reversal signals detected"
@@ -1264,11 +1261,11 @@ class AlphaArenaDeepSeek:
         for side in ("long", "short"):
             stats = bias_metrics.get(side, {})
             bias_lines.append(
-                f"  • {side.upper()}: net_pnl=${format_num(stats.get('net_pnl', 0.0), 2)}, "
+                f"  - {side.upper()}: net_pnl=${format_num(stats.get('net_pnl', 0.0), 2)}, "
                 f"trades={stats.get('trades', 0)}, win_rate={format_num(stats.get('win_rate', 0.0), 2)}%, "
                 f"rolling_avg=${format_num(stats.get('rolling_avg', 0.0), 2)}, consecutive_losses={stats.get('consecutive_losses', 0)}"
             )
-        bias_section = "\n".join(bias_lines) if bias_lines else "  • No directional trades recorded"
+        bias_section = "\n".join(bias_lines) if bias_lines else "  - No directional trades recorded"
 
         # Get cooldown status
         cooldowns = self.portfolio.directional_cooldowns
@@ -1286,12 +1283,12 @@ class AlphaArenaDeepSeek:
                     reason.append(f"${loss_streak_usd:.2f} total loss")
                 reason_str = " + ".join(reason) if reason else "unknown"
                 cooldown_lines.append(
-                    f"  • {side.upper()}: COOLDOWN ACTIVE ({cycles_remaining} cycles remaining) - Reason: {reason_str}"
+                    f"  - {side.upper()}: COOLDOWN ACTIVE ({cycles_remaining} cycles remaining) - Reason: {reason_str}"
                 )
             else:
-                cooldown_lines.append(f"  • {side.upper()}: No cooldown (active)")
+                cooldown_lines.append(f"  - {side.upper()}: No cooldown (active)")
         cooldown_section = (
-            "\n".join(cooldown_lines) if cooldown_lines else "  • No cooldowns active"
+            "\n".join(cooldown_lines) if cooldown_lines else "  - No cooldowns active"
         )
 
         # Get coin cooldown status
@@ -1301,12 +1298,12 @@ class AlphaArenaDeepSeek:
             for coin, cycles in sorted(coin_cooldowns.items()):
                 if cycles > 0:
                     coin_cooldown_lines.append(
-                        f"  • {coin}: COOLDOWN ACTIVE ({cycles} cycles remaining - previous loss)"
+                        f"  - {coin}: COOLDOWN ACTIVE ({cycles} cycles remaining - previous loss)"
                     )
         coin_cooldown_section = (
             "\n".join(coin_cooldown_lines)
             if coin_cooldown_lines
-            else "  • No coin cooldowns active"
+            else "  - No coin cooldowns active"
         )
 
         recent_flips = self.portfolio.get_recent_trend_flip_summary()
@@ -1314,9 +1311,9 @@ class AlphaArenaDeepSeek:
             self.portfolio, "trend_flip_history_window", self.portfolio.trend_flip_cooldown
         )
         if recent_flips:
-            trend_flip_section = "\n".join(f"  • {entry}" for entry in recent_flips)
+            trend_flip_section = "\n".join(f"  - {entry}" for entry in recent_flips)
         else:
-            trend_flip_section = f"  • No trend flips in last {flip_history_window} cycles"
+            trend_flip_section = f"  - No trend flips in last {flip_history_window} cycles"
 
         # Use JSON builder for prompt generation (Enables new features like slot constraint instructions)
         from src.ai.prompt_json_builders import build_position_slot_json
@@ -1339,8 +1336,8 @@ It has been {minutes_running} minutes since you started trading. The current tim
 
 {slot_instruction}
 
-ALL OF THE PRICE OR SIGNAL DATA BELOW IS ORDERED: OLDEST → NEWEST
-Timeframes note: Unless stated otherwise in a section title, intraday series are provided at 3‑minute intervals. If a coin uses a different interval, it is explicitly stated in that coin's section.
+ALL OF THE PRICE OR SIGNAL DATA BELOW IS ORDERED: OLDEST -> NEWEST
+Timeframes note: Unless stated otherwise in a section title, intraday series are provided at 3-minute intervals. If a coin uses a different interval, it is explicitly stated in that coin's section.
 
 {"=" * 20} REAL-TIME COUNTER-TRADE ANALYSIS {"=" * 20}
 
@@ -1370,12 +1367,12 @@ DIRECTIONAL PERFORMANCE SNAPSHOT (Last 20 trades max):
 DIRECTIONAL COOLDOWN STATUS (CRITICAL - DO NOT PROPOSE TRADES IN COOLDOWN DIRECTIONS):
 {cooldown_section}
 
-⚠️ IMPORTANT: If a direction (LONG or SHORT) is in cooldown, you MUST NOT propose any new trades in that direction. The system will block them, but you should avoid proposing them in the first place. Cooldown is activated after 3 consecutive losses OR $5+ total loss in a direction.
+[WARNING] IMPORTANT: If a direction (LONG or SHORT) is in cooldown, you MUST NOT propose any new trades in that direction. The system will block them, but you should avoid proposing them in the first place. Cooldown is activated after 3 consecutive losses OR $5+ total loss in a direction.
 
 COIN COOLDOWN STATUS (CRITICAL - DO NOT PROPOSE TRADES FOR COINS IN COOLDOWN):
 {coin_cooldown_section}
 
-⚠️ IMPORTANT: If a coin is in cooldown, you MUST NOT propose any new trades for that coin (LONG or SHORT). The system will block them, but you should avoid proposing them in the first place. Coin cooldown is activated after a loss on that coin and lasts for 1 cycle.
+[WARNING] IMPORTANT: If a coin is in cooldown, you MUST NOT propose any new trades for that coin (LONG or SHORT). The system will block them, but you should avoid proposing them in the first place. Coin cooldown is activated after a loss on that coin and lasts for 1 cycle.
 
 RECENT TREND FLIP GUARD (Cooldown = {self.portfolio.trend_flip_cooldown} cycles | History = {flip_history_window} cycles):
 {trend_flip_section}
@@ -1422,9 +1419,9 @@ REMEMBER: These are suggestions only. You make the final trading decisions based
         cycle_position_cap = self.get_max_positions_for_cycle(cycle_for_limits)
 
         slot_lines = [
-            f"  • Total open positions: {total_open_positions}/{cycle_position_cap} (cycle cap)",
-            f"  • Long slots used: {long_open}/{same_direction_limit}",
-            f"  • Short slots used: {short_open}/{same_direction_limit}",
+            f"  - Total open positions: {total_open_positions}/{cycle_position_cap} (cycle cap)",
+            f"  - Long slots used: {long_open}/{same_direction_limit}",
+            f"  - Short slots used: {short_open}/{same_direction_limit}",
         ]
         if long_open >= same_direction_limit:
             weakest_long = None
@@ -1437,11 +1434,11 @@ REMEMBER: These are suggestions only. You make the final trading decisions based
                     else "N/A"
                 )
                 slot_lines.append(
-                    f"  • Weakest LONG → {weakest_long['coin']} (PnL ${weakest_long['pnl']:.2f}, in trade {wl_minutes}, "
+                    f"  - Weakest LONG -> {weakest_long['coin']} (PnL ${weakest_long['pnl']:.2f}, in trade {wl_minutes}, "
                     f"loss_cycles={weakest_long['loss_cycles']}). Evaluate trimming/closing this before proposing a new long."
                 )
             slot_lines.append(
-                "  • Long capacity FULL → System blocks new longs. Provide either (a) a close/trim plan for a current long "
+                "  - Long capacity FULL -> System blocks new longs. Provide either (a) a close/trim plan for a current long "
                 "OR (b) a SHORT setup (ONLY if no counter-trend LONG signal exists). CRITICAL: If a counter-trend LONG signal exists, DO NOT open a SHORT."
             )
         if short_open >= same_direction_limit:
@@ -1455,11 +1452,11 @@ REMEMBER: These are suggestions only. You make the final trading decisions based
                     else "N/A"
                 )
                 slot_lines.append(
-                    f"  • Weakest SHORT → {weakest_short['coin']} (PnL ${weakest_short['pnl']:.2f}, in trade {ws_minutes}, "
+                    f"  - Weakest SHORT -> {weakest_short['coin']} (PnL ${weakest_short['pnl']:.2f}, in trade {ws_minutes}, "
                     f"loss_cycles={weakest_short['loss_cycles']}). Evaluate trimming/closing this before proposing a new short."
                 )
             slot_lines.append(
-                "  • Short capacity FULL → System blocks new shorts. Provide either (a) a close/trim plan for a current short "
+                "  - Short capacity FULL -> System blocks new shorts. Provide either (a) a close/trim plan for a current short "
                 "OR (b) a LONG alternative (ONLY if no counter-trend SHORT signal exists). CRITICAL: If a counter-trend SHORT signal exists, DO NOT open a LONG."
             )
 
@@ -1510,17 +1507,17 @@ REMEMBER: These are suggestions only. You make the final trading decisions based
                 # Format numbers using global helper
                 output = f"{prefix}current_price = {format_num(indicators.get('current_price', 'N/A'))}\n"
                 output += f"{prefix}Mid prices (last {len(indicators.get('price_series', []))}): {self.format_list(indicators.get('price_series', []))}\n"
-                output += f"{prefix}EMA indicators (20‑period): {self.format_list(indicators.get('ema_20_series', []))}\n"
+                output += f"{prefix}EMA indicators (20-period): {self.format_list(indicators.get('ema_20_series', []))}\n"
                 if "rsi_7_series" in indicators:
-                    output += f"{prefix}RSI indicators (7‑Period): {self.format_list(indicators.get('rsi_7_series', []), precision=3)}\n"
-                output += f"{prefix}RSI indicators (14‑Period): {self.format_list(indicators.get('rsi_14_series', []), precision=3)}\n"
+                    output += f"{prefix}RSI indicators (7-Period): {self.format_list(indicators.get('rsi_7_series', []), precision=3)}\n"
+                output += f"{prefix}RSI indicators (14-Period): {self.format_list(indicators.get('rsi_14_series', []), precision=3)}\n"
                 output += f"{prefix}MACD indicators: {self.format_list(indicators.get('macd_series', []))}\n"
                 atr_3 = indicators.get("atr_3")
                 atr_14 = indicators.get("atr_14")
                 atr_str = ""
                 if atr_3 is not None and pd.notna(atr_3):
-                    atr_str += f"{prefix}3‑Period ATR: {format_num(atr_3)} vs "
-                atr_str += f"14‑Period ATR: {format_num(atr_14)}\n"
+                    atr_str += f"{prefix}3-Period ATR: {format_num(atr_3)} vs "
+                atr_str += f"14-Period ATR: {format_num(atr_14)}\n"
                 output += atr_str
                 current_volume = indicators.get("volume", "N/A")
                 avg_volume = indicators.get("avg_volume", "N/A")
@@ -1530,11 +1527,11 @@ REMEMBER: These are suggestions only. You make the final trading decisions based
 
             # --- End inner function ---
 
-            prompt += "--- Intraday series (3‑minute intervals) ---\n"
+            prompt += "--- Intraday series (3-minute intervals) ---\n"
             prompt += format_indicators(indicators_3m)
-            prompt += "\n--- Medium-term context (15‑minute intervals) ---\n"
+            prompt += "\n--- Medium-term context (15-minute intervals) ---\n"
             prompt += format_indicators(indicators_15m)
-            prompt += f"\n--- Longer‑term context ({HTF_LABEL} timeframe) ---\n"
+            prompt += f"\n--- Longer-term context ({HTF_LABEL} timeframe) ---\n"
             prompt += format_indicators(indicators_htf)
 
             # --- Add current position details if open ---
@@ -1652,51 +1649,48 @@ REMEMBER: These are suggestions only. You make the final trading decisions based
                         )
 
                         if trend_direction == "short":
-                            trend_reversal_warning = f"ℹ️ {signal_strength} REVERSAL SIGNAL ({signals_text}): You have a SHORT position but momentum is showing bullish signs. "
+                            trend_reversal_warning = f"[INFO] {signal_strength} REVERSAL SIGNAL ({signals_text}): You have a SHORT position but momentum is showing bullish signs. "
                             trend_reversal_warning += "15m and 3m momentum both show bullish signs - strong reversal signal. This can be a counter-trend opportunity. Evaluate your exit plan and consider if the position thesis is still valid."
                         else:  # long position
-                            trend_reversal_warning = f"ℹ️ {signal_strength} REVERSAL SIGNAL ({signals_text}): You have a LONG position but momentum is showing bearish signs. "
+                            trend_reversal_warning = f"[INFO] {signal_strength} REVERSAL SIGNAL ({signals_text}): You have a LONG position but momentum is showing bearish signs. "
                             trend_reversal_warning += "15m and 3m momentum both show bearish signs - strong reversal signal. This can be a counter-trend opportunity. Evaluate your exit plan and consider if the position thesis is still valid."
                     elif signal_3m:
                         # Only 3m shows reversal (medium reversal signal)
                         signal_strength = "MEDIUM"
                         signals_text = " & ".join([s for s in reversal_signals if "3m" in s])
-
                         if trend_direction == "short":
-                            trend_reversal_warning = f"ℹ️ {signal_strength} REVERSAL SIGNAL ({signals_text}): You have a SHORT position but 3m momentum is showing bullish signs. "
+                            trend_reversal_warning = f"[INFO] {signal_strength} REVERSAL SIGNAL ({signals_text}): You have a SHORT position but 3m momentum is showing bullish signs. "
                             trend_reversal_warning += "3m momentum shows bullish signs - medium reversal signal. Continue monitoring but prioritize {HTF_LABEL} trend confirmation before making exit decisions."
                         else:  # long position
-                            trend_reversal_warning = f"ℹ️ {signal_strength} REVERSAL SIGNAL ({signals_text}): You have a LONG position but 3m momentum is showing bearish signs. "
+                            trend_reversal_warning = f"[INFO] {signal_strength} REVERSAL SIGNAL ({signals_text}): You have a LONG position but 3m momentum is showing bearish signs. "
                             trend_reversal_warning += "3m momentum shows bearish signs - medium reversal signal. Continue monitoring but prioritize {HTF_LABEL} trend confirmation before making exit decisions."
                     elif signal_15m:
                         # Only 15m shows reversal (informational)
                         signal_strength = "INFORMATIONAL"
                         signals_text = " & ".join([s for s in reversal_signals if "15m" in s])
-
                         if trend_direction == "short":
-                            trend_reversal_warning = f"ℹ️ {signal_strength} REVERSAL SIGNAL ({signals_text}): You have a SHORT position but 15m momentum is showing bullish signs. "
+                            trend_reversal_warning = f"[INFO] {signal_strength} REVERSAL SIGNAL ({signals_text}): You have a SHORT position but 15m momentum is showing bullish signs. "
                             trend_reversal_warning += "15m momentum shows bullish signs - this is informational context. Continue monitoring but prioritize {HTF_LABEL} trend confirmation before making exit decisions."
                         else:  # long position
-                            trend_reversal_warning = f"ℹ️ {signal_strength} REVERSAL SIGNAL ({signals_text}): You have a LONG position but 15m momentum is showing bearish signs. "
+                            trend_reversal_warning = f"[INFO] {signal_strength} REVERSAL SIGNAL ({signals_text}): You have a LONG position but 15m momentum is showing bearish signs. "
                             trend_reversal_warning += "15m momentum shows bearish signs - this is informational context. Continue monitoring but prioritize {HTF_LABEL} trend confirmation before making exit decisions."
                     else:
                         # Only HTF signal (shouldn't happen, but handle it)
                         signal_strength = "INFORMATIONAL"
                         signals_text = " & ".join(reversal_signals)
-
                         if trend_direction == "short":
-                            trend_reversal_warning = f"ℹ️ {signal_strength} REVERSAL SIGNAL ({signals_text}): You have a SHORT position but momentum is showing bullish signs. "
+                            trend_reversal_warning = f"[INFO] {signal_strength} REVERSAL SIGNAL ({signals_text}): You have a SHORT position but momentum is showing bullish signs. "
                             trend_reversal_warning += "Short-term momentum shows bullish signs - this is informational context. Continue monitoring but prioritize {HTF_LABEL} trend confirmation before making exit decisions."
                         else:  # long position
-                            trend_reversal_warning = f"ℹ️ {signal_strength} REVERSAL SIGNAL ({signals_text}): You have a LONG position but momentum is showing bearish signs. "
+                            trend_reversal_warning = f"[INFO] {signal_strength} REVERSAL SIGNAL ({signals_text}): You have a LONG position but momentum is showing bearish signs. "
                             trend_reversal_warning += "Short-term momentum shows bearish signs - this is informational context. Continue monitoring but prioritize {HTF_LABEL} trend confirmation before making exit decisions."
 
                 # Extended position duration warning
                 if position_duration_hours is not None and position_duration_hours >= 4:
                     if trend_reversal_warning:
-                        trend_reversal_warning += f"\n  ℹ️ POSITION DURATION: This {trend_direction.upper()} position has been open for {position_duration_hours:.1f} hours. Review your exit plan and ensure it's still aligned with current market conditions."
+                        trend_reversal_warning += f"\n  [INFO] POSITION DURATION: This {trend_direction.upper()} position has been open for {position_duration_hours:.1f} hours. Review your exit plan and ensure it's still aligned with current market conditions."
                     else:
-                        trend_reversal_warning = f"ℹ️ POSITION DURATION: This {trend_direction.upper()} position has been open for {position_duration_hours:.1f} hours. This is informational - ensure your exit plan remains valid."
+                        trend_reversal_warning = f"[INFO] POSITION DURATION: This {trend_direction.upper()} position has been open for {position_duration_hours:.1f} hours. This is informational - ensure your exit plan remains valid."
 
                 if trend_reversal_warning:
                     prompt += f"\n  {trend_reversal_warning}\n"
@@ -1849,7 +1843,7 @@ Current live positions & performance:"""
 
         if skipped_cooldown_coins:
             print(
-                f"⏭️ Prompt optimization: Skipped cooldown coins (no position): {skipped_cooldown_coins}"
+                f"[OPTIMIZE] Prompt optimization: Skipped cooldown coins (no position): {skipped_cooldown_coins}"
             )
 
         # Metadata
@@ -1861,7 +1855,7 @@ Current live positions & performance:"""
             all_indicators,
             coins_to_analyze,  # Filtered list
             HTF_INTERVAL,
-            self.market_data,  # YENİ: Funding Rate hesaplaması için
+            self.market_data,  # INFO: Integrated for Funding Rate calculation
         )
 
         # Trend reversal
@@ -1962,19 +1956,19 @@ Timeframes note: Unless stated otherwise in a section title, intraday series are
 DIRECTIONAL PERFORMANCE SNAPSHOT (Last 20 trades max):
 {create_json_section("DIRECTIONAL_BIAS", directional_bias_json, compact=compact)}
 
-⚠️ IMPORTANT: If a direction (LONG or SHORT) is in cooldown, you MUST NOT propose any new trades in that direction. The system will block them, but you should avoid proposing them in the first place. Cooldown is activated after 3 consecutive losses OR $5+ total loss in a direction.
+[WARNING] IMPORTANT: If a direction (LONG or SHORT) is in cooldown, you MUST NOT propose any new trades in that direction. The system will block them, but you should avoid proposing them in the first place. Cooldown is activated after 3 consecutive losses OR $5+ total loss in a direction.
 
 {create_json_section("COOLDOWN_STATUS", cooldown_status_json, compact=compact)}
 
-⚠️ IMPORTANT: If a coin is in cooldown, you MUST NOT propose any new trades for that coin (LONG or SHORT). The system will block them, but you should avoid proposing them in the first place. Coin cooldown is activated after a loss on that coin and lasts for 1 cycle.
+[WARNING] IMPORTANT: If a coin is in cooldown, you MUST NOT propose any new trades for that coin (LONG or SHORT). The system will block them, but you should avoid proposing them in the first place. Coin cooldown is activated after a loss on that coin and lasts for 1 cycle.
 
 
 {"=" * 20} POSITION_SLOTS {"=" * 20}
 
 {create_json_section("POSITION_SLOTS", position_slot_json, compact=compact)}
 
-⚠️ CRITICAL: If "long_slots_available" is 0, do NOT propose LONG entries. If "short_slots_available" is 0, do NOT propose SHORT entries.
-⚠️ CRITICAL: If you identify a valid counter-trend opportunity (e.g. LONG) but cannot execute it because slots are full, you MUST NOT open a trend-following trade in the opposite direction (e.g. SHORT). The counter-trend signal invalidates the trend-following setup. Simply HOLD.
+[WARNING] CRITICAL: If "long_slots_available" is 0, do NOT propose LONG entries. If "short_slots_available" is 0, do NOT propose SHORT entries.
+[WARNING] CRITICAL: If you identify a valid counter-trend opportunity (e.g. LONG) but cannot execute it because slots are full, you MUST NOT open a trend-following trade in the opposite direction (e.g. SHORT). The counter-trend signal invalidates the trend-following setup. Simply HOLD.
 
 {"=" * 20} MARKET DATA {"=" * 20}
 
@@ -2010,7 +2004,7 @@ All market data is provided in JSON format below. Each coin contains:
         try:
             parsed_json = json.loads(response)
             if not isinstance(parsed_json, dict):
-                print(f"❌ Parsed JSON not dict: {type(parsed_json)}")
+                print(f"[ERROR] Parsed JSON not dict: {type(parsed_json)}")
                 return {"chain_of_thoughts": "Error: Parsed JSON not dict.", "decisions": {}}
 
             thoughts = parsed_json.get("CHAIN_OF_THOUGHTS", "No thoughts provided.")
@@ -2018,8 +2012,7 @@ All market data is provided in JSON format below. Each coin contains:
             decisions = self._clean_ai_decisions(decisions)
             return {"chain_of_thoughts": thoughts, "decisions": decisions}
         except Exception as e:
-            print(f"❌ General parse error: {e}")
-            return {"chain_of_thoughts": f"Parse Error: {e}", "decisions": {}}
+            print(f"[ERROR] General parse error: {e}")
 
     def _clean_ai_decisions(self, decisions: dict) -> dict:
         """Clean up AI decisions - preserve position data for hold signals"""
@@ -2068,41 +2061,41 @@ All market data is provided in JSON format below. Each coin contains:
             min_interval = Config.CYCLE_INTERVAL_MINUTES * 60  # Convert to seconds
 
             atr_values = []
-            # Tüm coin'leri dahil et (ASTER dahil)
+            # Include all coins (including ASTER)
             for coin in self.market_data.available_coins:
                 indicators_3m = self.market_data.get_technical_indicators(coin, "3m")
                 if "error" not in indicators_3m:
                     atr = indicators_3m.get("atr_14", 0)
-                    # Küçük ATR değerlerini de dahil et (floating-point hassasiyetini düzelt)
-                    if atr is not None and atr > 1e-6:  # 0.000001'den büyük olanları al
+                    # Include small ATR values as well (adjust floating-point precision)
+                    if atr is not None and atr > 1e-6:  # Higher than 0.000001
                         atr_values.append(atr)
-                        print(f"📊 {coin} ATR: {atr:.6f}")
+                        print(f"[STATS] {coin} ATR: {atr:.6f}")
 
             if not atr_values:
                 print(
-                    f"⚠️ No valid ATR values found, using .env value: {Config.CYCLE_INTERVAL_MINUTES} minutes"
+                    f"[WARNING] No valid ATR values found, using .env value: {Config.CYCLE_INTERVAL_MINUTES} minutes"
                 )
                 return min_interval
 
             avg_atr = sum(atr_values) / len(atr_values)
-            print(f"📊 Average ATR: {avg_atr:.6f}")
+            print(f"[STATS] Average ATR: {avg_atr:.6f}")
 
             # Adjust cycle frequency based on volatility
             # But never go below .env minimum
-            if avg_atr < 0.3:  # Düşük volatility
-                calculated = 240  # 4 dakikada bir cycle
-            elif avg_atr < 0.6:  # Orta volatility
-                calculated = 180  # 3 dakikada bir cycle
-            else:  # Yüksek volatility
-                calculated = 120  # 2 dakikada bir cycle
+            if avg_atr < 0.3:  # Low volatility
+                calculated = 240  # Cycle every 4 minutes
+            elif avg_atr < 0.6:  # Medium volatility
+                calculated = 180  # Cycle every 3 minutes
+            else:  # High volatility
+                calculated = 120  # Cycle every 2 minutes
 
             # Use the larger of calculated and .env minimum
             result = max(calculated, min_interval)
-            print(f"🔄 Cycle interval: {result}s (min from .env: {min_interval}s)")
+            print(f"[INFO] Cycle interval: {result}s (min from .env: {min_interval}s)")
             return result
 
         except Exception as e:
-            print(f"⚠️ Cycle frequency calculation error: {e}")
+            print(f"[WARNING] Cycle frequency calculation error: {e}")
             return Config.CYCLE_INTERVAL_MINUTES * 60  # Use .env value as fallback
 
     def track_performance_metrics(self, cycle_number: int):
@@ -2119,27 +2112,27 @@ All market data is provided in JSON format below. Each coin contains:
                 "total_trades": self.portfolio.trade_count,
             }
 
-            # Performance history dosyasına kaydet
+            # Save to performance history file
             performance_history = safe_file_read("data/performance_history.json", [])
             performance_history.append(metrics)
             safe_file_write(
                 "data/performance_history.json", performance_history[-100:]
-            )  # Son 100 cycle
+            )  # Last 100 cycles
 
         except Exception as e:
-            print(f"⚠️ Performance tracking error: {e}")
+            print(f"[WARNING] Performance tracking error: {e}")
 
     def should_run_performance_analysis(self, cycle_number: int) -> bool:
         """Run analysis every 10 cycles or in critical situations"""
-        # Her 10 cycle'da bir
+        # Every 10 cycles
         if cycle_number % 10 == 0:
             return True
 
-        # Büyük PnL değişikliklerinde
-        if abs(self.portfolio.total_return) > 10:  # %10'dan fazla değişim
+        # During large PnL changes
+        if abs(self.portfolio.total_return) > 10:  # More than 10% change
             return True
 
-        # Çok fazla pozisyon açıldığında
+        # When too many positions are open
         if len(self.portfolio.positions) >= 4:
             return True
 
@@ -2148,23 +2141,23 @@ All market data is provided in JSON format below. Each coin contains:
     def run_trading_cycle(self, cycle_number: int):
         """Run a single trading cycle with auto TP/SL and enhanced features"""
         print(
-            f"\n{'=' * 80}\n🔄 TRADING CYCLE {cycle_number} | ⏰ {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n{'=' * 80}"
+            f"\n{'=' * 80}\n[INFO] TRADING CYCLE {cycle_number} | [INFO] {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n{'=' * 80}"
         )
 
         # Check bot control at cycle start
         control = self._read_bot_control()
         if control.get("status") == "paused":
-            print(f"⏸️ Cycle {cycle_number} SKIPPED - Bot is PAUSED")
+            print(f"[PAUSED] Cycle {cycle_number} SKIPPED - Bot is PAUSED")
             return
         elif control.get("status") == "stopped":
-            print(f"🛑 Cycle {cycle_number} STOPPED - Bot STOP command received")
+            print(f"[STOPPED] Cycle {cycle_number} STOPPED - Bot STOP command received")
             return
 
         self.current_cycle_number = cycle_number
         self.portfolio.current_cycle_number = cycle_number
-        # ✅ FIX: tick_cooldowns() prompt oluşturulduktan SONRA çağrılmalı
-        # Çünkü prompt oluşturulurken cooldown değerlerine ihtiyaç var
-        # tick_cooldowns() cooldown'ları azaltıyor, bu yüzden prompt'tan SONRA çağrılmalı
+        # [SUCCESS] FIX: tick_cooldowns() must be called AFTER the prompt is generated
+        # Because cooldown values are needed while generating the prompt
+        # tick_cooldowns() decrements cooldowns, so it must be called AFTER the prompt
         self.market_data.clear_preloaded_indicators()
         self.portfolio.cycles_since_history_reset += 1
         self.maybe_reset_history(cycle_number)
@@ -2175,7 +2168,7 @@ All market data is provided in JSON format below. Each coin contains:
         cycle_timing: dict[str, float] = {}
         try:
             # Enhanced exit strategy control - pause during cycle
-            print("⏸️ Enhanced exit strategy paused during cycle")
+            print("[PAUSED] Enhanced exit strategy paused during cycle")
             self.enhanced_exit_enabled = False
 
             # Track performance metrics every cycle
@@ -2183,13 +2176,13 @@ All market data is provided in JSON format below. Each coin contains:
 
             # Run performance analysis every 10 cycles or on critical conditions
             if self.should_run_performance_analysis(cycle_number):
-                print(f"📊 PERFORMANCE ANALYSIS - Cycle {cycle_number}")
+                print(f"[STATS] PERFORMANCE ANALYSIS - Cycle {cycle_number}")
                 from src.core.performance_monitor import PerformanceMonitor
 
                 monitor = PerformanceMonitor()
                 report = monitor.analyze_performance(last_n_cycles=10)
                 monitor.print_performance_summary(report)
-            print("\n📊 FETCHING MARKET DATA...")
+            print("\n[STATS] FETCHING MARKET DATA...")
             md_start = time.perf_counter()
             real_prices = self.market_data.get_all_real_prices()
             valid_prices = {
@@ -2202,11 +2195,11 @@ All market data is provided in JSON format below. Each coin contains:
             # Check bot control before live account sync (can be slow)
             control = self._read_bot_control()
             if control.get("status") == "paused":
-                print(f"⏸️ Cycle {cycle_number} PAUSED before account sync - stopping cycle")
+                print(f"[PAUSED] Cycle {cycle_number} PAUSED before account sync - stopping cycle")
                 self.cycle_active = False
                 return
             elif control.get("status") == "stopped":
-                print(f"🛑 Cycle {cycle_number} STOPPED - Bot STOP command received")
+                print(f"[STOPPED] Cycle {cycle_number} STOPPED - Bot STOP command received")
                 self.cycle_active = False
                 return
             if self.portfolio.is_live_trading:
@@ -2225,7 +2218,7 @@ All market data is provided in JSON format below. Each coin contains:
             for coin, position in list(self.portfolio.positions.items()):
                 if coin in valid_prices:
                     if self.portfolio.check_flash_exit_conditions(coin, position):
-                        print(f"🚨 EXECUTING FLASH EXIT for {coin}...")
+                        print(f"[ALERT] EXECUTING FLASH EXIT for {coin}...")
                         current_price = valid_prices[coin]
 
                         # Close position immediately
@@ -2245,37 +2238,37 @@ All market data is provided in JSON format below. Each coin contains:
                             flash_exits_triggered = True
 
             if flash_exits_triggered:
-                print("ℹ️ Flash Exits triggered. Continuing cycle...")
+                print("[INFO] Flash Exits triggered. Continuing cycle...")
             # --- End Flash Exit Check ---
 
             manual_override = self.portfolio.get_manual_override()
             auto_exit_triggered = bool(positions_closed_by_tp_sl)
 
             if manual_override:
-                print("🔔 APPLYING MANUAL OVERRIDE...")
+                print("[ALERT] APPLYING MANUAL OVERRIDE...")
                 decisions = manual_override.get("decisions", {})
                 thoughts = "Manual override."
                 prompt = "N/A (Manual)"
-                print("\n🎯 MANUAL DECISIONS:", json.dumps(decisions, indent=2))
+                print("\n[RESULT] MANUAL DECISIONS:", json.dumps(decisions, indent=2))
             # Only ask AI if no TP/SL triggered AND no manual override
             else:
                 if auto_exit_triggered:
                     print(
-                        "ℹ️ Auto TP/SL/extended exit triggered earlier this cycle — proceeding with AI analysis."
+                        "[INFO] Auto TP/SL/extended exit triggered earlier this cycle - proceeding with AI analysis."
                     )
                 # Check bot control before AI call (can be slow in live mode)
                 control = self._read_bot_control()
                 if control.get("status") == "paused":
-                    print(f"⏸️ Cycle {cycle_number} PAUSED before AI call - stopping cycle")
+                    print(f"[PAUSED] Cycle {cycle_number} PAUSED before AI call - stopping cycle")
                     self.cycle_active = False
                     return
                 elif control.get("status") == "stopped":
-                    print(f"🛑 Cycle {cycle_number} STOPPED - Bot STOP command received")
+                    print(f"[STOPPED] Cycle {cycle_number} STOPPED - Bot STOP command received")
                     self.cycle_active = False
                     return
 
                 ai_timer_start = time.perf_counter()
-                print("\n🤖 GENERATING PROMPT...")
+                print("\n[AI] GENERATING PROMPT...")
                 self.invocation_count += 1  # Increment AI call count
                 # Use JSON prompt if enabled, with fallback to text format
                 prompt = None
@@ -2286,39 +2279,39 @@ All market data is provided in JSON format below. Each coin contains:
                     try:
                         prompt = self.generate_alpha_arena_prompt_json()
                         prompt_format_used = "json"
-                        print(f"✅ Using JSON prompt format (version {Config.JSON_PROMPT_VERSION})")
+                        print(f"[SUCCESS] Using JSON prompt format (version {Config.JSON_PROMPT_VERSION})")
                     except Exception as e:
                         json_serialization_error = str(e)
-                        print(f"⚠️ JSON prompt generation failed: {e}")
+                        print(f"[WARNING] JSON prompt generation failed: {e}")
                         print("   Falling back to text format...")
                         prompt = self.generate_alpha_arena_prompt()
                         prompt_format_used = "json_fallback"
                 else:
                     prompt = self.generate_alpha_arena_prompt()
-                print("📋 USER PROMPT (summary): " + prompt[:200] + "...")
+                print("[INFO] USER PROMPT (summary): " + prompt[:200] + "...")
 
                 # Check bot control before AI API call (can be slow in live mode)
                 control = self._read_bot_control()
                 if control.get("status") == "paused":
-                    print(f"⏸️ Cycle {cycle_number} PAUSED before AI API call - stopping cycle")
+                    print(f"[PAUSED] Cycle {cycle_number} PAUSED before AI API call - stopping cycle")
                     self.cycle_active = False
                     return
                 elif control.get("status") == "stopped":
-                    print(f"🛑 Cycle {cycle_number} STOPPED - Bot STOP command received")
+                    print(f"[STOPPED] Cycle {cycle_number} STOPPED - Bot STOP command received")
                     self.cycle_active = False
                     return
 
-                print("\n💭 AI ANALYZING...")
+                print("\n[AI] AI ANALYZING...")
                 ai_response = self.deepseek.get_ai_decision(prompt)
 
                 # Check bot control after AI API call (may have taken time in live mode)
                 control = self._read_bot_control()
                 if control.get("status") == "paused":
-                    print(f"⏸️ Cycle {cycle_number} PAUSED after AI call - stopping cycle")
+                    print(f"[PAUSED] Cycle {cycle_number} PAUSED after AI call - stopping cycle")
                     self.cycle_active = False
                     return
                 elif control.get("status") == "stopped":
-                    print(f"🛑 Cycle {cycle_number} STOPPED - Bot STOP command received")
+                    print(f"[STOPPED] Cycle {cycle_number} STOPPED - Bot STOP command received")
                     self.cycle_active = False
                     return
 
@@ -2330,32 +2323,32 @@ All market data is provided in JSON format below. Each coin contains:
                 cycle_timing["ai_ms"] = round((time.perf_counter() - ai_timer_start) * 1000, 2)
 
                 if not isinstance(decisions, dict):
-                    print(f"❌ AI decisions not dict ({type(decisions)}). Resetting.")
+                    print(f"[ERROR] AI decisions not dict ({type(decisions)}). Resetting.")
                     thoughts += "\nError: Decisions not dict."
                     decisions = {}
 
-                print("\n🔍 CHAIN_OF_THOUGHTS:\n", thoughts)
+                print("\n[DEBUG] CHAIN_OF_THOUGHTS:\n", thoughts)
                 print(
-                    "\n🎯 AI TRADING DECISIONS:",
+                    "\n[RESULT] AI TRADING DECISIONS:",
                     json.dumps(decisions, indent=2) if decisions else "{}",
                 )
 
-                # KADEMELİ POZİSYON SİSTEMİ: Cycle bazlı pozisyon limiti
+                # GRADUAL POSITION SYSTEM: Cycle-based position limit
                 max_positions_for_cycle = self.get_max_positions_for_cycle(cycle_number)
                 current_positions = len(self.portfolio.positions)
 
                 if current_positions >= max_positions_for_cycle:
                     print(
-                        f"🛡️ POSITION LIMIT REACHED (Cycle {cycle_number}): Max {max_positions_for_cycle} positions allowed"
+                        f"[PROTECTION] POSITION LIMIT REACHED (Cycle {cycle_number}): Max {max_positions_for_cycle} positions allowed"
                     )
-                    # Pozisyon limiti dolduysa yeni entry sinyallerini hold'a çevir
+                    # If position limit is reached, convert new entry signals to hold
                     filtered_decisions = {}
                     for coin, trade in decisions.items():
                         if isinstance(trade, dict):
                             signal = trade.get("signal")
                             if signal in ["buy_to_enter", "sell_to_enter"]:
                                 print(
-                                    f"   ⚠️ {coin} {signal} → HOLD (Position limit: {max_positions_for_cycle})"
+                                    f"   [WARNING] {coin} {signal} -> HOLD (Position limit: {max_positions_for_cycle})"
                                 )
                                 filtered_decisions[coin] = {
                                     "signal": "hold",
@@ -2376,16 +2369,16 @@ All market data is provided in JSON format below. Each coin contains:
                 # Check bot control before execution (live mode can be slow)
                 control = self._read_bot_control()
                 if control.get("status") == "paused":
-                    print(f"⏸️ Cycle {cycle_number} PAUSED before execution - stopping cycle")
+                    print(f"[PAUSED] Cycle {cycle_number} PAUSED before execution - stopping cycle")
                     self.cycle_active = False
                     return
                 elif control.get("status") == "stopped":
-                    print(f"🛑 Cycle {cycle_number} STOPPED - Bot STOP command received")
+                    print(f"[STOPPED] Cycle {cycle_number} STOPPED - Bot STOP command received")
                     self.cycle_active = False
                     return
 
                 exec_start = time.perf_counter()
-                # AI ÖNCELİKLİ SİSTEM: "close_position" sinyali varsa tüm pozisyon kapatılır
+                # AI PRIORITY SYSTEM: If "close_position" signal exists, the position is closed
                 has_close_position_signal = any(
                     trade.get("signal") == "close_position"
                     for trade in decisions.values()
@@ -2402,8 +2395,8 @@ All market data is provided in JSON format below. Each coin contains:
                 }
 
                 if has_close_position_signal:
-                    print("🚨 AI CLOSE_POSITION SİNYALİ: Sadece belirtilen pozisyonlar kapatılıyor")
-                    # Sadece close_position sinyali verilen coin'leri kapat
+                    print("[ALERT] AI CLOSE_POSITION SIGNAL: Only specified positions are being closed")
+                    # Close only the coins with close_position signal
                     for coin, trade in decisions.items():
                         if not isinstance(trade, dict):
                             continue
@@ -2428,7 +2421,7 @@ All market data is provided in JSON format below. Each coin contains:
                                     )
                                     if not live_result.get("success"):
                                         error_msg = live_result.get("error", "unknown_error")
-                                        print(f"🚫 AI LIVE CLOSE FAILED: {coin} ({error_msg})")
+                                        print(f"[ERROR] AI LIVE CLOSE FAILED: {coin} ({error_msg})")
                                         close_execution_report["blocked"].append(
                                             {
                                                 "coin": coin,
@@ -2451,7 +2444,7 @@ All market data is provided in JSON format below. Each coin contains:
                                             }
                                         )
                                         print(
-                                            f"✅ AI LIVE CLOSE: Closed {direction} {coin} @ ${format_num(current_price, 4)} (PnL: ${format_num(live_result.get('pnl', 0), 2)})"
+                                            f"[SUCCESS] AI LIVE CLOSE: Closed {direction} {coin} @ ${format_num(current_price, 4)} (PnL: ${format_num(live_result.get('pnl', 0), 2)})"
                                         )
                                     continue
 
@@ -2468,7 +2461,7 @@ All market data is provided in JSON format below. Each coin contains:
                                 self.portfolio.current_balance += margin_used + profit
 
                                 print(
-                                    f"✅ AI CLOSE: Closed {direction} {coin} @ ${format_num(current_price, 4)} (PnL: ${format_num(profit, 2)}, Commission: ${format_num(commission, 3)})"
+                                    f"[SUCCESS] AI CLOSE: Closed {direction} {coin} @ ${format_num(current_price, 4)} (PnL: ${format_num(profit, 2)}, Commission: ${format_num(commission, 3)})"
                                 )
 
                                 history_entry = {
@@ -2524,7 +2517,7 @@ All market data is provided in JSON format below. Each coin contains:
                     }
                     self.portfolio.last_execution_report = merged_report
 
-                    # AI'nin diğer kararlarını işleme (sadece yeni pozisyonlar)
+                    # Process other AI decisions (new positions only)
                     self.portfolio._execute_new_positions_only(
                         decisions,
                         valid_prices,
@@ -2532,7 +2525,7 @@ All market data is provided in JSON format below. Each coin contains:
                         indicator_cache=self.latest_indicator_cache,
                     )
                 else:
-                    # Normal karar işleme (partial profit aktif)
+                    # Normal decision processing (partial profit active)
                     self.portfolio._execute_normal_decisions(
                         decisions,
                         valid_prices,
@@ -2551,7 +2544,7 @@ All market data is provided in JSON format below. Each coin contains:
                 execution_elapsed = time.perf_counter() - exec_start
 
             elif isinstance(decisions, dict):
-                print("ℹ️ No AI/Manual trading actions to execute this cycle.")
+                print("[INFO] No AI/Manual trading actions to execute this cycle.")
 
             if execution_elapsed is not None:
                 cycle_timing["execution_ms"] = round(execution_elapsed * 1000, 2)
@@ -2594,7 +2587,7 @@ All market data is provided in JSON format below. Each coin contains:
                 if "execution_ms" in cycle_timing:
                     timing_summary.append(f"exec {cycle_timing['execution_ms']:.2f}ms")
                 if timing_summary:
-                    print("⏱️ Cycle timers → " + " | ".join(timing_summary))
+                    print("[TIME] Cycle timers -> " + " | ".join(timing_summary))
 
             self.portfolio.add_to_cycle_history(
                 cycle_number,
@@ -2605,18 +2598,18 @@ All market data is provided in JSON format below. Each coin contains:
                 metadata=cycle_metadata if cycle_metadata else None,
             )
 
-            # ✅ FIX: tick_cooldowns() prompt oluşturulduktan SONRA çağrılmalı
-            # Çünkü prompt oluşturulurken cooldown değerlerine ihtiyaç var
-            # tick_cooldowns() cooldown'ları azaltıyor, bu yüzden prompt'tan SONRA çağrılmalı
+            # tick_cooldowns() MUST be called AFTER the prompt is generated
+            # because the values are needed during prompt generation.
+            # tick_cooldowns() decrements them, so call it AFTER.
             if hasattr(self.portfolio, "tick_cooldowns"):
                 self.portfolio.tick_cooldowns()
 
             # Enhanced exit strategy control - re-enable after cycle completion
-            print("▶️ Enhanced exit strategy re-enabled after cycle completion")
+            print("[INFO] Enhanced exit strategy re-enabled after cycle completion")
             self.show_status()
 
         except Exception as e:
-            print(f"❌ CRITICAL CYCLE ERROR: {e}")
+            print(f"[ERROR] CRITICAL CYCLE ERROR: {e}")
             traceback.print_exc()
             try:
                 decisions_log = decisions if isinstance(decisions, dict) else {}
@@ -2629,7 +2622,7 @@ All market data is provided in JSON format below. Each coin contains:
                     metadata={"exception": str(e)},
                 )
             except Exception as log_e:
-                print(f"❌ Failed to save error to cycle history: {log_e}")
+                print(f"[ERROR] Failed to save error to cycle history: {log_e}")
         finally:
             self.cycle_active = False
             self.enhanced_exit_enabled = True
@@ -2637,23 +2630,23 @@ All market data is provided in JSON format below. Each coin contains:
             try:
                 control = self._read_bot_control()
                 if control.get("status") == "stopped":
-                    print(f"🛑 Cycle {cycle_number} exception handler: Bot STOP command received")
+                    print(f"[STOPPED] Cycle {cycle_number} exception handler: Bot STOP command received")
                     raise SystemExit("Bot stopped by user command")
             except SystemExit:
                 raise
             except Exception as control_e:
-                print(f"⚠️ Failed to check bot control after exception: {control_e}")
+                print(f"[WARNING] Failed to check bot control after exception: {control_e}")
 
     def show_status(self):
         """Show current status in the console"""
-        print("\n📊 CURRENT STATUS:")
+        print("\n[STATS] CURRENT STATUS:")
         print(
-            f"💰 Total Value: ${format_num(self.portfolio.total_value, 2)} (Initial: ${format_num(self.portfolio.initial_balance, 2)})"
+            f"[INFO] Total Value: ${format_num(self.portfolio.total_value, 2)} (Initial: ${format_num(self.portfolio.initial_balance, 2)})"
         )
-        print(f"📈 Total Return: {format_num(self.portfolio.total_return, 2)}%")
-        print(f"💵 Available Cash: ${format_num(self.portfolio.current_balance, 2)}")
-        print(f"🔄 Total Closed Trades: {self.portfolio.trade_count}")
-        print(f"\n📦 CURRENT POSITIONS ({len(self.portfolio.positions)} open):")
+        print(f"[INFO] Total Return: {format_num(self.portfolio.total_return, 2)}%")
+        print(f"[INFO] Available Cash: ${format_num(self.portfolio.current_balance, 2)}")
+        print(f"[INFO] Total Closed Trades: {self.portfolio.trade_count}")
+        print(f"\n[INFO] CURRENT POSITIONS ({len(self.portfolio.positions)} open):")
         if not self.portfolio.positions:
             print("  No open positions.")
         else:
@@ -2673,46 +2666,46 @@ All market data is provided in JSON format below. Each coin contains:
     def start_tp_sl_monitoring(self):
         """Start TP/SL monitoring timer that runs every 1 minute"""
         if self.tp_sl_timer and self.tp_sl_timer.is_alive():
-            print("ℹ️ TP/SL monitoring already running")
+            print("[INFO] TP/SL monitoring already running")
             return
 
         self.is_running = True
         self.tp_sl_timer = threading.Thread(target=self._tp_sl_monitoring_loop, daemon=True)
         self.tp_sl_timer.start()
-        print("✅ TP/SL monitoring started (30 second interval)")
+        print("[SUCCESS] TP/SL monitoring started (30 second interval)")
 
     def stop_tp_sl_monitoring(self):
         """Stop TP/SL monitoring timer"""
         self.is_running = False
         if self.tp_sl_timer and self.tp_sl_timer.is_alive():
             self.tp_sl_timer.join(timeout=5)
-            print("🛑 TP/SL monitoring stopped")
+            print("[STOPPED] TP/SL monitoring stopped")
         else:
-            print("ℹ️ TP/SL monitoring was not running")
+            print("[INFO] TP/SL monitoring was not running")
 
     def _tp_sl_monitoring_loop(self):
         """Background thread that checks TP/SL every 30 seconds"""
-        print("🔄 TP/SL monitoring loop started (20 second interval)")
+        print("[INFO] TP/SL monitoring loop started (20 second interval)")
         while self.is_running:
             try:
                 # Check bot control file for pause/stop command
                 control = self._read_bot_control()
                 if control.get("status") == "stopped":
-                    print("🛑 TP/SL monitoring: STOP command received. Stopping monitoring loop...")
+                    print("[STOPPED] TP/SL monitoring: STOP command received. Stopping monitoring loop...")
                     self.is_running = False
                     break
                 elif control.get("status") == "paused":
-                    print("⏸️ TP/SL monitoring: Bot is PAUSED. Waiting for resume...")
+                    print("[PAUSED] TP/SL monitoring: Bot is PAUSED. Waiting for resume...")
                     # Wait in smaller intervals to check for resume
                     while True:
                         time.sleep(10)
                         control = self._read_bot_control()
                         if control.get("status") == "running":
-                            print("▶️ TP/SL monitoring: Bot RESUMED. Continuing monitoring...")
+                            print("[INFO] TP/SL monitoring: Bot RESUMED. Continuing monitoring...")
                             break
                         elif control.get("status") == "stopped":
                             print(
-                                "🛑 TP/SL monitoring: STOP command received. Stopping monitoring loop..."
+                                "[STOPPED] TP/SL monitoring: STOP command received. Stopping monitoring loop..."
                             )
                             self.is_running = False
                             break
@@ -2739,7 +2732,7 @@ All market data is provided in JSON format below. Each coin contains:
                     continue
 
                 if not self.enhanced_exit_enabled:
-                    print("⏸️ Enhanced exit strategy paused during cycle - TP/SL monitoring waiting")
+                    print("[PAUSED] Enhanced exit strategy paused during cycle - TP/SL monitoring waiting")
                     # Wait 10 seconds and check again
                     for _ in range(10):
                         if not self.is_running:
@@ -2793,39 +2786,39 @@ All market data is provided in JSON format below. Each coin contains:
                                         )
                                         flash_exits_triggered = True
                         if flash_exits_triggered:
-                            print("🚨 20-SECOND FLASH EXIT: V-Reversal detected and closed")
+                            print("[ALERT] 20-SECOND FLASH EXIT: V-Reversal detected and closed")
 
                     # Run TP/SL check - all decisions made by 20-second monitoring (like simulation mode)
                     # No Binance TP/SL orders - all managed by monitoring loop
                     positions_closed = self.portfolio.check_and_execute_tp_sl(valid_prices)
 
                     if positions_closed:
-                        print("⏰ 20-SECOND TP/SL CHECK: Positions closed")
+                        print("[INFO] 20-SECOND TP/SL CHECK: Positions closed")
                     else:
                         print(
-                            f"⏰ 20-SECOND TP/SL CHECK: No triggers ({len(self.portfolio.positions)} positions monitored)"
+                            f"[INFO] 20-SECOND TP/SL CHECK: No triggers ({len(self.portfolio.positions)} positions monitored)"
                         )
                 else:
-                    print("⚠️ TP/SL monitoring: No valid prices available")
+                    print("[WARNING] TP/SL monitoring: No valid prices available")
 
                 # Check bot control before sleep
                 control = self._read_bot_control()
                 if control.get("status") == "stopped":
-                    print("🛑 TP/SL monitoring: STOP command received. Stopping monitoring loop...")
+                    print("[STOPPED] TP/SL monitoring: STOP command received. Stopping monitoring loop...")
                     self.is_running = False
                     break
 
             except Exception as e:
-                print(f"❌ TP/SL monitoring error: {e}")
+                print(f"[ERROR] TP/SL monitoring error: {e}")
                 # Check bot control after exception
                 try:
                     control = self._read_bot_control()
                     if control.get("status") == "stopped":
-                        print("🛑 TP/SL monitoring: STOP command received after exception")
+                        print("[STOPPED] TP/SL monitoring: STOP command received after exception")
                         self.is_running = False
                         break
                 except Exception as control_e:
-                    print(f"⚠️ Failed to check bot control after TP/SL exception: {control_e}")
+                    print(f"[WARNING] Failed to check bot control after TP/SL exception: {control_e}")
 
             # Wait 30 seconds before next check
             if self.is_running:
@@ -2833,9 +2826,9 @@ All market data is provided in JSON format below. Each coin contains:
 
     def run_simulation(self, total_duration_hours: int = 168, cycle_interval_minutes: int = 2):
         """Run the simulation with dynamic cycle frequency and TP/SL monitoring"""
-        print(f"🚀 ALPHA ARENA - DEEPSEEK INTEGRATION (V{VERSION})")
+        print(f"[INFO] ALPHA ARENA - DEEPSEEK INTEGRATION (V{VERSION})")
         print(
-            f"💡 Simulating with ${format_num(self.portfolio.initial_balance, 2)} budget for {total_duration_hours} hours."
+            f"[INFO] Simulating with ${format_num(self.portfolio.initial_balance, 2)} budget for {total_duration_hours} hours."
         )
         print(f"   Trading: {', '.join(self.market_data.available_coins)}")
         print(f"   State File: {self.portfolio.state_file}")
@@ -2869,23 +2862,23 @@ All market data is provided in JSON format below. Each coin contains:
                 control = self._read_bot_control()
                 if control.get("status") == "paused":
                     print(
-                        "⏸️ Bot is PAUSED. Waiting for resume command... (checking every 10 seconds)"
+                        "[PAUSED] Bot is PAUSED. Waiting for resume command... (checking every 10 seconds)"
                     )
                     # Wait in smaller intervals to check for resume
                     while True:
                         time.sleep(10)
                         control = self._read_bot_control()
                         if control.get("status") == "running":
-                            print("▶️ Bot RESUMED. Continuing trading cycles...")
+                            print("[RESUMED] Bot RESUMED. Continuing trading cycles...")
                             break
                         elif control.get("status") == "stopped":
-                            print("🛑 Bot STOP command received. Stopping gracefully...")
+                            print("[STOPPED] Bot STOP command received. Stopping gracefully...")
                             break
                     if control.get("status") == "stopped":
                         break
                     continue
                 elif control.get("status") == "stopped":
-                    print("🛑 Bot STOP command received. Stopping gracefully...")
+                    print("[STOPPED] Bot STOP command received. Stopping gracefully...")
                     break
 
                 current_cycle_number += 1
@@ -2894,14 +2887,14 @@ All market data is provided in JSON format below. Each coin contains:
                 # Check MAX_CYCLES limit - auto-stop at configured cycle number
                 if Config.MAX_CYCLES > 0 and current_cycle_number > Config.MAX_CYCLES:
                     print(
-                        f"🛑 MAX_CYCLES limit reached ({Config.MAX_CYCLES}). Auto-stopping bot..."
+                        f"[STOPPED] MAX_CYCLES limit reached ({Config.MAX_CYCLES}). Auto-stopping bot..."
                     )
                     break
 
                 # Calculate dynamic cycle frequency
                 dynamic_cycle_interval = self.calculate_optimal_cycle_frequency()
                 print(
-                    f"🔄 Dynamic cycle frequency: {dynamic_cycle_interval} seconds ({dynamic_cycle_interval / 60:.1f} minutes)"
+                    f"[INFO] Dynamic cycle frequency: {dynamic_cycle_interval} seconds ({dynamic_cycle_interval / 60:.1f} minutes)"
                 )
 
                 self.run_trading_cycle(current_cycle_number)
@@ -2910,7 +2903,7 @@ All market data is provided in JSON format below. Each coin contains:
                 elapsed_time = time.time() - cycle_start_time
                 sleep_time = max(0, dynamic_cycle_interval - elapsed_time)
                 print(
-                    f"\n⏳ Cycle {current_cycle_number} complete in {format_num(elapsed_time, 2)}s. Next cycle in {format_num(sleep_time / 60, 2)} mins... (Ctrl+C to stop)"
+                    f"\n[INFO] Cycle {current_cycle_number} complete in {format_num(elapsed_time, 2)}s. Next cycle in {format_num(sleep_time / 60, 2)} mins... (Ctrl+C to stop)"
                 )
                 time.sleep(max(sleep_time, 0.5))
 
@@ -2918,32 +2911,32 @@ All market data is provided in JSON format below. Each coin contains:
                 control = self._read_bot_control()
                 if control.get("status") == "paused":
                     print(
-                        "⏸️ Bot is PAUSED. Waiting for resume command... (checking every 10 seconds)"
+                        "[PAUSED] Bot is PAUSED. Waiting for resume command... (checking every 10 seconds)"
                     )
                     # Wait in smaller intervals to check for resume
                     while True:
                         time.sleep(10)
                         control = self._read_bot_control()
                         if control.get("status") == "running":
-                            print("▶️ Bot RESUMED. Continuing trading cycles...")
+                            print("[RESUMED] Bot RESUMED. Continuing trading cycles...")
                             break
                         elif control.get("status") == "stopped":
-                            print("🛑 Bot STOP command received. Stopping gracefully...")
+                            print("[STOPPED] Bot STOP command received. Stopping gracefully...")
                             break
                     if control.get("status") == "stopped":
                         break
                     continue
                 elif control.get("status") == "stopped":
-                    print("🛑 Bot STOP command received. Stopping gracefully...")
+                    print("[STOPPED] Bot STOP command received. Stopping gracefully...")
                     break
 
         except KeyboardInterrupt:
-            print("\n⏹️ Program stopped by user.")
+            print("\n[STOPPED] Program stopped by user.")
         finally:
             # Stop TP/SL monitoring
             self.stop_tp_sl_monitoring()
 
-        print(f"\n{'=' * 80}\n🏁 SIMULATION COMPLETED\n{'=' * 80}")
+        print(f"\n{'=' * 80}\n[INFO] SIMULATION COMPLETED\n{'=' * 80}")
         self.show_status()
 
     def _adjust_partial_sale_for_min_limit(self, position: dict, proposed_percent: float) -> float:
@@ -2956,7 +2949,7 @@ All market data is provided in JSON format below. Each coin contains:
         if current_margin <= min_remaining:
             # Position already at or below minimum, don't sell
             print(
-                f"🛑 Partial sale blocked: Position margin ${current_margin:.2f} <= minimum limit ${min_remaining:.2f}"
+                f"[STOPPED] Partial sale blocked: Position margin ${current_margin:.2f} <= minimum limit ${min_remaining:.2f}"
             )
             return 0.0
 
@@ -2972,7 +2965,7 @@ All market data is provided in JSON format below. Each coin contains:
             adjusted_percent = adjusted_sale_amount / current_margin
 
             print(
-                f"📊 Adjusted partial sale: {proposed_percent * 100:.0f}% → {adjusted_percent * 100:.0f}% to maintain ${min_remaining:.2f} minimum limit"
+                f"[STATS] Adjusted partial sale: {proposed_percent * 100:.0f}% -> {adjusted_percent * 100:.0f}% to maintain ${min_remaining:.2f} minimum limit"
             )
             return adjusted_percent
 
@@ -3000,7 +2993,7 @@ All market data is provided in JSON format below. Each coin contains:
                 {"status": "running", "last_updated": datetime.now().isoformat()},
             )
         except Exception as e:
-            print(f"⚠️ Failed to read bot_control.json: {e}")
+            print(f"[WARNING] Failed to read bot_control.json: {e}")
             # Return default running state if file read fails (fail-safe)
             return {"status": "running", "last_updated": datetime.now().isoformat()}
 
@@ -3025,7 +3018,7 @@ All market data is provided in JSON format below. Each coin contains:
 
     def load_cycle_history(self) -> list[dict]:
         history = safe_file_read(self.cycle_history_file, default_data=[])
-        print(f"✅ Loaded {len(history)} cycles.")
+        print(f"[SUCCESS] Loaded {len(history)} cycles.")
         return history
 
     def add_to_cycle_history(
@@ -3051,13 +3044,13 @@ def main():
     try:
         api_key = os.getenv("DEEPSEEK_API_KEY")
         if not api_key:
-            print("⚠️ No DEEPSEEK_API_KEY found. Running simulation mode...")
+            print("[WARNING] No DEEPSEEK_API_KEY found. Running simulation mode...")
         arena = AlphaArenaDeepSeek(api_key)
         arena.run_simulation(total_duration_hours=168, cycle_interval_minutes=2)
     except KeyboardInterrupt:
-        print("\n⏹️ Program stopped by user.")
+        print("\n[STOPPED] Program stopped by user.")
     except Exception as e:
-        print(f"\n❌ Unexpected critical error in main: {e}")
+        print(f"\n[ERROR] Unexpected critical error in main: {e}")
         traceback.print_exc()
 
 
