@@ -1,4 +1,3 @@
-import os
 
 METHODS_TO_EXTRACT = [
     "def format_position_context",
@@ -13,11 +12,11 @@ METHODS_TO_EXTRACT = [
     "def generate_alpha_arena_prompt",
     "def generate_alpha_arena_prompt_json",
     "def parse_ai_response",
-    "def _clean_ai_decisions"
+    "def _clean_ai_decisions",
 ]
 
 def main():
-    with open("src/main.py", "r", encoding="utf-8") as f:
+    with open("src/main.py", encoding="utf-8") as f:
         lines = f.readlines()
 
     out_main = []
@@ -49,7 +48,7 @@ def main():
         "    def __init__(self, portfolio, market_data, strategy_analyzer):\n",
         "        self.portfolio = portfolio\n",
         "        self.market_data = market_data\n",
-        "        self.strategy_analyzer = strategy_analyzer\n\n"
+        "        self.strategy_analyzer = strategy_analyzer\n\n",
     ]
     
     ai_code.extend(extracted_methods)

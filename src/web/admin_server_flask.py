@@ -149,7 +149,7 @@ def refresh_performance():
         report = monitor.analyze_performance(last_n_cycles=10)
 
         return jsonify(
-            {"status": "success", "message": "Performance analysis completed", "report": report}
+            {"status": "success", "message": "Performance analysis completed", "report": report},
         )
 
     except Exception as e:
@@ -177,7 +177,7 @@ def force_close_position():
                 coin_to_close: {
                     "signal": "close_position",
                     "justification": "Manually closed via admin panel.",
-                }
+                },
             },
         }
 
@@ -218,7 +218,7 @@ def set_bot_control():
                 "status": "success",
                 "message": f"Bot {action} command sent successfully.",
                 "bot_status": status_map[action],
-            }
+            },
         )
 
     except Exception as e:
@@ -231,7 +231,7 @@ def get_bot_control():
     """Get current bot control status."""
     try:
         control = safe_file_read(
-            "data/bot_control.json", {"status": "unknown", "last_updated": None}
+            "data/bot_control.json", {"status": "unknown", "last_updated": None},
         )
         return jsonify(control)
     except Exception as e:
@@ -271,7 +271,7 @@ def get_ml_predictions():
     predictions = []
     try:
         if os.path.exists(jsonl_path):
-            with open(jsonl_path, "r") as f:
+            with open(jsonl_path) as f:
                 lines = f.readlines()
             for line in lines[-50:]:
                 line = line.strip()
@@ -299,7 +299,7 @@ def get_ml_drift():
     try:
         jsonl_path = get_file_path("data/ml_predictions.jsonl")
         if os.path.exists(jsonl_path):
-            with open(jsonl_path, "r") as f:
+            with open(jsonl_path) as f:
                 lines = [l.strip() for l in f.readlines() if l.strip()]
             result["total_predictions"] = len(lines)
             if lines:

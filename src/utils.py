@@ -1,8 +1,8 @@
+import copy
 import json
 import logging
 import os
 import time
-import copy
 from functools import wraps
 
 import numpy as np

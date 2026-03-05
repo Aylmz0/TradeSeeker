@@ -39,7 +39,7 @@ class DeepSeekAPI:
             self.thinking_enabled = getattr(Config, "MIMO_THINKING_ENABLED", False)
             print(f"[INFO] Using MiMo API with model: {self.model}")
             self.client = OpenAI(
-                api_key=self.api_key, base_url=self.base_url, timeout=180.0, max_retries=2
+                api_key=self.api_key, base_url=self.base_url, timeout=180.0, max_retries=2,
             )
         elif zai_key:
             # Use Z.AI (GLM models with thinking support)
@@ -50,7 +50,7 @@ class DeepSeekAPI:
             self.thinking_enabled = getattr(Config, "ZAI_THINKING_ENABLED", True)
             print(f"[INFO] Using Z.AI API with model: {self.model} (thinking: {self.thinking_enabled})")
             self.client = OpenAI(
-                api_key=self.api_key, base_url=self.base_url, timeout=180.0, max_retries=2
+                api_key=self.api_key, base_url=self.base_url, timeout=180.0, max_retries=2,
             )
         else:
             # Fallback to DeepSeek
@@ -62,7 +62,7 @@ class DeepSeekAPI:
 
             if self.api_key:
                 self.client = OpenAI(
-                    api_key=self.api_key, base_url=self.base_url, timeout=180.0, max_retries=2
+                    api_key=self.api_key, base_url=self.base_url, timeout=180.0, max_retries=2,
                 )
 
         if not self.api_key:
@@ -356,7 +356,7 @@ class DeepSeekAPI:
                         "leverage": 10,
                         "confidence": "float (0.0-1.0)",
                         "invalidation_condition": "string",
-                    }
+                    },
                 },
             },
             "few_shot_examples": [
@@ -392,7 +392,7 @@ class DeepSeekAPI:
                             "ETH": {"signal": "hold"},
                         },
                     },
-                }
+                },
             ],
         }
         return json.dumps(system_structure)
@@ -412,7 +412,7 @@ class DeepSeekAPI:
             user_message_content = f"Analyze the following market data JSON and provide decisions based on the system rules:\n\n{prompt}"
 
             print(
-                f"[INFO] Sending request to {self.provider} API (JSON Mode)... Payload Size: {len(prompt)} chars"
+                f"[INFO] Sending request to {self.provider} API (JSON Mode)... Payload Size: {len(prompt)} chars",
             )
 
             # Build request parameters
@@ -545,7 +545,7 @@ class DeepSeekAPI:
                 types.Content(
                     role="user",
                     parts=[types.Part.from_text(text=full_prompt)],
-                )
+                ),
             ]
 
             # Configure thinking level and structured output

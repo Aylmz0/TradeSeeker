@@ -67,7 +67,7 @@ def safe_json_dumps(
 
         # Serialize with custom encoder
         json_str = json.dumps(
-            obj, cls=SafeJSONEncoder, indent=indent, separators=separators, ensure_ascii=False
+            obj, cls=SafeJSONEncoder, indent=indent, separators=separators, ensure_ascii=False,
         )
 
         return json_str
@@ -79,7 +79,7 @@ def safe_json_dumps(
             # Try to create a minimal fallback representation
             try:
                 return json.dumps(
-                    {"error": "Serialization failed", "type": str(type(obj).__name__)}
+                    {"error": "Serialization failed", "type": str(type(obj).__name__)},
                 )
             except:
                 return '{"error": "Serialization failed"}'
@@ -88,7 +88,7 @@ def safe_json_dumps(
 
 
 def compress_series(
-    series: list[Any], max_length: int = 50, keep_first: int = 5, keep_last: int = 5
+    series: list[Any], max_length: int = 50, keep_first: int = 5, keep_last: int = 5,
 ) -> dict[str, Any]:
     """
     Compress a long series by keeping first N, last N, and summary stats.
@@ -169,7 +169,7 @@ def format_number_for_json(value: Any, precision: int = 4) -> float | int | None
 
 
 def create_json_section(
-    section_name: str, data: Any, compact: bool = False, description: str | None = None
+    section_name: str, data: Any, compact: bool = False, description: str | None = None,
 ) -> str:
     """
     Create a formatted JSON section for hybrid prompt.

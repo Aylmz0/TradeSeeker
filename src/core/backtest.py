@@ -26,7 +26,7 @@ class BacktestEngine:
         self.timestamps = []
 
     def load_historical_data(
-        self, symbol: str, start_date: str, end_date: str, interval: str = "1h"
+        self, symbol: str, start_date: str, end_date: str, interval: str = "1h",
     ) -> pd.DataFrame:
         """
         Load historical price data for backtesting.
@@ -54,7 +54,7 @@ class BacktestEngine:
                 "low": prices * 0.98,
                 "close": prices,
                 "volume": np.random.normal(1000000, 200000, len(dates)),
-            }
+            },
         )
 
         return df
@@ -309,7 +309,7 @@ class BacktestEngine:
         metrics = self.calculate_metrics()
 
         logging.info(
-            f"Backtest completed. Total return: {metrics.get('total_return_percent', 0):.2f}%"
+            f"Backtest completed. Total return: {metrics.get('total_return_percent', 0):.2f}%",
         )
 
         return {
@@ -356,7 +356,7 @@ class AdvancedRiskManager:
         self.volatility_history = {}
 
     def calculate_position_size(
-        self, current_balance: float, entry_price: float, stop_loss: float, confidence: float = 0.5
+        self, current_balance: float, entry_price: float, stop_loss: float, confidence: float = 0.5,
     ) -> float:
         """Calculate optimal position size based on risk parameters with $50 maximum limit."""
         if entry_price <= 0 or stop_loss <= 0:
@@ -403,7 +403,7 @@ class AdvancedRiskManager:
         return max(0.0, confidence_adjusted_size)
 
     def check_portfolio_diversification(
-        self, current_positions: dict, new_symbol: str, max_concentration: float = None
+        self, current_positions: dict, new_symbol: str, max_concentration: float = None,
     ) -> bool:
         """Check if adding new position maintains portfolio diversification."""
         if not current_positions:
@@ -448,7 +448,7 @@ class AdvancedRiskManager:
         max_positions = 6  # Maximum 6 positions as requested
         if len(current_positions) >= max_positions:
             logging.warning(
-                f"Maximum positions limit reached: {len(current_positions)}/{max_positions}"
+                f"Maximum positions limit reached: {len(current_positions)}/{max_positions}",
             )
             return False
 

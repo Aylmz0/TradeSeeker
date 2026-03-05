@@ -7,23 +7,40 @@ requires-python = ">=3.10"
 # Line length limit
 line-length = 100
 
-# Followed error codes
-# E: pycodestyle errors
-# F: Pyflakes
-# I: isort
-# B: flake8-bugbear
-# UP: pyupgrade
-# SIM: flake8-simplify (Simplification)
-# N: pep8-naming (Naming)
-# PTH: flake8-use-pathlib (Modern file paths)
-# PL: Pylint (Corporate standards)
-# TID: flake8-tidy-imports (Tidy imports)
-# C90: mccabe (Complexity control)
-lint.select = ["E", "F", "I", "B", "UP", "SIM", "N", "PTH", "PL", "TID", "C90"]
+# E/F/W: pycodestyle/pyflakes/warnings
+# I: isort (import sorting)
+# B: flake8-bugbear (bugs)
+# UP: pyupgrade (modern python)
+# SIM: flake8-simplify (simplification)
+# N: pep8-naming (naming)
+# PTH: flake8-use-pathlib (modern paths)
+# PL: pylint (quality)
+# TID: flake8-tidy-imports
+# C90: mccabe (complexity)
+# A: flake8-builtins (shading)
+# COM: flake8-commas (trailing commas)
+# T20: flake8-print (logging check)
+# ERA: eradicate (dead code)
+# FURB: refurb (refurbish)
+lint.select = ["E", "F", "W", "I", "B", "UP", "SIM", "N", "PTH", "PL", "TID", "C90", "A", "COM", "T20", "ERA", "FURB"]
 
 # Ignored error codes
 # PLR2004: Disable magic numbers warning (frequently used in trading projects)
-lint.ignore = ["PLR2004"]
+# T201: Allow print statements (used for console logging in this bot)
+lint.ignore = ["PLR2004", "T201"]
+
+[tool.ruff]
+target-version = "py310"
+exclude = [
+    ".git",
+    ".venv",
+    "__pycache__",
+    "data",
+    "models",
+    "logs",
+    "build",
+    "dist",
+]
 
 [tool.ruff.lint.mccabe]
 # Complexity threshold (A function can be at most 10 units complex)

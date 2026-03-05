@@ -35,7 +35,7 @@ def get_counter_trade_schema() -> dict[str, Any]:
                         "type": "integer",
                         "minimum": 0,
                         "maximum": 5,
-                    }  # [INFO] Only total_met (condition_1-5 removed)
+                    },  # [INFO] Only total_met (condition_1-5 removed)
                 },
                 "required": ["total_met"],
             },
@@ -64,7 +64,7 @@ def get_trend_reversal_schema() -> dict[str, Any]:
                 "properties": {
                     "htf_reversal": {"type": "boolean"},  # [INFO] Dynamic detection added
                     "15m_reversal": {
-                        "type": "boolean"
+                        "type": "boolean",
                     },  # [INFO] Dynamic detection added (fifteen_m -> 15m)
                     "3m_reversal": {"type": "boolean"},  # [INFO] Shortened: three_m -> 3m
                     "strength": {
@@ -182,7 +182,7 @@ def get_position_slot_schema() -> dict[str, Any]:
             "long_slots_used": {"type": "integer"},
             "short_slots_used": {"type": "integer"},
             "same_direction_limit": {
-                "type": "integer"
+                "type": "integer",
             },  # [INFO] Added: Max position limit in same direction
             "long_slots_available": {"type": "integer"},  # [INFO] Added: Remaining LONG slots
             "short_slots_available": {"type": "integer"},  # [INFO] Added: Remaining SHORT slots
@@ -496,7 +496,7 @@ def get_full_prompt_schema() -> dict[str, Any]:
 
 
 def validate_json_against_schema(
-    data: dict[str, Any], schema: dict[str, Any]
+    data: dict[str, Any], schema: dict[str, Any],
 ) -> tuple[bool, str | None]:
     """
     Simple JSON schema validation.

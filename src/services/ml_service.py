@@ -1,12 +1,12 @@
-import os
 import json
 import logging
-import pandas as pd
-import numpy as np
-import xgboost as xgb
-import joblib
+import os
 from datetime import datetime
-from typing import Optional, Dict, Any
+from typing import Any
+
+import joblib
+import pandas as pd
+import xgboost as xgb
 
 from src.core.indicators import get_features_for_ml
 
@@ -22,7 +22,7 @@ class MLService:
 
     def __new__(cls):
         if cls._instance is None:
-            cls._instance = super(MLService, cls).__new__(cls)
+            cls._instance = super().__new__(cls)
             cls._instance._initialized = False
         return cls._instance
 
@@ -34,7 +34,7 @@ class MLService:
         self.scaler_path = "models/scaler.joblib"
         self.features_path = "models/feature_cols.joblib"
         
-        self.model: Optional[xgb.XGBClassifier] = None
+        self.model: xgb.XGBClassifier | None = None
         self.scaler = None
         self.feature_cols = None
         self.is_ready = False
@@ -64,7 +64,7 @@ class MLService:
             logger.error(f"[MLService] Failed to load ML artifacts: {e}")
             self.is_ready = False
 
-    def predict(self, df_raw: pd.DataFrame) -> Optional[Dict[str, Any]]:
+    def predict(self, df_raw: pd.DataFrame) -> dict[str, Any] | None:
         """
         Takes raw OHLCV from Binance, extracts features, scales the latest row, 
         and computes the directional multi-class probability.
@@ -108,7 +108,7 @@ class MLService:
                 "HOLD": hold_prob,
                 "BUY": buy_prob,
                 "dominant_signal": dominant,
-                "confidence": max_prob
+                "confidence": max_prob,
             }
             
             self._log_prediction(result)
@@ -118,7 +118,7 @@ class MLService:
             logger.error(f"[MLService] Error during prediction: {e}")
             return None
 
-    def _log_prediction(self, result: Dict[str, Any], coin: str = "XRP", interval: str = "15m") -> None:
+    def _log_prediction(self, result: dict[str, Any], coin: str = "XRP", interval: str = "15m") -> None:
         """Append prediction to JSONL log file (one JSON object per line)."""
         try:
             os.makedirs(os.path.dirname(self.prediction_log_path), exist_ok=True)
@@ -130,7 +130,7 @@ class MLService:
                 "hold": result["HOLD"],
                 "buy": result["BUY"],
                 "dominant": result["dominant_signal"],
-                "confidence": result["confidence"]
+                "confidence": result["confidence"],
             }
             with open(self.prediction_log_path, "a") as f:
                 f.write(json.dumps(log_entry) + "\n")

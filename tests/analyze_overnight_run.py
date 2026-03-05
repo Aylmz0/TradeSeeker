@@ -78,7 +78,7 @@ def analyze_overnight_run():
                     signal = decision.get("signal")
                     if signal not in ["hold", "wait"]:
                         print(
-                            f"  -> ACTION: {coin} - {signal} (Conf: {decision.get('confidence')})"
+                            f"  -> ACTION: {coin} - {signal} (Conf: {decision.get('confidence')})",
                         )
                         print(f"     Reasoning: {decision.get('invalidation_condition', 'N/A')}")
                         has_action = True

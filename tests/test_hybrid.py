@@ -5,9 +5,11 @@ Tests the complete ML inference pipeline end-to-end:
 
 No external API dependencies (OpenAI, Binance) required.
 """
-import sqlite3
-import pandas as pd
 import json
+import sqlite3
+
+import pandas as pd
+
 from src.services.ml_service import MLService
 
 

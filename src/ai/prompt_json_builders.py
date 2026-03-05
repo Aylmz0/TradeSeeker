@@ -11,7 +11,7 @@ from src.ai.prompt_json_utils import format_number_for_json
 
 
 def build_metadata_json(
-    minutes_running: int, current_time: datetime, invocation_count: int
+    minutes_running: int, current_time: datetime, invocation_count: int,
 ) -> dict[str, Any]:
     """Build metadata JSON section."""
     return {
@@ -208,7 +208,7 @@ def build_counter_trade_json(
                     condition_7,
                     condition_8,
                     condition_9,
-                ]
+                ],
             )  # 8 conditions (EMA removed)
 
             # Determine risk level (Updated Logic - User Request)
@@ -261,7 +261,7 @@ def build_counter_trade_json(
                     )
                     else "NORMAL",
                     "rsi_3m": rsi_3m,
-                }
+                },
             )
 
         except Exception:
@@ -272,7 +272,7 @@ def build_counter_trade_json(
 
 
 def build_trend_reversal_json(
-    trend_reversal_analysis: dict[str, Any], portfolio_positions: dict[str, Any]
+    trend_reversal_analysis: dict[str, Any], portfolio_positions: dict[str, Any],
 ) -> list[dict[str, Any]]:
     """
     Build trend reversal detection JSON from performance_monitor output.
@@ -341,7 +341,7 @@ def build_trend_reversal_json(
                 "current_trend_htf": trend_htf,
                 "current_trend_15m": trend_15m,
                 "current_trend_3m": trend_3m,
-            }
+            },
         )
 
     return reversal_list
@@ -373,10 +373,10 @@ def build_enhanced_context_json(enhanced_context: dict[str, Any]) -> dict[str, A
             "long_positions": position_context.get("long_positions", 0),
             "short_positions": position_context.get("short_positions", 0),
             "total_margin_used": format_number_for_json(
-                position_context.get("total_margin_used", 0)
+                position_context.get("total_margin_used", 0),
             ),
             "total_unrealized_pnl": format_number_for_json(
-                position_context.get("total_unrealized_pnl", 0)
+                position_context.get("total_unrealized_pnl", 0),
             ),
         },
         "market_regime": {
@@ -390,26 +390,26 @@ def build_enhanced_context_json(enhanced_context: dict[str, Any]) -> dict[str, A
             "total_return": format_number_for_json(performance_insights.get("total_return", 0)),
             "sharpe_ratio": format_number_for_json(performance_insights.get("sharpe_ratio")),
             "profitability_index": format_number_for_json(
-                performance_insights.get("profitability_index")
+                performance_insights.get("profitability_index"),
             ),
         },
         "directional_feedback": {
             "long_performance": {
                 "net_pnl": format_number_for_json(
-                    directional_feedback.get("long", {}).get("total_pnl", 0)
+                    directional_feedback.get("long", {}).get("total_pnl", 0),
                 ),
                 "trades": directional_feedback.get("long", {}).get("trades", 0),
                 "profitability_index": format_number_for_json(
-                    directional_feedback.get("long", {}).get("profitability_index", 0)
+                    directional_feedback.get("long", {}).get("profitability_index", 0),
                 ),
             },
             "short_performance": {
                 "net_pnl": format_number_for_json(
-                    directional_feedback.get("short", {}).get("total_pnl", 0)
+                    directional_feedback.get("short", {}).get("total_pnl", 0),
                 ),
                 "trades": directional_feedback.get("short", {}).get("trades", 0),
                 "profitability_index": format_number_for_json(
-                    directional_feedback.get("short", {}).get("profitability_index", 0)
+                    directional_feedback.get("short", {}).get("profitability_index", 0),
                 ),
             },
         },
@@ -417,7 +417,7 @@ def build_enhanced_context_json(enhanced_context: dict[str, Any]) -> dict[str, A
             "current_risk_usd": format_number_for_json(risk_context.get("total_risk_usd", 0)),
             "max_risk_allowed": format_number_for_json(risk_context.get("max_risk_allowed", 0)),
             "risk_utilization_pct": format_number_for_json(
-                risk_context.get("risk_utilization_pct", 0)
+                risk_context.get("risk_utilization_pct", 0),
             ),
         },
         "suggestions": suggestions if isinstance(suggestions, list) else [],
@@ -440,7 +440,7 @@ def build_cooldown_status_json(
 
 
 def build_position_slot_json(
-    portfolio_positions: dict[str, Any], max_positions: int, same_direction_limit: int = None
+    portfolio_positions: dict[str, Any], max_positions: int, same_direction_limit: int = None,
 ) -> dict[str, Any]:
     """Build position slot status JSON."""
     from config.config import Config
@@ -465,7 +465,7 @@ def build_position_slot_json(
     weakest_position = None
     if portfolio_positions:
         weakest = min(
-            portfolio_positions.items(), key=lambda x: x[1].get("unrealized_pnl", float("inf"))
+            portfolio_positions.items(), key=lambda x: x[1].get("unrealized_pnl", float("inf")),
         )
         weakest_position = {
             "coin": weakest[0],
@@ -526,7 +526,7 @@ def build_market_data_json(
     """
 
     def build_timeframe_data(
-        indicators: dict[str, Any], has_atr: bool = False, has_volume: bool = False
+        indicators: dict[str, Any], has_atr: bool = False, has_volume: bool = False,
     ):
         """Helper to build timeframe data structure."""
         if not indicators or "error" in indicators:
@@ -676,11 +676,11 @@ def build_market_data_json(
             "notional_usd": format_number_for_json(position.get("notional_usd", 0)),
             "exit_plan": {
                 "profit_target": format_number_for_json(
-                    position.get("exit_plan", {}).get("profit_target")
+                    position.get("exit_plan", {}).get("profit_target"),
                 ),
                 "stop_loss": format_number_for_json(position.get("exit_plan", {}).get("stop_loss")),
                 "invalidation_condition": position.get("exit_plan", {}).get(
-                    "invalidation_condition"
+                    "invalidation_condition",
                 ),
             },
         }
@@ -689,10 +689,10 @@ def build_market_data_json(
         erosion_status = position.get("erosion_status", "NONE")
         if erosion_status != "NONE":
             market_data["position"]["peak_pnl"] = format_number_for_json(
-                position.get("peak_pnl", 0)
+                position.get("peak_pnl", 0),
             )
             market_data["position"]["erosion_pct"] = format_number_for_json(
-                position.get("erosion_pct", 0)
+                position.get("erosion_pct", 0),
             )
             market_data["position"]["erosion_status"] = erosion_status
         else:
@@ -729,21 +729,21 @@ def build_portfolio_json(portfolio: Any) -> dict[str, Any]:
                     "unrealized_pnl": format_number_for_json(pos.get("unrealized_pnl", 0)),
                     "leverage": pos.get("leverage", 1),
                     "confidence": format_number_for_json(pos.get("confidence", 0.5)),
-                }
+                },
             )
 
     return {
         "total_return_pct": format_number_for_json(
-            portfolio.total_return if hasattr(portfolio, "total_return") else 0
+            portfolio.total_return if hasattr(portfolio, "total_return") else 0,
         ),
         "available_cash": format_number_for_json(
-            portfolio.current_balance if hasattr(portfolio, "current_balance") else 0
+            portfolio.current_balance if hasattr(portfolio, "current_balance") else 0,
         ),
         "account_value": format_number_for_json(
-            portfolio.total_value if hasattr(portfolio, "total_value") else 0
+            portfolio.total_value if hasattr(portfolio, "total_value") else 0,
         ),
         "sharpe_ratio": format_number_for_json(
-            portfolio.sharpe_ratio if hasattr(portfolio, "sharpe_ratio") else None
+            portfolio.sharpe_ratio if hasattr(portfolio, "sharpe_ratio") else None,
         ),
         "positions": positions_list,
     }
@@ -809,7 +809,7 @@ def build_directional_bias_json(bias_metrics: dict[str, dict[str, Any]]) -> dict
 
 
 def build_trend_flip_guard_json(
-    trend_flip_summary: list[str], trend_flip_cooldown: int, trend_flip_history_window: int
+    trend_flip_summary: list[str], trend_flip_cooldown: int, trend_flip_history_window: int,
 ) -> dict[str, Any]:
     """
     Build trend flip guard JSON.

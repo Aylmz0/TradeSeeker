@@ -1,10 +1,10 @@
 import logging
 import os
 import sqlite3
+
+import numpy as np
 import pandas as pd
 import requests
-import numpy as np
-from typing import Optional
 
 # Configure logging
 logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
@@ -124,7 +124,7 @@ class DataEngine:
                     float(row['high']),
                     float(row['low']),
                     float(row['close']),
-                    float(row['volume'])
+                    float(row['volume']),
                 ))
                 
             # INSERT OR IGNORE protects against duplicate timestamp overlapping
@@ -143,7 +143,7 @@ class DataEngine:
         finally:
             conn.close()
 
-    def get_raw_market_data(self, coin: str, interval: str, limit: Optional[int] = None) -> pd.DataFrame:
+    def get_raw_market_data(self, coin: str, interval: str, limit: int | None = None) -> pd.DataFrame:
         """Fetch raw market data from SQLite into a pandas DataFrame."""
         conn = self._get_connection()
         try:
@@ -152,7 +152,7 @@ class DataEngine:
             if limit:
                 # We need to get the "latest" N candles, so we sort DESC then reverse,
                 # or just use a subquery. Subquery is cleaner.
-                query = f"""
+                query = """
                     SELECT * FROM (
                         SELECT * FROM market_data 
                         WHERE coin = ? AND interval = ? 
@@ -177,7 +177,7 @@ class DataEngine:
         lookahead_periods: int = 5,
         profit_threshold: float = 0.005,  # 0.5% profit
         loss_threshold: float = -0.005,   # -0.5% loss
-        limit: Optional[int] = None
+        limit: int | None = None,
     ) -> pd.DataFrame:
         """
         Creates the ML targets (Labels) by looking ahead in time.
@@ -199,7 +199,7 @@ class DataEngine:
         # Apply labels using numpy.select for blazing fast vectorization
         conditions = [
             (df['future_return'] >= profit_threshold),
-            (df['future_return'] <= loss_threshold)
+            (df['future_return'] <= loss_threshold),
         ]
         choices = [1, -1] # 1=BUY, -1=SELL
         
@@ -232,7 +232,7 @@ class DataEngine:
                 columns=[
                     "timestamp", "open", "high", "low", "close", "volume",
                     "close_time", "quote_asset_volume", "number_of_trades",
-                    "taker_buy_base_asset_volume", "taker_buy_quote_asset_volume", "ignore"
+                    "taker_buy_base_asset_volume", "taker_buy_quote_asset_volume", "ignore",
                 ],
             )
             for col in ["open", "high", "low", "close", "volume"]:
@@ -256,8 +256,8 @@ class DataEngine:
         direction: str,
         ai_confidence: float,
         ml_probability: float,
-        entry_price: float
-    ) -> Optional[int]:
+        entry_price: float,
+    ) -> int | None:
         """Log an OPEN trade decision to the decisions table. Returns the row ID."""
         conn = self._get_connection()
         try:
@@ -273,7 +273,7 @@ class DataEngine:
                     round(float(ai_confidence), 4),
                     round(float(ml_probability), 4),
                     round(float(entry_price), 8),
-                )
+                ),
             )
             conn.commit()
             row_id = cursor.lastrowid
@@ -290,7 +290,7 @@ class DataEngine:
         self,
         coin: str,
         exit_price: float,
-        pnl_result: float
+        pnl_result: float,
     ) -> bool:
         """Update the latest OPEN decision for a coin with exit price and realized PnL."""
         conn = self._get_connection()
@@ -305,7 +305,7 @@ class DataEngine:
                     round(float(exit_price), 8),
                     round(float(pnl_result), 4),
                     coin,
-                )
+                ),
             )
             conn.commit()
             if cursor.rowcount > 0:

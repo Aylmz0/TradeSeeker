@@ -26,7 +26,7 @@ class PerformanceMonitor:
 
             if not cycles or not isinstance(cycles, list):
                 return {
-                    "info": "No valid trading data available yet. Run Alpha Arena DeepSeek to generate performance data."
+                    "info": "No valid trading data available yet. Run Alpha Arena DeepSeek to generate performance data.",
                 }
 
             # Validate data structure
@@ -199,7 +199,7 @@ class PerformanceMonitor:
                 "coin_performance": coin_performance,
                 # Recommendations
                 "recommendations": self._generate_recommendations(
-                    profitability_index, profit_factor, coin_performance, open_positions_count
+                    profitability_index, profit_factor, coin_performance, open_positions_count,
                 ),
             }
 
@@ -254,7 +254,7 @@ class PerformanceMonitor:
         return -max_dd
 
     def _calculate_sortino_ratio(
-        self, value_history: list[float], risk_free_rate: float = 0.0
+        self, value_history: list[float], risk_free_rate: float = 0.0,
     ) -> float:
         """Calculate Sortino Ratio (downside risk only)"""
         if not value_history or len(value_history) < 2:
@@ -298,19 +298,19 @@ class PerformanceMonitor:
         # Dynamic cash balance warning
         if current_balance < initial_balance * 0.5:
             recommendations.append(
-                f"[INFO] Cash balance ${current_balance:.2f} vs ${initial_balance:.2f} initial; liquidity below 50% of baseline"
+                f"[INFO] Cash balance ${current_balance:.2f} vs ${initial_balance:.2f} initial; liquidity below 50% of baseline",
             )
 
         # 3 positions threshold (more conservative)
         if open_positions >= 3:
             recommendations.append(
-                f"[INFO] Position count {open_positions}; exceeds reference threshold (>=3)"
+                f"[INFO] Position count {open_positions}; exceeds reference threshold (>=3)",
             )
 
         # Performance feedback
         if total_return < 5:
             recommendations.append(
-                f"[INFO] Recorded return {total_return:.2f}% within analysis window; below growth target"
+                f"[INFO] Recorded return {total_return:.2f}% within analysis window; below growth target",
             )
 
         # Coin performance - simple and clear
@@ -320,13 +320,13 @@ class PerformanceMonitor:
             ]
             if unprofitable_coins:
                 recommendations.append(
-                    f"[INFO] Coins with cumulative negative PnL: {', '.join(unprofitable_coins)}"
+                    f"[INFO] Coins with cumulative negative PnL: {', '.join(unprofitable_coins)}",
                 )
 
         # General recommendation if no specific issues
         if not recommendations:
             recommendations.append(
-                "[INFO] Performance metrics stable; no notable anomalies detected"
+                "[INFO] Performance metrics stable; no notable anomalies detected",
             )
 
         return recommendations
@@ -380,7 +380,7 @@ class PerformanceMonitor:
                 total_pnl = stats.get("total_pnl", 0)
                 trades = stats.get("trades", 0)
                 print(
-                    f"   {coin}: {trades} trades, {profitability_index:.1f}% prof. index, PnL: ${total_pnl:.2f}"
+                    f"   {coin}: {trades} trades, {profitability_index:.1f}% prof. index, PnL: ${total_pnl:.2f}",
                 )
 
         # Recommendations
@@ -425,7 +425,7 @@ class PerformanceMonitor:
             and profit_factor < Config.PERFORMANCE_PROFIT_FACTOR_LOW
         ):
             suggestions.append(
-                f"[INFO] Profitability Index >{Config.PERFORMANCE_PROFITABILITY_HIGH}% alongside profit factor <{Config.PERFORMANCE_PROFIT_FACTOR_LOW}; average gains are relatively small versus losses"
+                f"[INFO] Profitability Index >{Config.PERFORMANCE_PROFITABILITY_HIGH}% alongside profit factor <{Config.PERFORMANCE_PROFIT_FACTOR_LOW}; average gains are relatively small versus losses",
             )
 
         # Low profitability index but positive profit factor (big wins, small losses)
@@ -434,7 +434,7 @@ class PerformanceMonitor:
             and profit_factor > Config.PERFORMANCE_PROFIT_FACTOR_HIGH
         ):
             suggestions.append(
-                f"[INFO] Profitability Index <{Config.PERFORMANCE_PROFITABILITY_LOW}% with profit factor >{Config.PERFORMANCE_PROFIT_FACTOR_HIGH}; outsized winners offset low hit rate"
+                f"[INFO] Profitability Index <{Config.PERFORMANCE_PROFITABILITY_LOW}% with profit factor >{Config.PERFORMANCE_PROFIT_FACTOR_HIGH}; outsized winners offset low hit rate",
             )
 
         # High decision rate but poor performance
@@ -443,7 +443,7 @@ class PerformanceMonitor:
             and total_return < Config.PERFORMANCE_RETURN_LOW
         ):
             suggestions.append(
-                f"[INFO] Decision rate above {Config.PERFORMANCE_DECISION_RATE_HIGH}% coincides with negative total return in the sample window"
+                f"[INFO] Decision rate above {Config.PERFORMANCE_DECISION_RATE_HIGH}% coincides with negative total return in the sample window",
             )
 
         # Low decision rate with good performance
@@ -452,27 +452,27 @@ class PerformanceMonitor:
             and total_return > Config.PERFORMANCE_RETURN_HIGH
         ):
             suggestions.append(
-                f"[INFO] Decision rate below {Config.PERFORMANCE_DECISION_RATE_LOW}% with positive return observed; selective participation linked to gains"
+                f"[INFO] Decision rate below {Config.PERFORMANCE_DECISION_RATE_LOW}% with positive return observed; selective participation linked to gains",
             )
 
         # Sharpe ratio analysis
         if sharpe_ratio < Config.PERFORMANCE_SHARPE_LOW:
             suggestions.append(
-                f"[INFO] Sharpe ratio <{Config.PERFORMANCE_SHARPE_LOW}; risk-adjusted performance trails baseline"
+                f"[INFO] Sharpe ratio <{Config.PERFORMANCE_SHARPE_LOW}; risk-adjusted performance trails baseline",
             )
         elif sharpe_ratio > Config.PERFORMANCE_SHARPE_HIGH:
             suggestions.append(
-                f"[INFO] Sharpe ratio >{Config.PERFORMANCE_SHARPE_HIGH}; risk-adjusted performance classified as strong"
+                f"[INFO] Sharpe ratio >{Config.PERFORMANCE_SHARPE_HIGH}; risk-adjusted performance classified as strong",
             )
 
         # Position management suggestions
         if open_positions >= 4 and total_return < 0:
             suggestions.append(
-                "[INFO] Open positions >=4 while total return is negative; exposure concentration elevated"
+                "[INFO] Open positions >=4 while total return is negative; exposure concentration elevated",
             )
         elif open_positions <= 2 and total_return > 0:
             suggestions.append(
-                "[INFO] Open positions <=2 with positive total return; lean positioning correlated with gains"
+                "[INFO] Open positions <=2 with positive total return; lean positioning correlated with gains",
             )
 
         # Coin-specific suggestions
@@ -487,18 +487,18 @@ class PerformanceMonitor:
 
                 if best_pnl > 0:
                     suggestions.append(
-                        f"[INFO] Strong performer: {best_coin} (${best_pnl:.2f}); positive contribution noted"
+                        f"[INFO] Strong performer: {best_coin} (${best_pnl:.2f}); positive contribution noted",
                     )
 
                 if worst_pnl < Config.PERFORMANCE_DRAWDOWN_THRESHOLD:  # Significant loss
                     suggestions.append(
-                        f"[INFO] Weak performer: {worst_coin} (${worst_pnl:.2f}); drawdown exceeds {Config.PERFORMANCE_DRAWDOWN_THRESHOLD} threshold"
+                        f"[INFO] Weak performer: {worst_coin} (${worst_pnl:.2f}); drawdown exceeds {Config.PERFORMANCE_DRAWDOWN_THRESHOLD} threshold",
                     )
 
         # Market regime suggestions
         if total_return > 10:
             suggestions.append(
-                "[INFO] Portfolio return above 10%; market conditions appear supportive during analysis"
+                "[INFO] Portfolio return above 10%; market conditions appear supportive during analysis",
             )
         elif total_return < -5:
             suggestions.append("[INFO] Portfolio return below -5%; drawdown environment observed")
@@ -506,13 +506,13 @@ class PerformanceMonitor:
         # Risk management suggestions
         if profit_factor < Config.PERFORMANCE_PROFIT_FACTOR_CRITICAL:
             suggestions.append(
-                f"[INFO] Profit factor <{Config.PERFORMANCE_PROFIT_FACTOR_CRITICAL}; indicates unfavorable reward-to-risk ratio"
+                f"[INFO] Profit factor <{Config.PERFORMANCE_PROFIT_FACTOR_CRITICAL}; indicates unfavorable reward-to-risk ratio",
             )
 
         return suggestions
 
     def detect_trend_reversal_for_all_coins(
-        self, coins: list[str], indicators_cache: dict[str, dict[str, dict[str, Any]]] = None
+        self, coins: list[str], indicators_cache: dict[str, dict[str, dict[str, Any]]] = None,
     ) -> dict[str, Any]:
         """Detect trend break signals for all specified coins (Loss Risk Information Only)"""
         try:
@@ -541,13 +541,13 @@ class PerformanceMonitor:
                 else:
                     indicators_3m = market_data.get_technical_indicators(coin, "3m")
                     indicators_15m = market_data.get_technical_indicators(
-                        coin, "15m"
+                        coin, "15m",
                     )  # Added 15m
                     indicators_htf = market_data.get_technical_indicators(coin, HTF_INTERVAL)
 
                 # Call centralized logic with 15m support
                 reversal_result = market_data.detect_trend_reversal_signals(
-                    coin, indicators_3m, indicators_htf, indicators_15m
+                    coin, indicators_3m, indicators_htf, indicators_15m,
                 )
                 reversal_results[coin] = reversal_result
 
@@ -594,13 +594,13 @@ class PerformanceMonitor:
                             "type": "LOSS_RISK",
                             "strength": result.get("strength", "UNKNOWN"),
                             "description": f"{coin}: {sig}",
-                        }
+                        },
                     )
 
                 loss_risk_signals[coin] = {
                     "loss_risk_signals": signals,
                     "current_trend_4h": result.get(
-                        "trend_htf", "UNKNOWN"
+                        "trend_htf", "UNKNOWN",
                     ),  # Mapping trend_htf to current_trend_4h/1h
                     "current_trend_3m": result.get("trend_3m", "UNKNOWN"),
                     "signal_strength": result.get("strength", "NO_LOSS_RISK"),
@@ -613,7 +613,7 @@ class PerformanceMonitor:
             return {"error": f"Trend break analysis failed: {str(e)}"}
 
     def _generate_reversal_recommendations(
-        self, summary: dict, reversal_results: dict
+        self, summary: dict, reversal_results: dict,
     ) -> list[str]:
         """Generate recommendations based on trend reversal analysis"""
         recommendations = []
@@ -628,35 +628,35 @@ class PerformanceMonitor:
             recommendations.append("[INFO] Multiple strong reversal signals detected across assets")
         elif strong_count >= 2:
             recommendations.append(
-                "[INFO] Several strong reversal signals present across coverage set"
+                "[INFO] Several strong reversal signals present across coverage set",
             )
 
         if reversal_percentage > 50:
             recommendations.append(
-                "[INFO] Reversal signal percentage above 50%; elevated probability of directional shifts"
+                "[INFO] Reversal signal percentage above 50%; elevated probability of directional shifts",
             )
         elif reversal_percentage > 30:
             recommendations.append(
-                "[INFO] Reversal signal percentage above 30%; moderate reversal frequency observed"
+                "[INFO] Reversal signal percentage above 30%; moderate reversal frequency observed",
             )
 
         # Specific coin recommendations
         strong_coins = summary.get("high_loss_risk_coins", [])
         if strong_coins:
             recommendations.append(
-                f"[INFO] Strong reversal readings detected in: {', '.join(strong_coins)}"
+                f"[INFO] Strong reversal readings detected in: {', '.join(strong_coins)}",
             )
 
         # Risk management recommendations
         if strong_count > 0:
             recommendations.append(
-                "[INFO] Reversal signals flagged; protective level proximity worth monitoring"
+                "[INFO] Reversal signals flagged; protective level proximity worth monitoring",
             )
 
         # General market sentiment
         if strong_count == 0 and moderate_count == 0:
             recommendations.append(
-                "[INFO] No significant reversal signals detected; prevailing trends classified as intact"
+                "[INFO] No significant reversal signals detected; prevailing trends classified as intact",
             )
 
         return recommendations

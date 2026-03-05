@@ -1,5 +1,3 @@
-import os
-import re
 
 METHODS_TO_EXTRACT = [
     "def _initialize_live_trading",
@@ -16,7 +14,7 @@ METHODS_TO_EXTRACT = [
     "def get_profit_levels_by_notional",
     "def enhanced_exit_strategy",
     "def _evaluate_trailing_stop",
-    "def _execute_new_positions_only"
+    "def _execute_new_positions_only",
 ]
 
 INTERNAL_METHODS = [m.replace("def ", "").strip() for m in METHODS_TO_EXTRACT]
@@ -32,7 +30,7 @@ def transform_method_body(code):
     return code
 
 def main():
-    with open("src/core/portfolio_manager.py", "r", encoding="utf-8") as f:
+    with open("src/core/portfolio_manager.py", encoding="utf-8") as f:
         lines = f.readlines()
 
     out_pm = []
@@ -110,7 +108,7 @@ def main():
         "        if self.is_live_trading:\n",
         "            self._initialize_live_trading()\n",
         "        elif BINANCE_IMPORT_ERROR:\n",
-        "            print(f'[INFO] Binance executor unavailable ({BINANCE_IMPORT_ERROR}). Staying in simulation mode.')\n\n"
+        "            print(f'[INFO] Binance executor unavailable ({BINANCE_IMPORT_ERROR}). Staying in simulation mode.')\n\n",
     ]
     
     account_service_code.extend(extracted_methods)
@@ -119,7 +117,7 @@ def main():
         f.writelines(account_service_code)
 
     # 2. Modify main.py
-    with open("src/main.py", "r", encoding="utf-8") as f:
+    with open("src/main.py", encoding="utf-8") as f:
         main_code = f.read()
     
     # Import AccountService

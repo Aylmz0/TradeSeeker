@@ -1,10 +1,10 @@
 import copy
 import json
-import re
 from typing import Any
+
 from config.config import Config
-from src.utils import format_num
 from src.services.ml_service import MLService
+from src.utils import format_num
 
 HTF_INTERVAL = getattr(Config, 'HTF_INTERVAL', '1h') or '1h'
 HTF_LABEL = HTF_INTERVAL
@@ -164,7 +164,7 @@ class AIService:
             avg_pnl = stats.get("avg_pnl", 0.0)
             total_pnl = stats.get("total_pnl", 0.0)
             lines.append(
-                f"  {direction.upper()}: trades={trades}, wins={wins}, losses={losses}, win_rate={win_rate}%, avg_pnl=${avg_pnl:.2f}, total_pnl=${total_pnl:.2f}"
+                f"  {direction.upper()}: trades={trades}, wins={wins}, losses={losses}, win_rate={win_rate}%, avg_pnl=${avg_pnl:.2f}, total_pnl=${total_pnl:.2f}",
             )
         return "\n".join(lines)
 
@@ -357,7 +357,7 @@ class AIService:
             bias_lines.append(
                 f"  - {side.upper()}: net_pnl=${format_num(stats.get('net_pnl', 0.0), 2)}, "
                 f"trades={stats.get('trades', 0)}, win_rate={format_num(stats.get('win_rate', 0.0), 2)}%, "
-                f"rolling_avg=${format_num(stats.get('rolling_avg', 0.0), 2)}, consecutive_losses={stats.get('consecutive_losses', 0)}"
+                f"rolling_avg=${format_num(stats.get('rolling_avg', 0.0), 2)}, consecutive_losses={stats.get('consecutive_losses', 0)}",
             )
         bias_section = "\n".join(bias_lines) if bias_lines else "  - No directional trades recorded"
 
@@ -377,7 +377,7 @@ class AIService:
                     reason.append(f"${loss_streak_usd:.2f} total loss")
                 reason_str = " + ".join(reason) if reason else "unknown"
                 cooldown_lines.append(
-                    f"  - {side.upper()}: COOLDOWN ACTIVE ({cycles_remaining} cycles remaining) - Reason: {reason_str}"
+                    f"  - {side.upper()}: COOLDOWN ACTIVE ({cycles_remaining} cycles remaining) - Reason: {reason_str}",
                 )
             else:
                 cooldown_lines.append(f"  - {side.upper()}: No cooldown (active)")
@@ -392,7 +392,7 @@ class AIService:
             for coin, cycles in sorted(coin_cooldowns.items()):
                 if cycles > 0:
                     coin_cooldown_lines.append(
-                        f"  - {coin}: COOLDOWN ACTIVE ({cycles} cycles remaining - previous loss)"
+                        f"  - {coin}: COOLDOWN ACTIVE ({cycles} cycles remaining - previous loss)",
                     )
         coin_cooldown_section = (
             "\n".join(coin_cooldown_lines)
@@ -402,7 +402,7 @@ class AIService:
 
         recent_flips = self.portfolio.get_recent_trend_flip_summary()
         flip_history_window = getattr(
-            self.portfolio, "trend_flip_history_window", self.portfolio.trend_flip_cooldown
+            self.portfolio, "trend_flip_history_window", self.portfolio.trend_flip_cooldown,
         )
         if recent_flips:
             trend_flip_section = "\n".join(f"  - {entry}" for entry in recent_flips)
@@ -414,7 +414,7 @@ class AIService:
 
         # Calculate slot status for prompt context
         position_slots = build_position_slot_json(
-            self.portfolio.positions, self.get_max_positions_for_cycle(self.current_cycle_number)
+            self.portfolio.positions, self.get_max_positions_for_cycle(self.current_cycle_number),
         )
 
         # Add slot constraint instruction to the prompt if applicable
@@ -502,7 +502,7 @@ REMEMBER: These are suggestions only. You make the final trading decisions based
                     "pnl": pnl,
                     "minutes": minutes_in_trade,
                     "loss_cycles": position.get("loss_cycle_count", 0),
-                }
+                },
             )
 
         long_open = directional_counts.get("long", 0)
@@ -529,11 +529,11 @@ REMEMBER: These are suggestions only. You make the final trading decisions based
                 )
                 slot_lines.append(
                     f"  - Weakest LONG -> {weakest_long['coin']} (PnL ${weakest_long['pnl']:.2f}, in trade {wl_minutes}, "
-                    f"loss_cycles={weakest_long['loss_cycles']}). Evaluate trimming/closing this before proposing a new long."
+                    f"loss_cycles={weakest_long['loss_cycles']}). Evaluate trimming/closing this before proposing a new long.",
                 )
             slot_lines.append(
                 "  - Long capacity FULL -> System blocks new longs. Provide either (a) a close/trim plan for a current long "
-                "OR (b) a SHORT setup (ONLY if no counter-trend LONG signal exists). CRITICAL: If a counter-trend LONG signal exists, DO NOT open a SHORT."
+                "OR (b) a SHORT setup (ONLY if no counter-trend LONG signal exists). CRITICAL: If a counter-trend LONG signal exists, DO NOT open a SHORT.",
             )
         if short_open >= same_direction_limit:
             weakest_short = None
@@ -547,11 +547,11 @@ REMEMBER: These are suggestions only. You make the final trading decisions based
                 )
                 slot_lines.append(
                     f"  - Weakest SHORT -> {weakest_short['coin']} (PnL ${weakest_short['pnl']:.2f}, in trade {ws_minutes}, "
-                    f"loss_cycles={weakest_short['loss_cycles']}). Evaluate trimming/closing this before proposing a new short."
+                    f"loss_cycles={weakest_short['loss_cycles']}). Evaluate trimming/closing this before proposing a new short.",
                 )
             slot_lines.append(
                 "  - Short capacity FULL -> System blocks new shorts. Provide either (a) a close/trim plan for a current short "
-                "OR (b) a LONG alternative (ONLY if no counter-trend SHORT signal exists). CRITICAL: If a counter-trend SHORT signal exists, DO NOT open a LONG."
+                "OR (b) a LONG alternative (ONLY if no counter-trend SHORT signal exists). CRITICAL: If a counter-trend SHORT signal exists, DO NOT open a LONG.",
             )
 
         prompt += f"\n{'=' * 20} POSITION SLOT STATUS {'=' * 20}\n" + "\n".join(slot_lines) + "\n"
@@ -652,7 +652,7 @@ REMEMBER: These are suggestions only. You make the final trading decisions based
                     try:
                         entry_dt = datetime.fromisoformat(entry_time_str)
                         position_duration_minutes = max(
-                            0, int((datetime.now() - entry_dt).total_seconds() // 60)
+                            0, int((datetime.now() - entry_dt).total_seconds() // 60),
                         )
                         position_duration_hours = position_duration_minutes / 60.0
                     except Exception:
@@ -739,7 +739,7 @@ REMEMBER: These are suggestions only. You make the final trading decisions based
                         # 15m + 3m both show reversal (strong reversal signal)
                         signal_strength = "STRONG"
                         signals_text = " & ".join(
-                            [s for s in reversal_signals if "15m" in s or "3m" in s]
+                            [s for s in reversal_signals if "15m" in s or "3m" in s],
                         )
 
                         if trend_direction == "short":
@@ -897,7 +897,7 @@ Current live positions & performance:"""
 
         performance_monitor = PerformanceMonitor()
         trend_reversal_analysis = performance_monitor.detect_trend_reversal_for_all_coins(
-            self.market_data.available_coins, indicators_cache=all_indicators
+            self.market_data.available_coins, indicators_cache=all_indicators,
         )
 
         # Get cooldown status
@@ -915,7 +915,7 @@ Current live positions & performance:"""
         # Get trend flip summary
         recent_flips = self.portfolio.get_recent_trend_flip_summary()
         flip_history_window = getattr(
-            self.portfolio, "trend_flip_history_window", self.portfolio.trend_flip_cooldown
+            self.portfolio, "trend_flip_history_window", self.portfolio.trend_flip_cooldown,
         )
 
         # Build JSON sections
@@ -940,7 +940,7 @@ Current live positions & performance:"""
 
         if skipped_cooldown_coins:
             print(
-                f"[OPTIMIZE] Prompt optimization: Skipped cooldown coins (no position): {skipped_cooldown_coins}"
+                f"[OPTIMIZE] Prompt optimization: Skipped cooldown coins (no position): {skipped_cooldown_coins}",
             )
 
         # Metadata
@@ -957,7 +957,7 @@ Current live positions & performance:"""
 
         # Trend reversal
         trend_reversal_json = build_trend_reversal_json(
-            trend_reversal_analysis, self.portfolio.positions
+            trend_reversal_analysis, self.portfolio.positions,
         )
 
         # Enhanced context
@@ -973,11 +973,11 @@ Current live positions & performance:"""
 
         # Position slot status
         max_positions = self.get_max_positions_for_cycle(
-            max(1, getattr(self, "current_cycle_number", 1))
+            max(1, getattr(self, "current_cycle_number", 1)),
         )
         effective_limit = self.portfolio.get_effective_same_direction_limit()
         position_slot_json = build_position_slot_json(
-            self.portfolio.positions, max_positions, same_direction_limit=effective_limit
+            self.portfolio.positions, max_positions, same_direction_limit=effective_limit,
         )
 
         # Market data (per coin) - only for tradeable coins
@@ -1147,14 +1147,14 @@ All market data is provided in JSON format below. Each coin contains:
                             "stop_loss": position.get("exit_plan", {}).get("stop_loss"),
                             "risk_usd": position.get("risk_usd", 0),
                             "invalidation_condition": position.get("exit_plan", {}).get(
-                                "invalidation_condition"
+                                "invalidation_condition",
                             ),
                             "entry_price": position.get("entry_price", 0),
                             "current_price": position.get("current_price", 0),
                             "unrealized_pnl": position.get("unrealized_pnl", 0),
                             "notional_usd": position.get("notional_usd", 0),
                             "direction": position.get("direction", "long"),
-                        }
+                        },
                     )
                 cleaned_decisions[coin] = cleaned_trade
             else:

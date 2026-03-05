@@ -1,12 +1,12 @@
-import copy
 from datetime import datetime
 from typing import Any
+
 from config.config import Config
-from src.utils import format_num
 from src.core.data_engine import DataEngine
+from src.utils import format_num
 
 try:
-    from src.services.binance import BinanceOrderExecutor, BinanceAPIError
+    from src.services.binance import BinanceAPIError, BinanceOrderExecutor
     BINANCE_IMPORT_ERROR = None
 except Exception as e:
     BinanceOrderExecutor = None
@@ -36,13 +36,13 @@ class AccountService:
             self.order_executor = BinanceOrderExecutor(self.pm.market_data.available_coins)
             if not self.order_executor.is_live():
                 print(
-                    "[WARNING] Live trading requested but executor initialized in simulation mode. Reverting to paper trading."
+                    "[WARNING] Live trading requested but executor initialized in simulation mode. Reverting to paper trading.",
                 )
                 self.is_live_trading = False
                 self.order_executor = None
                 return
             print(
-                f"[SUCCESS] Live trading mode enabled (Binance {'TESTNET' if Config.BINANCE_TESTNET else 'MAINNET'})."
+                f"[SUCCESS] Live trading mode enabled (Binance {'TESTNET' if Config.BINANCE_TESTNET else 'MAINNET'}).",
             )
             self.sync_live_account()
         except BinanceAPIError as exc:
@@ -76,7 +76,7 @@ class AccountService:
         return {"stop_loss": stop_loss, "profit_target": profit_target}
 
     def _ensure_exit_plan(
-        self, position: dict[str, Any], *candidate_plans: dict[str, Any] | None
+        self, position: dict[str, Any], *candidate_plans: dict[str, Any] | None,
     ) -> dict[str, Any]:
         """Ensure a position carries a valid exit plan, supplementing with defaults if needed."""
         direction = position.get("direction", "long")
@@ -103,13 +103,13 @@ class AccountService:
         if missing_required:
             symbol = position.get("symbol", "UNKNOWN")
             print(
-                f"[WARNING] Missing {', '.join(missing_required)} for {symbol} - using default exit plan offsets."
+                f"[WARNING] Missing {', '.join(missing_required)} for {symbol} - using default exit plan offsets.",
             )
         position["exit_plan"] = final_plan
         return final_plan
 
     def _merge_live_positions(
-        self, snapshot: dict[str, dict[str, Any]]
+        self, snapshot: dict[str, dict[str, Any]],
     ) -> dict[str, dict[str, Any]]:
         """Merge Binance snapshot with local runtime metadata (exit plans, confidence, etc.)."""
         merged: dict[str, dict[str, Any]] = {}
@@ -168,7 +168,7 @@ class AccountService:
 
                 # Debug: Log what we got from Binance
                 print(
-                    f"[DEBUG] Binance API Response: availableBalance={available}, totalWalletBalance={total_wallet_balance}, walletBalance={wallet_balance}"
+                    f"[DEBUG] Binance API Response: availableBalance={available}, totalWalletBalance={total_wallet_balance}, walletBalance={wallet_balance}",
                 )
 
                 # Update available cash balance
@@ -179,7 +179,7 @@ class AccountService:
                         abs(old_balance - self.pm.current_balance) > 0.01
                     ):  # Only log if significant change
                         print(
-                            f"[INFO] Balance updated: ${old_balance:.2f} → ${self.pm.current_balance:.2f}"
+                            f"[INFO] Balance updated: ${old_balance:.2f} → ${self.pm.current_balance:.2f}",
                         )
 
                 # Note: We'll calculate total_value manually after positions are synced
@@ -187,15 +187,15 @@ class AccountService:
                 # Binance totalWalletBalance is used for validation only
                 if total_wallet_balance is not None and total_wallet_balance > 0:
                     print(
-                        f"[SUCCESS] Binance totalWalletBalance: ${total_wallet_balance:.2f} (will validate against calculated value)"
+                        f"[SUCCESS] Binance totalWalletBalance: ${total_wallet_balance:.2f} (will validate against calculated value)",
                     )
                 elif wallet_balance is not None and wallet_balance > 0:
                     print(
-                        f"[WARNING] totalWalletBalance not available, using walletBalance: ${wallet_balance:.2f}"
+                        f"[WARNING] totalWalletBalance not available, using walletBalance: ${wallet_balance:.2f}",
                     )
                 else:
                     print(
-                        "[WARNING] Neither totalWalletBalance nor walletBalance available from Binance API"
+                        "[WARNING] Neither totalWalletBalance nor walletBalance available from Binance API",
                     )
         except BinanceAPIError as exc:
             print(f"[WARNING] Binance balance sync failed: {exc}")
@@ -241,7 +241,7 @@ class AccountService:
                 if abs(old_total - self.pm.total_value) > 0.01:
                     print(f"[STATS] Total value updated: ${old_total:.2f} → ${self.pm.total_value:.2f}")
                     print(
-                        f"   (Available cash: ${self.pm.current_balance:.2f} + Margin used: ${total_margin_used:.2f} + Unrealized PnL: ${total_unrealized_pnl:.2f})"
+                        f"   (Available cash: ${self.pm.current_balance:.2f} + Margin used: ${total_margin_used:.2f} + Unrealized PnL: ${total_unrealized_pnl:.2f})",
                     )
                     print("   [INFO] Unrealized PnL from Binance (includes funding fees)")
 
@@ -252,13 +252,13 @@ class AccountService:
                         if total_wb:
                             wallet_b_str = f"${wallet_b:.2f}" if wallet_b else "N/A"
                             print(
-                                f"   (Binance totalWalletBalance: ${total_wb:.2f}, walletBalance: {wallet_b_str})"
+                                f"   (Binance totalWalletBalance: ${total_wb:.2f}, walletBalance: {wallet_b_str})",
                             )
                             # Validate our calculation against Binance
                             diff = abs(self.pm.total_value - total_wb)
                             if diff > 0.10:  # More than 10 cents difference
                                 print(
-                                    f"   [WARNING] Warning: Calculated total_value differs from Binance totalWalletBalance by ${diff:.2f}"
+                                    f"   [WARNING] Warning: Calculated total_value differs from Binance totalWalletBalance by ${diff:.2f}",
                                 )
             else:
                 self.pm.positions = {}
@@ -415,12 +415,12 @@ class AccountService:
                         if final_stop_loss >= avg_price:
                             final_stop_loss = avg_price - (avg_price * 0.02)
                             print(
-                                f"[WARNING] Final validation: Stop loss for {coin} LONG was invalid (>= entry), recalculated to ${format_num(final_stop_loss, 4)}"
+                                f"[WARNING] Final validation: Stop loss for {coin} LONG was invalid (>= entry), recalculated to ${format_num(final_stop_loss, 4)}",
                             )
                     elif final_stop_loss <= avg_price:
                         final_stop_loss = avg_price + (avg_price * 0.02)
                         print(
-                            f"[WARNING] Final validation: Stop loss for {coin} SHORT was invalid (<= entry), recalculated to ${format_num(final_stop_loss, 4)}"
+                            f"[WARNING] Final validation: Stop loss for {coin} SHORT was invalid (<= entry), recalculated to ${format_num(final_stop_loss, 4)}",
                         )
 
                     # Save ATR-based stop loss and profit target to exit_plan
@@ -428,7 +428,7 @@ class AccountService:
                         exit_plan["stop_loss"] = final_stop_loss
                         exit_plan["profit_target"] = final_profit_target
                         print(
-                            f"[INFO] ATR-based SL/TP saved for {coin}: SL=${format_num(final_stop_loss, 4)}, TP=${format_num(final_profit_target, 4)} (ATR={atr_value:.4f} x {Config.ATR_SL_MULTIPLIER}/{Config.ATR_TP_MULTIPLIER}) - Backend Authority"
+                            f"[INFO] ATR-based SL/TP saved for {coin}: SL=${format_num(final_stop_loss, 4)}, TP=${format_num(final_profit_target, 4)} (ATR={atr_value:.4f} x {Config.ATR_SL_MULTIPLIER}/{Config.ATR_TP_MULTIPLIER}) - Backend Authority",
                         )
             # Decision Feedback Hook: Log OPEN trade to SQLite
             try:
@@ -437,7 +437,7 @@ class AccountService:
                     direction=direction,
                     ai_confidence=confidence,
                     ml_probability=0.0,  # Populated by caller if available
-                    entry_price=avg_price
+                    entry_price=avg_price,
                 )
             except Exception:
                 pass  # Never crash the trade flow for logging
@@ -511,7 +511,7 @@ class AccountService:
                 DataEngine().log_decision_close(
                     coin=coin,
                     exit_price=avg_price,
-                    pnl_result=pnl
+                    pnl_result=pnl,
                 )
             except Exception:
                 pass  # Never crash the trade flow for logging
@@ -603,7 +603,7 @@ class AccountService:
             return {"success": False, "error": str(exc)}
 
     def close_position(
-        self, coin: str, current_price: float, reason: str = "Manual Close"
+        self, coin: str, current_price: float, reason: str = "Manual Close",
     ) -> dict[str, Any]:
         """
         Close a position in paper trading mode (simulation).
@@ -664,7 +664,7 @@ class AccountService:
         del self.pm.positions[coin]
 
         print(
-            f"[SUCCESS] PAPER CLOSE: {direction} {coin} @ ${format_num(current_price, 4)} (PnL: ${format_num(profit, 2)}, Commission: ${format_num(commission, 3)})"
+            f"[SUCCESS] PAPER CLOSE: {direction} {coin} @ ${format_num(current_price, 4)} (PnL: ${format_num(profit, 2)}, Commission: ${format_num(commission, 3)})",
         )
 
         self.pm.save_state()
@@ -731,7 +731,7 @@ class AccountService:
             # Debug log if margin_used is still 0
             if margin_used <= 0:
                 print(
-                    f"⚠️ Warning: margin_used is 0 for {coin}. Position data: margin_usd={position.get('margin_usd')}, notional={position.get('notional_usd')}, leverage={position.get('leverage')}, entry={entry_price}, qty={quantity}"
+                    f"⚠️ Warning: margin_used is 0 for {coin}. Position data: margin_usd={position.get('margin_usd')}, notional={position.get('notional_usd')}, leverage={position.get('leverage')}, entry={entry_price}, qty={quantity}",
                 )
 
             close_reason = None
@@ -755,7 +755,7 @@ class AccountService:
                 # Enhanced exit strategy wants to close the position completely
                 close_reason = exit_decision["reason"]
                 print(
-                    f"[ALERT] ENHANCED EXIT CLOSE {coin} ({direction}): {close_reason} at price ${format_num(current_price, 4)}"
+                    f"[ALERT] ENHANCED EXIT CLOSE {coin} ({direction}): {close_reason} at price ${format_num(current_price, 4)}",
                 )
                 state_changed = True
             elif exit_decision["action"] == "partial_close":
@@ -771,14 +771,14 @@ class AccountService:
                     )
                     if not live_result.get("success"):
                         print(
-                            f"🚫 Live partial close failed for {coin}: {live_result.get('error', 'unknown_error')}"
+                            f"🚫 Live partial close failed for {coin}: {live_result.get('error', 'unknown_error')}",
                         )
                         continue
                     history_entry = live_result.get("history_entry")
                     if history_entry:
                         self.pm.add_to_history(history_entry)
                     print(
-                        f"[ALERT] PARTIAL CLOSE {coin} ({direction}) [LIVE]: {exit_decision['reason']} ({close_percent * 100:.0f}% / PnL ${format_num(live_result.get('pnl', 0), 2)})"
+                        f"[ALERT] PARTIAL CLOSE {coin} ({direction}) [LIVE]: {exit_decision['reason']} ({close_percent * 100:.0f}% / PnL ${format_num(live_result.get('pnl', 0), 2)})",
                     )
                     # BUG FIX: Adjust peak_pnl proportionally after partial close
                     # Without this, erosion tracking would falsely alarm (peak $3 -> current $1.5 = 50% erosion)
@@ -786,7 +786,7 @@ class AccountService:
                         old_peak = position["peak_pnl"]
                         position["peak_pnl"] = position["peak_pnl"] * (1 - close_percent)
                         print(
-                            f"   [STATS] peak_pnl adjusted: ${format_num(old_peak, 2)} → ${format_num(position['peak_pnl'], 2)} (after {close_percent * 100:.0f}% close)"
+                            f"   [STATS] peak_pnl adjusted: ${format_num(old_peak, 2)} → ${format_num(position['peak_pnl'], 2)} (after {close_percent * 100:.0f}% close)",
                         )
                     state_changed = True
                     # Sync account balance after partial close in live mode
@@ -818,14 +818,14 @@ class AccountService:
                     old_peak = position["peak_pnl"]
                     position["peak_pnl"] = position["peak_pnl"] * (1 - close_percent)
                     print(
-                        f"   📊 peak_pnl adjusted: ${format_num(old_peak, 2)} → ${format_num(position['peak_pnl'], 2)} (after {close_percent * 100:.0f}% close)"
+                        f"   📊 peak_pnl adjusted: ${format_num(old_peak, 2)} → ${format_num(position['peak_pnl'], 2)} (after {close_percent * 100:.0f}% close)",
                     )
 
                 # Add profit to balance
                 self.pm.current_balance += margin_used * close_percent + profit
 
                 print(
-                    f"[ALERT] PARTIAL CLOSE {coin} ({direction}): {exit_decision['reason']} - Closed {close_percent * 100}% at price ${format_num(current_price, 4)}"
+                    f"[ALERT] PARTIAL CLOSE {coin} ({direction}): {exit_decision['reason']} - Closed {close_percent * 100}% at price ${format_num(current_price, 4)}",
                 )
                 print(f"   Partial PnL: ${format_num(profit, 2)}")
 
@@ -912,7 +912,7 @@ class AccountService:
             # Execute Close if triggered
             if close_reason:
                 print(
-                    f"[ALERT] AUTO-CLOSE {coin} ({direction}): {close_reason} at price ${format_num(current_price, 4)}"
+                    f"[ALERT] AUTO-CLOSE {coin} ({direction}): {close_reason} at price ${format_num(current_price, 4)}",
                 )
 
                 if self.is_live_trading:
@@ -925,7 +925,7 @@ class AccountService:
                     )
                     if not live_result.get("success"):
                         print(
-                            f"🚫 Live auto-close failed for {coin}: {live_result.get('error', 'unknown_error')}"
+                            f"🚫 Live auto-close failed for {coin}: {live_result.get('error', 'unknown_error')}",
                         )
                         continue
 
@@ -934,7 +934,7 @@ class AccountService:
                     executed_qty = live_result.get("executed_qty", 0)
                     avg_price = live_result.get("avg_price", 0)
                     print(
-                        f"[SUCCESS] Binance CLOSE order executed for {coin}: orderId={order_id}, qty={format_num(executed_qty, 4)}, avgPrice=${format_num(avg_price, 4)}"
+                        f"[SUCCESS] Binance CLOSE order executed for {coin}: orderId={order_id}, qty={format_num(executed_qty, 4)}, avgPrice=${format_num(avg_price, 4)}",
                     )
 
                     history_entry = live_result.get("history_entry")
@@ -1084,7 +1084,7 @@ class AccountService:
 
         current_margin = position.get("margin_usd", 0)
         margin_used = position.get(
-            "margin_usd", position.get("notional_usd", 0) / max(position.get("leverage", 1), 1)
+            "margin_usd", position.get("notional_usd", 0) / max(position.get("leverage", 1), 1),
         )
         loss_cycle_count = position.get("loss_cycle_count", 0)
         profit_cycle_count = position.get("profit_cycle_count", 0)
@@ -1116,7 +1116,7 @@ class AccountService:
 
         if unrealized_loss_usd >= loss_threshold_usd > 0:
             print(
-                f"[ALERT] GRADUATED LOSS CUTTING: {direction} {position['symbol']} ${unrealized_loss_usd:.2f} loss (threshold: ${loss_threshold_usd:.2f}). Closing position."
+                f"[ALERT] GRADUATED LOSS CUTTING: {direction} {position['symbol']} ${unrealized_loss_usd:.2f} loss (threshold: ${loss_threshold_usd:.2f}). Closing position.",
             )
             return {
                 "action": "close_position",
@@ -1133,7 +1133,7 @@ class AccountService:
         take3 = profit_levels["take3"]
 
         print(
-            f"[STATS] Dynamic profit levels for ${notional_usd:.2f} notional: {level1 * 100:.1f}%/{level2 * 100:.1f}%/{level3 * 100:.1f}%"
+            f"[STATS] Dynamic profit levels for ${notional_usd:.2f} notional: {level1 * 100:.1f}%/{level2 * 100:.1f}%/{level3 * 100:.1f}%",
         )
 
         if direction == "long":
@@ -1158,7 +1158,7 @@ class AccountService:
             if unrealized_pnl_percent >= level3:  # Level 3 profit - take 75%
                 take_profit_percent = take3
                 adjusted_percent, force_close, reason = self.pm._adjust_partial_sale_for_max_limit(
-                    position, take_profit_percent
+                    position, take_profit_percent,
                 )
                 if force_close:
                     return {
@@ -1174,7 +1174,7 @@ class AccountService:
             elif unrealized_pnl_percent >= level2:  # Level 2 profit - take 50%
                 take_profit_percent = take2
                 adjusted_percent, force_close, reason = self.pm._adjust_partial_sale_for_max_limit(
-                    position, take_profit_percent
+                    position, take_profit_percent,
                 )
                 if force_close:
                     return {
@@ -1190,7 +1190,7 @@ class AccountService:
             elif unrealized_pnl_percent >= level1:  # Level 1 profit - take 25%
                 take_profit_percent = take1
                 adjusted_percent, force_close, reason = self.pm._adjust_partial_sale_for_max_limit(
-                    position, take_profit_percent
+                    position, take_profit_percent,
                 )
                 if force_close:
                     return {
@@ -1230,7 +1230,7 @@ class AccountService:
             if unrealized_pnl_percent >= level3:  # Level 3 profit - take 75%
                 take_profit_percent = take3
                 adjusted_percent, force_close, reason = self.pm._adjust_partial_sale_for_max_limit(
-                    position, take_profit_percent
+                    position, take_profit_percent,
                 )
                 if force_close:
                     return {
@@ -1246,7 +1246,7 @@ class AccountService:
             elif unrealized_pnl_percent >= level2:  # Level 2 profit - take 50%
                 take_profit_percent = take2
                 adjusted_percent, force_close, reason = self.pm._adjust_partial_sale_for_max_limit(
-                    position, take_profit_percent
+                    position, take_profit_percent,
                 )
                 if force_close:
                     return {
@@ -1262,7 +1262,7 @@ class AccountService:
             elif unrealized_pnl_percent >= level1:  # Level 1 profit - take 25%
                 take_profit_percent = take1
                 adjusted_percent, force_close, reason = self.pm._adjust_partial_sale_for_max_limit(
-                    position, take_profit_percent
+                    position, take_profit_percent,
                 )
                 if force_close:
                     return {
@@ -1447,7 +1447,7 @@ class AccountService:
                     atr_buffer = atr_buffer * 0.5
                     overbought_protect_active = True
                     print(
-                        f"[PROTECTION] OVERBOUGHT PROTECT: {symbol} zone={zone} RSI={rsi_htf:.1f} -> Buffer halved"
+                        f"[PROTECTION] OVERBOUGHT PROTECT: {symbol} zone={zone} RSI={rsi_htf:.1f} -> Buffer halved",
                     )
         except Exception:
             pass  # Silently continue without overbought protection
@@ -1536,7 +1536,7 @@ class AccountService:
                 "last_stop": new_stop,
                 "progress_percent": round(progress_score, 2),
                 "time_in_trade_min": round(time_in_trade, 2),
-            }
+            },
         )
         if isinstance(current_volume_ratio, (int, float)):
             trailing_meta["last_volume_ratio"] = round(current_volume_ratio, 4)
@@ -1568,7 +1568,7 @@ class AccountService:
                 # Apply kademeli position limit
                 if current_positions >= max_positions_for_cycle:
                     print(
-                        f"⚠️ KADEMELİ POZİSYON LİMİTİ (Cycle {cycle_number}): Max {max_positions_for_cycle} positions allowed. Skipping {coin} entry."
+                        f"⚠️ KADEMELİ POZİSYON LİMİTİ (Cycle {cycle_number}): Max {max_positions_for_cycle} positions allowed. Skipping {coin} entry.",
                     )
                     continue
                 current_positions += 1
@@ -1577,6 +1577,6 @@ class AccountService:
 
         if decisions_to_execute:
             self.pm.execute_decision(
-                decisions_to_execute, valid_prices, indicator_cache=indicator_cache
+                decisions_to_execute, valid_prices, indicator_cache=indicator_cache,
             )
 

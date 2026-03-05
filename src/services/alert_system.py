@@ -233,7 +233,7 @@ class AlertManager:
         )
 
     def _calculate_portfolio_risk(
-        self, positions: dict[str, Any], current_prices: dict[str, float]
+        self, positions: dict[str, Any], current_prices: dict[str, float],
     ) -> float:
         """Calculate current portfolio risk level."""
         if not positions:
@@ -255,7 +255,7 @@ class AlertManager:
         return portfolio_risk
 
     def _calculate_position_concentration(
-        self, position: dict[str, Any], all_positions: dict[str, Any]
+        self, position: dict[str, Any], all_positions: dict[str, Any],
     ) -> float:
         """Calculate position concentration in portfolio using dynamic margin/balance-based calculation."""
         total_margin = sum(pos.get("margin_usd", 0) for pos in all_positions.values())
@@ -272,7 +272,7 @@ class AlertManager:
         return position_margin / dynamic_total_balance
 
     def get_recent_alerts(
-        self, limit: int = 10, alert_type: AlertType | None = None
+        self, limit: int = 10, alert_type: AlertType | None = None,
     ) -> list[Alert]:
         """Get recent alerts, optionally filtered by type."""
         alerts = self.alerts.copy()

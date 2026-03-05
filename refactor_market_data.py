@@ -1,6 +1,5 @@
-import sys
 
-with open("src/core/market_data.py", "r") as f:
+with open("src/core/market_data.py") as f:
     lines = f.readlines()
 
 out = []

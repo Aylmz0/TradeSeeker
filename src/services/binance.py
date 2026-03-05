@@ -81,7 +81,7 @@ class BinanceFuturesClient:
     def _sign(self, payload: dict[str, Any]) -> str:
         query_string = urllib.parse.urlencode(payload, doseq=True)
         signature = hmac.new(
-            self.secret_key.encode("utf-8"), query_string.encode("utf-8"), hashlib.sha256
+            self.secret_key.encode("utf-8"), query_string.encode("utf-8"), hashlib.sha256,
         ).hexdigest()
         return signature
 
@@ -105,7 +105,7 @@ class BinanceFuturesClient:
         url = f"{self.base_url}{path}"
         try:
             response = self.session.request(
-                method, url, params=params, timeout=self.timeout, headers=headers
+                method, url, params=params, timeout=self.timeout, headers=headers,
             )
         except requests.RequestException as exc:
             raise BinanceAPIError(f"HTTP request failed: {exc}") from exc
@@ -147,7 +147,7 @@ class BinanceFuturesClient:
 
     def cancel_all_orders(self, symbol: str) -> dict[str, Any]:
         return self._request(
-            "DELETE", "/fapi/v1/allOpenOrders", params={"symbol": symbol}, signed=True
+            "DELETE", "/fapi/v1/allOpenOrders", params={"symbol": symbol}, signed=True,
         )
 
     def get_balance(self) -> list[dict[str, Any]]:
@@ -341,7 +341,7 @@ class BinanceOrderExecutor:
 
             # Try different possible field names (Binance uses totalWalletBalance)
             total_wallet_balance = account_info.get("totalWalletBalance") or account_info.get(
-                "totalEquity"
+                "totalEquity",
             )
 
             if total_wallet_balance is not None:
@@ -526,7 +526,7 @@ class BinanceOrderExecutor:
             logger.warning("Limit order price fetch failed (%s), falling back to MARKET: %s", coin, e)
             return self.place_market_order(
                 coin=coin, direction=direction, quantity=quantity,
-                leverage=leverage, price_reference=price_reference, reduce_only=reduce_only
+                leverage=leverage, price_reference=price_reference, reduce_only=reduce_only,
             )
 
         # Step 2: Place LIMIT GTC order
@@ -543,7 +543,7 @@ class BinanceOrderExecutor:
 
         logger.info(
             "Placing LIMIT order %s %s qty=%s price=%s (market ref: %s)",
-            symbol, side, adjusted_qty, limit_price, price_reference
+            symbol, side, adjusted_qty, limit_price, price_reference,
         )
 
         try:
@@ -595,7 +595,7 @@ class BinanceOrderExecutor:
                         logger.info("Partial fill %s/%s for %s, sending MARKET for remainder", partial_qty, adjusted_qty, coin)
                         fallback = self.place_market_order(
                             coin=coin, direction=direction, quantity=remaining,
-                            leverage=leverage, price_reference=price_reference, reduce_only=reduce_only
+                            leverage=leverage, price_reference=price_reference, reduce_only=reduce_only,
                         )
                         # Combine results
                         total_qty = partial_qty + float(fallback.get("executedQty", 0))
@@ -615,7 +615,7 @@ class BinanceOrderExecutor:
             logger.info("LIMIT order timeout for %s, executing full MARKET fallback", coin)
             fallback = self.place_market_order(
                 coin=coin, direction=direction, quantity=quantity,
-                leverage=leverage, price_reference=price_reference, reduce_only=reduce_only
+                leverage=leverage, price_reference=price_reference, reduce_only=reduce_only,
             )
             fallback["orderType"] = "MARKET_FALLBACK"
             return fallback
@@ -626,7 +626,7 @@ class BinanceOrderExecutor:
             logger.warning("Smart limit order failed for %s (%s), falling back to MARKET", coin, e)
             fallback = self.place_market_order(
                 coin=coin, direction=direction, quantity=quantity,
-                leverage=leverage, price_reference=price_reference, reduce_only=reduce_only
+                leverage=leverage, price_reference=price_reference, reduce_only=reduce_only,
             )
             fallback["orderType"] = "MARKET_FALLBACK"
             return fallback

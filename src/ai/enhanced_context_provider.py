@@ -85,18 +85,18 @@ class EnhancedContextProvider:
                 "remaining_to_target_pct": remaining_pct,
                 "time_in_trade_minutes": round(time_in_trade, 2),
                 "distance_to_stop_pct": round(
-                    abs(stop_loss - current_price) / current_price * 100, 2
+                    abs(stop_loss - current_price) / current_price * 100, 2,
                 )
                 if current_price
                 else 0,
                 "risk_reward_ratio": round(
-                    abs(profit_target - entry_price) / abs(stop_loss - entry_price), 2
+                    abs(profit_target - entry_price) / abs(stop_loss - entry_price), 2,
                 )
                 if stop_loss != entry_price
                 else 0,
                 "direction": direction,
                 "trend_alignment": position.get(
-                    "trend_alignment", position.get("trend_context", {}).get("alignment", "unknown")
+                    "trend_alignment", position.get("trend_context", {}).get("alignment", "unknown"),
                 ),
                 "trend_context": position.get("trend_context", {}),
                 "confidence": position.get("confidence"),
@@ -205,7 +205,7 @@ class EnhancedContextProvider:
         }
 
     def get_performance_insights(
-        self, trade_history: list, portfolio_state: dict
+        self, trade_history: list, portfolio_state: dict,
     ) -> dict[str, Any]:
         """Performance-based insights for better decision making"""
         if not trade_history:
@@ -246,7 +246,7 @@ class EnhancedContextProvider:
         total_return = portfolio_state.get("total_return", 0)
         if total_return < -5:
             insights.append(
-                "Portfolio experiencing significant drawdown - consider defensive positioning"
+                "Portfolio experiencing significant drawdown - consider defensive positioning",
             )
         elif total_return > 5:
             insights.append("Portfolio performing well - current strategy effective")
@@ -290,12 +290,12 @@ class EnhancedContextProvider:
                     t.get("pnl", 0) for t in direction_trades if t.get("pnl", 0) > 0
                 )
                 direction_loss = abs(
-                    sum(t.get("pnl", 0) for t in direction_trades if t.get("pnl", 0) < 0)
+                    sum(t.get("pnl", 0) for t in direction_trades if t.get("pnl", 0) < 0),
                 )
 
                 if direction_profit + direction_loss > 0:
                     direction_stats["profitability_index"] = round(
-                        (direction_profit / (direction_profit + direction_loss)) * 100, 1
+                        (direction_profit / (direction_profit + direction_loss)) * 100, 1,
                     )
                 else:
                     direction_stats["profitability_index"] = 0.0
@@ -350,7 +350,7 @@ class EnhancedContextProvider:
                 "position_context": self.get_enhanced_position_context(portfolio_state),
                 "market_regime": market_regime,
                 "performance_insights": self.get_performance_insights(
-                    trade_history, portfolio_state
+                    trade_history, portfolio_state,
                 ),
                 "directional_feedback": self.get_directional_feedback(trade_history),
                 "risk_context": self.get_risk_context(portfolio_state),
@@ -401,11 +401,11 @@ class EnhancedContextProvider:
             for symbol, data in position_context.items():
                 pnl = data.get("unrealized_pnl", 0)
                 remaining_pct = data.get(
-                    "remaining_to_target_pct", data.get("profit_target_progress", 0)
+                    "remaining_to_target_pct", data.get("profit_target_progress", 0),
                 )
                 time_in_trade = data.get("time_in_trade_minutes", 0)
                 print(
-                    f"   {symbol}: ${pnl:.2f} PnL, {remaining_pct}% to target, {time_in_trade}min in trade"
+                    f"   {symbol}: ${pnl:.2f} PnL, {remaining_pct}% to target, {time_in_trade}min in trade",
                 )
 
         # Market Regime

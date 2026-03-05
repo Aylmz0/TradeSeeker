@@ -1,6 +1,8 @@
 import sqlite3
-import pandas as pd
 import time
+
+import pandas as pd
+
 from src.core.indicators import get_features_for_ml
 
 print("--- Starting feature test ---")
@@ -25,6 +27,6 @@ try:
         print("COLUMNS: ", len(df_f.columns))
         print("LAST ROW:\n", df_f.iloc[-1])
         
-except Exception as e:
+except Exception:
     import traceback
     traceback.print_exc()

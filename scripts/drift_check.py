@@ -5,9 +5,10 @@ If live accuracy drops >10% below training accuracy, flags re-training.
 
 Usage: PYTHONPATH=. .venv/bin/python scripts/drift_check.py
 """
-import os
 import json
+import os
 import sqlite3
+
 import pandas as pd
 
 PREDICTION_LOG = "data/ml_predictions.jsonl"
@@ -23,7 +24,7 @@ def load_predictions() -> pd.DataFrame:
         return pd.DataFrame()
 
     records = []
-    with open(PREDICTION_LOG, "r") as f:
+    with open(PREDICTION_LOG) as f:
         for line in f:
             line = line.strip()
             if line:
@@ -44,7 +45,7 @@ def load_closed_decisions() -> pd.DataFrame:
     try:
         df = pd.read_sql_query(
             "SELECT * FROM decisions WHERE status = 'CLOSED' ORDER BY timestamp ASC",
-            conn
+            conn,
         )
         return df
     finally:

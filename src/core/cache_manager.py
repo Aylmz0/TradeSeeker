@@ -139,7 +139,7 @@ class PerformanceOptimizer:
                 result = result.query(operation["query"])
             elif operation["type"] == "transform":
                 result[operation["column"]] = result[operation["column"]].apply(
-                    operation["function"]
+                    operation["function"],
                 )
             elif operation["type"] == "aggregate":
                 result = getattr(result, operation["method"])(**operation.get("kwargs", {}))
@@ -147,7 +147,7 @@ class PerformanceOptimizer:
         return result
 
     def memoize_technical_indicators(
-        self, symbol: str, interval: str, calculation_func: callable
+        self, symbol: str, interval: str, calculation_func: callable,
     ) -> Any:
         """Memoize technical indicator calculations."""
         cache_key = f"indicators_{symbol}_{interval}"
@@ -214,7 +214,7 @@ def time_execution(func):
 
 
 def fetch_all_indicators_parallel(
-    market_data_instance, available_coins: list, htf_interval: str = "1h"
+    market_data_instance, available_coins: list, htf_interval: str = "1h",
 ) -> tuple[dict[str, dict[str, dict[str, Any]]], dict[str, Any]]:
     """
     Fetch all indicators for all coins in parallel.
@@ -310,7 +310,7 @@ class SmartIndicatorCache:
         self.api_calls_saved = 0
 
     def get_indicators(
-        self, coin: str, interval: str, market_data_instance, force_fresh: bool = False
+        self, coin: str, interval: str, market_data_instance, force_fresh: bool = False,
     ) -> dict[str, Any]:
         """
         Get indicators with smart caching.
@@ -500,7 +500,7 @@ def get_smart_cache(htf_interval: str = "1h") -> SmartIndicatorCache:
 
 
 def fetch_all_indicators_with_cache(
-    market_data_instance, available_coins: list, htf_interval: str = "1h", use_cache: bool = True
+    market_data_instance, available_coins: list, htf_interval: str = "1h", use_cache: bool = True,
 ) -> tuple[dict[str, dict[str, dict[str, Any]]], dict[str, Any]]:
     """
     Fetch all indicators with smart caching support.

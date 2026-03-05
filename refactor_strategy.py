@@ -1,4 +1,3 @@
-import os
 
 METHODS_TO_EXTRACT = [
     "def check_trend_alignment",
@@ -16,11 +15,11 @@ METHODS_TO_EXTRACT = [
     "def calculate_volume_quality_score",
     "def should_enhance_short_sizing",
     "def generate_advanced_exit_plan",
-    "def detect_market_regime"
+    "def detect_market_regime",
 ]
 
 def main():
-    with open("src/main.py", "r", encoding="utf-8") as f:
+    with open("src/main.py", encoding="utf-8") as f:
         lines = f.readlines()
 
     out_main = []
@@ -50,7 +49,7 @@ def main():
         "HTF_LABEL = HTF_INTERVAL\n\n",
         "class StrategyAnalyzer:\n",
         "    def __init__(self, market_data):\n",
-        "        self.market_data = market_data\n\n"
+        "        self.market_data = market_data\n\n",
     ]
     
     strategy_code.extend(extracted_methods)

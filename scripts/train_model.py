@@ -1,13 +1,15 @@
-import os
 import argparse
+import os
+
+import joblib
 import pandas as pd
 import xgboost as xgb
+from sklearn.metrics import accuracy_score, classification_report, confusion_matrix, log_loss
 from sklearn.preprocessing import StandardScaler
-from sklearn.metrics import classification_report, confusion_matrix, accuracy_score, log_loss
-import joblib
 
 from src.core.data_engine import DataEngine
 from src.core.indicators import get_features_for_ml
+
 
 def train(coin: str, interval: str):
     engine = DataEngine()
@@ -70,13 +72,13 @@ def train(coin: str, interval: str):
         max_depth=5,
         subsample=0.8,
         colsample_bytree=0.8,
-        random_state=42
+        random_state=42,
     )
     
     model.fit(
         X_train_scaled, y_train,
         eval_set=[(X_train_scaled, y_train), (X_test_scaled, y_test)],
-        verbose=10
+        verbose=10,
     )
     
     y_pred = model.predict(X_test_scaled)

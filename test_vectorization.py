@@ -1,5 +1,6 @@
 import numpy as np
 import pandas as pd
+
 from src.core.indicators import calculate_obv, calculate_supertrend, generate_smart_sparkline
 
 np.random.seed(42)
@@ -24,7 +25,7 @@ def generate_test_data(size=100):
         'close': prices,
         'high': highs,
         'low': lows,
-        'volume': volumes
+        'volume': volumes,
     })
     return df
 
@@ -67,7 +68,7 @@ def calculate_supertrend_legacy(high: pd.Series, low: pd.Series, close: pd.Serie
         return float(close.iloc[-1]) if len(close) > 0 else 0.0, "UP"
 
     tr = pd.concat(
-        [high - low, abs(high - close.shift(1)), abs(low - close.shift(1))], axis=1
+        [high - low, abs(high - close.shift(1)), abs(low - close.shift(1))], axis=1,
     ).max(axis=1)
     atr = tr.ewm(span=period, adjust=False).mean()
 
@@ -103,8 +104,8 @@ if __name__ == "__main__":
     vec_obv, vec_tr, vec_div = calculate_obv(df['close'], df['volume'])
     
     assert np.isclose(leg_obv, vec_obv), f"OBV mismatch: Legacy {leg_obv} != Vectorized {vec_obv}"
-    assert leg_tr == vec_tr, f"OBV trend mismatch"
-    assert leg_div == vec_div, f"OBV divergence mismatch"
+    assert leg_tr == vec_tr, "OBV trend mismatch"
+    assert leg_div == vec_div, "OBV divergence mismatch"
     print("✅ OBV Vectorization passed!")
     
     print("Testing Supertrend Vectorization Parity...")
@@ -112,7 +113,7 @@ if __name__ == "__main__":
     vec_st, vec_dir = calculate_supertrend(df['high'], df['low'], df['close'])
     
     assert np.isclose(leg_st, vec_st), f"Supertrend mismatch: Legacy {leg_st} != Vectorized {vec_st}"
-    assert leg_dir == vec_dir, f"Supertrend direction mismatch"
+    assert leg_dir == vec_dir, "Supertrend direction mismatch"
     print("✅ Supertrend Vectorization passed!")
     
     print("Testing Smart Sparkline Execution (no crash)...")

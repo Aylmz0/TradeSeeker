@@ -1,5 +1,4 @@
 # alpha_arena_deepseek.py
-import copy
 import json
 import os
 
@@ -8,11 +7,8 @@ import sys
 import threading
 import time
 import traceback  # For detailed error logging
-import warnings
 from datetime import datetime, timedelta
 from typing import Any
-
-import pandas as pd
 
 # Add project root to sys.path to ensure imports work correctly
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -20,13 +16,12 @@ sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from config.config import Config
 from src.ai.deepseek_api import DeepSeekAPI
 from src.ai.enhanced_context_provider import EnhancedContextProvider
+from src.core.account_service import AccountService
+from src.core.ai_service import AIService
 from src.core.backtest import AdvancedRiskManager
 from src.core.cache_manager import fetch_all_indicators_parallel, fetch_all_indicators_with_cache
 from src.core.market_data import RealMarketData
-from src.core.performance_monitor import PerformanceMonitor
 from src.core.portfolio_manager import PortfolioManager
-from src.core.ai_service import AIService
-from src.core.account_service import AccountService
 from src.core.strategy_analyzer import StrategyAnalyzer
 from src.utils import (
     format_num,
@@ -79,7 +74,7 @@ class AlphaArenaDeepSeek:
             return max_allowed  # Cycle 5+: Uses MAX_POSITIONS value
 
     def _apply_directional_capacity_filter(
-        self, decisions: dict[str, dict]
+        self, decisions: dict[str, dict],
     ) -> tuple[dict[str, dict], bool]:
         """Convert entry signals to hold when directional capacity is full."""
         if not isinstance(decisions, dict):
@@ -122,7 +117,7 @@ class AlphaArenaDeepSeek:
                     "justification": f"Directional cooldown active ({remaining} cycles remaining)",
                 }
                 print(
-                    f"[PAUSED] Directional cooldown: Blocking {direction.upper()} entry for {coin} ({remaining} cycles remaining)."
+                    f"[PAUSED] Directional cooldown: Blocking {direction.upper()} entry for {coin} ({remaining} cycles remaining).",
                 )
                 continue
 
@@ -145,7 +140,7 @@ class AlphaArenaDeepSeek:
         cycles_elapsed = getattr(self.portfolio, "cycles_since_history_reset", 0)
         if cycles_elapsed >= interval:
             print(
-                f"[BIAS CONTROL] Bias control: {cycles_elapsed} cycles since last reset (interval {interval}). Resetting history."
+                f"[BIAS CONTROL] Bias control: {cycles_elapsed} cycles since last reset (interval {interval}). Resetting history.",
             )
             self.portfolio.reset_historical_data(cycle_number)
             self.invocation_count = 0
@@ -179,7 +174,7 @@ class AlphaArenaDeepSeek:
                                 "cycle": cycle.get("cycle"),
                                 "confidence": trade.get("confidence", 0.5),
                                 "timestamp": cycle.get("timestamp"),
-                            }
+                            },
                         )
 
             # Enhanced market behavior analysis
@@ -306,12 +301,12 @@ class AlphaArenaDeepSeek:
         if Config.USE_SMART_CACHE:
             # Use cache-aware fetch
             return fetch_all_indicators_with_cache(
-                self.market_data, self.market_data.available_coins, HTF_INTERVAL, use_cache=True
+                self.market_data, self.market_data.available_coins, HTF_INTERVAL, use_cache=True,
             )
         else:
             # Fallback to non-cached version
             return fetch_all_indicators_parallel(
-                self.market_data, self.market_data.available_coins, HTF_INTERVAL
+                self.market_data, self.market_data.available_coins, HTF_INTERVAL,
             )
 
     def check_coin_rotation(self, coin: str) -> bool:
@@ -338,7 +333,7 @@ class AlphaArenaDeepSeek:
 
             if not atr_values:
                 print(
-                    f"[WARNING] No valid ATR values found, using .env value: {Config.CYCLE_INTERVAL_MINUTES} minutes"
+                    f"[WARNING] No valid ATR values found, using .env value: {Config.CYCLE_INTERVAL_MINUTES} minutes",
                 )
                 return min_interval
 
@@ -381,7 +376,7 @@ class AlphaArenaDeepSeek:
             performance_history = safe_file_read("data/performance_history.json", [])
             performance_history.append(metrics)
             safe_file_write(
-                "data/performance_history.json", performance_history[-100:]
+                "data/performance_history.json", performance_history[-100:],
             )  # Last 100 cycles
 
         except Exception as e:
@@ -406,7 +401,7 @@ class AlphaArenaDeepSeek:
     def run_trading_cycle(self, cycle_number: int):
         """Run a single trading cycle with auto TP/SL and enhanced features"""
         print(
-            f"\n{'=' * 80}\n[INFO] TRADING CYCLE {cycle_number} | [INFO] {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n{'=' * 80}"
+            f"\n{'=' * 80}\n[INFO] TRADING CYCLE {cycle_number} | [INFO] {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n{'=' * 80}",
         )
 
         # Check bot control at cycle start
@@ -470,7 +465,7 @@ class AlphaArenaDeepSeek:
             if self.portfolio.is_live_trading:
                 self.account_service.sync_live_account()
             self.portfolio.update_prices(
-                valid_prices, increment_loss_counters=True
+                valid_prices, increment_loss_counters=True,
             )  # Update PnL before checking TP/SL
 
             # --- Auto TP/SL Check ---
@@ -489,7 +484,7 @@ class AlphaArenaDeepSeek:
                         # Close position immediately
                         if self.portfolio.is_live_trading:
                             result = self.account_service.execute_live_close(
-                                coin, position, current_price, reason="Flash Exit (V-Reversal)"
+                                coin, position, current_price, reason="Flash Exit (V-Reversal)",
                             )
                             if result.get("success"):
                                 flash_exits_triggered = True
@@ -498,7 +493,7 @@ class AlphaArenaDeepSeek:
                         else:
                             # Paper trading close
                             self.account_service.close_position(
-                                coin, current_price, reason="Flash Exit (V-Reversal)"
+                                coin, current_price, reason="Flash Exit (V-Reversal)",
                             )
                             flash_exits_triggered = True
 
@@ -519,7 +514,7 @@ class AlphaArenaDeepSeek:
             else:
                 if auto_exit_triggered:
                     print(
-                        "[INFO] Auto TP/SL/extended exit triggered earlier this cycle - proceeding with AI analysis."
+                        "[INFO] Auto TP/SL/extended exit triggered earlier this cycle - proceeding with AI analysis.",
                     )
                 # Check bot control before AI call (can be slow in live mode)
                 control = self._read_bot_control()
@@ -604,7 +599,7 @@ class AlphaArenaDeepSeek:
 
                 if current_positions >= max_positions_for_cycle:
                     print(
-                        f"[PROTECTION] POSITION LIMIT REACHED (Cycle {cycle_number}): Max {max_positions_for_cycle} positions allowed"
+                        f"[PROTECTION] POSITION LIMIT REACHED (Cycle {cycle_number}): Max {max_positions_for_cycle} positions allowed",
                     )
                     # If position limit is reached, convert new entry signals to hold
                     filtered_decisions = {}
@@ -613,7 +608,7 @@ class AlphaArenaDeepSeek:
                             signal = trade.get("signal")
                             if signal in ["buy_to_enter", "sell_to_enter"]:
                                 print(
-                                    f"   [WARNING] {coin} {signal} -> HOLD (Position limit: {max_positions_for_cycle})"
+                                    f"   [WARNING] {coin} {signal} -> HOLD (Position limit: {max_positions_for_cycle})",
                                 )
                                 filtered_decisions[coin] = {
                                     "signal": "hold",
@@ -692,7 +687,7 @@ class AlphaArenaDeepSeek:
                                                 "coin": coin,
                                                 "reason": "live_close_failed",
                                                 "error": error_msg,
-                                            }
+                                            },
                                         )
                                     else:
                                         history_entry = live_result.get("history_entry")
@@ -706,10 +701,10 @@ class AlphaArenaDeepSeek:
                                                 "direction": direction,
                                                 "price": current_price,
                                                 "mode": "live",
-                                            }
+                                            },
                                         )
                                         print(
-                                            f"[SUCCESS] AI LIVE CLOSE: Closed {direction} {coin} @ ${format_num(current_price, 4)} (PnL: ${format_num(live_result.get('pnl', 0), 2)})"
+                                            f"[SUCCESS] AI LIVE CLOSE: Closed {direction} {coin} @ ${format_num(current_price, 4)} (PnL: ${format_num(live_result.get('pnl', 0), 2)})",
                                         )
                                     continue
 
@@ -726,7 +721,7 @@ class AlphaArenaDeepSeek:
                                 self.portfolio.current_balance += margin_used + profit
 
                                 print(
-                                    f"[SUCCESS] AI CLOSE: Closed {direction} {coin} @ ${format_num(current_price, 4)} (PnL: ${format_num(profit, 2)}, Commission: ${format_num(commission, 3)})"
+                                    f"[SUCCESS] AI CLOSE: Closed {direction} {coin} @ ${format_num(current_price, 4)} (PnL: ${format_num(profit, 2)}, Commission: ${format_num(commission, 3)})",
                                 )
 
                                 history_entry = {
@@ -751,16 +746,16 @@ class AlphaArenaDeepSeek:
                                         "pnl": profit,
                                         "direction": direction,
                                         "price": current_price,
-                                    }
+                                    },
                                 )
                                 del self.portfolio.positions[coin]
                             else:
                                 close_execution_report["skipped"].append(
-                                    {"coin": coin, "reason": "no_price_data_for_close"}
+                                    {"coin": coin, "reason": "no_price_data_for_close"},
                                 )
                         elif isinstance(trade, dict):
                             close_execution_report["holds"].append(
-                                {"coin": coin, "has_position": coin in self.portfolio.positions}
+                                {"coin": coin, "has_position": coin in self.portfolio.positions},
                             )
 
                     # Combine with normal execution report for logging
@@ -804,7 +799,7 @@ class AlphaArenaDeepSeek:
             elif isinstance(decisions, dict) and decisions and manual_override:
                 exec_start = time.perf_counter()
                 self.portfolio.execute_decision(
-                    decisions, valid_prices, indicator_cache=self.latest_indicator_cache
+                    decisions, valid_prices, indicator_cache=self.latest_indicator_cache,
                 )
                 execution_elapsed = time.perf_counter() - exec_start
 
@@ -906,7 +901,7 @@ class AlphaArenaDeepSeek:
         """Show current status in the console"""
         print("\n[STATS] CURRENT STATUS:")
         print(
-            f"[INFO] Total Value: ${format_num(self.portfolio.total_value, 2)} (Initial: ${format_num(self.portfolio.initial_balance, 2)})"
+            f"[INFO] Total Value: ${format_num(self.portfolio.total_value, 2)} (Initial: ${format_num(self.portfolio.initial_balance, 2)})",
         )
         print(f"[INFO] Total Return: {format_num(self.portfolio.total_return, 2)}%")
         print(f"[INFO] Available Cash: ${format_num(self.portfolio.current_balance, 2)}")
@@ -925,7 +920,7 @@ class AlphaArenaDeepSeek:
                 entry = pos.get("entry_price", 0.0)
                 qty = pos.get("quantity", 0.0)
                 print(
-                    f"  {coin} ({direction} {leverage}x): {format_num(qty, 4)} units | Notional ${format_num(notional, 2)} | Entry: ${format_num(entry, 4)} | PnL: {pnl_sign}${format_num(pnl, 2)} | Liq Est: ${format_num(liq, 4)}"
+                    f"  {coin} ({direction} {leverage}x): {format_num(qty, 4)} units | Notional ${format_num(notional, 2)} | Entry: ${format_num(entry, 4)} | PnL: {pnl_sign}${format_num(pnl, 2)} | Liq Est: ${format_num(liq, 4)}",
                 )
 
     def start_tp_sl_monitoring(self):
@@ -970,7 +965,7 @@ class AlphaArenaDeepSeek:
                             break
                         elif control.get("status") == "stopped":
                             print(
-                                "[STOPPED] TP/SL monitoring: STOP command received. Stopping monitoring loop..."
+                                "[STOPPED] TP/SL monitoring: STOP command received. Stopping monitoring loop...",
                             )
                             self.is_running = False
                             break
@@ -1061,7 +1056,7 @@ class AlphaArenaDeepSeek:
                         print("[INFO] 20-SECOND TP/SL CHECK: Positions closed")
                     else:
                         print(
-                            f"[INFO] 20-SECOND TP/SL CHECK: No triggers ({len(self.portfolio.positions)} positions monitored)"
+                            f"[INFO] 20-SECOND TP/SL CHECK: No triggers ({len(self.portfolio.positions)} positions monitored)",
                         )
                 else:
                     print("[WARNING] TP/SL monitoring: No valid prices available")
@@ -1093,7 +1088,7 @@ class AlphaArenaDeepSeek:
         """Run the simulation with dynamic cycle frequency and TP/SL monitoring"""
         print(f"[INFO] ALPHA ARENA - DEEPSEEK INTEGRATION (V{VERSION})")
         print(
-            f"[INFO] Simulating with ${format_num(self.portfolio.initial_balance, 2)} budget for {total_duration_hours} hours."
+            f"[INFO] Simulating with ${format_num(self.portfolio.initial_balance, 2)} budget for {total_duration_hours} hours.",
         )
         print(f"   Trading: {', '.join(self.market_data.available_coins)}")
         print(f"   State File: {self.portfolio.state_file}")
@@ -1112,7 +1107,7 @@ class AlphaArenaDeepSeek:
         cycles_since_reset = len(self.portfolio.cycle_history)
         start_cycle = last_reset + cycles_since_reset + 1
         print(
-            f"   Resuming from Cycle {start_cycle}... (last reset: {last_reset}, cycles since: {cycles_since_reset})"
+            f"   Resuming from Cycle {start_cycle}... (last reset: {last_reset}, cycles since: {cycles_since_reset})",
         )
         self.invocation_count = start_cycle - 1
         current_cycle_number = start_cycle - 1
@@ -1127,7 +1122,7 @@ class AlphaArenaDeepSeek:
                 control = self._read_bot_control()
                 if control.get("status") == "paused":
                     print(
-                        "[PAUSED] Bot is PAUSED. Waiting for resume command... (checking every 10 seconds)"
+                        "[PAUSED] Bot is PAUSED. Waiting for resume command... (checking every 10 seconds)",
                     )
                     # Wait in smaller intervals to check for resume
                     while True:
@@ -1152,14 +1147,14 @@ class AlphaArenaDeepSeek:
                 # Check MAX_CYCLES limit - auto-stop at configured cycle number
                 if Config.MAX_CYCLES > 0 and current_cycle_number > Config.MAX_CYCLES:
                     print(
-                        f"[STOPPED] MAX_CYCLES limit reached ({Config.MAX_CYCLES}). Auto-stopping bot..."
+                        f"[STOPPED] MAX_CYCLES limit reached ({Config.MAX_CYCLES}). Auto-stopping bot...",
                     )
                     break
 
                 # Calculate dynamic cycle frequency
                 dynamic_cycle_interval = self.calculate_optimal_cycle_frequency()
                 print(
-                    f"[INFO] Dynamic cycle frequency: {dynamic_cycle_interval} seconds ({dynamic_cycle_interval / 60:.1f} minutes)"
+                    f"[INFO] Dynamic cycle frequency: {dynamic_cycle_interval} seconds ({dynamic_cycle_interval / 60:.1f} minutes)",
                 )
 
                 self.run_trading_cycle(current_cycle_number)
@@ -1168,7 +1163,7 @@ class AlphaArenaDeepSeek:
                 elapsed_time = time.time() - cycle_start_time
                 sleep_time = max(0, dynamic_cycle_interval - elapsed_time)
                 print(
-                    f"\n[INFO] Cycle {current_cycle_number} complete in {format_num(elapsed_time, 2)}s. Next cycle in {format_num(sleep_time / 60, 2)} mins... (Ctrl+C to stop)"
+                    f"\n[INFO] Cycle {current_cycle_number} complete in {format_num(elapsed_time, 2)}s. Next cycle in {format_num(sleep_time / 60, 2)} mins... (Ctrl+C to stop)",
                 )
                 time.sleep(max(sleep_time, 0.5))
 
@@ -1176,7 +1171,7 @@ class AlphaArenaDeepSeek:
                 control = self._read_bot_control()
                 if control.get("status") == "paused":
                     print(
-                        "[PAUSED] Bot is PAUSED. Waiting for resume command... (checking every 10 seconds)"
+                        "[PAUSED] Bot is PAUSED. Waiting for resume command... (checking every 10 seconds)",
                     )
                     # Wait in smaller intervals to check for resume
                     while True:
@@ -1214,7 +1209,7 @@ class AlphaArenaDeepSeek:
         if current_margin <= min_remaining:
             # Position already at or below minimum, don't sell
             print(
-                f"[STOPPED] Partial sale blocked: Position margin ${current_margin:.2f} <= minimum limit ${min_remaining:.2f}"
+                f"[STOPPED] Partial sale blocked: Position margin ${current_margin:.2f} <= minimum limit ${min_remaining:.2f}",
             )
             return 0.0
 
@@ -1230,7 +1225,7 @@ class AlphaArenaDeepSeek:
             adjusted_percent = adjusted_sale_amount / current_margin
 
             print(
-                f"[STATS] Adjusted partial sale: {proposed_percent * 100:.0f}% -> {adjusted_percent * 100:.0f}% to maintain ${min_remaining:.2f} minimum limit"
+                f"[STATS] Adjusted partial sale: {proposed_percent * 100:.0f}% -> {adjusted_percent * 100:.0f}% to maintain ${min_remaining:.2f} minimum limit",
             )
             return adjusted_percent
 
@@ -1274,7 +1269,7 @@ class AlphaArenaDeepSeek:
         current_trend: str,
     ) -> float:
         return self.portfolio.apply_directional_bias(
-            signal, confidence, bias_metrics, current_trend
+            signal, confidence, bias_metrics, current_trend,
         )
 
     def get_directional_bias_metrics(self) -> dict[str, dict[str, Any]]:
@@ -1296,7 +1291,7 @@ class AlphaArenaDeepSeek:
         metadata: dict[str, Any] | None = None,
     ):
         return self.portfolio.add_to_cycle_history(
-            cycle_number, prompt, thoughts, decisions, status=status, metadata=metadata
+            cycle_number, prompt, thoughts, decisions, status=status, metadata=metadata,
         )
 
 

@@ -1,7 +1,5 @@
-import copy
-import json
-import re
 from typing import Any
+
 from config.config import Config
 from src.utils import format_num
 
@@ -220,7 +218,7 @@ class StrategyAnalyzer:
 
             # Determine trend direction
             trend_direction = self.determine_trend_direction(
-                price_htf, ema20_htf, ema50_htf, rsi_htf, macd_htf
+                price_htf, ema20_htf, ema50_htf, rsi_htf, macd_htf,
             )
 
             return {
@@ -334,7 +332,7 @@ class StrategyAnalyzer:
             return 0.5
 
     def determine_trend_direction(
-        self, price: float, ema20: float, ema50: float, rsi: float, macd: float
+        self, price: float, ema20: float, ema50: float, rsi: float, macd: float,
     ) -> str:
         """Determine overall trend direction based on multiple indicators"""
         bullish_signals = 0
@@ -421,7 +419,7 @@ class StrategyAnalyzer:
             return 0.0
 
     def calculate_volume_quality_score(
-        self, coin: str, indicators_3m: dict[str, Any] | None = None
+        self, coin: str, indicators_3m: dict[str, Any] | None = None,
     ) -> float:
         """Calculate volume quality score (0-100) based on Config thresholds"""
         try:
@@ -481,7 +479,7 @@ class StrategyAnalyzer:
             return False
 
     def generate_advanced_exit_plan(
-        self, coin: str, direction: str, entry_price: float
+        self, coin: str, direction: str, entry_price: float,
     ) -> dict[str, Any]:
         """Generate advanced exit plan - TP/SL is now handled by execute_live_entry using Config multipliers"""
         try:

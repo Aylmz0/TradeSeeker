@@ -1,6 +1,8 @@
+from typing import Any
+
 import numpy as np
 import pandas as pd
-from typing import Any
+
 
 def calculate_ema_series(prices: pd.Series, period: int) -> pd.Series:
     return prices.ewm(span=period, adjust=False).mean()
