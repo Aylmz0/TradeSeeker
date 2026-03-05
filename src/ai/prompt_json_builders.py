@@ -10,6 +10,274 @@ from config.config import Config
 from src.ai.prompt_json_utils import format_number_for_json
 
 
+# ============================================================================
+# State Vector Architecture — Helper Functions
+# ============================================================================
+
+def _sv_fmt(value) -> float | int | None:
+    """Shorthand for format_number_for_json in state vector context."""
+    return format_number_for_json(value)
+
+
+def _sv_trend_alignment(
+    indicators_htf: dict[str, Any],
+    indicators_15m: dict[str, Any],
+    indicators_3m: dict[str, Any],
+) -> str:
+    """
+    Determine multi-timeframe trend alignment.
+    Returns: FULL_BULLISH | FULL_BEARISH | MIXED_BULLISH | MIXED_BEARISH | CONFLICTED
+    """
+    def _trend(ind: dict[str, Any]) -> str | None:
+        if not ind or "error" in ind:
+            return None
+        price = ind.get("current_price")
+        ema = ind.get("ema_20")
+        if price is None or ema is None:
+            return None
+        return "BULLISH" if price > ema else "BEARISH"
+
+    t_htf = _trend(indicators_htf)
+    t_15m = _trend(indicators_15m)
+    t_3m = _trend(indicators_3m)
+
+    trends = [t for t in [t_htf, t_15m, t_3m] if t is not None]
+    if not trends:
+        return "UNKNOWN"
+
+    bullish_count = trends.count("BULLISH")
+    bearish_count = trends.count("BEARISH")
+
+    if bullish_count == len(trends):
+        return "FULL_BULLISH"
+    elif bearish_count == len(trends):
+        return "FULL_BEARISH"
+    elif bullish_count > bearish_count:
+        return "MIXED_BULLISH"
+    elif bearish_count > bullish_count:
+        return "MIXED_BEARISH"
+    else:
+        return "CONFLICTED"
+
+
+def _sv_momentum(indicators_15m: dict[str, Any]) -> str:
+    """
+    Extract momentum from 15m smart_sparkline.
+    Returns: STRENGTHENING | STABLE | WEAKENING | UNKNOWN
+    """
+    if not indicators_15m or "error" in indicators_15m:
+        return "UNKNOWN"
+    sparkline = indicators_15m.get("smart_sparkline", {})
+    if isinstance(sparkline, dict):
+        return sparkline.get("momentum", "STABLE")
+    return "STABLE"
+
+
+def _sv_price_location(indicators_15m: dict[str, Any]) -> str:
+    """
+    Extract price location zone from 15m smart_sparkline.
+    Returns: UPPER_10 | LOWER_10 | MIDDLE
+    """
+    if not indicators_15m or "error" in indicators_15m:
+        return "MIDDLE"
+    sparkline = indicators_15m.get("smart_sparkline", {})
+    if isinstance(sparkline, dict):
+        loc = sparkline.get("price_location", {})
+        if isinstance(loc, dict):
+            return loc.get("zone", "MIDDLE")
+        elif isinstance(loc, str):
+            return loc
+    return "MIDDLE"
+
+
+def _sv_structure(indicators_15m: dict[str, Any]) -> str:
+    """
+    Extract market structure from 15m smart_sparkline.
+    Returns: HH_HL | LH_LL | RANGE | UNCLEAR
+    """
+    if not indicators_15m or "error" in indicators_15m:
+        return "UNCLEAR"
+    sparkline = indicators_15m.get("smart_sparkline", {})
+    if isinstance(sparkline, dict):
+        return sparkline.get("structure", "UNCLEAR")
+    return "UNCLEAR"
+
+
+def _sv_volatility_state(indicators_htf: dict[str, Any]) -> str:
+    """
+    Determine volatility state from BB squeeze.
+    Returns: SQUEEZE | EXPANDING | NORMAL
+    """
+    if not indicators_htf or "error" in indicators_htf:
+        return "NORMAL"
+    if indicators_htf.get("bb_squeeze"):
+        return "SQUEEZE"
+    bb_upper = indicators_htf.get("bb_upper")
+    bb_lower = indicators_htf.get("bb_lower")
+    bb_middle = indicators_htf.get("bb_middle")
+    if bb_upper and bb_lower and bb_middle and bb_middle > 0:
+        width_pct = ((bb_upper - bb_lower) / bb_middle) * 100
+        if width_pct > 4.0:
+            return "EXPANDING"
+    return "NORMAL"
+
+
+def _sv_volume_label(indicators_3m: dict[str, Any]) -> str:
+    """
+    Convert volume ratio to linguistic label.
+    Returns: EXCELLENT | GOOD | FAIR | POOR | LOW
+    """
+    if not indicators_3m or "error" in indicators_3m:
+        return "LOW"
+    vol = indicators_3m.get("volume", 0)
+    avg_vol = indicators_3m.get("avg_volume", 1)
+    if not avg_vol or avg_vol == 0:
+        return "LOW"
+
+    # Use pre-calculated volume_ratio if available
+    if "volume_ratio" in indicators_3m:
+        ratio = indicators_3m["volume_ratio"]
+    else:
+        ratio = (vol or 0) / (avg_vol or 1)
+
+    if ratio > 2.5:
+        return "EXCELLENT"
+    elif ratio > 1.8:
+        return "GOOD"
+    elif ratio > 1.2:
+        return "FAIR"
+    elif ratio > 0.7:
+        return "POOR"
+    else:
+        return "LOW"
+
+
+def _sv_build_position(position: dict[str, Any]) -> dict[str, Any]:
+    """Build compact position data for state vector."""
+    pos = {
+        "direction": position.get("direction", "long"),
+        "entry_price": _sv_fmt(position.get("entry_price", 0)),
+        "current_price": _sv_fmt(position.get("current_price", 0)),
+        "unrealized_pnl": _sv_fmt(position.get("unrealized_pnl", 0)),
+        "leverage": position.get("leverage", 1),
+        "confidence": _sv_fmt(position.get("confidence", 0.5)),
+        "exit_plan": {
+            "profit_target": _sv_fmt(position.get("exit_plan", {}).get("profit_target")),
+            "stop_loss": _sv_fmt(position.get("exit_plan", {}).get("stop_loss")),
+            "invalidation_condition": position.get("exit_plan", {}).get(
+                "invalidation_condition",
+            ),
+        },
+    }
+    # Profit erosion tracking — only include if meaningful
+    erosion_status = position.get("erosion_status", "NONE")
+    pos["erosion_status"] = erosion_status
+    if erosion_status != "NONE":
+        pos["peak_pnl"] = _sv_fmt(position.get("peak_pnl", 0))
+        pos["erosion_pct"] = _sv_fmt(position.get("erosion_pct", 0))
+    return pos
+
+
+def build_coin_state_vector(
+    coin: str,
+    market_regime: str,
+    sentiment: dict[str, Any],
+    indicators_3m: dict[str, Any],
+    indicators_15m: dict[str, Any],
+    indicators_htf: dict[str, Any],
+    position: dict[str, Any] | None = None,
+    ml_consensus: dict[str, Any] | None = None,
+    counter_trade_result: dict[str, Any] | None = None,
+    reversal_result: dict[str, Any] | None = None,
+) -> dict[str, Any]:
+    """
+    Build a refined State Vector for a single coin.
+
+    Combines pre-processed labels (for fast AI orientation) with key numerical
+    anchors (for independent AI reasoning). This replaces the old
+    build_market_data_json which dumped 51 raw indicator fields per coin.
+
+    Args:
+        coin: Coin symbol
+        market_regime: Market regime (BULLISH/BEARISH/NEUTRAL)
+        sentiment: Sentiment data (OI, funding rate)
+        indicators_3m: 3-minute timeframe indicators
+        indicators_15m: 15-minute timeframe indicators
+        indicators_htf: Higher timeframe indicators
+        position: Current position dict (or None)
+        ml_consensus: XGBoost prediction dict (or None)
+        counter_trade_result: Output from build_counter_trade_risk() for this coin
+        reversal_result: Output from build_reversal_threat() for this coin
+
+    Returns:
+        State vector dict with labels + numerical anchors
+    """
+    # Efficiency ratio for choppy detection
+    efficiency_ratio = (
+        indicators_3m.get("efficiency_ratio", 0.5)
+        if indicators_3m and "error" not in indicators_3m
+        else 0.5
+    )
+
+    # Volume ratio (numerical anchor for AI autonomy)
+    vol_ratio = None
+    if indicators_3m and "error" not in indicators_3m:
+        if "volume_ratio" in indicators_3m:
+            vol_ratio = _sv_fmt(indicators_3m["volume_ratio"])
+        else:
+            vol = indicators_3m.get("volume", 0)
+            avg_vol = indicators_3m.get("avg_volume", 1)
+            if avg_vol and avg_vol > 0:
+                vol_ratio = _sv_fmt((vol or 0) / avg_vol)
+
+    # Defaults for risk inputs
+    ct = counter_trade_result or {"risk_level": "VERY_HIGH_RISK", "alignment_strength": "NONE"}
+    rv = reversal_result or {"strength": "NONE"}
+
+    state = {
+        "coin": coin,
+        # ML Consensus — untouched, AI's statistical tie-breaker
+        "ml_consensus": ml_consensus,
+        # Market Context — regime + environment labels
+        "market_context": {
+            "regime": market_regime,
+            "efficiency_ratio": _sv_fmt(efficiency_ratio),
+            "volatility_state": _sv_volatility_state(indicators_htf),
+            "price_location": _sv_price_location(indicators_15m),
+        },
+        # Technical Summary — processed labels for fast orientation
+        "technical_summary": {
+            "trend_alignment": _sv_trend_alignment(indicators_htf, indicators_15m, indicators_3m),
+            "momentum": _sv_momentum(indicators_15m),
+            "volume_ratio": vol_ratio,
+            "volume_support": _sv_volume_label(indicators_3m),
+            "structure_15m": _sv_structure(indicators_15m),
+        },
+        # Key Levels — numerical anchors for independent AI reasoning
+        "key_levels": {
+            "price": _sv_fmt(indicators_htf.get("current_price") if indicators_htf else None),
+            "ema20_htf": _sv_fmt(indicators_htf.get("ema_20") if indicators_htf else None),
+            "rsi_15m": _sv_fmt(indicators_15m.get("rsi_14") if indicators_15m else None),
+            "atr_htf": _sv_fmt(indicators_htf.get("atr_14") if indicators_htf else None),
+        },
+        # Risk Profile — pre-computed risk labels
+        "risk_profile": {
+            "counter_trade_risk": ct.get("risk_level", "VERY_HIGH_RISK"),
+            "alignment_strength": ct.get("alignment_strength", "NONE"),
+            "reversal_threat": rv.get("strength", "NONE"),
+        },
+        # Sentiment — funding rate & open interest
+        "sentiment": {
+            "funding_rate": _sv_fmt(sentiment.get("funding_rate")) if sentiment else None,
+            "open_interest": _sv_fmt(sentiment.get("open_interest")) if sentiment else None,
+        },
+        # Position — compact position data (or null)
+        "position": _sv_build_position(position) if position else None,
+    }
+
+    return state
+
+
 def build_metadata_json(
     minutes_running: int, current_time: datetime, invocation_count: int,
 ) -> dict[str, Any]:
@@ -41,9 +309,9 @@ def build_counter_trade_json(
         market_data: RealMarketData instance for funding rate (optional)
 
     Returns:
-        List of counter-trade analysis objects with 15m+3m alignment information
+        Dict keyed by coin: {risk_level, alignment_strength, conditions_met}
     """
-    analysis_list = []
+    analysis_list = {}
 
     for coin in available_coins:
         try:
@@ -233,36 +501,12 @@ def build_counter_trade_json(
             # NOTE: Zone + Weakening is now Condition 6 (calculated above)
             # No longer modifies risk level - it's counted as a condition instead
 
-            analysis_list.append(
-                {
-                    "coin": coin,
-                    "htf_trend": trend_htf,
-                    "15m_trend": trend_15m,
-                    "3m_trend": trend_3m,
-                    "alignment_strength": alignment_strength,
-                    "conditions": {"total_met": total_met},
-                    "risk_level": risk_level,
-                    "volume_ratio": format_number_for_json((volume_3m or 0) / avg_volume_3m)
-                    if avg_volume_3m and avg_volume_3m > 0
-                    else 0.0,
-                    "volume_strength": "STRONG"
-                    if (
-                        avg_volume_3m
-                        and avg_volume_3m > 0
-                        and ((volume_3m or 0) / avg_volume_3m)
-                        > Config.VOLUME_QUALITY_THRESHOLDS["good"]
-                    )
-                    else "WEAK"
-                    if (
-                        avg_volume_3m
-                        and avg_volume_3m > 0
-                        and ((volume_3m or 0) / avg_volume_3m)
-                        < Config.VOLUME_QUALITY_THRESHOLDS["poor"]
-                    )
-                    else "NORMAL",
-                    "rsi_3m": rsi_3m,
-                },
-            )
+            # Store compact result keyed by coin
+            analysis_list[coin] = {
+                "risk_level": risk_level,
+                "alignment_strength": alignment_strength,
+                "conditions_met": total_met,
+            }
 
         except Exception:
             # Skip coins with errors
@@ -273,78 +517,30 @@ def build_counter_trade_json(
 
 def build_trend_reversal_json(
     trend_reversal_analysis: dict[str, Any], portfolio_positions: dict[str, Any],
-) -> list[dict[str, Any]]:
+) -> dict[str, dict[str, Any]]:
     """
-    Build trend reversal detection JSON from performance_monitor output.
+    Build trend reversal detection data from performance_monitor output.
 
     Args:
         trend_reversal_analysis: Output from detect_trend_reversal_for_all_coins()
         portfolio_positions: Current portfolio positions
 
     Returns:
-        List of trend reversal objects
+        Dict keyed by coin: {strength} for State Vector integration
     """
-    reversal_list = []
+    reversal_dict = {}
 
     if not trend_reversal_analysis or "error" in trend_reversal_analysis:
-        return reversal_list
+        return reversal_dict
 
     for coin, analysis in trend_reversal_analysis.items():
         if coin == "error":
             continue
 
-        has_position = coin in portfolio_positions
-        position = portfolio_positions.get(coin, {})
-        position_direction = position.get("direction", None)
-
-        # Calculate position duration if available
-        position_duration_minutes = None
-        if has_position and "entry_time" in position:
-            try:
-                entry_time = (
-                    datetime.fromisoformat(position["entry_time"])
-                    if isinstance(position["entry_time"], str)
-                    else position["entry_time"]
-                )
-                if isinstance(entry_time, datetime):
-                    position_duration_minutes = (datetime.now() - entry_time).total_seconds() / 60
-            except:
-                pass
-
-        # Get reversal data directly from market_data.py (weighted scoring)
-        signals = analysis.get("signals", [])
-        score = analysis.get("score", 0)
         strength = analysis.get("strength", "NONE")
-        trend_htf = analysis.get("trend_htf", "UNKNOWN")
-        trend_15m = analysis.get("trend_15m", None)
-        trend_3m = analysis.get("trend_3m", "UNKNOWN")
+        reversal_dict[coin] = {"strength": strength}
 
-        # Check if this is a counter-trend position
-        is_counter_trend = False
-        if has_position and position_direction and position:
-            trend_alignment = position.get("trend_alignment", "trend_following")
-            trend_context = position.get("trend_context", {})
-            if (
-                trend_alignment == "counter_trend"
-                or trend_context.get("alignment") == "counter_trend"
-            ):
-                is_counter_trend = True
-
-        reversal_list.append(
-            {
-                "coin": coin,
-                "has_position": has_position,
-                "position_direction": position_direction,
-                "position_duration_minutes": format_number_for_json(position_duration_minutes),
-                "is_counter_trend": is_counter_trend,
-                "reversal": {"score": score, "strength": strength, "signals": signals},
-                "current_trend_htf": trend_htf,
-                "current_trend_15m": trend_15m,
-                "current_trend_3m": trend_3m,
-            },
-        )
-
-    return reversal_list
+    return reversal_dict
 
 
 def build_enhanced_context_json(enhanced_context: dict[str, Any]) -> dict[str, Any]:
@@ -575,9 +771,8 @@ def build_market_data_json(
                 "STRONG" if ratio > 1.5 else "WEAK" if ratio < 0.5 else "NORMAL"
             )
 
-        # Add Smart Sparkline Data if available
-        if "smart_sparkline" in indicators:
-            current["smart_sparkline"] = indicators["smart_sparkline"]
+        # NOTE: smart_sparkline removed from prompt output (State Vector migration)
+        # Data is still computed by market_data.py for portfolio_manager exit strategies
 
         # ==================== NEW INDICATORS (v5.0 -> v6.0 ACTIVATED) ====================
         # These indicators are NOW ACTIVE in AI prompt for better decision making
