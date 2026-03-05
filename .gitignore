@@ -1,35 +1,94 @@
-# Python Caches
+# === Python ===
 __pycache__/
 *.py[cod]
 *$py.class
 *.so
 .pytest_cache/
+.coverage
+htmlcov/
+.mypy_cache/
+.ruff_cache/
+.pytype/
+pip-log.txt
+pip-delete-this-directory.txt
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+share/python-wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+MANIFEST
 
-# Environments
+# === Environments ===
 .env
 .venv/
+env/
+venv/
+ENV/
+env.bak/
+venv.bak/
 project_venv/
+python_venv/
+bin/
+lib/
+lib64/
+include/
+share/
 
-# Data, Logs, and ML Artifacts
-data/
+# === Data & ML Artifacts ===
+data/*.sqlite
+data/*.db
+data/*.json
+!data/bot_control.json      # KEEP configuration
+!data/portfolio_state.json  # KEEP state
 archive/
-models/
+models/*.xgb
+models/*.joblib
 *.log
-*.json
 *.sqlite
 *.db
-*.xgb
-*.joblib
 
-# Include exceptions
-!requirements.txt
-!package.json
+# === IDEs ===
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+.project
+.pydevproject
+.settings/
 
-# Project specific
+# === OS ===
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# === Project Specific ===
 Nof1Monk.txt
 all_trades_log.txt
 .maestro/
+.agents/
+.agent/
+.system_generated/
+/tmp/
 
-# IDEs
-.idea/
-.vscode/
+# === Exceptions ===
+!requirements.txt
+!package.json
+!implementation_plan.md
+!walkthrough.md
+!task.md
