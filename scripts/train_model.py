@@ -9,38 +9,61 @@ from sklearn.preprocessing import StandardScaler
 
 from src.core.data_engine import DataEngine
 from src.core.indicators import get_features_for_ml
+from config.config import Config
 
 
-def train(coin: str, interval: str):
+def train_global_model(interval: str):
+    """
+    Trains a single unified Global ML model using data from all active coins.
+    """
     engine = DataEngine()
+    target_coins = getattr(Config, "COINS", ["XRP", "DOGE", "ASTER", "TRX", "ETH", "SOL"])
     
-    print(f"[INFO] Fetching labeled data for {coin} ({interval})...")
-    # Retrieve labeled raw data first
-    df_raw_labeled = engine.get_labeled_data(coin, interval, lookahead_periods=5)
+    print(f"\n[INFO] Gathering data for Global Model Training (Interval: {interval})")
+    print(f"[INFO] Target Coins: {target_coins}")
     
-    if df_raw_labeled.empty:
-        print("[FAIL] Not enough data. Please run Phase 1.2 to fetch candles.")
+    all_features_list = []
+    
+    for coin in target_coins:
+        print(f"\n---> Processing {coin}...")
+        df_raw_labeled = engine.get_labeled_data(coin, interval, lookahead_periods=5)
+        
+        if df_raw_labeled.empty:
+            print(f"     [WARN] Not enough data for {coin}. Skipping.")
+            continue
+            
+        # Extract ML-ready features (indicators, lags)
+        df_features = get_features_for_ml(df_raw_labeled)
+        
+        if df_features.empty:
+            print(f"     [WARN] Feature extraction failed for {coin}. Skipping.")
+            continue
+            
+        # Merge Features and Labels (Inner join on timestamp to match rows exactly)
+        df_merged = pd.merge(df_features, df_raw_labeled[['timestamp', 'target_label', 'future_return']], on='timestamp', how='inner')
+        df_merged['source_coin'] = coin # Track origin for debugging if needed
+        
+        all_features_list.append(df_merged)
+        print(f"     [OK] Added {len(df_merged)} rows from {coin}.")
+        
+    if not all_features_list:
+        print("\n[ERR] No data available for any coin. Please run bot to collect data first.")
         return
         
-    print("[INFO] Extracting features...")
-    # Extract ML-ready features (indicators, lags)
-    df_features = get_features_for_ml(df_raw_labeled)
-    
-    if df_features.empty:
-        print("[FAIL] Feature extraction failed or not enough rows.")
-        return
-        
-    # Merge Features and Labels (Inner join on timestamp to match rows exactly)
-    df = pd.merge(df_features, df_raw_labeled[['timestamp', 'target_label', 'future_return']], on='timestamp', how='inner')
+    # Combine all coin data into one massive global dataset
+    print("\n[INFO] Concatenating global dataset...")
+    df_global = pd.concat(all_features_list, ignore_index=True)
     
     # Sort chronologically to prevent data leakage during time-series split
-    df = df.sort_values('timestamp').reset_index(drop=True)
+    df_global = df_global.sort_values('timestamp').reset_index(drop=True)
     
-    drop_cols = ['timestamp', 'target_label', 'future_return']
-    feature_cols = [c for c in df.columns if c not in drop_cols]
+    print(f"[INFO] Global Dataset Size: {len(df_global)} rows total across {len(all_features_list)} coins.")
     
-    X = df[feature_cols]
-    y = df['target_label']
+    drop_cols = ['timestamp', 'target_label', 'future_return', 'source_coin']
+    feature_cols = [c for c in df_global.columns if c not in drop_cols]
+    
+    X = df_global[feature_cols]
+    y = df_global['target_label']
     
     # Remap labels to [0, 1, 2] for XGBoost multi-class
     # -1 (SELL) -> 0
@@ -48,8 +71,9 @@ def train(coin: str, interval: str):
     # 1 (BUY) -> 2
     y_mapped = y.map({-1: 0, 0: 1, 1: 2})
     
-    # Chronological Time-Series Split (80% Train, 20% Test) WITHOUT shuffling!
-    split_idx = int(len(df) * 0.8)
+    # ChronOLOGICAL Time-Series Split (80% Train, 20% Test) WITHOUT shuffling!
+    # Because we sorted by timestamp, this effectively simulates training on the past and testing on the recent future across all coins.
+    split_idx = int(len(df_global) * 0.8)
     X_train, X_test = X.iloc[:split_idx], X.iloc[split_idx:]
     y_train, y_test = y_mapped.iloc[:split_idx], y_mapped.iloc[split_idx:]
     
@@ -62,7 +86,7 @@ def train(coin: str, interval: str):
     X_test_scaled = scaler.transform(X_test)
     
     # Model Factory (XGBoost)
-    print("[INFO] Training XGBoost classifier...")
+    print("\n[INFO] Training Global XGBoost classifier...")
     model = xgb.XGBClassifier(
         objective='multi:softprob',
         num_class=3,
@@ -84,7 +108,7 @@ def train(coin: str, interval: str):
     y_pred = model.predict(X_test_scaled)
     y_prob = model.predict_proba(X_test_scaled)
     
-    print("\n[EVAL] Model Performance Evaluation:")
+    print("\n[EVAL] Global Model Performance Evaluation:")
     print("-" * 50)
     print(f"Accuracy: {accuracy_score(y_test, y_pred):.3f}")
     print(f"LogLoss : {log_loss(y_test, y_prob):.3f}")
@@ -108,12 +132,11 @@ def train(coin: str, interval: str):
     joblib.dump(scaler, "models/scaler.joblib")
     joblib.dump(feature_cols, "models/feature_cols.joblib")
     
-    print("\n[OK] Training Pipeline completed. Artifacts saved in 'models/' folder.")
+    print("\n[OK] Global Training Pipeline completed. Artifacts saved in 'models/' folder.")
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description="TradeSeeker XGBoost Factory")
-    parser.add_argument("--coin", type=str, default="XRP")
-    parser.add_argument("--interval", type=str, default="15m")
+    parser = argparse.ArgumentParser(description="TradeSeeker Global XGBoost Factory")
+    parser.add_argument("--interval", type=str, default="15m", help="Kline interval to train on")
     args = parser.parse_args()
     
-    train(args.coin, args.interval)
+    train_global_model(args.interval)

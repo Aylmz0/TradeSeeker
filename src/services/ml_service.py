@@ -66,7 +66,7 @@ class MLService:
             logger.error(f"[MLService] Failed to load ML artifacts: {e}")
             self.is_ready = False
 
-    def predict(self, df_raw: pd.DataFrame) -> dict[str, Any] | None:
+    def predict(self, df_raw: pd.DataFrame, coin: str) -> dict[str, Any] | None:
         """
         Takes raw OHLCV from Binance, extracts features, scales the latest row, 
         and computes the directional multi-class probability.
@@ -113,14 +113,14 @@ class MLService:
                 "confidence": max_prob,
             }
             
-            self._log_prediction(result)
+            self._log_prediction(result, coin=coin)
             return result
             
         except Exception as e:
             logger.error(f"[MLService] Error during prediction: {e}")
             return None
 
-    def _log_prediction(self, result: dict[str, Any], coin: str = "XRP", interval: str = "15m") -> None:
+    def _log_prediction(self, result: dict[str, Any], coin: str, interval: str = "15m") -> None:
         """Append prediction to JSONL log file (one JSON object per line)."""
         try:
             os.makedirs(os.path.dirname(self.prediction_log_path), exist_ok=True)
@@ -154,7 +154,7 @@ if __name__ == "__main__":
         df_test['timestamp'] = pd.to_datetime(df_test['timestamp'], unit='ms')
         conn.close()
         
-        result = service.predict(df_test)
+        result = service.predict(df_test, coin="XRP")
         print("\n[OK] Prediction Result:")
         import json
         print(json.dumps(result, indent=2))
