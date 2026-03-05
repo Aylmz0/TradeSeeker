@@ -3,6 +3,7 @@ from datetime import datetime
 from typing import Any
 from config.config import Config
 from src.utils import format_num
+from src.core.data_engine import DataEngine
 
 try:
     from src.services.binance import BinanceOrderExecutor, BinanceAPIError
@@ -428,6 +429,18 @@ class AccountService:
                         print(
                             f"[INFO] ATR-based SL/TP saved for {coin}: SL=${format_num(final_stop_loss, 4)}, TP=${format_num(final_profit_target, 4)} (ATR={atr_value:.4f} x {Config.ATR_SL_MULTIPLIER}/{Config.ATR_TP_MULTIPLIER}) - Backend Authority"
                         )
+            # Decision Feedback Hook: Log OPEN trade to SQLite
+            try:
+                DataEngine().log_decision_open(
+                    coin=coin,
+                    direction=direction,
+                    ai_confidence=confidence,
+                    ml_probability=0.0,  # Populated by caller if available
+                    entry_price=avg_price
+                )
+            except Exception:
+                pass  # Never crash the trade flow for logging
+
             return {
                 "success": True,
                 "order": order,
@@ -492,6 +505,16 @@ class AccountService:
                 "close_reason": reason or "live_close",
                 "exchange_order_id": order.get("orderId"),
             }
+            # Decision Feedback Hook: Log CLOSED trade to SQLite
+            try:
+                DataEngine().log_decision_close(
+                    coin=coin,
+                    exit_price=avg_price,
+                    pnl_result=pnl
+                )
+            except Exception:
+                pass  # Never crash the trade flow for logging
+
             return {
                 "success": True,
                 "order": order,

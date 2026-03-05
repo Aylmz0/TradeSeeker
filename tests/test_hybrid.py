@@ -1,54 +1,98 @@
+"""
+Phase 3.3: Hybrid Dry-Run Test
+Tests the complete ML inference pipeline end-to-end:
+  SQLite Raw Data -> Feature Engineering -> StandardScaler -> XGBoost -> Probability JSON
+
+No external API dependencies (OpenAI, Binance) required.
+"""
+import sqlite3
+import pandas as pd
 import json
-import logging
-from config.config import Config
-from src.core.market_data import RealMarketData
-from src.core.portfolio_manager import PortfolioManager
-from src.core.performance_monitor import PerformanceMonitor
-from src.strategies.strategy_analyzer import StrategyAnalyzer
-from src.core.ai_service import AIService
+from src.services.ml_service import MLService
 
-logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
-logger = logging.getLogger(__name__)
 
-def test_hybrid_ai_prompt():
-    print("--- Testing Hybrid AI Prompt Generation (XGBoost + LLM) ---")
-    
-    # Init Core Mock Objects
-    market_data = RealMarketData()
-    portfolio = PortfolioManager()
-    performance_monitor = PerformanceMonitor()
-    strategy_analyzer = StrategyAnalyzer(market_data, portfolio, performance_monitor)
-    
-    # Init AI Service (This now strictly depends on MLService internally)
-    ai_service = AIService(portfolio, market_data, strategy_analyzer)
-    
-    # We will only look at XRP for brevity in this dry run
-    market_data.available_coins = ["XRP"]
-    
-    print("\n[INFO] Triggering generate_alpha_arena_prompt_json()...")
+def run_dry_run(coin: str = "XRP", interval: str = "15m"):
+    print("=" * 60)
+    print("  TradeSeeker Hybrid Dry-Run Test (Phase 3.3)")
+    print("=" * 60)
+
+    # Step 1: Load raw OHLCV from local SQLite
+    print("\n[1/4] Loading raw market data from SQLite...")
     try:
-        prompt = ai_service.generate_alpha_arena_prompt_json()
-        print("\n[OK] Prompt generated successfully. Extracting the MARKET DATA block...\n")
-        
-        # Searching the prompt string for the JSON block we care about
-        # It's inside a markdown block: ```json\n[{...}]\n```
-        import re
-        match = re.search(r'```json\n(.*?)\n```', prompt, re.DOTALL)
-        
-        if match:
-            # We found the first JSON block (which might be Counter Trades or Market Data)
-            # Let's just print the whole prompt since we want to see the ML injection.
-            print("================== TRUNCATED PROMPT OUTPUT ==================")
-            # Prettify the prompt by grabbing the market data section
-            market_data_str = prompt.split('MARKET_DATA')[1]
-            print(market_data_str[:1500] + "\n... [TRUNCATED ALIVE DATA] ...")
-            print("=============================================================")
-        else:
-            print("[WARN] Could not parse json blocks from prompt.")
-            print(prompt[:1000])
-            
+        conn = sqlite3.connect("data/market_data.db")
+        query = (
+            "SELECT * FROM market_data "
+            f"WHERE coin='{coin}' AND interval='{interval}' "
+            "ORDER BY timestamp DESC LIMIT 200"
+        )
+        df_raw = pd.read_sql_query(query, conn)
+        conn.close()
     except Exception as e:
-        print(f"\n[FAIL] Error generating Hybrid Prompt: {e}")
+        print(f"[FAIL] Cannot read SQLite: {e}")
+        print("       Run data_engine.py first to populate the database.")
+        return
+
+    if df_raw.empty:
+        print(f"[FAIL] No data found for {coin} ({interval}). Run data_engine.py first.")
+        return
+
+    # Chronological order
+    df_raw = df_raw.sort_values("timestamp").reset_index(drop=True)
+    df_raw["timestamp"] = pd.to_datetime(df_raw["timestamp"], unit="ms")
+    print(f"[OK] Loaded {len(df_raw)} candles. Range: {df_raw['timestamp'].iloc[0]} -> {df_raw['timestamp'].iloc[-1]}")
+
+    # Step 2: Boot ML Inference Service
+    print("\n[2/4] Booting MLService (Singleton)...")
+    service = MLService()
+
+    if not service.is_ready:
+        print("[FAIL] MLService not ready. Train the model first:")
+        print("       PYTHONPATH=. .venv/bin/python scripts/train_model.py")
+        return
+
+    print(f"[OK] Model loaded. Features: {len(service.feature_cols)} columns")
+    print(f"     Scaler type: {type(service.scaler).__name__}")
+
+    # Step 3: Run Prediction
+    print("\n[3/4] Running XGBoost inference on latest candle...")
+    result = service.predict(df_raw)
+
+    if result is None:
+        print("[FAIL] Prediction returned None. Check feature extraction.")
+        return
+
+    print("[OK] Prediction successful!")
+
+    # Step 4: Display Results
+    print("\n[4/4] ML Consensus Output:")
+    print("-" * 40)
+    print(json.dumps(result, indent=2))
+    print("-" * 40)
+
+    # Interpretation
+    dominant = result["dominant_signal"]
+    confidence = result["confidence"]
+
+    if confidence >= 45:
+        strength = "STRONG"
+    elif confidence >= 38:
+        strength = "MODERATE"
+    else:
+        strength = "WEAK"
+
+    print(f"\n[RESULT] Signal: {dominant} | Confidence: {confidence}% | Strength: {strength}")
+
+    if strength == "STRONG":
+        print("[INFO] This signal would be injected into the AI prompt as a high-weight technical consensus.")
+    elif strength == "MODERATE":
+        print("[INFO] This signal would be noted by the AI but not treated as decisive alone.")
+    else:
+        print("[INFO] Low confidence -- AI would likely default to its own chart analysis.")
+
+    print("\n" + "=" * 60)
+    print("  Dry-Run Complete. Pipeline is operational.")
+    print("=" * 60)
+
 
 if __name__ == "__main__":
-    test_hybrid_ai_prompt()
+    run_dry_run()

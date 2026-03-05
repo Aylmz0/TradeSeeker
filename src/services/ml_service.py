@@ -1,9 +1,11 @@
 import os
+import json
 import logging
 import pandas as pd
 import numpy as np
 import xgboost as xgb
 import joblib
+from datetime import datetime
 from typing import Optional, Dict, Any
 
 from src.core.indicators import get_features_for_ml
@@ -36,6 +38,7 @@ class MLService:
         self.scaler = None
         self.feature_cols = None
         self.is_ready = False
+        self.prediction_log_path = "data/ml_predictions.jsonl"
         
         self._load_artifacts()
         self._initialized = True
@@ -100,7 +103,7 @@ class MLService:
             else:
                 dominant = "BUY"
                 
-            return {
+            result = {
                 "SELL": sell_prob,
                 "HOLD": hold_prob,
                 "BUY": buy_prob,
@@ -108,9 +111,31 @@ class MLService:
                 "confidence": max_prob
             }
             
+            self._log_prediction(result)
+            return result
+            
         except Exception as e:
             logger.error(f"[MLService] Error during prediction: {e}")
             return None
+
+    def _log_prediction(self, result: Dict[str, Any], coin: str = "XRP", interval: str = "15m") -> None:
+        """Append prediction to JSONL log file (one JSON object per line)."""
+        try:
+            os.makedirs(os.path.dirname(self.prediction_log_path), exist_ok=True)
+            log_entry = {
+                "ts": datetime.now().isoformat(timespec="seconds"),
+                "coin": coin,
+                "interval": interval,
+                "sell": result["SELL"],
+                "hold": result["HOLD"],
+                "buy": result["BUY"],
+                "dominant": result["dominant_signal"],
+                "confidence": result["confidence"]
+            }
+            with open(self.prediction_log_path, "a") as f:
+                f.write(json.dumps(log_entry) + "\n")
+        except Exception as e:
+            logger.warning(f"[MLService] Failed to log prediction: {e}")
 
 if __name__ == "__main__":
     # Local Test Block

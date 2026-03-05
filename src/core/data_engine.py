@@ -251,6 +251,78 @@ class DataEngine:
             logger.error(f"[DataEngine] Failed to fetch and store klines for {coin} ({interval}): {e}")
             return False
 
+    def log_decision_open(
+        self,
+        coin: str,
+        direction: str,
+        ai_confidence: float,
+        ml_probability: float,
+        entry_price: float
+    ) -> Optional[int]:
+        """Log an OPEN trade decision to the decisions table. Returns the row ID."""
+        conn = self._get_connection()
+        try:
+            cursor = conn.cursor()
+            cursor.execute(
+                """INSERT INTO decisions 
+                   (timestamp, coin, action, ai_confidence, ml_probability, entry_price, status)
+                   VALUES (?, ?, ?, ?, ?, ?, 'OPEN')""",
+                (
+                    int(pd.Timestamp.now().timestamp() * 1000),
+                    coin,
+                    direction.upper(),
+                    round(float(ai_confidence), 4),
+                    round(float(ml_probability), 4),
+                    round(float(entry_price), 8),
+                )
+            )
+            conn.commit()
+            row_id = cursor.lastrowid
+            logger.info(f"[DataEngine] Logged OPEN decision for {coin} ({direction}) -> row_id={row_id}")
+            return row_id
+        except Exception as e:
+            logger.error(f"[DataEngine] Failed to log OPEN decision: {e}")
+            conn.rollback()
+            return None
+        finally:
+            conn.close()
+
+    def log_decision_close(
+        self,
+        coin: str,
+        exit_price: float,
+        pnl_result: float
+    ) -> bool:
+        """Update the latest OPEN decision for a coin with exit price and realized PnL."""
+        conn = self._get_connection()
+        try:
+            cursor = conn.cursor()
+            cursor.execute(
+                """UPDATE decisions 
+                   SET exit_price = ?, pnl_result = ?, status = 'CLOSED'
+                   WHERE coin = ? AND status = 'OPEN'
+                   ORDER BY timestamp DESC LIMIT 1""",
+                (
+                    round(float(exit_price), 8),
+                    round(float(pnl_result), 4),
+                    coin,
+                )
+            )
+            conn.commit()
+            if cursor.rowcount > 0:
+                logger.info(f"[DataEngine] Closed decision for {coin}: exit=${exit_price:.4f}, PnL=${pnl_result:.2f}")
+                return True
+            else:
+                logger.warning(f"[DataEngine] No OPEN decision found for {coin} to close.")
+                return False
+        except Exception as e:
+            logger.error(f"[DataEngine] Failed to log CLOSE decision: {e}")
+            conn.rollback()
+            return False
+        finally:
+            conn.close()
+
+
 if __name__ == "__main__":
     import time
     # Test execution for Faz 1.2
