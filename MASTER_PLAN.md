@@ -55,16 +55,16 @@ TradeSeeker, **Kantitatif Matematik (ML)** ile **Stratejik Muhakeme (LLM)** aras
 - I/O Darboğazlarının giderilmesi (Dirty-Cache).
 - Binance API stabilizasyonu.
 
-### Phase 3: ML Hybridization (AKTİF) - *The Current Focus*
-1.  **SQLite Ingestion**: Geçmiş verinin eğitim için toplanması.
-2.  **Target Labeling**: Karlı/Zararlı işlemlerin etiketlenmesi.
-3.  **XGBoost Training**: Modelin eğitilmesi ve `.xgb` olarak entegre edilmesi.
-4.  **Hybrid Orchestration**: ML and AI kararlarının birleştirilmesi.
+### Phase 3: ML Hybridization & Global Training (AKTİF) - *The Current Focus*
+1.  **SQLite Ingestion**: Geçmiş verinin eğitim için toplanması ve karlı/zararlı işlemlerin etiketlenmesi.
+2.  **Global XGBoost Training**: Sistemdeki *tüm* aktif coinlerin birleştirilmiş verileri üzerinden "Global" bir piyasa modeli eğitilmesi (Tek model, çoklu coin).
+3.  **Hybrid Orchestration**: AI ve ML kararlarının birleştirilmesi. ML verisi yoksa sistemin güvenli bir şekilde (Fallback) sadece teknik analize (AI-Only) dönmesi.
 
-### Phase 4: High-Frequency & Scalability (GELECEK)
-- Websocket entegrasyonu (Anlık veri akışı).
-- Limit Order Entry Algoritmaları (Slippage Optimizasyonu).
-- DashBoard: Performansın görsel olarak izlenebileceği bir Web UI.
+### Phase 4: Self-Learning (Kendi Kendine Öğrenme) & Scalability (GELECEK)
+- **Outcome Mapping (Self-Learning)**: Botun `decisions` tablosundaki kendi geçmiş kararlarını ve reel PnL (Kâr/Zarar) sonuçlarını analiz ederek XGBoost/AI kararlarını cezalandırıp/ödüllendirmesi (Reinforcement Learning).
+- **Websocket Entegrasyonu**: Anlık veri akışı ile tick-level analiz.
+- **Smart Limit Order Entry**: Slippage (Kayma) optimizasyonu için derin orderbook analizi.
+- **DashBoard**: Performansın görsel olarak izlenebileceği bir Web UI.
 
 ---
 

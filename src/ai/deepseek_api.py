@@ -263,10 +263,10 @@ class DeepSeekAPI:
                 "1. Check each coin's market_context.regime and risk_profile.",
                 f"2. Review technical_summary: trend_alignment, momentum, structure_15m, volume_support.",
                 "3. Use key_levels (price, ema20_htf, rsi_15m, atr_htf) for independent reasoning.",
-                "4. CROSS-REFERENCE with ml_consensus (XGBoost probabilities) to confirm the statistical edge.",
+                "4. CROSS-REFERENCE with ml_consensus (XGBoost) if available. If null, rely STRICTLY on technical_summary and key_levels.",
                 "5. Evaluate risk_profile: counter_trade_risk + reversal_threat.",
                 "6. Check sentiment: funding_rate, open_interest.",
-                "7. Decide direction based on strongest quantified edge (AI logic + ML consensus).",
+                "7. Decide direction based on strongest quantified edge (AI logic + ML consensus if present).",
                 "8. Verify constraints (Position Slots, Cooldowns) before proposing.",
             ],
             "execution_meta": {
