@@ -1,7 +1,9 @@
 import logging
 import os
+import sqlite3
 import pandas as pd
 import requests
+import numpy as np
 import numpy as np
 from typing import Optional
 
@@ -262,22 +264,22 @@ if __name__ == "__main__":
         print(f"\n[Test] Backfilling 100 candles for {test_coin} [{ival}]...")
         success = engine.fetch_and_store_klines(test_coin, interval=ival, limit=100)
         if success:
-            print(f"✅ Successfully written to SQLite (market_data table) for {ival}.")
+            print(f"[OK] Successfully written to SQLite (market_data table) for {ival}.")
         else:
-            print(f"❌ Failed to write {ival} data.")
+            print(f"[FAIL] Failed to write {ival} data.")
         time.sleep(1) # Sleep to avoid rate limits
         
     print("\n[Test] Testing Labeling Logic (Faz 1.3)...")
     df_labeled = engine.get_labeled_data("XRP", "15m", lookahead_periods=5, profit_threshold=0.005, loss_threshold=-0.005)
     
     if not df_labeled.empty:
-        print(f"✅ Labeling complete. Extracted {len(df_labeled)} labeled rows.")
+        print(f"[OK] Labeling complete. Extracted {len(df_labeled)} labeled rows.")
         # Show distribution of labels
         distribution = df_labeled['target_label'].value_counts().to_dict()
-        print(f"📊 Label Distribution [1=BUY, -1=SELL, 0=HOLD]: {distribution}")
+        print(f"[INFO] Label Distribution [1=BUY, -1=SELL, 0=HOLD]: {distribution}")
         print("\nDemo Row:\n", df_labeled[['timestamp', 'close', 'future_close', 'future_return', 'target_label']].tail(1))
     else:
-        print("❌ Labeling failed or empty dataframe.")
+        print("[FAIL] Labeling failed or empty dataframe.")
         
-    print("\n✅ Phase 1.3 Labeling test completed.")
+    print("\n[OK] Phase 1.3 Labeling test completed.")
 

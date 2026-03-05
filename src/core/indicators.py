@@ -390,3 +390,114 @@ def generate_tags(indicators: dict[str, Any]) -> list[str]:
         tags.append("High_Volatility")
 
     return tags
+
+def get_features_for_ml(df: pd.DataFrame) -> pd.DataFrame:
+    """
+    Convert raw OHLCV Dataframe into an ML-ready Feature Matrix.
+    Calculates technical indicators, applies stationarity (pct_change),
+    and adds lag features to capture temporal dependencies (t-1, t-2).
+    """
+    if len(df) < 50:
+        return pd.DataFrame()
+
+    features = pd.DataFrame(index=df.index)
+    features['timestamp'] = df['timestamp']
+
+    # 1. Base Prices & Stationarity (Return over previous bar)
+    features['return_1p'] = df['close'].pct_change()
+    features['return_vol'] = df['volume'].pct_change()
+
+    # 2. Technical Indicators (Vectorized across the entire DataFrame)
+    features['rsi_14'] = calculate_rsi_series(df['close'], 14)
+    features['rsi_7'] = calculate_rsi_series(df['close'], 7)
+    
+    macd_line, macd_signal, macd_hist = calculate_macd_series(df['close'])
+    features['macd_hist'] = macd_hist
+    features['macd_line'] = macd_line
+    
+    features['atr_14'] = calculate_atr_series(df['high'], df['low'], df['close'], 14)
+    features['atr_ratio'] = features['atr_14'] / df['close'] # Normalize ATR by price
+    
+    features['ema_20'] = calculate_ema_series(df['close'], 20)
+    features['ema_50'] = calculate_ema_series(df['close'], 50)
+    features['ema_20_dist'] = (df['close'] - features['ema_20']) / features['ema_20']
+    
+    # ADX and DI
+    tr1 = df['high'] - df['low']
+    tr2 = abs(df['high'] - df['close'].shift(1))
+    tr3 = abs(df['low'] - df['close'].shift(1))
+    tr = pd.concat([tr1, tr2, tr3], axis=1).max(axis=1)
+    up_move = df['high'] - df['high'].shift(1)
+    down_move = df['low'].shift(1) - df['low']
+    plus_dm = up_move.where((up_move > down_move) & (up_move > 0), 0.0)
+    minus_dm = down_move.where((down_move > up_move) & (down_move > 0), 0.0)
+    
+    atr_14_ewm = tr.ewm(span=14, adjust=False).mean()
+    # Avoid div by zero which causes Inf -> NaN
+    atr_14_ewm_safe = atr_14_ewm.replace(0, np.nan)
+    
+    plus_di = 100 * (plus_dm.ewm(span=14, adjust=False).mean() / atr_14_ewm_safe)
+    minus_di = 100 * (minus_dm.ewm(span=14, adjust=False).mean() / atr_14_ewm_safe)
+    
+    di_sum = plus_di + minus_di
+    di_diff_safe = abs(plus_di - minus_di)
+    dx = 100 * (di_diff_safe / di_sum.replace(0, np.nan))
+    
+    features['adx_14'] = dx.ewm(span=14, adjust=False).mean().fillna(0)
+    features['plus_di'] = plus_di.fillna(0)
+    features['minus_di'] = minus_di.fillna(0)
+
+    # Volatility / Bollinger Bandwidth
+    middle = df['close'].rolling(window=20).mean()
+    std = df['close'].rolling(window=20).std()
+    upper = middle + (2.0 * std)
+    lower = middle - (2.0 * std)
+    features['bb_bandwidth'] = (upper - lower) / middle
+    features['bb_percent_b'] = (df['close'] - lower) / (upper - lower)
+
+    # Momentum (Price Rate of Change)
+    features['roc_10'] = df['close'].pct_change(periods=10)
+
+    # 3. Lag Features (Temporal History t-1, t-2)
+    # XGBoost only sees one row at a time. It needs lag features to understand velocity.
+    cols_to_lag = ['return_1p', 'return_vol', 'rsi_14', 'macd_hist', 'bb_bandwidth']
+    for col in cols_to_lag:
+        features[f"{col}_lag1"] = features[col].shift(1)
+        features[f"{col}_lag2"] = features[col].shift(2)
+
+    # 4. Cleanup
+    # Forward fill non-critical NaNs
+    features.ffill(inplace=True)
+    features.replace([np.inf, -np.inf], np.nan, inplace=True)
+    
+    # Drop rows that have NaNs due to lookback periods (e.g. at the start of the data)
+    # Usually the first 50 rows will have some missing data (EMA_50 needs 50 bars)
+    features.dropna(inplace=True) 
+
+    return features
+
+if __name__ == "__main__":
+    import sqlite3
+    
+    print("\n--- Testing ML Feature Extraction ---")
+    try:
+        conn = sqlite3.connect("data/market_data.db")
+        # Direct query to avoid import deadlocks from DataEngine/RealMarketData
+        query = "SELECT * FROM market_data WHERE coin='XRP' AND interval='15m' ORDER BY timestamp DESC LIMIT 500"
+        df_raw = pd.read_sql_query(query, conn)
+        df_raw = df_raw.sort_values('timestamp').reset_index(drop=True)
+        df_raw['timestamp'] = pd.to_datetime(df_raw['timestamp'], unit='ms')
+        conn.close()
+        
+        if df_raw.empty:
+            print("[FAIL] No raw data in DB. Run Phase 1.2 first.")
+        else:
+            df_features = get_features_for_ml(df_raw)
+            print(f"[OK] Extracted features from {len(df_raw)} raw candles.")
+            print(f"[INFO] Generated {len(df_features)} ML rows.")
+            print(f"[INFO] Feature Count: {len(df_features.columns)}")
+            print("\nLast Row Sample:")
+            pd.set_option('display.max_columns', None)
+            print(df_features.tail(1))
+    except Exception as e:
+        print(f"[FAIL] Test Failed: {e}")
