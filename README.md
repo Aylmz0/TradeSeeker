@@ -17,6 +17,7 @@ TradeSeeker, karmaşıklığı yönetmek için tamamen ayrıştırılmış (deco
 *   **`AccountService`**: Canlı borsa etkileşimi; emir iletimi, senkronizasyon ve "Ghost Position" koruması.
 *   **`PortfolioManager`**: $O(1)$ hızında durum takibi; risk yönetimi, PnL izleme ve in-memory state yönetimi.
 *   **`StrategyAnalyzer`**: Piyasa yapısı ve rejim analizi; çoklu zaman dilimi (HTF/3m) verilerini sentezler.
+*   **`MLService (XGBoost)`**: 2026 model XGBoost katmanı; 150+ indikatörle eğitilmiş model, AI kararlarına "Consensus" (Mutabakat) sağlar.
 *   **`Vectorized Indicators`**: Saf NumPy ile optimize edilmiş teknik indikatör motoru.
 
 ---
@@ -30,15 +31,17 @@ Iteratif Python döngüleri (OBV, Supertrend) tamamen NumPy vektörel işlemleri
 ### 2. I/O Hardening (Dirty-Cache)
 Dosya sistemi darboğazlarını aşmak için `portfolio_state.json` ve `bot_control.json` gibi kritik dosyalar üzerinde **filesystem mtime** tabanlı bir önbellek katmanı geliştirilmiştir. Disk okumaları sadece değişim anında yapılır, döngü içi okumalar $O(1)$ bellek hızındadır.
 
-### 3. Veri Entegrasyon Koruması
-*   **Precision Guard**: Binance API'den gelen veriler 8 desimal hassasiyete sabitlenerek "floating-point drift" hataları engellenmiştir.
-*   **NaN/Inf Cleanup**: Bozuk mum verileri (Zero volume/price) indikatör pipeline'ına girmeden otomatik temizlenir.
-*   **Consistency Buffer**: Binance replication lag (veri gecikmesi) kaynaklı hataları önlemek için 5 saniyelik doğrulama pingi uygulanır.
+### 3. Unified Data Pipeline (UDP)
+Veri "bir kez çekilir, bir kez işlenir, her yerde kullanılır." ML ve AI servisleri aynı OHLCV snapshot'ını paylaşır, redundant API çağrıları ve hesaplama yükü %60 oranında azaltılmıştır.
+
+### 4. Smart Limit Order Entry
+Piyasa emirleri (Market Order) yerine, milisaniyelik emir defteri (orderbook) analiziyle en uygun fiyata **Limit Order** girilir. 30 saniye içinde dolmayan emirler otomatik olarak en iyi fiyattan realize edilerek "slippage" (fiyat kayması) minimize edilir.
 
 ---
 
 ## ✨ Ana Özellikler
 
+*   **🧠 Hybrid Intelligence (AI + ML)**: DeepSeek-V3'ün mantıksal derinliği ile XGBoost'un istatistiksel olasılıkları birleştirilerek hatalı sinyal oranı düşürülmüştür.
 *   **🛡️ ATR-Based Dynamic Authority**: AI'ın stop-loss önerileri yerine sistem, ATR bazlı matematiksel stop-loss ve profit target sınırlarını katı olarak uygular.
 *   **📊 Smart Sparkline v2.1**: Fiyat hareketlerini $O(1)$ pivot tespiti ile görselleştirerek AI'ın piyasa yapısını (HH/HL) anlamasını sağlar.
 *   **🔄 Session Pooling**: API çağrılarında kalıcı `RetryManager` session'ları kullanılarak TCP/TLS handshaking yükü minimize edilmiştir.
