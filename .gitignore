@@ -10,13 +10,16 @@ __pycache__/
 .venv
 project_venv/
 
-# Data and Logs
+# Data, Logs, and ML Artifacts
 data/
 archive/
+models/
 *.log
 *.json
 *.sqlite
 *.db
+*.xgb
+*.joblib
 
 # Include exceptions
 !requirements.txt

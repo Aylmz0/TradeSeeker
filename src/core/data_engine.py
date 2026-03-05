@@ -261,8 +261,8 @@ if __name__ == "__main__":
     intervals = ["3m", "15m", "1h"]
     
     for ival in intervals:
-        print(f"\n[Test] Backfilling 100 candles for {test_coin} [{ival}]...")
-        success = engine.fetch_and_store_klines(test_coin, interval=ival, limit=100)
+        print(f"\n[Test] Backfilling 1000 candles for {test_coin} [{ival}]...")
+        success = engine.fetch_and_store_klines(test_coin, interval=ival, limit=1000)
         if success:
             print(f"[OK] Successfully written to SQLite (market_data table) for {ival}.")
         else:
