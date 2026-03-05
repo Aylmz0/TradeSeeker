@@ -10,6 +10,12 @@ import requests
 
 from config.config import Config
 from src.utils import RetryManager
+from src.core.indicators import (
+    calculate_ema_series, calculate_rsi_series, calculate_macd_series,
+    calculate_atr_series, calculate_adx, calculate_vwap, calculate_bollinger_bands,
+    calculate_obv, calculate_supertrend, calculate_efficiency_ratio,
+    extract_semantic_features, generate_smart_sparkline, calculate_pivots, generate_tags
+)
 
 # add this ass a cycle counter analysez
 
@@ -213,476 +219,6 @@ class RealMarketData:
             return 0.0
 
     # --- Indicator Calculation Functions ---
-    def calculate_ema_series(self, prices, period):
-        return prices.ewm(span=period, adjust=False).mean()
-
-    def calculate_rsi_series(self, prices, period=14):
-        if len(prices) < period + 1:
-            return pd.Series([np.nan] * len(prices))
-        delta = prices.diff()
-        gain = delta.where(delta > 0, 0)
-        loss = -delta.where(delta < 0, 0)
-        avg_gain = gain.ewm(com=period - 1, adjust=False).mean()
-        avg_loss = loss.ewm(com=period - 1, adjust=False).mean()
-        rs = avg_gain / avg_loss.replace(0, np.nan)
-        rsi = 100 - (100 / (1 + rs))
-        rsi = rsi.fillna(100)
-        rsi.loc[avg_gain == 0] = 0
-        return rsi
-
-    def calculate_macd_series(self, prices, fast=12, slow=26, signal=9):
-        if len(prices) < slow:
-            return (
-                pd.Series([np.nan] * len(prices)),
-                pd.Series([np.nan] * len(prices)),
-                pd.Series([np.nan] * len(prices)),
-            )
-        ema_fast = prices.ewm(span=fast, adjust=False).mean()
-        ema_slow = prices.ewm(span=slow, adjust=False).mean()
-        macd_line = ema_fast - ema_slow
-        macd_signal = macd_line.ewm(span=signal, adjust=False).mean()
-        macd_histogram = macd_line - macd_signal
-        return macd_line, macd_signal, macd_histogram
-
-    def calculate_atr_series(self, df_high, df_low, df_close, period=14):
-        if len(df_close) < period + 1:
-            return pd.Series([np.nan] * len(df_close))
-        tr0 = abs(df_high - df_low)
-        tr1 = abs(df_high - df_close.shift())
-        tr2 = abs(df_low - df_close.shift())
-        tr = pd.concat([tr0, tr1, tr2], axis=1).max(axis=1)
-        atr = tr.ewm(com=period - 1, adjust=False).mean()
-        return atr
-
-    # ==================== NEW INDICATORS (v5.0) ====================
-
-    def calculate_adx(
-        self, high: pd.Series, low: pd.Series, close: pd.Series, period: int = 14
-    ) -> tuple:
-        """
-        Calculate ADX (Average Directional Index) and DI values.
-        Returns: (adx, plus_di, minus_di)
-        - adx: Trend strength (0-100). >25 = trend exists, >40 = strong trend
-        - plus_di: Positive directional indicator
-        - minus_di: Negative directional indicator
-        """
-        if len(close) < period + 1:
-            return 0.0, 0.0, 0.0
-
-        # True Range
-        tr1 = high - low
-        tr2 = abs(high - close.shift(1))
-        tr3 = abs(low - close.shift(1))
-        tr = pd.concat([tr1, tr2, tr3], axis=1).max(axis=1)
-
-        # +DM and -DM
-        up_move = high - high.shift(1)
-        down_move = low.shift(1) - low
-
-        plus_dm = up_move.where((up_move > down_move) & (up_move > 0), 0.0)
-        minus_dm = down_move.where((down_move > up_move) & (down_move > 0), 0.0)
-
-        # Smoothed values (Wilder's smoothing)
-        atr = tr.ewm(span=period, adjust=False).mean()
-        plus_dm_smooth = plus_dm.ewm(span=period, adjust=False).mean()
-        minus_dm_smooth = minus_dm.ewm(span=period, adjust=False).mean()
-
-        # +DI and -DI
-        plus_di = 100 * (plus_dm_smooth / atr.replace(0, np.nan)).fillna(0)
-        minus_di = 100 * (minus_dm_smooth / atr.replace(0, np.nan)).fillna(0)
-
-        # DX and ADX
-        di_sum = plus_di + minus_di
-        di_diff = abs(plus_di - minus_di)
-        dx = 100 * (di_diff / di_sum.replace(0, np.nan)).fillna(0)
-        adx = dx.ewm(span=period, adjust=False).mean()
-
-        return float(adx.iloc[-1]), float(plus_di.iloc[-1]), float(minus_di.iloc[-1])
-
-    def calculate_vwap(
-        self, high: pd.Series, low: pd.Series, close: pd.Series, volume: pd.Series, period: int = 60
-    ) -> float:
-        """
-        Calculate Rolling VWAP (Volume Weighted Average Price).
-        Args:
-            period: Rolling window (60 bars ≈ 4 hours for 4min cycle)
-        Returns:
-            float: Current VWAP value
-        """
-        if len(close) < period:
-            return float(close.iloc[-1]) if len(close) > 0 else 0.0
-
-        # Typical Price
-        typical_price = (high + low + close) / 3
-
-        # Rolling VWAP
-        tp_volume = typical_price * volume
-        rolling_tp_vol = tp_volume.rolling(window=period).sum()
-        rolling_vol = volume.rolling(window=period).sum()
-
-        vwap = rolling_tp_vol / rolling_vol.replace(0, np.nan)
-
-        return float(vwap.iloc[-1]) if pd.notna(vwap.iloc[-1]) else float(close.iloc[-1])
-
-    def calculate_bollinger_bands(
-        self, close: pd.Series, period: int = 20, std_dev: float = 2.0
-    ) -> tuple:
-        """
-        Calculate Bollinger Bands.
-        Returns:
-            tuple: (upper_band, middle_band, lower_band, bandwidth, percent_b)
-            - bandwidth: (upper - lower) / middle - squeeze indicator
-            - percent_b: Where price is within bands (0 = lower, 1 = upper)
-        """
-        if len(close) < period:
-            price = float(close.iloc[-1]) if len(close) > 0 else 0.0
-            return price, price, price, 0.0, 0.5
-
-        # Middle Band (SMA)
-        middle = close.rolling(window=period).mean()
-
-        # Standard Deviation
-        std = close.rolling(window=period).std()
-
-        # Upper and Lower Bands
-        upper = middle + (std_dev * std)
-        lower = middle - (std_dev * std)
-
-        # Bandwidth (squeeze indicator)
-        bandwidth = ((upper - lower) / middle).fillna(0)
-
-        # Percent B
-        band_range = upper - lower
-        percent_b = ((close - lower) / band_range.replace(0, np.nan)).fillna(0.5)
-
-        return (
-            float(upper.iloc[-1]),
-            float(middle.iloc[-1]),
-            float(lower.iloc[-1]),
-            float(bandwidth.iloc[-1]),
-            float(percent_b.iloc[-1]),
-        )
-
-    def calculate_obv(self, close: pd.Series, volume: pd.Series) -> tuple:
-        """
-        Calculate On Balance Volume and its trend.
-        Returns:
-            tuple: (obv, obv_trend, obv_divergence)
-            - obv: Current OBV value
-            - obv_trend: "RISING", "FALLING", "FLAT"
-            - obv_divergence: "BULLISH", "BEARISH", "NONE"
-        """
-        if len(close) < 10:
-            return 0.0, "FLAT", "NONE"
-
-        # OBV calculation
-        obv = [0]
-        for i in range(1, len(close)):
-            if close.iloc[i] > close.iloc[i - 1]:
-                obv.append(obv[-1] + volume.iloc[i])
-            elif close.iloc[i] < close.iloc[i - 1]:
-                obv.append(obv[-1] - volume.iloc[i])
-            else:
-                obv.append(obv[-1])
-
-        obv_series = pd.Series(obv)
-        current_obv = float(obv_series.iloc[-1])
-
-        # OBV trend (last 10 bars)
-        obv_change = obv_series.iloc[-1] - obv_series.iloc[-10]
-        if obv_change > 0:
-            obv_trend = "RISING"
-        elif obv_change < 0:
-            obv_trend = "FALLING"
-        else:
-            obv_trend = "FLAT"
-
-        # Simple divergence detection
-        price_change = close.iloc[-1] - close.iloc[-10]
-        divergence = "NONE"
-
-        if price_change > 0 and obv_change < 0:
-            divergence = "BEARISH"  # Price up, OBV down = distribution
-        elif price_change < 0 and obv_change > 0:
-            divergence = "BULLISH"  # Price down, OBV up = accumulation
-
-        return current_obv, obv_trend, divergence
-
-    def calculate_supertrend(
-        self,
-        high: pd.Series,
-        low: pd.Series,
-        close: pd.Series,
-        period: int = 10,
-        multiplier: float = 3.0,
-    ) -> tuple:
-        """
-        Calculate SuperTrend indicator.
-        Returns:
-            tuple: (supertrend_line, direction)
-            - supertrend_line: Current SuperTrend level (dynamic S/R)
-            - direction: "UP" (bullish) or "DOWN" (bearish)
-        """
-        if len(close) < period + 1:
-            return float(close.iloc[-1]) if len(close) > 0 else 0.0, "UP"
-
-        # ATR
-        tr = pd.concat(
-            [high - low, abs(high - close.shift(1)), abs(low - close.shift(1))], axis=1
-        ).max(axis=1)
-        atr = tr.ewm(span=period, adjust=False).mean()
-
-        # Basic Bands
-        hl2 = (high + low) / 2
-        upper_band = hl2 + (multiplier * atr)
-        lower_band = hl2 - (multiplier * atr)
-
-        # SuperTrend calculation
-        supertrend = pd.Series(index=close.index, dtype=float)
-        direction = pd.Series(index=close.index, dtype=int)
-
-        supertrend.iloc[0] = upper_band.iloc[0]
-        direction.iloc[0] = 1  # Start with uptrend
-
-        for i in range(1, len(close)):
-            if close.iloc[i] > supertrend.iloc[i - 1]:
-                supertrend.iloc[i] = lower_band.iloc[i]
-                direction.iloc[i] = 1  # Uptrend
-            else:
-                supertrend.iloc[i] = upper_band.iloc[i]
-                direction.iloc[i] = -1  # Downtrend
-
-        current_st = float(supertrend.iloc[-1])
-        current_dir = "UP" if direction.iloc[-1] == 1 else "DOWN"
-
-        return current_st, current_dir
-
-    # ==================== END NEW INDICATORS ====================
-
-    def _extract_semantic_features(self, prices: pd.Series, period: int = 24) -> dict[str, Any]:
-        """Extract semantic features from price series using numpy"""
-        if len(prices) < period:
-            return {}
-
-        subset = prices.iloc[-period:].values
-
-        # 1. Calculate Trend Slope (Linear Regression)
-        x = np.arange(len(subset))
-        slope, _ = np.polyfit(x, subset, 1)
-        slope_pct = (slope / subset[0]) * 100  # Normalize slope as percentage
-
-        # 2. Detect Peaks and Valleys (Simple Local Extrema)
-        peaks = []
-        valleys = []
-        for i in range(1, len(subset) - 1):
-            if subset[i] > subset[i - 1] and subset[i] > subset[i + 1]:
-                peaks.append(float(subset[i]))
-            elif subset[i] < subset[i - 1] and subset[i] < subset[i + 1]:
-                valleys.append(float(subset[i]))
-
-        # 3. Determine Volatility State
-        std_dev = np.std(subset)
-        mean_price = np.mean(subset)
-        volatility_ratio = std_dev / mean_price
-
-        volatility_state = "STABLE"
-        if volatility_ratio > 0.02:
-            volatility_state = "HIGH_VOLATILITY"
-        elif volatility_ratio > 0.01:
-            volatility_state = "EXPANDING"
-        elif volatility_ratio < 0.005:
-            volatility_state = "COMPRESSED"
-
-        # 4. Determine Pattern/Structure
-        structure = "SIDEWAYS"
-        if slope_pct > 0.05:
-            structure = "UPTREND"
-            if len(peaks) >= 2 and peaks[-1] < peaks[-2]:
-                structure = "UPTREND_LOSING_MOMENTUM"
-        elif slope_pct < -0.05:
-            structure = "DOWNTREND"
-            if len(valleys) >= 2 and valleys[-1] > valleys[-2]:
-                structure = "DOWNTREND_LOSING_MOMENTUM"
-
-        return {
-            "slope": float(slope),
-            "slope_pct": float(slope_pct),
-            "peaks": peaks[-2:],  # Keep last 2 peaks
-            "valleys": valleys[-2:],  # Keep last 2 valleys
-            "volatility_state": volatility_state,
-            "structure": structure,
-        }
-
-    def _generate_smart_sparkline(self, prices: pd.Series, period: int = 24) -> dict[str, Any]:
-        """Generate Smart Sparkline v2.1 with key level, structure, and momentum"""
-        if len(prices) < period:
-            return {"key_level": None, "structure": "UNCLEAR", "momentum": "STABLE"}
-
-        subset = prices.iloc[-period:].values
-        current_price = float(subset[-1])
-        tolerance_pct = 0.005  # 0.5% tolerance for grouping similar levels
-
-        # 1. LOCAL EXTREMA (Peaks and Valleys) - 2 previous/next check
-        peaks = []
-        valleys = []
-        for i in range(2, len(subset) - 2):
-            if (
-                subset[i] > subset[i - 1]
-                and subset[i] > subset[i - 2]
-                and subset[i] > subset[i + 1]
-                and subset[i] > subset[i + 2]
-            ):
-                peaks.append(float(subset[i]))
-            if (
-                subset[i] < subset[i - 1]
-                and subset[i] < subset[i - 2]
-                and subset[i] < subset[i + 1]
-                and subset[i] < subset[i + 2]
-            ):
-                valleys.append(float(subset[i]))
-
-        # 2. KEY LEVEL DETECTION (Nearest support or resistance)
-        key_level = None
-
-        # Support: Nearest valley below current price
-        supports = [v for v in valleys if v < current_price]
-        if supports:
-            nearest_support = max(supports)
-            strength = sum(
-                1 for v in valleys if abs(v - nearest_support) / nearest_support < tolerance_pct
-            )
-            distance_pct = (current_price - nearest_support) / current_price * 100
-
-            if distance_pct < 2.0:  # Significant if closer than 2%
-                key_level = {
-                    "type": "support",
-                    "level": round(nearest_support, 6),
-                    "strength": min(strength, 5),
-                    "distance_pct": round(distance_pct, 2),
-                }
-
-        # Resistance: Nearest peak above price (only if no key_level)
-        if key_level is None:
-            resistances = [p for p in peaks if p > current_price]
-            if resistances:
-                nearest_resistance = min(resistances)
-                strength = sum(
-                    1
-                    for p in peaks
-                    if abs(p - nearest_resistance) / nearest_resistance < tolerance_pct
-                )
-                distance_pct = (nearest_resistance - current_price) / current_price * 100
-
-                if distance_pct < 2.0:
-                    key_level = {
-                        "type": "resistance",
-                        "level": round(nearest_resistance, 6),
-                        "strength": min(strength, 5),
-                        "distance_pct": round(distance_pct, 2),
-                    }
-
-        # 3. PRICE STRUCTURE (HH_HL, LH_LL, RANGE)
-        # Changed default from UNCLEAR to RANGE - more meaningful when peaks/valleys insufficient
-        structure = "RANGE"
-        if len(peaks) >= 2 and len(valleys) >= 2:
-            last_peaks = peaks[-2:]
-            last_valleys = valleys[-2:]
-
-            if last_peaks[1] > last_peaks[0] and last_valleys[1] > last_valleys[0]:
-                structure = "HH_HL"  # Higher Highs, Higher Lows = Bullish
-            elif last_peaks[1] < last_peaks[0] and last_valleys[1] < last_valleys[0]:
-                structure = "LH_LL"  # Lower Highs, Lower Lows = Bearish
-            else:
-                price_range = max(subset) - min(subset)
-                if price_range / current_price < 0.015:  # Closer than 1.5%
-                    structure = "RANGE"
-
-        # 4. MOMENTUM (First half vs Second half comparison)
-        mid = len(subset) // 2
-        first_half_change = abs(subset[mid] - subset[0]) / subset[0] if subset[0] != 0 else 0
-        second_half_change = abs(subset[-1] - subset[mid]) / subset[mid] if subset[mid] != 0 else 0
-
-        if first_half_change > 0 and second_half_change > first_half_change * 1.3:
-            momentum = "STRENGTHENING"
-        elif first_half_change > 0 and second_half_change < first_half_change * 0.7:
-            momentum = "WEAKENING"
-        else:
-            momentum = "STABLE"
-
-        # 5. PRICE LOCATION ANALYSIS (v2.2 - Bounce/Pullback Risk Detection)
-        # Calculate where current price is within the period's range
-        period_high = max(subset)
-        period_low = min(subset)
-        price_range = period_high - period_low
-
-        if price_range > 0:
-            # 0 = at period low, 100 = at period high
-            percentile = ((current_price - period_low) / price_range) * 100
-        else:
-            percentile = 50  # No range = middle
-
-        # Determine zone
-        if percentile <= 10:
-            zone = "LOWER_10"  # Bottom 10% - potential bounce zone
-        elif percentile >= 90:
-            zone = "UPPER_10"  # Top 10% - potential pullback zone
-        else:
-            zone = "MIDDLE"  # Normal range
-
-        price_location = {"zone": zone, "percentile": round(percentile, 0)}
-
-        return {
-            "key_level": key_level,
-            "structure": structure,
-            "momentum": momentum,
-            "price_location": price_location,
-        }
-
-    def _calculate_pivots(self, df: pd.DataFrame, periods: int = 24) -> dict[str, float]:
-        """Calculate High/Low pivots over N periods"""
-        if len(df) < periods:
-            return {}
-        subset = df.iloc[-periods:]
-        return {"high": float(subset["high"].max()), "low": float(subset["low"].min())}
-
-    def _generate_tags(self, indicators: dict[str, Any]) -> list[str]:
-        """Generate analytical tags based on indicators"""
-        tags = []
-
-        # Volatility
-        if indicators.get("volume_ratio", 0) > 1.5:
-            tags.append("Vol_High")
-        elif indicators.get("volume_ratio", 0) < 0.5:
-            tags.append("Vol_Low")
-
-        # Trend (EMA Alignment)
-        price = indicators.get("current_price", 0)
-        ema20 = indicators.get("ema_20", 0)
-        ema50 = indicators.get("ema_50", 0)
-
-        if price > ema20 > ema50:
-            tags.append("Trend_Strong_Bull")
-        elif price < ema20 < ema50:
-            tags.append("Trend_Strong_Bear")
-        elif price > ema20 and price < ema50:
-            tags.append("Trend_Correction_Bull")
-        elif price < ema20 and price > ema50:
-            tags.append("Trend_Correction_Bear")
-
-        # RSI
-        rsi = indicators.get("rsi_14", 50)
-        if rsi > 70:
-            tags.append("RSI_Overbought")
-        elif rsi < 30:
-            tags.append("RSI_Oversold")
-
-        # ATR (Volatility State)
-        atr = indicators.get("atr_14", 0)
-        if price > 0 and atr / price > 0.02:
-            tags.append("High_Volatility")  # >2% ATR
-
-        return tags
-
     def get_technical_indicators(self, coin: str, interval: str) -> dict[str, Any]:
         """Calculate technical indicators, returning history series"""
         cached = self.preloaded_indicators.get(coin, {}).get(interval)
@@ -698,13 +234,13 @@ class RealMarketData:
         hist_len = self.indicator_history_length
         indicators = {"current_price": current_price}
         try:
-            ema_20_series = self.calculate_ema_series(close_prices, 21)
-            ema_50_series = self.calculate_ema_series(close_prices, 55)  # Fibonacci: 21, 55
-            rsi_14_series = self.calculate_rsi_series(close_prices, 13)
-            macd_line_series, macd_signal_series, macd_hist_series = self.calculate_macd_series(
+            ema_20_series = calculate_ema_series(close_prices, 21)
+            ema_50_series = calculate_ema_series(close_prices, 55)  # Fibonacci: 21, 55
+            rsi_14_series = calculate_rsi_series(close_prices, 13)
+            macd_line_series, macd_signal_series, macd_hist_series = calculate_macd_series(
                 close_prices
             )  # Fibonacci: 13
-            atr_14_series = self.calculate_atr_series(df["high"], df["low"], df["close"], 14)
+            atr_14_series = calculate_atr_series(df["high"], df["low"], df["close"], 14)
 
             indicators["ema_20"] = ema_20_series.iloc[-1]
             indicators["ema_50"] = ema_50_series.iloc[-1]
@@ -726,13 +262,13 @@ class RealMarketData:
             )
 
             if interval == "3m":
-                rsi_7_series = self.calculate_rsi_series(close_prices, 8)  # Fibonacci: 8
+                rsi_7_series = calculate_rsi_series(close_prices, 8)  # Fibonacci: 8
                 indicators["rsi_7"] = rsi_7_series.iloc[-1]  # Keep key as rsi_7 for compatibility
                 indicators["rsi_7_series"] = (
                     rsi_7_series.iloc[-hist_len:].round(3).where(pd.notna, None).tolist()
                 )
             if interval == HTF_INTERVAL:
-                atr_3_series = self.calculate_atr_series(df["high"], df["low"], df["close"], 3)
+                atr_3_series = calculate_atr_series(df["high"], df["low"], df["close"], 3)
                 indicators["atr_3"] = atr_3_series.iloc[-1]
 
             # Volume Analysis: Use last CLOSED candle for consistent ratio
@@ -755,14 +291,14 @@ class RealMarketData:
 
             # Efficiency Ratio (ER) Calculation for Choppy Regime Detection
             # Using 10 periods (30 mins for 3m interval)
-            indicators["efficiency_ratio"] = self.calculate_efficiency_ratio(
+            indicators["efficiency_ratio"] = calculate_efficiency_ratio(
                 close_prices, period=10
             )
 
             # ==================== NEW INDICATORS (v5.0) ====================
 
             # 1. ADX/DMI - Trend Strength
-            adx, plus_di, minus_di = self.calculate_adx(
+            adx, plus_di, minus_di = calculate_adx(
                 df["high"], df["low"], df["close"], period=14
             )
             indicators["adx"] = adx
@@ -779,7 +315,7 @@ class RealMarketData:
                 indicators["trend_strength_adx"] = "NO_TREND"
 
             # 2. VWAP - Rolling 4-hour (60 bars for 4min cycle)
-            vwap = self.calculate_vwap(df["high"], df["low"], df["close"], df["volume"], period=60)
+            vwap = calculate_vwap(df["high"], df["low"], df["close"], df["volume"], period=60)
             indicators["vwap"] = vwap
             if vwap > 0:
                 vwap_distance_pct = ((current_price - vwap) / vwap) * 100
@@ -791,7 +327,7 @@ class RealMarketData:
 
             # 3. Bollinger Bands
             bb_upper, bb_middle, bb_lower, bb_bandwidth, bb_percent_b = (
-                self.calculate_bollinger_bands(close_prices)
+                calculate_bollinger_bands(close_prices)
             )
             indicators["bb_upper"] = bb_upper
             indicators["bb_lower"] = bb_lower
@@ -806,12 +342,12 @@ class RealMarketData:
                 indicators["bb_signal"] = "NORMAL"
 
             # 4. OBV - On Balance Volume
-            obv, obv_trend, obv_divergence = self.calculate_obv(close_prices, df["volume"])
+            obv, obv_trend, obv_divergence = calculate_obv(close_prices, df["volume"])
             indicators["obv_trend"] = obv_trend
             indicators["obv_divergence"] = obv_divergence
 
             # 5. SuperTrend
-            st_line, st_direction = self.calculate_supertrend(df["high"], df["low"], close_prices)
+            st_line, st_direction = calculate_supertrend(df["high"], df["low"], close_prices)
             indicators["supertrend"] = st_line
             indicators["supertrend_direction"] = st_direction
 
@@ -824,12 +360,12 @@ class RealMarketData:
             # Enhanced Context Integration (Sparklines, Pivots, Tags)
             # Smart Sparkline v2.1: HTF (1h) gets full data, 15m gets structure+momentum only
             if interval == HTF_INTERVAL:
-                indicators["smart_sparkline"] = self._generate_smart_sparkline(
+                indicators["smart_sparkline"] = generate_smart_sparkline(
                     close_prices, period=24
                 )
             elif interval == "15m":
                 # 15m: structure, momentum, and price_location (no key_level for token efficiency)
-                full_sparkline = self._generate_smart_sparkline(close_prices, period=24)
+                full_sparkline = generate_smart_sparkline(close_prices, period=24)
                 indicators["smart_sparkline"] = {
                     "structure": full_sparkline.get("structure", "UNCLEAR"),
                     "momentum": full_sparkline.get("momentum", "STABLE"),
@@ -837,8 +373,8 @@ class RealMarketData:
                         "price_location", {"zone": "MIDDLE", "percentile": 50}
                     ),
                 }
-            indicators["pivots"] = self._calculate_pivots(df, periods=24)
-            indicators["tags"] = self._generate_tags(indicators)
+            indicators["pivots"] = calculate_pivots(df, periods=24)
+            indicators["tags"] = generate_tags(indicators)
 
             for key, value in indicators.items():
                 if isinstance(value, float) and np.isnan(value):
@@ -849,30 +385,6 @@ class RealMarketData:
             print(f"[ERROR] Indicator error {coin} ({interval}): {e}")
             traceback.print_exc()
             return {"current_price": current_price, "error": str(e)}
-
-    def calculate_efficiency_ratio(self, prices: pd.Series, period: int = 10) -> float:
-        """
-        Calculate Kaufman Efficiency Ratio (ER) to detect Choppy vs Trending markets.
-        ER = Change / Volatility
-        Change = |Price(t) - Price(t-n)|
-        Volatility = Sum(|Price(i) - Price(i-1)|) for n periods
-
-        Returns:
-            float: 0.0 to 1.0 (Higher = Trending, Lower = Choppy)
-        """
-        if len(prices) < period + 1:
-            return 0.5  # Default neutral if insufficient data
-
-        # Net change over the period
-        change = abs(prices.iloc[-1] - prices.iloc[-period - 1])
-
-        # Sum of absolute period-to-period changes (Volatility)
-        volatility = prices.diff().abs().iloc[-period:].sum()
-
-        if volatility == 0:
-            return 1.0  # Theoretical max efficiency (straight line)
-
-        return change / volatility
 
     def get_all_real_prices(self) -> dict[str, float]:
         """Get real prices for all coins from Spot with enhanced error handling"""

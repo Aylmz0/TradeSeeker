@@ -10,3 +10,4 @@ archive/
 !package.json
 Nof1Monk.txt
 all_trades_log.txt
+.maestro/
