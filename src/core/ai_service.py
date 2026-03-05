@@ -1,4 +1,4 @@
-import copy
+
 import json
 import warnings
 from datetime import datetime
@@ -182,299 +182,7 @@ class AIService:
         """Delegate to portfolio manager"""
         return self.portfolio.get_max_positions_for_cycle(cycle_number)
 
-    def format_position_context(self, position_context: dict) -> str:
-        """
-        Format position context for prompt.
 
-        .. deprecated:: 1.0
-            Use :func:`build_position_slot_json` from prompt_json_builders instead.
-            This function is kept for backward compatibility.
-        """
-        self.invocation_count += 1
-
-        warnings.warn(
-            "format_position_context() is deprecated. "
-            "Use build_position_slot_json() from prompt_json_builders instead.",
-            DeprecationWarning,
-            stacklevel=2,
-        )
-        if not position_context:
-            return "No open positions"
-
-        formatted = ""
-        for symbol, data in position_context.items():
-            pnl = data.get("unrealized_pnl", 0)
-            remaining_pct = data.get("remaining_to_target_pct")
-            if remaining_pct is None:
-                progress = data.get("profit_target_progress", 0)
-                remaining_pct = max(0.0, round(100 - progress, 2))
-            time_in_trade = data.get("time_in_trade_minutes", 0)
-            direction = (data.get("direction") or "long").upper()
-            trend_alignment = str(data.get("trend_alignment", "unknown")).upper()
-            trend_context = data.get("trend_context") or {}
-            trend_entry = str(trend_context.get("trend_at_entry", "unknown")).upper()
-            entry_cycle = trend_context.get("cycle")
-            confidence = data.get("confidence")
-
-            cycle_note = (
-                f", entry cycle {entry_cycle}" if isinstance(entry_cycle, (int, float)) else ""
-            )
-            confidence_note = (
-                f", entry confidence {confidence:.2f}"
-                if isinstance(confidence, (int, float))
-                else ""
-            )
-            counter_note = ""
-            if trend_alignment == "COUNTER_TREND":
-                counter_note = " | Counter-trend position - hold unless invalidation triggers."
-
-            formatted += (
-                f"  {symbol}: ${pnl:.2f} PnL, {remaining_pct}% to target, {time_in_trade}min in trade | "
-                f"{direction} {trend_alignment} vs HTF trend {trend_entry}{cycle_note}{confidence_note}{counter_note}\n"
-            )
-        return formatted
-
-    def format_market_regime_context(self, market_regime: dict) -> str:
-        """
-        Format market regime context for prompt.
-
-        .. deprecated:: 1.0
-            Use JSON builders from prompt_json_builders instead.
-            This function is kept for backward compatibility.
-        """
-
-        warnings.warn(
-            "format_market_regime_context() is deprecated. "
-            "Use JSON builders from prompt_json_builders instead.",
-            DeprecationWarning,
-            stacklevel=2,
-        )
-        if not market_regime:
-            return "Market regime: Unknown"
-
-        current = market_regime.get("current_regime", "unknown")
-        strength = market_regime.get("regime_strength", 0)
-        bull_count = market_regime.get("bullish_count", 0)
-        bear_count = market_regime.get("bearish_count", 0)
-        neutral_count = market_regime.get("neutral_count", 0)
-        total_coins = market_regime.get("total_coins", bull_count + bear_count + neutral_count)
-        coin_regimes = market_regime.get("coin_regimes", {})
-
-        formatted = (
-            f"Global regime: {current} "
-            f"(strength {strength}, bullish={bull_count}, bearish={bear_count}, neutral={neutral_count}, total={total_coins})\n"
-        )
-        if coin_regimes:
-            formatted += "  Coin regimes:\n"
-            for coin, data in coin_regimes.items():
-                regime = data.get("regime", "unknown")
-                score = data.get("score", 0)
-                price_relation = data.get("price_vs_ema20", "unknown")
-                formatted += (
-                    f"    - {coin}: {regime} (score {score}, price {price_relation} EMA20)\n"
-                )
-        else:
-            formatted += "  Coin regimes: No data\n"
-        return formatted.rstrip()
-
-    def format_performance_insights(self, performance_insights: dict) -> str:
-        """
-        Format performance insights for prompt.
-
-        .. deprecated:: 1.0
-            Use JSON builders from prompt_json_builders instead.
-            This function is kept for backward compatibility.
-        """
-
-        warnings.warn(
-            "format_performance_insights() is deprecated. "
-            "Use JSON builders from prompt_json_builders instead.",
-            DeprecationWarning,
-            stacklevel=2,
-        )
-        if not performance_insights:
-            return "No performance insights available"
-
-        insights = performance_insights.get("insights", [])
-        if not insights:
-            return "No performance insights available"
-
-        formatted = ""
-        for insight in insights:
-            formatted += f"  - {insight}\n"
-        return formatted
-
-    def format_directional_feedback(self, directional_feedback: dict) -> str:
-        """
-        Format long/short feedback for prompt.
-
-        .. deprecated:: 1.0
-            Use JSON builders from prompt_json_builders instead.
-            This function is kept for backward compatibility.
-        """
-
-        warnings.warn(
-            "format_directional_feedback() is deprecated. "
-            "Use JSON builders from prompt_json_builders instead.",
-            DeprecationWarning,
-            stacklevel=2,
-        )
-        if not directional_feedback:
-            return "No directional feedback available"
-
-        lines = []
-        for direction in ("long", "short"):
-            stats = directional_feedback.get(direction, {})
-            trades = stats.get("trades", 0)
-            wins = stats.get("wins", 0)
-            losses = stats.get("losses", 0)
-            win_rate = stats.get("win_rate", 0.0)
-            avg_pnl = stats.get("avg_pnl", 0.0)
-            total_pnl = stats.get("total_pnl", 0.0)
-            lines.append(
-                f"  {direction.upper()}: trades={trades}, wins={wins}, losses={losses}, win_rate={win_rate}%, avg_pnl=${avg_pnl:.2f}, total_pnl=${total_pnl:.2f}",
-            )
-        return "\n".join(lines)
-
-    def format_risk_context(self, risk_context: dict) -> str:
-        """
-        Format risk context for prompt.
-
-        .. deprecated:: 1.0
-            Use :func:`build_risk_status_json` from prompt_json_builders instead.
-            This function is kept for backward compatibility.
-        """
-
-        warnings.warn(
-            "format_risk_context() is deprecated. "
-            "Use build_risk_status_json() from prompt_json_builders instead.",
-            DeprecationWarning,
-            stacklevel=2,
-        )
-        if not risk_context:
-            return "Risk context: Unknown"
-
-        total_risk = risk_context.get("total_risk_usd", 0)
-        position_count = risk_context.get("position_count", 0)
-
-        return f"Total Risk: ${total_risk:.2f}, Positions: {position_count}"
-
-    # NOTE: _get_counter_trade_analysis_from_indicators function REMOVED
-    # Reason: build_counter_trade_json in prompt_json_builders.py performs its own calculation
-    # and includes zone+weakening risk modifier logic. The legacy function was redundant.
-
-    def format_suggestions(self, suggestions: list[str]) -> str:
-        """
-        Format suggestions for prompt.
-
-        .. deprecated:: 1.0
-            Use JSON builders from prompt_json_builders instead.
-            This function is kept for backward compatibility.
-        """
-
-        warnings.warn(
-            "format_suggestions() is deprecated. "
-            "Use JSON builders from prompt_json_builders instead.",
-            DeprecationWarning,
-            stacklevel=2,
-        )
-        if not suggestions:
-            return "No suggestions at this time"
-
-        formatted = ""
-        for suggestion in suggestions:
-            formatted += f"  - {suggestion}\n"
-        return formatted
-
-    def format_trend_reversal_analysis(self, trend_reversal_analysis: dict) -> str:
-        """
-        Format trend reversal analysis for prompt.
-
-        .. deprecated:: 1.0
-            Use :func:`build_trend_reversal_json` from prompt_json_builders instead.
-            This function is kept for backward compatibility.
-        """
-
-        warnings.warn(
-            "format_trend_reversal_analysis() is deprecated. "
-            "Use build_trend_reversal_json() from prompt_json_builders instead.",
-            DeprecationWarning,
-            stacklevel=2,
-        )
-        if not trend_reversal_analysis or "error" in trend_reversal_analysis:
-            return "Trend reversal analysis: No data available"
-
-        formatted = ""
-        for coin, analysis in trend_reversal_analysis.items():
-            if coin == "error":
-                continue
-
-            reversal_signals = analysis.get("reversal_signals", [])
-            if not reversal_signals:
-                continue
-
-            formatted += f"\n{coin} TREND REVERSAL SIGNALS:\n"
-            for signal in reversal_signals:
-                signal_type = signal.get("type", "Unknown")
-                strength = signal.get("strength", "Unknown")
-                description = signal.get("description", "No description")
-                formatted += f"  - {signal_type} ({strength}): {description}\n"
-
-        if not formatted:
-            return "Trend reversal analysis: No reversal signals detected"
-
-        return formatted
-
-    def format_volume_ratio(self, volume: Any, avg_volume: Any) -> str:
-        """
-        Format volume ratio with guard rails for extremely low values.
-
-        .. deprecated:: 1.0
-            Use JSON builders from prompt_json_builders instead.
-            This function is kept for backward compatibility.
-        """
-
-        warnings.warn(
-            "format_volume_ratio() is deprecated. "
-            "Use JSON builders from prompt_json_builders instead.",
-            DeprecationWarning,
-            stacklevel=2,
-        )
-        try:
-            if not isinstance(volume, (int, float)) or not isinstance(avg_volume, (int, float)):
-                return "N/A"
-            if avg_volume <= 0:
-                return "N/A"
-            ratio = volume / avg_volume
-            if ratio == 0:
-                return "0.00x"
-            if ratio < 0.0005:
-                return "<0.0005x"
-            if ratio < 0.01:
-                return f"{ratio:.4f}x"
-            if ratio < 1:
-                return f"{ratio:.3f}x"
-            return f"{ratio:.2f}x"
-        except Exception:
-            return "N/A"
-
-    def format_list(self, lst, precision=4):
-        """
-        Helper function to format lists for prompt display.
-
-        .. deprecated:: 1.0
-            Use JSON builders from prompt_json_builders instead.
-            This function is kept for backward compatibility.
-        """
-
-        warnings.warn(
-            "format_list() is deprecated. Use JSON builders from prompt_json_builders instead.",
-            DeprecationWarning,
-            stacklevel=2,
-        )
-        if not isinstance(lst, list):
-            return []
-        return [format_num(x, precision) if x is not None else "N/A" for x in lst]
 
     def generate_alpha_arena_prompt(self) -> str:
         """
@@ -1032,12 +740,11 @@ Current live positions & performance:"""
         """
         from config.config import Config
         from src.ai.prompt_json_builders import (
+            build_coin_state_vector,
             build_cooldown_status_json,
             build_counter_trade_json,
             build_directional_bias_json,
-            build_enhanced_context_json,
             build_historical_context_json,
-            build_market_data_json,
             build_metadata_json,
             build_portfolio_json,
             build_position_slot_json,
@@ -1058,8 +765,7 @@ Current live positions & performance:"""
         all_indicators, all_sentiment = self._fetch_all_indicators_parallel()
 
         # Get enhanced context and other data
-        enhanced_context = self.get_enhanced_context()
-        # NOTE: counter_trade_analysis is now computed directly inside build_counter_trade_json
+        # NOTE: enhanced_context removed - data was 100% redundant with PORTFOLIO/RISK_STATUS
 
         # Get trend reversal detection
 
@@ -1114,8 +820,8 @@ Current live positions & performance:"""
         # Metadata
         metadata_json = build_metadata_json(minutes_running, current_time, self.invocation_count)
 
-        # Counter-trade analysis (only for tradeable coins)
-        counter_trade_json = build_counter_trade_json(
+        # Counter-trade risk analysis (compact dict: {coin: {risk_level, alignment_strength, conditions_met}})
+        counter_trade_risks = build_counter_trade_json(
             "",  # Legacy parameter, not used - function calculates internally
             all_indicators,
             coins_to_analyze,  # Filtered list
@@ -1123,13 +829,10 @@ Current live positions & performance:"""
             self.market_data,  # INFO: Integrated for Funding Rate calculation
         )
 
-        # Trend reversal
-        trend_reversal_json = build_trend_reversal_json(
+        # Trend reversal threats (compact dict: {coin: {strength}})
+        reversal_threats = build_trend_reversal_json(
             trend_reversal_analysis, self.portfolio.positions,
         )
-
-        # Enhanced context
-        enhanced_context_json = build_enhanced_context_json(enhanced_context)
 
         # Cooldown status
         cooldown_status_json = build_cooldown_status_json(
@@ -1148,7 +851,7 @@ Current live positions & performance:"""
             self.portfolio.positions, max_positions, same_direction_limit=effective_limit,
         )
 
-        # Market data (per coin) - only for tradeable coins
+        # State Vector data (per coin) - only for tradeable coins
         market_data_json = []
         for coin in coins_to_analyze:  # Filtered list (excludes cooldown coins without position)
             indicators_3m = all_indicators.get(coin, {}).get("3m", {})
@@ -1180,7 +883,8 @@ Current live positions & performance:"""
                     if not df_raw_15m.empty:
                         ml_consensus = ml_service.predict(df_raw_15m)
 
-            coin_market_data = build_market_data_json(
+            # Build State Vector (labels + numerical anchors)
+            coin_state = build_coin_state_vector(
                 coin,
                 market_regime,
                 sentiment,
@@ -1189,9 +893,10 @@ Current live positions & performance:"""
                 indicators_htf,
                 position,
                 ml_consensus=ml_consensus,
-                max_series_length=Config.JSON_SERIES_MAX_LENGTH,
+                counter_trade_result=counter_trade_risks.get(coin),
+                reversal_result=reversal_threats.get(coin),
             )
-            market_data_json.append(coin_market_data)
+            market_data_json.append(coin_state)
 
         # Portfolio
         portfolio_json = build_portfolio_json(self.portfolio)
@@ -1208,29 +913,7 @@ Current live positions & performance:"""
         # Build hybrid prompt
         prompt = f"""
 USER_PROMPT:
-It has been {minutes_running} minutes since you started trading. The current time is {current_time} and you've been invoked {self.invocation_count} times. Below, we are providing you with a variety of state data, price data, and predictive signals so you can discover alpha. Below that is your current account information, value, performance, positions, etc.
-
-ALL OF THE PRICE OR SIGNAL DATA BELOW IS ORDERED: OLDEST -> NEWEST
-Timeframes note: Unless stated otherwise in a section title, intraday series are provided at 3-minute intervals. If a coin uses a different interval, it is explicitly stated in that coin's section.
-
-{"=" * 20} REAL-TIME COUNTER-TRADE ANALYSIS {"=" * 20}
-
-{create_json_section("COUNTER_TRADE_ANALYSIS", counter_trade_json, compact=compact)}
-"""
-
-        # OPTIMIZATION: Only include TREND_REVERSAL_DATA if positions exist
-        if any(self.portfolio.positions.values()):
-            prompt += f"""
-{"=" * 20} TREND REVERSAL DETECTION {"=" * 20}
-
-{create_json_section("TREND_REVERSAL_DATA", trend_reversal_json, compact=compact)}
-
-"""
-
-        prompt += f"""
-{"=" * 20} ENHANCED DECISION CONTEXT {"=" * 20}
-
-{create_json_section("ENHANCED_CONTEXT", enhanced_context_json, compact=compact)}
+It has been {minutes_running} minutes since you started trading. The current time is {current_time} and you've been invoked {self.invocation_count} times. Below is your State Vector data for each coin, followed by account information.
 
 DIRECTIONAL PERFORMANCE SNAPSHOT (Last 20 trades max):
 {create_json_section("DIRECTIONAL_BIAS", directional_bias_json, compact=compact)}
@@ -1241,7 +924,6 @@ DIRECTIONAL PERFORMANCE SNAPSHOT (Last 20 trades max):
 
 [WARNING] IMPORTANT: If a coin is in cooldown, you MUST NOT propose any new trades for that coin (LONG or SHORT). The system will block them, but you should avoid proposing them in the first place. Coin cooldown is activated after a loss on that coin and lasts for 1 cycle.
 
-
 {"=" * 20} POSITION_SLOTS {"=" * 20}
 
 {create_json_section("POSITION_SLOTS", position_slot_json, compact=compact)}
@@ -1249,14 +931,16 @@ DIRECTIONAL PERFORMANCE SNAPSHOT (Last 20 trades max):
 [WARNING] CRITICAL: If "long_slots_available" is 0, do NOT propose LONG entries. If "short_slots_available" is 0, do NOT propose SHORT entries.
 [WARNING] CRITICAL: If you identify a valid counter-trend opportunity (e.g. LONG) but cannot execute it because slots are full, you MUST NOT open a trend-following trade in the opposite direction (e.g. SHORT). The counter-trend signal invalidates the trend-following setup. Simply HOLD.
 
-{"=" * 20} MARKET DATA {"=" * 20}
+{"=" * 20} MARKET STATE VECTORS {"=" * 20}
 
-All market data is provided in JSON format below. Each coin contains:
-- market_regime: Current market regime (BULLISH/BEARISH/NEUTRAL)
-- sentiment: Open Interest and Funding Rate
-- timeframes: 3m, 15m, {HTF_INTERVAL} indicators with historical series
-- position: Current position details (if exists)
-- ml_consensus: (Optional) XGBoost Technical Machine Learning probability. This is highly accurate. A probability > 45% for SELL or BUY is a strong technical signal. You MUST combine this ML prediction with your own regime & risk analysis to make the final determination. If ML says SELL and you agree the regime allows it, do it.
+Each coin below contains a State Vector with:
+- ml_consensus: XGBoost probability (>45% BUY/SELL = strong signal). Combine with your own analysis.
+- market_context: Regime, volatility state, price location labels.
+- technical_summary: Trend alignment, momentum, volume, structure labels.
+- key_levels: price, ema20_htf, rsi_15m, atr_htf for your independent reasoning.
+- risk_profile: Counter-trade risk and reversal threat assessments.
+- sentiment: Funding rate and open interest.
+- position: Current position details (if exists).
 
 {create_json_section("MARKET_DATA", market_data_json, compact=compact)}
 
