@@ -4,7 +4,6 @@ import sqlite3
 import pandas as pd
 import requests
 import numpy as np
-import numpy as np
 from typing import Optional
 
 # Configure logging

@@ -33,10 +33,16 @@ class RealMarketData:
         self.indicator_history_length = 10
         self.session = RetryManager.create_session_with_retry()
         self.preloaded_indicators: dict[str, dict[str, dict[str, Any]]] = {}
+        self._raw_dataframes: dict[str, dict[str, pd.DataFrame]] = {}
 
     def clear_preloaded_indicators(self):
         """Clear any preloaded indicator snapshots (typically once per cycle)."""
         self.preloaded_indicators = {}
+        self._raw_dataframes = {}
+
+    def get_cached_raw_dataframe(self, coin: str, interval: str):
+        """Get a cached raw OHLCV DataFrame from the current cycle, or None."""
+        return self._raw_dataframes.get(coin, {}).get(interval)
 
     def store_preloaded_indicator(self, coin: str, interval: str, indicators: dict[str, Any]):
         """Store a snapshot of indicators for reuse during the same cycle."""
@@ -103,6 +109,9 @@ class RealMarketData:
 
                 # Enhanced data validation
                 if self._validate_kline_data(df, symbol, interval):
+                    # Cache raw DataFrame for reuse within the same cycle (e.g., ML inference)
+                    coin_key = symbol.replace("USDT", "")
+                    self._raw_dataframes.setdefault(coin_key, {})[interval] = df.copy()
                     return df
                 else:
                     print(

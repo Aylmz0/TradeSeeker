@@ -1002,10 +1002,15 @@ Current live positions & performance:"""
             # Get ML Consensus for Hybridization
             ml_consensus = None
             if ml_service.is_ready:
-                # Fetch recent raw klines to feed feature extraction
-                df_raw_15m = self.market_data.get_real_time_data(coin, "15m", limit=150)
-                if not df_raw_15m.empty:
+                # Reuse already-fetched 15m data from this cycle (no redundant API call)
+                df_raw_15m = self.market_data.get_cached_raw_dataframe(coin, "15m")
+                if df_raw_15m is not None and not df_raw_15m.empty:
                     ml_consensus = ml_service.predict(df_raw_15m)
+                else:
+                    # Fallback: fetch fresh if cache miss (safety net)
+                    df_raw_15m = self.market_data.get_real_time_data(coin, "15m", limit=150)
+                    if not df_raw_15m.empty:
+                        ml_consensus = ml_service.predict(df_raw_15m)
 
             coin_market_data = build_market_data_json(
                 coin,
