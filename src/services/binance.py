@@ -159,6 +159,20 @@ class BinanceFuturesClient:
     def get_position_risk(self) -> list[dict[str, Any]]:
         return self._request("GET", "/fapi/v2/positionRisk", signed=True)
 
+    def get_best_price(self, symbol: str) -> dict[str, Any]:
+        """Get best bid/ask from the orderbook ticker."""
+        return self._request("GET", "/fapi/v1/ticker/bookTicker", params={"symbol": symbol})
+
+    def get_order_status(self, symbol: str, order_id: int) -> dict[str, Any]:
+        """Query a specific order's status."""
+        payload = {"symbol": symbol, "orderId": order_id}
+        return self._request("GET", "/fapi/v1/order", params=payload, signed=True)
+
+    def cancel_order(self, symbol: str, order_id: int) -> dict[str, Any]:
+        """Cancel a specific order."""
+        payload = {"symbol": symbol, "orderId": order_id}
+        return self._request("DELETE", "/fapi/v1/order", params=payload, signed=True)
+
 
 class BinanceOrderExecutor:
     """High-level executor that handles sizing, rounding, and synchronization."""
@@ -465,6 +479,157 @@ class BinanceOrderExecutor:
         order["executedQty"] = executed_qty
         order["avgPriceComputed"] = avg_price
         return order
+
+    def place_smart_limit_order(
+        self,
+        coin: str,
+        direction: str,
+        quantity: float,
+        leverage: int,
+        price_reference: float,
+        reduce_only: bool = False,
+        timeout_seconds: float = 5.0,
+        poll_interval: float = 0.5,
+    ) -> dict[str, Any]:
+        """Place a LIMIT order at best bid/ask, wait for fill, fallback to MARKET if unfilled."""
+        if not self.is_live():
+            raise BinanceAPIError("Attempted to place live order while executor disabled.")
+
+        symbol = self.symbol_map[coin]
+        self._ensure_leverage(symbol, leverage)
+        adjusted_qty = self._validate_and_format_quantity(symbol, quantity, price_reference)
+        filters = self.symbol_filters.get(symbol)
+
+        # Step 1: Get best bid/ask price
+        try:
+            assert self.client is not None
+            ticker = self.client.get_best_price(symbol)
+            best_bid = float(ticker.get("bidPrice", 0))
+            best_ask = float(ticker.get("askPrice", 0))
+
+            if best_bid <= 0 or best_ask <= 0:
+                raise BinanceAPIError("Invalid bid/ask prices from ticker")
+
+            # For entry (open): long buys at ask, short sells at bid
+            # For exit (close/reduce_only): long sells at bid, short buys at ask
+            side = self._determine_side(direction, "close" if reduce_only else "open")
+            if side == "BUY":
+                limit_price = best_ask  # Buy at best ask (tighter than market)
+            else:
+                limit_price = best_bid  # Sell at best bid (tighter than market)
+
+            # Round to tick size
+            if filters:
+                limit_price = self._round_to_step(limit_price, filters.tick_size)
+
+        except Exception as e:
+            logger.warning("Limit order price fetch failed (%s), falling back to MARKET: %s", coin, e)
+            return self.place_market_order(
+                coin=coin, direction=direction, quantity=quantity,
+                leverage=leverage, price_reference=price_reference, reduce_only=reduce_only
+            )
+
+        # Step 2: Place LIMIT GTC order
+        payload = {
+            "symbol": symbol,
+            "side": side,
+            "type": "LIMIT",
+            "timeInForce": "GTC",
+            "quantity": adjusted_qty,
+            "price": limit_price,
+            "reduceOnly": "true" if reduce_only else "false",
+            "newOrderRespType": "RESULT",
+        }
+
+        logger.info(
+            "Placing LIMIT order %s %s qty=%s price=%s (market ref: %s)",
+            symbol, side, adjusted_qty, limit_price, price_reference
+        )
+
+        try:
+            order = self.client.place_order(payload)
+            order_id = order.get("orderId")
+
+            if not order_id:
+                raise BinanceAPIError(f"Limit order returned no orderId: {order}")
+
+            # Step 3: Poll for fill within timeout
+            elapsed = 0.0
+            while elapsed < timeout_seconds:
+                time.sleep(poll_interval)
+                elapsed += poll_interval
+
+                status_resp = self.client.get_order_status(symbol, order_id)
+                status = status_resp.get("status", "")
+
+                if status == "FILLED":
+                    executed_qty_val, avg_price_val = self._extract_fill_details(status_resp)
+                    if executed_qty_val == 0:
+                        raise BinanceAPIError(f"FILLED order returned zero fills: {status_resp}")
+                    order["executedQty"] = executed_qty_val
+                    order["avgPriceComputed"] = avg_price_val
+                    order["orderType"] = "LIMIT_FILLED"
+                    logger.info("LIMIT order FILLED for %s: qty=%s avg=%s", coin, executed_qty_val, avg_price_val)
+                    return order
+
+                if status in ("CANCELED", "EXPIRED", "REJECTED"):
+                    logger.warning("LIMIT order %s for %s, falling back to MARKET", status, coin)
+                    break
+
+            # Step 4: Timeout or cancelled -> cancel remaining and fall back to MARKET
+            try:
+                self.client.cancel_order(symbol, order_id)
+                logger.info("Cancelled unfilled LIMIT order %s for %s", order_id, coin)
+            except Exception:
+                pass  # May already be filled/cancelled
+
+            # Check if partially filled
+            try:
+                final_status = self.client.get_order_status(symbol, order_id)
+                partial_qty = float(final_status.get("executedQty", 0))
+                if partial_qty > 0:
+                    _, avg_p = self._extract_fill_details(final_status)
+                    remaining = float(adjusted_qty) - partial_qty
+                    if remaining > 0:
+                        # Fill the rest with market
+                        logger.info("Partial fill %s/%s for %s, sending MARKET for remainder", partial_qty, adjusted_qty, coin)
+                        fallback = self.place_market_order(
+                            coin=coin, direction=direction, quantity=remaining,
+                            leverage=leverage, price_reference=price_reference, reduce_only=reduce_only
+                        )
+                        # Combine results
+                        total_qty = partial_qty + float(fallback.get("executedQty", 0))
+                        fallback["executedQty"] = total_qty
+                        fallback["orderType"] = "LIMIT_PARTIAL_THEN_MARKET"
+                        return fallback
+                    else:
+                        # Fully filled during cancel race
+                        final_status["executedQty"] = partial_qty
+                        final_status["avgPriceComputed"] = avg_p
+                        final_status["orderType"] = "LIMIT_FILLED_ON_CANCEL"
+                        return final_status
+            except Exception:
+                pass
+
+            # Pure fallback: full market order
+            logger.info("LIMIT order timeout for %s, executing full MARKET fallback", coin)
+            fallback = self.place_market_order(
+                coin=coin, direction=direction, quantity=quantity,
+                leverage=leverage, price_reference=price_reference, reduce_only=reduce_only
+            )
+            fallback["orderType"] = "MARKET_FALLBACK"
+            return fallback
+
+        except BinanceAPIError:
+            raise
+        except Exception as e:
+            logger.warning("Smart limit order failed for %s (%s), falling back to MARKET", coin, e)
+            fallback = self.place_market_order(
+                coin=coin, direction=direction, quantity=quantity,
+                leverage=leverage, price_reference=price_reference, reduce_only=reduce_only
+            )
+            fallback["orderType"] = "MARKET_FALLBACK"
+            return fallback
 
     def close_position(
         self,

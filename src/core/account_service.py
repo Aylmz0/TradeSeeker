@@ -324,13 +324,14 @@ class AccountService:
         if not self.is_live_trading or not self.order_executor:
             return {"success": False, "error": "live_trading_disabled"}
         try:
-            order = self.order_executor.place_market_order(
+            order = self.order_executor.place_smart_limit_order(
                 coin=coin,
                 direction=direction,
                 quantity=quantity,
                 leverage=leverage,
                 price_reference=current_price,
                 reduce_only=False,
+                timeout_seconds=5.0,
             )
             executed_qty = float(order.get("executedQty", 0.0))
             avg_price = float(order.get("avgPriceComputed", order.get("avgPrice", 0.0)))
