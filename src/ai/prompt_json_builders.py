@@ -505,6 +505,7 @@ def build_market_data_json(
     indicators_15m: dict[str, Any],
     indicators_htf: dict[str, Any],
     position: dict[str, Any] | None = None,
+    ml_consensus: dict[str, Any] | None = None,
     max_series_length: int = 50,
 ) -> dict[str, Any]:
     """
@@ -698,6 +699,9 @@ def build_market_data_json(
             market_data["position"]["erosion_status"] = "NONE"
     else:
         market_data["position"] = None
+
+    if ml_consensus:
+        market_data["ml_consensus"] = ml_consensus
 
     return market_data
 

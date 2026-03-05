@@ -7,7 +7,7 @@ __pycache__/
 
 # Environments
 .env
-.venv
+.venv/
 project_venv/
 
 # Data, Logs, and ML Artifacts

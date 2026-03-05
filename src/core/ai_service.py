@@ -4,6 +4,7 @@ import re
 from typing import Any
 from config.config import Config
 from src.utils import format_num
+from src.services.ml_service import MLService
 
 HTF_INTERVAL = getattr(Config, 'HTF_INTERVAL', '1h') or '1h'
 HTF_LABEL = HTF_INTERVAL
@@ -882,6 +883,9 @@ Current live positions & performance:"""
         current_time = datetime.now()
         minutes_running = int((current_time - self.portfolio.start_time).total_seconds() / 60)
 
+        # Boot ML Inference Service
+        ml_service = MLService()
+
         # Fetch all indicators in parallel (same as original)
         all_indicators, all_sentiment = self._fetch_all_indicators_parallel()
 
@@ -995,6 +999,14 @@ Current live positions & performance:"""
             # Get position if exists
             position = self.portfolio.positions.get(coin)
 
+            # Get ML Consensus for Hybridization
+            ml_consensus = None
+            if ml_service.is_ready:
+                # Fetch recent raw klines to feed feature extraction
+                df_raw_15m = self.market_data.get_real_time_data(coin, "15m", limit=150)
+                if not df_raw_15m.empty:
+                    ml_consensus = ml_service.predict(df_raw_15m)
+
             coin_market_data = build_market_data_json(
                 coin,
                 market_regime,
@@ -1003,6 +1015,7 @@ Current live positions & performance:"""
                 indicators_15m,
                 indicators_htf,
                 position,
+                ml_consensus=ml_consensus,
                 max_series_length=Config.JSON_SERIES_MAX_LENGTH,
             )
             market_data_json.append(coin_market_data)
@@ -1070,6 +1083,7 @@ All market data is provided in JSON format below. Each coin contains:
 - sentiment: Open Interest and Funding Rate
 - timeframes: 3m, 15m, {HTF_INTERVAL} indicators with historical series
 - position: Current position details (if exists)
+- ml_consensus: (Optional) XGBoost Technical Machine Learning probability. This is highly accurate. A probability > 45% for SELL or BUY is a strong technical signal. You MUST combine this ML prediction with your own regime & risk analysis to make the final determination. If ML says SELL and you agree the regime allows it, do it.
 
 {create_json_section("MARKET_DATA", market_data_json, compact=compact)}
 
