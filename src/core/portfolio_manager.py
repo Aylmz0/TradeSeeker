@@ -10,7 +10,7 @@ import numpy as np
 from config.config import Config
 from src.core.backtest import AdvancedRiskManager
 from src.core.market_data import RealMarketData
-from src.utils import format_num, safe_file_read, safe_file_write
+from src.utils import format_num, safe_file_read, safe_file_read_cached, safe_file_write
 
 # Define HTF constants
 HTF_INTERVAL = getattr(Config, "HTF_INTERVAL", "1h") or "1h"
@@ -32,7 +32,7 @@ class PortfolioManager:
         # Dynamic initial balance - if not provided, take from actual balance or use $200
         if initial_balance is None:
             # First try from saved state, otherwise take from Config
-            saved_state = safe_file_read("data/portfolio_state.json", default_data={})
+            saved_state = safe_file_read_cached("data/portfolio_state.json", default_data={})
             if "initial_balance" in saved_state:
                 self.initial_balance = saved_state["initial_balance"]
             else:
@@ -126,7 +126,7 @@ class PortfolioManager:
         }
 
     def load_state(self):
-        data = safe_file_read(self.state_file, default_data={})
+        data = safe_file_read_cached(self.state_file, default_data={})
         self.current_balance = data.get("current_balance", self.initial_balance)
         self.positions = data.get("positions", {})
         self.trade_count = data.get(
@@ -1205,7 +1205,7 @@ class PortfolioManager:
 
     def get_manual_override(self) -> dict:
         """Checks for and deletes the manual override file."""
-        override_data = safe_file_read(self.override_file, default_data={})
+        override_data = safe_file_read_cached(self.override_file, default_data={})
         if override_data:
             print(f"[ALERT] MANUAL OVERRIDE DETECTED: {override_data}")
             try:

@@ -22,6 +22,7 @@ from typing import Any
 import requests
 
 from config.config import Config
+from src.utils import RetryManager
 
 # Increase decimal precision for quantity rounding
 getcontext().prec = 18
@@ -71,7 +72,7 @@ class BinanceFuturesClient:
         )
         self.recv_window = recv_window
         self.timeout = timeout or Config.REQUEST_TIMEOUT
-        self.session = requests.Session()
+        self.session = RetryManager.create_session_with_retry(retries=5, backoff_factor=0.5)
 
     # --- Internal helpers -------------------------------------------------
     def _timestamp(self) -> int:

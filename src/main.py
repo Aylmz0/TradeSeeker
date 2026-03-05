@@ -31,6 +31,7 @@ from src.core.strategy_analyzer import StrategyAnalyzer
 from src.utils import (
     format_num,
     safe_file_read,
+    safe_file_read_cached,
     safe_file_write,
 )
 
@@ -1250,9 +1251,9 @@ class AlphaArenaDeepSeek:
         return self.portfolio.count_positions_by_direction()
 
     def _read_bot_control(self) -> dict[str, Any]:
-        """Read bot control file to check for pause/stop commands."""
+        """Read bot control file to check for pause/stop commands using memcache."""
         try:
-            return safe_file_read(
+            return safe_file_read_cached(
                 "data/bot_control.json",
                 {"status": "running", "last_updated": datetime.now().isoformat()},
             )

@@ -333,7 +333,16 @@ class AccountService:
             )
             executed_qty = float(order.get("executedQty", 0.0))
             avg_price = float(order.get("avgPriceComputed", order.get("avgPrice", 0.0)))
-            self.sync_live_account()
+            
+            # API Consistency Buffer (Ghost Position Ping)
+            for attempt in range(5):
+                self.sync_live_account()
+                if coin in self.pm.positions:
+                    break
+                import time
+                print(f"[INFO] Resolving Binance replication lag for {coin}... (attempt {attempt+1}/5)")
+                time.sleep(1)
+                
             position = self.pm.positions.get(coin, {})
 
             # Use provided margin_usd if available, otherwise calculate from position or notional

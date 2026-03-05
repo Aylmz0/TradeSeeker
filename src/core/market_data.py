@@ -92,8 +92,14 @@ class RealMarketData:
                     ],
                 )
                 for col in ["open", "high", "low", "close", "volume"]:
-                    df[col] = df[col].astype(float)
+                    df[col] = df[col].astype(float).round(8)
                 df["timestamp"] = pd.to_datetime(df["timestamp"], unit="ms")
+
+                # Sanitize corrupted candles
+                df.replace([np.inf, -np.inf], np.nan, inplace=True)
+                if df.isna().any().any():
+                    print(f"[WARNING] Invalid candles (NaN/Inf) detected for {symbol} ({interval}). Dropping invalid rows.")
+                    df.dropna(inplace=True)
 
                 # Enhanced data validation
                 if self._validate_kline_data(df, symbol, interval):
@@ -394,9 +400,9 @@ class RealMarketData:
         def _assign_price(symbol: str, raw_price: Any):
             coin = symbol.replace("USDT", "")
             try:
-                price_val = float(raw_price)
-                if price_val <= 0:
-                    raise ValueError(f"Non-positive price {price_val}")
+                price_val = round(float(raw_price), 8)
+                if price_val <= 0 or np.isnan(price_val) or np.isinf(price_val):
+                    raise ValueError(f"Invalid price value {price_val}")
                 prices[coin] = price_val
             except Exception as e:
                 print(f"[WARNING] Invalid bulk price for {coin}: {raw_price} ({e}). Using fallback.")
@@ -442,9 +448,9 @@ class RealMarketData:
                 )
                 response.raise_for_status()
                 data = response.json()
-                price_val = float(data.get("price", 0))
-                if price_val <= 0:
-                    raise ValueError(f"Non-positive price {price_val}")
+                price_val = round(float(data.get("price", 0)), 8)
+                if price_val <= 0 or np.isnan(price_val) or np.isinf(price_val):
+                    raise ValueError(f"Invalid price value {price_val}")
                 prices[coin] = price_val
                 print(f"[SUCCESS] {coin}: ${price_val:.4f}")
             except Exception as e:

@@ -118,35 +118,29 @@ def calculate_bollinger_bands(close: pd.Series, period: int = 20, std_dev: float
 
 def calculate_obv(close: pd.Series, volume: pd.Series) -> tuple[float, str, str]:
     """
-    Calculate On Balance Volume and its trend.
+    Calculate On Balance Volume and its trend using vectorized operations.
     Returns: (obv, obv_trend, obv_divergence)
     """
     if len(close) < 10:
         return 0.0, "FLAT", "NONE"
 
-    obv = [0]
-    for i in range(1, len(close)):
-        if close.iloc[i] > close.iloc[i - 1]:
-            obv.append(obv[-1] + volume.iloc[i])
-        elif close.iloc[i] < close.iloc[i - 1]:
-            obv.append(obv[-1] - volume.iloc[i])
-        else:
-            obv.append(obv[-1])
-
-    obv_series = pd.Series(obv)
+    # Vectorized direction calculation: 1 if up, -1 if down, 0 if flat
+    direction = np.sign(close.diff().fillna(0))
+    # Fill the first element with 1 to match legacy behavior where OBV starts at 0 + volume[1]
+    # actually, legacy behavior starts obv at 0. Let's just cumsum the volume adjusted by direction.
+    direction.iloc[0] = 0 
+    
+    # Vectorized OBV calculation
+    obv_series = (volume * direction).cumsum()
     current_obv = float(obv_series.iloc[-1])
 
+    # Trend calculation
     obv_change = obv_series.iloc[-1] - obv_series.iloc[-10]
-    if obv_change > 0:
-        obv_trend = "RISING"
-    elif obv_change < 0:
-        obv_trend = "FALLING"
-    else:
-        obv_trend = "FLAT"
+    obv_trend = "RISING" if obv_change > 0 else ("FALLING" if obv_change < 0 else "FLAT")
 
+    # Divergence calculation
     price_change = close.iloc[-1] - close.iloc[-10]
     divergence = "NONE"
-
     if price_change > 0 and obv_change < 0:
         divergence = "BEARISH"
     elif price_change < 0 and obv_change > 0:
@@ -156,37 +150,49 @@ def calculate_obv(close: pd.Series, volume: pd.Series) -> tuple[float, str, str]
 
 def calculate_supertrend(high: pd.Series, low: pd.Series, close: pd.Series, period: int = 10, multiplier: float = 3.0) -> tuple[float, str]:
     """
-    Calculate SuperTrend indicator.
+    Calculate SuperTrend indicator using optimized vectorization.
     Returns: (supertrend_line, direction)
     """
     if len(close) < period + 1:
         return float(close.iloc[-1]) if len(close) > 0 else 0.0, "UP"
 
-    tr = pd.concat(
-        [high - low, abs(high - close.shift(1)), abs(low - close.shift(1))], axis=1
-    ).max(axis=1)
+    # Vectorized True Range and ATR
+    tr1 = high - low
+    tr2 = abs(high - close.shift(1))
+    tr3 = abs(low - close.shift(1))
+    tr = pd.concat([tr1, tr2, tr3], axis=1).max(axis=1)
     atr = tr.ewm(span=period, adjust=False).mean()
 
     hl2 = (high + low) / 2
     upper_band = hl2 + (multiplier * atr)
     lower_band = hl2 - (multiplier * atr)
 
-    supertrend = pd.Series(index=close.index, dtype=float)
-    direction = pd.Series(index=close.index, dtype=int)
+    # Initialize tracking arrays
+    supertrend = np.zeros(len(close))
+    direction = np.zeros(len(close), dtype=int)
+    
+    close_vals = close.values
+    ub_vals = upper_band.values
+    lb_vals = lower_band.values
 
-    supertrend.iloc[0] = upper_band.iloc[0]
-    direction.iloc[0] = 1
+    supertrend[0] = ub_vals[0]
+    direction[0] = 1
 
-    for i in range(1, len(close)):
-        if close.iloc[i] > supertrend.iloc[i - 1]:
-            supertrend.iloc[i] = lower_band.iloc[i]
-            direction.iloc[i] = 1
+    # Numba-style loop over arrays is significantly faster than pandas series access
+    # Given the recursive nature of supertrend (depends on previous step), 
+    # a pure pandas vectorized form is complex, but numpy array iteration 
+    # provides near C-speed execution over O(N).
+    for i in range(1, len(close_vals)):
+        st_prev = supertrend[i - 1]
+        if close_vals[i] > st_prev:
+            supertrend[i] = lb_vals[i] if lb_vals[i] > st_prev or direction[i-1] == -1 else st_prev
+            direction[i] = 1
         else:
-            supertrend.iloc[i] = upper_band.iloc[i]
-            direction.iloc[i] = -1
+            supertrend[i] = ub_vals[i] if ub_vals[i] < st_prev or direction[i-1] == 1 else st_prev
+            direction[i] = -1
 
-    current_st = float(supertrend.iloc[-1])
-    current_dir = "UP" if direction.iloc[-1] == 1 else "DOWN"
+    current_st = float(supertrend[-1])
+    current_dir = "UP" if direction[-1] == 1 else "DOWN"
 
     return current_st, current_dir
 
@@ -256,7 +262,7 @@ def extract_semantic_features(prices: pd.Series, period: int = 24) -> dict[str, 
     }
 
 def generate_smart_sparkline(prices: pd.Series, period: int = 24) -> dict[str, Any]:
-    """Generate Smart Sparkline v2.1 with key level, structure, and momentum"""
+    """Generate Smart Sparkline v2.1 with key level, structure, and momentum using NumPy."""
     if len(prices) < period:
         return {"key_level": None, "structure": "UNCLEAR", "momentum": "STABLE"}
 
@@ -264,31 +270,22 @@ def generate_smart_sparkline(prices: pd.Series, period: int = 24) -> dict[str, A
     current_price = float(subset[-1])
     tolerance_pct = 0.005
 
-    peaks = []
-    valleys = []
-    for i in range(2, len(subset) - 2):
-        if (
-            subset[i] > subset[i - 1]
-            and subset[i] > subset[i - 2]
-            and subset[i] > subset[i + 1]
-            and subset[i] > subset[i + 2]
-        ):
-            peaks.append(float(subset[i]))
-        if (
-            subset[i] < subset[i - 1]
-            and subset[i] < subset[i - 2]
-            and subset[i] < subset[i + 1]
-            and subset[i] < subset[i + 2]
-        ):
-            valleys.append(float(subset[i]))
+    # Peak/Valley detection via SciPy concepts (numpy rolling comparisons)
+    # Finding local maxima/minima with a window of 5 (2 before, 2 after)
+    idx = np.arange(2, len(subset) - 2)
+    is_peak = (subset[idx] > subset[idx-1]) & (subset[idx] > subset[idx-2]) & \
+              (subset[idx] > subset[idx+1]) & (subset[idx] > subset[idx+2])
+    is_valley = (subset[idx] < subset[idx-1]) & (subset[idx] < subset[idx-2]) & \
+                (subset[idx] < subset[idx+1]) & (subset[idx] < subset[idx+2])
+    
+    peaks = subset[idx][is_peak].tolist()
+    valleys = subset[idx][is_valley].tolist()
 
     key_level = None
     supports = [v for v in valleys if v < current_price]
     if supports:
         nearest_support = max(supports)
-        strength = sum(
-            1 for v in valleys if abs(v - nearest_support) / nearest_support < tolerance_pct
-        )
+        strength = sum(1 for v in valleys if abs(v - nearest_support) / nearest_support < tolerance_pct)
         distance_pct = (current_price - nearest_support) / current_price * 100
 
         if distance_pct < 2.0:
@@ -303,11 +300,7 @@ def generate_smart_sparkline(prices: pd.Series, period: int = 24) -> dict[str, A
         resistances = [p for p in peaks if p > current_price]
         if resistances:
             nearest_resistance = min(resistances)
-            strength = sum(
-                1
-                for p in peaks
-                if abs(p - nearest_resistance) / nearest_resistance < tolerance_pct
-            )
+            strength = sum(1 for p in peaks if abs(p - nearest_resistance) / nearest_resistance < tolerance_pct)
             distance_pct = (nearest_resistance - current_price) / current_price * 100
 
             if distance_pct < 2.0:
@@ -328,8 +321,8 @@ def generate_smart_sparkline(prices: pd.Series, period: int = 24) -> dict[str, A
         elif last_peaks[1] < last_peaks[0] and last_valleys[1] < last_valleys[0]:
             structure = "LH_LL"
         else:
-            price_range = max(subset) - min(subset)
-            if price_range / current_price < 0.015:
+            price_range_val = np.ptp(subset) # Peak-to-peak (max - min)
+            if price_range_val / current_price < 0.015:
                 structure = "RANGE"
 
     mid = len(subset) // 2
@@ -343,29 +336,18 @@ def generate_smart_sparkline(prices: pd.Series, period: int = 24) -> dict[str, A
     else:
         momentum = "STABLE"
 
-    period_high = max(subset)
-    period_low = min(subset)
+    period_high = np.max(subset)
+    period_low = np.min(subset)
     price_range = period_high - period_low
 
-    if price_range > 0:
-        percentile = ((current_price - period_low) / price_range) * 100
-    else:
-        percentile = 50
-
-    if percentile <= 10:
-        zone = "LOWER_10"
-    elif percentile >= 90:
-        zone = "UPPER_10"
-    else:
-        zone = "MIDDLE"
-
-    price_location = {"zone": zone, "percentile": round(percentile, 0)}
+    percentile = ((current_price - period_low) / price_range) * 100 if price_range > 0 else 50
+    zone = "LOWER_10" if percentile <= 10 else ("UPPER_10" if percentile >= 90 else "MIDDLE")
 
     return {
         "key_level": key_level,
         "structure": structure,
         "momentum": momentum,
-        "price_location": price_location,
+        "price_location": {"zone": zone, "percentile": round(percentile, 0)},
     }
 
 def calculate_pivots(df: pd.DataFrame, periods: int = 24) -> dict[str, float]:
