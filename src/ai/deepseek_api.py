@@ -156,7 +156,7 @@ class DeepSeekAPI:
                         "strong_setup_confidence": 0.70,
                         "definition": f"Trade direction is OPPOSITE to {HTF_LABEL} trend.",
                         "scope": "risk_level applies ONLY when trading AGAINST 1h trend.",
-                        "condition": "Evaluate 'risk_level' provided in counter_trade_analysis.",
+                        "condition": "Evaluate 'counter_trade_risk' in each coin's risk_profile.",
                         "risk_level_rules": {
                             "LOW_RISK": "STRONG+4 OR MEDIUM+5 conditions. EXECUTE.",
                             "MEDIUM_RISK": "STRONG+3 OR MEDIUM+4 conditions OR NONE+7 conditions. EXECUTE if high confidence.",
@@ -260,112 +260,24 @@ class DeepSeekAPI:
                 "BE AGGRESSIVE but disciplined - Take calculated risks based on technical analysis.",
             ],
             "analysis_process": [
-                "1. Check global and per-asset regime data.",
-                f"2. Analyze {HTF_LABEL} (1h) indicators for structural trend.",
-                "3. Analyze 15m indicators for medium-term momentum.",
-                "4. Use 3m indicators for entry/exit timing.",
-                "5. Check alignment across all three timeframes.",
-                "6. Incorporate Volume, Open Interest, Funding.",
-                "7. CROSS-REFERENCE with 'ml_consensus' (XGBoost probabilities) to confirm the statistical edge.",
-                "8. Decide direction based on strongest quantified edge (AI logic + ML consensus).",
-                "9. Verify constraints (Position Slots) before proposing.",
+                "1. Check each coin's market_context.regime and risk_profile.",
+                f"2. Review technical_summary: trend_alignment, momentum, structure_15m, volume_support.",
+                "3. Use key_levels (price, ema20_htf, rsi_15m, atr_htf) for independent reasoning.",
+                "4. CROSS-REFERENCE with ml_consensus (XGBoost probabilities) to confirm the statistical edge.",
+                "5. Evaluate risk_profile: counter_trade_risk + reversal_threat.",
+                "6. Check sentiment: funding_rate, open_interest.",
+                "7. Decide direction based on strongest quantified edge (AI logic + ML consensus).",
+                "8. Verify constraints (Position Slots, Cooldowns) before proposing.",
             ],
             "execution_meta": {
                 "entry_method": "Smart Limit Orders (Orderbook analyzed at sub-millisecond level)",
                 "note": "AI's role is SIGNAL and LOGIC. Invalidation conditions must be technically sound (EMA/Structure).",
             },
             "data_protocol": {
-                "series_order": "OLDEST -> NEWEST",
-                "indicators": ["Price", "EMA", "RSI", "MACD", "Volume", "Open Interest", "Funding", "ml_consensus"],
-                "syntax_requirement": "Compare values explicitly (e.g., 'price=2.5 > EMA=2.4')",
+                "format": "State Vectors — each coin has pre-processed labels + key numerical anchors.",
                 "authoritative_source": "Treat the supplied data as the authoritative source for every decision.",
             },
-            "enhanced_context_definitions": {
-                "smart_sparkline": {
-                    "description": "Price pattern analysis. HTF (1h) includes full data (24h), 15m includes structure+momentum+price_location (6h).",
-                    "key_level": "Nearest support or resistance (HTF only). strength = how many times tested (1-5). distance_pct = distance from price.",
-                    "structure": {
-                        "HH_HL": {
-                            "meaning": "Higher Highs + Higher Lows",
-                            "interpretation": "Bullish price structure. Uptrend intact.",
-                        },
-                        "LH_LL": {
-                            "meaning": "Lower Highs + Lower Lows",
-                            "interpretation": "Bearish price structure. Downtrend intact.",
-                        },
-                        "RANGE": {
-                            "meaning": "Price consolidating in tight range",
-                            "interpretation": "Breakout pending. Check bb_squeeze for timing.",
-                        },
-                        "UNCLEAR": {
-                            "meaning": "No clear pattern",
-                            "interpretation": "Rely on other indicators.",
-                        },
-                    },
-                    "structure_alignment": {
-                        "description": "Multi-timeframe structure comparison",
-                        "both_HH_HL": "Maximum bullish alignment (1h + 15m agree).",
-                        "both_LH_LL": "Maximum bearish alignment (1h + 15m agree).",
-                        "conflict": "Timeframes disagree - caution advised.",
-                    },
-                    "momentum": "STRENGTHENING (trend accelerating) | STABLE | WEAKENING (trend losing steam)",
-                    "price_location": {
-                        "description": "Where is the current price within the period's high-low range",
-                        "zone": {
-                            "LOWER_10": "Price in bottom 10% of period range. When combined with RSI < 25, this indicates the asset may be at a short-term bottom with high bounce probability. Consider reducing SHORT confidence or waiting for confirmation.",
-                            "UPPER_10": "Price in top 10% of period range. When combined with RSI > 75, this indicates the asset may be at a short-term top with high pullback probability. Consider reducing LONG confidence or waiting for confirmation.",
-                            "MIDDLE": "Price in normal range. No extreme location-based risk.",
-                        },
-                        "percentile": "0-100 scale. 0 = at period low, 100 = at period high.",
-                        "guidance": "This is NOT a hard rule. Trend can continue through support/resistance. Use price_location + RSI together to assess risk. If LOWER_10 + RSI<25, mention bounce risk in analysis. If UPPER_10 + RSI>75, mention pullback risk.",
-                    },
-                    "usage": "Use 15m data for shorter-term confirmation. Check price_location on both 1h and 15m when deciding entries.",
-                },
-                "tags": "Analytical labels (e.g., 'Vol_High', 'RSI_Overbought'). Use as confirmation.",
-                # ==================== NEW INDICATOR DEFINITIONS (v5.0) ====================
-                "adx": {
-                    "description": "Average Directional Index - trend STRENGTH measurement (0-100)",
-                    "interpretation": {
-                        "NO_TREND (0-15)": "No directional trend. Market ranging or choppy.",
-                        "WEAK (15-25)": "Trend starting to form but not confirmed.",
-                        "MODERATE (25-40)": "Trend present and confirmed.",
-                        "STRONG (40+)": "Strong directional trend in progress.",
-                    },
-                    "note": "ADX does NOT show direction, only strength. Use +DI/-DI or price vs EMA for direction.",
-                },
-                "vwap": {
-                    "description": "Volume Weighted Average Price (Rolling 4-hour)",
-                    "interpretation": {
-                        "ABOVE": "Price above institutional fair value.",
-                        "BELOW": "Price below institutional fair value.",
-                    },
-                },
-                "bollinger_bands": {
-                    "description": "Volatility bands (2 std dev from 20-period SMA)",
-                    "bb_squeeze": "TRUE means volatility compressed - potential breakout imminent.",
-                    "bb_signal": {
-                        "OVERBOUGHT": "Price above upper band.",
-                        "OVERSOLD": "Price below lower band.",
-                        "NORMAL": "Price within bands.",
-                    },
-                },
-                "obv": {
-                    "description": "On Balance Volume - cumulative volume flow",
-                    "obv_trend": {
-                        "RISING": "Volume accumulating (bullish).",
-                        "FALLING": "Volume distributing (bearish).",
-                        "FLAT": "No significant volume trend.",
-                    },
-                    "obv_divergence": {
-                        "BULLISH": "Price down but volume accumulating - potential reversal up.",
-                        "BEARISH": "Price up but volume distributing - potential reversal down.",
-                        "NONE": "No divergence.",
-                    },
-                },
-                "supertrend": {
-                    "description": "ATR-based trend indicator",
-                    "direction": {"UP": "Bullish trend signal.", "DOWN": "Bearish trend signal."},
-                },
+            "state_vector_schema": {
                 "ml_consensus": {
                     "description": "2026 XGBoost Model probabilities for next 15m-1h direction",
                     "fields": {
@@ -375,7 +287,12 @@ class DeepSeekAPI:
                     },
                     "usage": "Use as a 'Statistical Tie-Breaker'. If AI logic and ML agree (e.g., AI=Long + ML_BUY > 0.65), confidence is HIGH. If ML_HOLD > 0.40, the statistical edge is weak; require stronger technical confluence for entry.",
                 },
-                # ==================== END NEW INDICATOR DEFINITIONS ====================
+                "market_context": "regime (BULLISH/BEARISH/NEUTRAL), efficiency_ratio, volatility_state (SQUEEZE/EXPANDING/NORMAL), price_location (UPPER_10/LOWER_10/MIDDLE)",
+                "technical_summary": "trend_alignment (FULL_BULLISH/FULL_BEARISH/MIXED_BULLISH/MIXED_BEARISH/CONFLICTED), momentum (STRENGTHENING/STABLE/WEAKENING), volume_ratio (numeric), volume_support (EXCELLENT/GOOD/FAIR/POOR/LOW), structure_15m (HH_HL/LH_LL/RANGE/UNCLEAR)",
+                "key_levels": "price, ema20_htf, rsi_15m, atr_htf — raw numerical anchors for your independent reasoning and cross-validation of labels.",
+                "risk_profile": "counter_trade_risk (LOW_RISK/MEDIUM_RISK/HIGH_RISK/VERY_HIGH_RISK), alignment_strength, reversal_threat (NONE/WEAK/MODERATE/STRONG/CRITICAL)",
+                "sentiment": "funding_rate, open_interest",
+                "position": "Current position details if exists, including exit_plan and erosion tracking.",
             },
             "response_schema": {
                 "format": "JSON",
