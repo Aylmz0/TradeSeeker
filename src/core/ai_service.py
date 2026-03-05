@@ -1,8 +1,13 @@
 import copy
 import json
+import warnings
+from datetime import datetime
 from typing import Any
 
 from config.config import Config
+from src.ai.enhanced_context_provider import EnhancedContextProvider
+from src.core.cache_manager import fetch_all_indicators_parallel, fetch_all_indicators_with_cache
+from src.core.performance_monitor import PerformanceMonitor
 from src.services.ml_service import MLService
 from src.utils import format_num
 
@@ -14,6 +19,168 @@ class AIService:
         self.portfolio = portfolio
         self.market_data = market_data
         self.strategy_analyzer = strategy_analyzer
+        self.invocation_count = 0
+
+    def _fetch_all_indicators_parallel(self) -> dict[str, dict[str, dict[str, Any]]]:
+        """
+        Fetch all indicators for all coins in parallel with smart caching.
+        """
+        if Config.USE_SMART_CACHE:
+            return fetch_all_indicators_with_cache(
+                self.market_data, self.market_data.available_coins, HTF_INTERVAL, use_cache=True,
+            )
+        else:
+            return fetch_all_indicators_parallel(
+                self.market_data, self.market_data.available_coins, HTF_INTERVAL,
+            )
+
+    def get_enhanced_context(self) -> dict[str, Any]:
+        """Get enhanced context for AI decision making"""
+        try:
+            provider = EnhancedContextProvider()
+            return provider.generate_enhanced_context()
+        except Exception as e:
+            print(f"[WARNING] Enhanced context error: {e}")
+            return {"error": f"Enhanced context failed: {str(e)}"}
+
+    def get_directional_bias_metrics(self) -> dict[str, dict[str, Any]]:
+        """Get directional bias metrics from portfolio"""
+        return self.portfolio.get_directional_bias_metrics()
+
+    def get_trading_context(self) -> dict[str, Any]:
+        """Get historical context from recent cycles - Enhanced with 5 cycle analysis"""
+        try:
+            if len(self.portfolio.cycle_history) < 2:
+                return {
+                    "recent_decisions": [],
+                    "market_behavior": "Initial cycles - observing",
+                    "total_cycles_analyzed": len(self.portfolio.cycle_history),
+                    "performance_trend": "No data yet",
+                }
+
+            # Use last 5 cycles for enhanced analysis
+            recent_cycles = self.portfolio.cycle_history[-5:]
+            recent_decisions = []
+
+            for cycle in recent_cycles:
+                decisions = cycle.get("decisions", {})
+                for coin, trade in decisions.items():
+                    if isinstance(trade, dict) and trade.get("signal") in [
+                        "buy_to_enter",
+                        "sell_to_enter",
+                    ]:
+                        recent_decisions.append(
+                            {
+                                "coin": coin,
+                                "signal": trade.get("signal"),
+                                "cycle": cycle.get("cycle"),
+                                "confidence": trade.get("confidence", 0.5),
+                                "timestamp": cycle.get("timestamp"),
+                            },
+                        )
+
+            # Enhanced market behavior analysis
+            market_behavior = self._analyze_market_behavior(recent_cycles)
+            performance_trend = self._analyze_performance_trend(recent_cycles)
+
+            return {
+                "recent_decisions": recent_decisions,
+                "market_behavior": market_behavior,
+                "performance_trend": performance_trend,
+                "total_cycles_analyzed": len(recent_cycles),
+                "analysis_period": f"Last {len(recent_cycles)} cycles",
+            }
+
+        except Exception as e:
+            print(f"[WARNING] Trading context error: {e}")
+            return {
+                "recent_decisions": [],
+                "market_behavior": "Error in context analysis",
+                "performance_trend": "Unknown",
+                "total_cycles_analyzed": 0,
+            }
+
+    def _analyze_market_behavior(self, recent_cycles: list[dict]) -> str:
+        """Analyze market behavior based on recent trading decisions"""
+        if not recent_cycles:
+            return "No recent activity"
+
+        recent_decisions = []
+        for cycle in recent_cycles:
+            decisions = cycle.get("decisions", {})
+            for coin, trade in decisions.items():
+                if isinstance(trade, dict) and trade.get("signal") in [
+                    "buy_to_enter",
+                    "sell_to_enter",
+                ]:
+                    recent_decisions.append(trade)
+
+        if not recent_decisions:
+            return "Consolidating - No recent entries"
+
+        long_count = sum(1 for d in recent_decisions if d.get("signal") == "buy_to_enter")
+        short_count = sum(1 for d in recent_decisions if d.get("signal") == "sell_to_enter")
+
+        # Enhanced analysis with confidence weighting
+        long_confidence = sum(
+            d.get("confidence", 0.5) for d in recent_decisions if d.get("signal") == "buy_to_enter"
+        )
+        short_confidence = sum(
+            d.get("confidence", 0.5) for d in recent_decisions if d.get("signal") == "sell_to_enter"
+        )
+
+        if long_count > short_count and long_confidence > short_confidence:
+            return f"Strong Bullish bias ({long_count} longs, avg confidence: {long_confidence / long_count:.2f})"
+        elif short_count > long_count and short_confidence > long_confidence:
+            return f"Strong Bearish bias ({short_count} shorts, avg confidence: {short_confidence / short_count:.2f})"
+        elif long_count > short_count:
+            return f"Bullish bias ({long_count} longs)"
+        elif short_count > long_count:
+            return f"Bearish bias ({short_count} shorts)"
+        else:
+            return "Balanced market"
+
+    def _analyze_performance_trend(self, recent_cycles: list[dict]) -> str:
+        """Analyze performance trend based on recent cycles"""
+        if len(recent_cycles) < 3:
+            return "Insufficient data for trend analysis"
+
+        # Analyze decision patterns
+        entry_signals = 0
+        hold_signals = 0
+        close_signals = 0
+
+        for cycle in recent_cycles:
+            decisions = cycle.get("decisions", {})
+            for trade in decisions.values():
+                if isinstance(trade, dict):
+                    signal = trade.get("signal")
+                    if signal == "buy_to_enter" or signal == "sell_to_enter":
+                        entry_signals += 1
+                    elif signal == "hold":
+                        hold_signals += 1
+                    elif signal == "close_position":
+                        close_signals += 1
+
+        total_signals = entry_signals + hold_signals + close_signals
+        if total_signals == 0:
+            return "No trading activity"
+
+        entry_rate = entry_signals / total_signals
+        close_rate = close_signals / total_signals
+
+        if entry_rate > 0.4 and close_rate < 0.2:
+            return "Aggressive accumulation phase"
+        elif close_rate > 0.3:
+            return "Profit-taking phase"
+        elif hold_signals > entry_signals + close_signals:
+            return "Consolidation phase"
+        else:
+            return "Balanced trading"
+
+    def get_max_positions_for_cycle(self, cycle_number: int) -> int:
+        """Delegate to portfolio manager"""
+        return self.portfolio.get_max_positions_for_cycle(cycle_number)
 
     def format_position_context(self, position_context: dict) -> str:
         """
@@ -23,6 +190,7 @@ class AIService:
             Use :func:`build_position_slot_json` from prompt_json_builders instead.
             This function is kept for backward compatibility.
         """
+        self.invocation_count += 1
 
         warnings.warn(
             "format_position_context() is deprecated. "

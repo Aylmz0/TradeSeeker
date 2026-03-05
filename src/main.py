@@ -15,7 +15,6 @@ sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from config.config import Config
 from src.ai.deepseek_api import DeepSeekAPI
-from src.ai.enhanced_context_provider import EnhancedContextProvider
 from src.core.account_service import AccountService
 from src.core.ai_service import AIService
 from src.core.backtest import AdvancedRiskManager
@@ -56,22 +55,6 @@ class AlphaArenaDeepSeek:
         self.latest_indicator_cache: dict[str, dict[str, dict[str, Any]]] = {}
         self.history_reset_interval = Config.HISTORY_RESET_INTERVAL
 
-    def get_max_positions_for_cycle(self, cycle_number: int) -> int:
-        """Cycle-based maximum position limit - Gradual increase system, limited by MAX_POSITIONS"""
-        from config.config import Config
-
-        max_allowed = Config.MAX_POSITIONS
-
-        if cycle_number == 1:
-            return min(1, max_allowed)  # Cycle 1: max 1 position (or MAX_POSITIONS)
-        elif cycle_number == 2:
-            return min(2, max_allowed)  # Cycle 2: max 2 positions (or MAX_POSITIONS)
-        elif cycle_number == 3:
-            return min(3, max_allowed)  # Cycle 3: max 3 positions (or MAX_POSITIONS)
-        elif cycle_number == 4:
-            return min(4, max_allowed)  # Cycle 4: max 4 positions (or MAX_POSITIONS)
-        else:
-            return max_allowed  # Cycle 5+: Uses MAX_POSITIONS value
 
     def _apply_directional_capacity_filter(
         self, decisions: dict[str, dict],
@@ -144,174 +127,6 @@ class AlphaArenaDeepSeek:
             )
             self.portfolio.reset_historical_data(cycle_number)
             self.invocation_count = 0
-
-    def get_trading_context(self) -> dict[str, Any]:
-        """Get historical context from recent cycles - Enhanced with 5 cycle analysis"""
-        try:
-            if len(self.portfolio.cycle_history) < 2:
-                return {
-                    "recent_decisions": [],
-                    "market_behavior": "Initial cycles - observing",
-                    "total_cycles_analyzed": len(self.portfolio.cycle_history),
-                    "performance_trend": "No data yet",
-                }
-
-            # Use last 5 cycles for enhanced analysis
-            recent_cycles = self.portfolio.cycle_history[-5:]
-            recent_decisions = []
-
-            for cycle in recent_cycles:
-                decisions = cycle.get("decisions", {})
-                for coin, trade in decisions.items():
-                    if isinstance(trade, dict) and trade.get("signal") in [
-                        "buy_to_enter",
-                        "sell_to_enter",
-                    ]:
-                        recent_decisions.append(
-                            {
-                                "coin": coin,
-                                "signal": trade.get("signal"),
-                                "cycle": cycle.get("cycle"),
-                                "confidence": trade.get("confidence", 0.5),
-                                "timestamp": cycle.get("timestamp"),
-                            },
-                        )
-
-            # Enhanced market behavior analysis
-            market_behavior = self._analyze_market_behavior(recent_cycles)
-            performance_trend = self._analyze_performance_trend(recent_cycles)
-
-            return {
-                "recent_decisions": recent_decisions,
-                "market_behavior": market_behavior,
-                "performance_trend": performance_trend,
-                "total_cycles_analyzed": len(recent_cycles),
-                "analysis_period": f"Last {len(recent_cycles)} cycles",
-            }
-
-        except Exception as e:
-            print(f"[WARNING] Trading context error: {e}")
-            return {
-                "recent_decisions": [],
-                "market_behavior": "Error in context analysis",
-                "performance_trend": "Unknown",
-                "total_cycles_analyzed": 0,
-            }
-
-    def _analyze_market_behavior(self, recent_cycles: list[dict]) -> str:
-        """Analyze market behavior based on recent trading decisions"""
-        if not recent_cycles:
-            return "No recent activity"
-
-        recent_decisions = []
-        for cycle in recent_cycles:
-            decisions = cycle.get("decisions", {})
-            for coin, trade in decisions.items():
-                if isinstance(trade, dict) and trade.get("signal") in [
-                    "buy_to_enter",
-                    "sell_to_enter",
-                ]:
-                    recent_decisions.append(trade)
-
-        if not recent_decisions:
-            return "Consolidating - No recent entries"
-
-        long_count = sum(1 for d in recent_decisions if d.get("signal") == "buy_to_enter")
-        short_count = sum(1 for d in recent_decisions if d.get("signal") == "sell_to_enter")
-
-        # Enhanced analysis with confidence weighting
-        long_confidence = sum(
-            d.get("confidence", 0.5) for d in recent_decisions if d.get("signal") == "buy_to_enter"
-        )
-        short_confidence = sum(
-            d.get("confidence", 0.5) for d in recent_decisions if d.get("signal") == "sell_to_enter"
-        )
-
-        if long_count > short_count and long_confidence > short_confidence:
-            return f"Strong Bullish bias ({long_count} longs, avg confidence: {long_confidence / long_count:.2f})"
-        elif short_count > long_count and short_confidence > long_confidence:
-            return f"Strong Bearish bias ({short_count} shorts, avg confidence: {short_confidence / short_count:.2f})"
-        elif long_count > short_count:
-            return f"Bullish bias ({long_count} longs)"
-        elif short_count > long_count:
-            return f"Bearish bias ({short_count} shorts)"
-        else:
-            return "Balanced market"
-
-    def _analyze_performance_trend(self, recent_cycles: list[dict]) -> str:
-        """Analyze performance trend based on recent cycles"""
-        if len(recent_cycles) < 3:
-            return "Insufficient data for trend analysis"
-
-        # Analyze decision patterns
-        entry_signals = 0
-        hold_signals = 0
-        close_signals = 0
-
-        for cycle in recent_cycles:
-            decisions = cycle.get("decisions", {})
-            for trade in decisions.values():
-                if isinstance(trade, dict):
-                    signal = trade.get("signal")
-                    if signal == "buy_to_enter" or signal == "sell_to_enter":
-                        entry_signals += 1
-                    elif signal == "hold":
-                        hold_signals += 1
-                    elif signal == "close_position":
-                        close_signals += 1
-
-        total_signals = entry_signals + hold_signals + close_signals
-        if total_signals == 0:
-            return "No trading activity"
-
-        entry_rate = entry_signals / total_signals
-        close_rate = close_signals / total_signals
-
-        if entry_rate > 0.4 and close_rate < 0.2:
-            return "Aggressive accumulation phase"
-        elif close_rate > 0.3:
-            return "Profit-taking phase"
-        elif hold_signals > entry_signals + close_signals:
-            return "Consolidation phase"
-        else:
-            return "Balanced trading"
-
-    def get_enhanced_context(self) -> dict[str, Any]:
-        """Get enhanced context for AI decision making"""
-        try:
-            # from src.ai.enhanced_context_provider import EnhancedContextProvider
-            provider = EnhancedContextProvider()
-            return provider.generate_enhanced_context()
-        except Exception as e:
-            print(f"[WARNING] Enhanced context error: {e}")
-            return {"error": f"Enhanced context failed: {str(e)}"}
-
-    def _fetch_all_indicators_parallel(self) -> dict[str, dict[str, dict[str, Any]]]:
-        """
-        Fetch all indicators for all coins in parallel with smart caching.
-
-        Note:
-            - Delegates to cache_manager functions for better code organization
-            - Uses SmartIndicatorCache if Config.USE_SMART_CACHE is enabled
-            - Cache strategy:
-                * 3m: Always fresh (NEVER cached)
-                * 15m: Cached with dynamic TTL (~75% hit rate)
-                * HTF: Cached with dynamic TTL (~93% hit rate for 1h)
-        """
-        if Config.USE_SMART_CACHE:
-            # Use cache-aware fetch
-            return fetch_all_indicators_with_cache(
-                self.market_data, self.market_data.available_coins, HTF_INTERVAL, use_cache=True,
-            )
-        else:
-            # Fallback to non-cached version
-            return fetch_all_indicators_parallel(
-                self.market_data, self.market_data.available_coins, HTF_INTERVAL,
-            )
-
-    def check_coin_rotation(self, coin: str) -> bool:
-        """Coin rotation disabled - always allow trading"""
-        return True
 
     def calculate_optimal_cycle_frequency(self) -> int:
         """Calculate optimal cycle frequency based on market volatility
@@ -594,7 +409,7 @@ class AlphaArenaDeepSeek:
                 )
 
                 # GRADUAL POSITION SYSTEM: Cycle-based position limit
-                max_positions_for_cycle = self.get_max_positions_for_cycle(cycle_number)
+                max_positions_for_cycle = self.ai_service.get_max_positions_for_cycle(cycle_number)
                 current_positions = len(self.portfolio.positions)
 
                 if current_positions >= max_positions_for_cycle:
@@ -1275,11 +1090,6 @@ class AlphaArenaDeepSeek:
     def get_directional_bias_metrics(self) -> dict[str, dict[str, Any]]:
         """Proxy to portfolio directional bias metrics."""
         return self.portfolio.get_directional_bias_metrics()
-
-    def load_cycle_history(self) -> list[dict]:
-        history = safe_file_read(self.cycle_history_file, default_data=[])
-        print(f"[SUCCESS] Loaded {len(history)} cycles.")
-        return history
 
     def add_to_cycle_history(
         self,

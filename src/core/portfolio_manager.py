@@ -76,6 +76,10 @@ class PortfolioManager:
         self.risk_manager = AdvancedRiskManager()  # Initialize risk manager
         self.market_data = RealMarketData()  # Initialize market data for counter-trend detection
 
+        # Fixed: Initialize live trading attributes used in update_prices()
+        self.is_live_trading = False
+        self.order_executor = None
+
         # Initialize total_value before _initialize_live_trading (which calls sync_live_account)
         self.total_value = self.current_balance
         self.total_return = 0.0

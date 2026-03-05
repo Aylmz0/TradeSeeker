@@ -21,10 +21,15 @@ class AccountService:
         self.pm = portfolio_manager
         self.is_live_trading = getattr(Config, 'TRADING_MODE', 'simulation') == 'live'
         self.order_executor = None
+        
         if self.is_live_trading:
             self._initialize_live_trading()
         elif BINANCE_IMPORT_ERROR:
             print(f'[INFO] Binance executor unavailable ({BINANCE_IMPORT_ERROR}). Staying in simulation mode.')
+
+        # Propagate state to PortfolioManager
+        self.pm.is_live_trading = self.is_live_trading
+        self.pm.order_executor = self.order_executor
 
     def _initialize_live_trading(self):
         """Configure Binance executor when live trading mode is enabled."""
@@ -53,7 +58,10 @@ class AccountService:
             print(f"[ERROR] Unexpected Binance setup error: {exc}. Reverting to simulation mode.")
             self.is_live_trading = False
             self.order_executor = None
-
+        
+        # Ensure sync back to PM after initialization attempts
+        self.pm.is_live_trading = self.is_live_trading
+        self.pm.order_executor = self.order_executor
     def _build_default_exit_plan(self, direction: str, entry_price: float) -> dict[str, float]:
         """Generate a sensible default exit plan when AI data is unavailable."""
         try:
