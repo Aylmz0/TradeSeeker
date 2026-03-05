@@ -41,11 +41,13 @@ document.addEventListener('DOMContentLoaded', () => {
     // Initial fetch
     initChart(); // Initialize chart
     fetchData();
+    fetchMLData();
     updateBotStatus();
 
     // Set interval for periodic updates
     setInterval(() => {
         fetchData();
+        fetchMLData();
         updateBotStatus();
     }, FETCH_INTERVAL_MS);
 });
@@ -776,4 +778,114 @@ function updateChart(tradeHistory) {
 
     areaSeries.setData(data);
     chart.timeScale().fitContent();
+}
+
+// --- ML Intelligence Panel ---
+async function fetchMLData() {
+    try {
+        const [predResp, driftResp] = await Promise.all([
+            fetch(apiUrl('/api/ml-predictions') + '?t=' + Date.now()),
+            fetch(apiUrl('/api/ml-drift') + '?t=' + Date.now())
+        ]);
+
+        let latestPred = null;
+        if (predResp.ok) {
+            const preds = await predResp.json();
+            if (Array.isArray(preds) && preds.length > 0) {
+                latestPred = preds[preds.length - 1];
+            }
+        }
+
+        let driftData = null;
+        if (driftResp.ok) {
+            driftData = await driftResp.json();
+        }
+
+        updateMLPanel(latestPred, driftData);
+    } catch (e) {
+        console.warn('ML data fetch failed:', e.message);
+    }
+}
+
+function updateMLPanel(pred, drift) {
+    // Probability bars
+    const sellBar = document.getElementById('mlSellBar');
+    const holdBar = document.getElementById('mlHoldBar');
+    const buyBar = document.getElementById('mlBuyBar');
+    const sellPct = document.getElementById('mlSellPct');
+    const holdPct = document.getElementById('mlHoldPct');
+    const buyPct = document.getElementById('mlBuyPct');
+
+    if (pred) {
+        const sell = pred.sell || 0;
+        const hold = pred.hold || 0;
+        const buy = pred.buy || 0;
+
+        if (sellBar) sellBar.style.width = sell + '%';
+        if (holdBar) holdBar.style.width = hold + '%';
+        if (buyBar) buyBar.style.width = buy + '%';
+        if (sellPct) sellPct.textContent = sell.toFixed(1) + '%';
+        if (holdPct) holdPct.textContent = hold.toFixed(1) + '%';
+        if (buyPct) buyPct.textContent = buy.toFixed(1) + '%';
+
+        // Dominant signal badge
+        const badge = document.getElementById('mlDominantBadge');
+        const dom = pred.dominant || '---';
+        if (badge) {
+            badge.textContent = dom;
+            badge.className = 'text-3xl font-black tracking-wider px-6 py-2 rounded-lg ';
+            if (dom === 'BUY') badge.className += 'bg-green-900/50 text-green-400 border border-green-500/30';
+            else if (dom === 'SELL') badge.className += 'bg-red-900/50 text-red-400 border border-red-500/30';
+            else badge.className += 'bg-yellow-900/50 text-yellow-400 border border-yellow-500/30';
+        }
+
+        // Confidence
+        const confEl = document.getElementById('mlConfidence');
+        const conf = pred.confidence || 0;
+        if (confEl) confEl.textContent = conf.toFixed(1) + '%';
+
+        // Strength
+        const strEl = document.getElementById('mlStrength');
+        if (strEl) {
+            let strength = 'WEAK';
+            let strClass = 'bg-red-900/50 text-red-400';
+            if (conf >= 45) { strength = 'STRONG'; strClass = 'bg-green-900/50 text-green-400'; }
+            else if (conf >= 35) { strength = 'MODERATE'; strClass = 'bg-yellow-900/50 text-yellow-400'; }
+            strEl.textContent = strength;
+            strEl.className = 'text-xs px-2 py-0.5 rounded-full ' + strClass;
+        }
+    }
+
+    // Model health
+    if (drift) {
+        const trainAcc = document.getElementById('mlTrainingAcc');
+        const liveAcc = document.getElementById('mlLiveAcc');
+        const driftEl = document.getElementById('mlDrift');
+        const predCount = document.getElementById('mlPredCount');
+        const statusEl = document.getElementById('mlModelStatus');
+
+        if (trainAcc) trainAcc.textContent = drift.training_accuracy + '%';
+        if (liveAcc) liveAcc.textContent = drift.live_accuracy !== null ? drift.live_accuracy + '%' : 'No data';
+        if (driftEl) {
+            if (drift.drift_pct !== null) {
+                driftEl.textContent = (drift.drift_pct > 0 ? '+' : '') + drift.drift_pct + '%';
+                driftEl.className = 'text-sm font-mono ' + (Math.abs(drift.drift_pct) > 10 ? 'text-red-400' : 'text-green-400');
+            } else {
+                driftEl.textContent = '--';
+            }
+        }
+        if (predCount) predCount.textContent = drift.total_predictions;
+        if (statusEl) {
+            if (drift.status === 'ok') {
+                statusEl.textContent = 'Healthy';
+                statusEl.className = 'text-xs px-2 py-0.5 rounded-full bg-green-900/50 text-green-400';
+            } else if (drift.status === 'alert') {
+                statusEl.textContent = 'Drift Alert';
+                statusEl.className = 'text-xs px-2 py-0.5 rounded-full bg-red-900/50 text-red-400';
+            } else {
+                statusEl.textContent = 'Awaiting Data';
+                statusEl.className = 'text-xs px-2 py-0.5 rounded-full bg-gray-600 text-gray-400';
+            }
+        }
+    }
 }

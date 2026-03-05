@@ -264,6 +264,75 @@ def serve_static_files(filename):
 # --- Error Handlers ---
 
 
+@app.route("/api/ml-predictions")
+def get_ml_predictions():
+    """Get recent ML predictions from JSONL log."""
+    jsonl_path = get_file_path("data/ml_predictions.jsonl")
+    predictions = []
+    try:
+        if os.path.exists(jsonl_path):
+            with open(jsonl_path, "r") as f:
+                lines = f.readlines()
+            for line in lines[-50:]:
+                line = line.strip()
+                if line:
+                    predictions.append(json.loads(line))
+    except Exception as e:
+        logger.error(f"Error reading ML predictions: {e}")
+    return jsonify(predictions)
+
+
+@app.route("/api/ml-drift")
+def get_ml_drift():
+    """Get ML model drift status."""
+    import sqlite3
+    training_accuracy = 0.431
+    result = {
+        "training_accuracy": round(training_accuracy * 100, 1),
+        "live_accuracy": None,
+        "drift_pct": None,
+        "status": "no_data",
+        "total_predictions": 0,
+        "prediction_distribution": {},
+        "avg_confidence": 0,
+    }
+    try:
+        jsonl_path = get_file_path("data/ml_predictions.jsonl")
+        if os.path.exists(jsonl_path):
+            with open(jsonl_path, "r") as f:
+                lines = [l.strip() for l in f.readlines() if l.strip()]
+            result["total_predictions"] = len(lines)
+            if lines:
+                preds = [json.loads(l) for l in lines]
+                dist = {}
+                total_conf = 0
+                for p in preds:
+                    sig = p.get("dominant", "UNKNOWN")
+                    dist[sig] = dist.get(sig, 0) + 1
+                    total_conf += p.get("confidence", 0)
+                result["prediction_distribution"] = dist
+                result["avg_confidence"] = round(total_conf / len(preds), 2)
+
+        db_path = get_file_path("data/market_data.db")
+        if os.path.exists(db_path):
+            conn = sqlite3.connect(db_path)
+            cursor = conn.cursor()
+            cursor.execute("SELECT COUNT(*) FROM decisions WHERE status='CLOSED'")
+            closed = cursor.fetchone()[0]
+            if closed > 0:
+                cursor.execute("SELECT COUNT(*) FROM decisions WHERE status='CLOSED' AND pnl_result > 0")
+                wins = cursor.fetchone()[0]
+                live_acc = wins / closed
+                result["live_accuracy"] = round(live_acc * 100, 1)
+                result["drift_pct"] = round((training_accuracy - live_acc) * 100, 1)
+                result["status"] = "alert" if (training_accuracy - live_acc) > 0.10 else "ok"
+            conn.close()
+    except Exception as e:
+        logger.error(f"Error computing drift: {e}")
+    return jsonify(result)
+
+
+
 @app.errorhandler(404)
 def not_found(error):
     return jsonify({"status": "error", "message": "Endpoint not found"}), 404
