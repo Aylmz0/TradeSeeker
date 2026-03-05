@@ -1,13 +1,32 @@
+# Python Caches
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.pytest_cache/
+
+# Environments
 .env
 .venv
 project_venv/
-__pycache__/
+
+# Data and Logs
 data/
 archive/
 *.log
 *.json
+*.sqlite
+*.db
+
+# Include exceptions
 !requirements.txt
 !package.json
+
+# Project specific
 Nof1Monk.txt
 all_trades_log.txt
 .maestro/
+
+# IDEs
+.idea/
+.vscode/
