@@ -41,8 +41,8 @@ class AlphaArenaDeepSeek:
     def __init__(self, api_key: str = None):
         self.market_data = RealMarketData()
         self.strategy_analyzer = StrategyAnalyzer(self.market_data)
-        self.ai_service = AIService(self.portfolio, self.market_data, self.strategy_analyzer)
         self.portfolio = PortfolioManager()
+        self.ai_service = AIService(self.portfolio, self.market_data, self.strategy_analyzer)
         self.account_service = AccountService(self.portfolio)
         self.deepseek = DeepSeekAPI(api_key)
         self.risk_manager = AdvancedRiskManager()

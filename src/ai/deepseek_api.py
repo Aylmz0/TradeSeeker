@@ -52,6 +52,24 @@ class DeepSeekAPI:
             self.client = OpenAI(
                 api_key=self.api_key, base_url=self.base_url, timeout=180.0, max_retries=2,
             )
+        elif getattr(Config, "OPENROUTER_API_KEY", None):
+            # Use OpenRouter (Excellent for cost management)
+            self.api_key = Config.OPENROUTER_API_KEY
+            self.base_url = "https://openrouter.ai/api/v1"
+            self.model = Config.OPENROUTER_MODEL
+            self.provider = "OpenRouter"
+            self.thinking_enabled = getattr(Config, "OPENROUTER_REASONING_ENABLED", True)
+            print(f"[INFO] Using OpenRouter API with model: {self.model} (reasoning: {self.thinking_enabled})")
+            self.client = OpenAI(
+                api_key=self.api_key,
+                base_url=self.base_url,
+                timeout=180.0,
+                max_retries=2,
+                default_headers={
+                    "HTTP-Referer": "https://github.com/Aylmz0/TradeSeeker",
+                    "X-Title": "TradeSeeker AI",
+                },
+            )
         else:
             # Fallback to DeepSeek
             self.api_key = api_key or Config.DEEPSEEK_API_KEY
@@ -76,8 +94,8 @@ class DeepSeekAPI:
         """
         system_structure = {
             "agent_profile": {
-                "role": "Zero-shot systematic trading model",
-                "competition": "Alpha Arena",
+                "role": "Elite Hybrid Intelligence Orchestrator (LLM + XGBoost)",
+                "competition": "Alpha Arena 2026",
                 "objective": "Maximize PnL via perpetual futures trading",
                 "assets": ["XRP", "DOGE", "ASTER", "TRX", "ETH", "SOL"],
                 "capital_settings": {"initial_balance": Config.INITIAL_BALANCE},
@@ -248,12 +266,17 @@ class DeepSeekAPI:
                 "4. Use 3m indicators for entry/exit timing.",
                 "5. Check alignment across all three timeframes.",
                 "6. Incorporate Volume, Open Interest, Funding.",
-                "7. Decide direction based on strongest quantified edge.",
-                "8. Verify constraints (Position Slots) before proposing.",
+                "7. CROSS-REFERENCE with 'ml_consensus' (XGBoost probabilities) to confirm the statistical edge.",
+                "8. Decide direction based on strongest quantified edge (AI logic + ML consensus).",
+                "9. Verify constraints (Position Slots) before proposing.",
             ],
+            "execution_meta": {
+                "entry_method": "Smart Limit Orders (Orderbook analyzed at sub-millisecond level)",
+                "note": "AI's role is SIGNAL and LOGIC. Invalidation conditions must be technically sound (EMA/Structure).",
+            },
             "data_protocol": {
                 "series_order": "OLDEST -> NEWEST",
-                "indicators": ["Price", "EMA", "RSI", "MACD", "Volume", "Open Interest", "Funding"],
+                "indicators": ["Price", "EMA", "RSI", "MACD", "Volume", "Open Interest", "Funding", "ml_consensus"],
                 "syntax_requirement": "Compare values explicitly (e.g., 'price=2.5 > EMA=2.4')",
                 "authoritative_source": "Treat the supplied data as the authoritative source for every decision.",
             },
@@ -343,6 +366,15 @@ class DeepSeekAPI:
                     "description": "ATR-based trend indicator",
                     "direction": {"UP": "Bullish trend signal.", "DOWN": "Bearish trend signal."},
                 },
+                "ml_consensus": {
+                    "description": "2026 XGBoost Model probabilities for next 15m-1h direction",
+                    "fields": {
+                        "BUY": "Probability of price increase (0.0-1.0)",
+                        "SELL": "Probability of price decrease (0.0-1.0)",
+                        "HOLD": "Probability of ranging/neutral or Model Uncertainty (0.0-1.0)",
+                    },
+                    "usage": "Use as a 'Statistical Tie-Breaker'. If AI logic and ML agree (e.g., AI=Long + ML_BUY > 0.65), confidence is HIGH. If ML_HOLD > 0.40, the statistical edge is weak; require stronger technical confluence for entry.",
+                },
                 # ==================== END NEW INDICATOR DEFINITIONS ====================
             },
             "response_schema": {
@@ -361,10 +393,10 @@ class DeepSeekAPI:
             },
             "few_shot_examples": [
                 {
-                    "style": "Sherlock Holmes Style - Dense Data & Strict Logic",
-                    "input_context": "Market data including Erosion, Reversal, and Counter-Trade Analysis...",
+                    "style": "Sherlock Holmes Style - High-Density Hybrid Analysis",
+                    "input_context": "Market data including technical indicators, ML probabilities, and portfolio state...",
                     "output_example": {
-                        "CHAIN_OF_THOUGHTS": "Systematic execution: 1h Trend + 15m Momentum/Structure + 3m Timing + Risk Guardrails. Logic precedes decision.\\n\\nXRP: 1h Bullish (Price $0.54 > EMA20 $0.52, RSI 62, ADX 32 MODERATE). 15m Bullish (Structure HH_HL, Momentum STRENGTHENING). 3m Bullish (RSI 60). Confluence: SuperTrend UP + Volume 1.2x (Strong). Analysis: Perfect alignment across all timeframes. Risk: Erosion NONE. Decision: BUY_TO_ENTER (High Confidence Trend Follow).\\n\\nSOL (OPEN LONG): 1h Bearish (ADX 35 STRONG, Bullish Trend Broken). 15m Bearish (Structure LH_LL). Position Risk: Erosion SIGNIFICANT (Status: 50% drawdown). Reversal Score: MEDIUM (4/10). Rule: SIGNIFICANT Erosion + MEDIUM Reversal = Hard Close. Decision: CLOSE_POSITION (Preserve Capital).\\n\\nTRX: 1h Bullish. 15m Bearish (Deep Pullback). 3m Bearish (RSI 28 OVERSOLD). Context: Price at Bollinger Lower Band + Positive Funding. logic: Mean reversion setup within Bullish HTF trend. Counter-Trend Risk Level: LOW_RISK (Band Extreme + Support). Decision: SELL_TO_ENTER (Counter-Trend Short).\\n\\nDOGE: 1h Bullish but Price Location UPPER_10 (Resistance). 15m Momentum WEAKENING. Sparkline Tags: 'Vol_Low'. Logic: Buying at resistance w/ weak momentum = Bull Trap Risk. Decision: HOLD.\\n\\nASTER: Volume Ratio 0.15x (< 0.20 Hard Filter). BB Squeeze (Low Volatility). Decision: HOLD (No Edge).",
+                        "CHAIN_OF_THOUGHTS": "Systematic execution: 1h Trend + 15m Momentum/Structure + 3m Timing + ML Consensus. Logic precedes decision.\\n\\nXRP: 1h Bullish (Price $0.54 > EMA20 $0.52, RSI 62, ADX 32 MODERATE). 15m Bullish (Structure HH_HL, Momentum STRENGTHENING, BB_Width 5.2% expanding). 3m Bullish (RSI 64, Volume 1.8x). ML Consensus: BUY 0.82 (Strong statistical confirmation). Hybrid Alignment: Technical confluence (1h/15m/3m) confirmed by ML edge. Execution: Smart-Limit entry at 15m VWAP. Decision: BUY_TO_ENTER (High Confidence Hybrid Follow).\\n\\nSOL (OPEN LONG): 1h Bearish (ADX 35 STRONG, Bullish Trend Broken). 15m Bearish (Structure LH_LL, Price < EMA20). Position Risk: Erosion SIGNIFICANT (55% profit decay). Reversal Score: STRONG (7/10). ML Consensus: SELL 0.78 (XGBoost confirms trend reversal). Combined Action: Technical invalidation + ML reversal signal = immediate closure. Decision: CLOSE_POSITION (Preserve Capital).\\n\\nTRX: 1h Bullish (Price $0.12 > EMA20 $0.118). 15m Bearish (Extreme dip, RSI 22 OVERSOLD, Price at BB Lower Band). 3m Reversing (MACD Bullish Cross). Context: Buying the dip in a long-term bull regime. ML Consensus: BUY 0.68 (Statistical support for mean reversion). Decision: BUY_TO_ENTER (Trend Following Dip).\\n\\nDOGE: 1h Bullish but Price Location UPPER_10 (Resistance, Sparkline Tag: 'Vol_Low'). 15m Momentum WEAKENING. ML Consensus: HOLD 0.45 (Model uncertainty). Logic: Buying at resistance with low volume and ML uncertainty = Negative Expectancy. Decision: HOLD.\\n\\nASTER: Volume Ratio 0.12x (< 0.20 Hard Filter). BB Squeeze (Volatility 1.2%). Decision: HOLD (No Edge).",
                         "DECISIONS": {
                             "XRP": {
                                 "signal": "buy_to_enter",
@@ -381,11 +413,11 @@ class DeepSeekAPI:
                                 "invalidation_condition": "Profit Erosion > 50% limit breached",
                             },
                             "TRX": {
-                                "signal": "sell_to_enter",
+                                "signal": "buy_to_enter",
                                 "strategy": "counter_trend",
                                 "leverage": 10,
-                                "confidence": 0.70,
-                                "invalidation_condition": "Close if price breaks above recent swing high",
+                                "confidence": 0.75,
+                                "invalidation_condition": "Close if price breaks below recent swing low",
                             },
                             "DOGE": {"signal": "hold"},
                             "ASTER": {"signal": "hold"},
@@ -432,6 +464,10 @@ class DeepSeekAPI:
             if self.provider == "Z.AI" and self.thinking_enabled:
                 request_params["temperature"] = 1.0  # Required for thinking mode
                 request_params["extra_body"] = {"thinking": {"type": "enabled"}}
+            
+            # Add reasoning support for OpenRouter
+            if self.provider == "OpenRouter" and self.thinking_enabled:
+                request_params["extra_body"] = {"reasoning": {"enabled": True}}
 
             stream = self.client.chat.completions.create(**request_params)
 
