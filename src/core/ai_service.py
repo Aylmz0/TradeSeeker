@@ -40,7 +40,7 @@ class AIService:
             provider = EnhancedContextProvider()
             return provider.generate_enhanced_context()
         except Exception as e:
-            print(f"[WARNING] Enhanced context error: {e}")
+            print(f"[WARN]  Enhanced context error: {e}")
             return {"error": f"Enhanced context failed: {str(e)}"}
 
     def get_directional_bias_metrics(self) -> dict[str, dict[str, Any]]:
@@ -92,7 +92,7 @@ class AIService:
             }
 
         except Exception as e:
-            print(f"[WARNING] Trading context error: {e}")
+            print(f"[WARN]  Trading context error: {e}")
             return {
                 "recent_decisions": [],
                 "market_behavior": "Error in context analysis",
@@ -814,7 +814,7 @@ Current live positions & performance:"""
 
         if skipped_cooldown_coins:
             print(
-                f"[OPTIMIZE] Prompt optimization: Skipped cooldown coins (no position): {skipped_cooldown_coins}",
+                f"[INFO]  Prompt optimization: Skipped cooldown coins (no position): {skipped_cooldown_coins}",
             )
 
         # Metadata
@@ -968,7 +968,7 @@ Each coin below contains a State Vector with:
         try:
             parsed_json = json.loads(response)
             if not isinstance(parsed_json, dict):
-                print(f"[ERROR] Parsed JSON not dict: {type(parsed_json)}")
+                print(f"[ERR]   Parsed JSON not dict: {type(parsed_json)}")
                 return {"chain_of_thoughts": "Error: Parsed JSON not dict.", "decisions": {}}
 
             thoughts = parsed_json.get("CHAIN_OF_THOUGHTS", "No thoughts provided.")
@@ -976,7 +976,7 @@ Each coin below contains a State Vector with:
             decisions = self._clean_ai_decisions(decisions)
             return {"chain_of_thoughts": thoughts, "decisions": decisions}
         except Exception as e:
-            print(f"[ERROR] General parse error: {e}")
+            print(f"[ERR]   General parse error: {e}")
 
     def _clean_ai_decisions(self, decisions: dict) -> dict:
         """Clean up AI decisions - preserve position data for hold signals"""

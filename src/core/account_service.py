@@ -34,28 +34,28 @@ class AccountService:
     def _initialize_live_trading(self):
         """Configure Binance executor when live trading mode is enabled."""
         if BinanceOrderExecutor is None:
-            print("[ERROR] Live trading requested but Binance executor is unavailable.")
+            print("[ERR]   Live trading requested but Binance executor is unavailable.")
             self.is_live_trading = False
             return
         try:
             self.order_executor = BinanceOrderExecutor(self.pm.market_data.available_coins)
             if not self.order_executor.is_live():
                 print(
-                    "[WARNING] Live trading requested but executor initialized in simulation mode. Reverting to paper trading.",
+                    "[WARN]  Live trading requested but executor initialized in simulation mode. Reverting to paper trading.",
                 )
                 self.is_live_trading = False
                 self.order_executor = None
                 return
             print(
-                f"[SUCCESS] Live trading mode enabled (Binance {'TESTNET' if Config.BINANCE_TESTNET else 'MAINNET'}).",
+                f"[OK]    Live trading mode enabled (Binance {'TESTNET' if Config.BINANCE_TESTNET else 'MAINNET'}).",
             )
             self.sync_live_account()
         except BinanceAPIError as exc:
-            print(f"[ERROR] Binance setup failed: {exc}. Reverting to simulation mode.")
+            print(f"[ERR]   Binance setup failed: {exc}. Reverting to simulation mode.")
             self.is_live_trading = False
             self.order_executor = None
         except Exception as exc:
-            print(f"[ERROR] Unexpected Binance setup error: {exc}. Reverting to simulation mode.")
+            print(f"[ERR]   Unexpected Binance setup error: {exc}. Reverting to simulation mode.")
             self.is_live_trading = False
             self.order_executor = None
         
@@ -111,7 +111,7 @@ class AccountService:
         if missing_required:
             symbol = position.get("symbol", "UNKNOWN")
             print(
-                f"[WARNING] Missing {', '.join(missing_required)} for {symbol} - using default exit plan offsets.",
+                f"[WARN]  Missing {', '.join(missing_required)} for {symbol} - using default exit plan offsets.",
             )
         position["exit_plan"] = final_plan
         return final_plan
@@ -195,20 +195,20 @@ class AccountService:
                 # Binance totalWalletBalance is used for validation only
                 if total_wallet_balance is not None and total_wallet_balance > 0:
                     print(
-                        f"[SUCCESS] Binance totalWalletBalance: ${total_wallet_balance:.2f} (will validate against calculated value)",
+                        f"[OK]    Binance totalWalletBalance: ${total_wallet_balance:.2f} (will validate against calculated value)",
                     )
                 elif wallet_balance is not None and wallet_balance > 0:
                     print(
-                        f"[WARNING] totalWalletBalance not available, using walletBalance: ${wallet_balance:.2f}",
+                        f"[WARN]  totalWalletBalance not available, using walletBalance: ${wallet_balance:.2f}",
                     )
                 else:
                     print(
-                        "[WARNING] Neither totalWalletBalance nor walletBalance available from Binance API",
+                        "[WARN]  Neither totalWalletBalance nor walletBalance available from Binance API",
                     )
         except BinanceAPIError as exc:
-            print(f"[WARNING] Binance balance sync failed: {exc}")
+            print(f"[WARN]  Binance balance sync failed: {exc}")
         except Exception as exc:
-            print(f"[WARNING] Unexpected Binance balance sync error: {exc}")
+            print(f"[WARN]  Unexpected Binance balance sync error: {exc}")
 
         try:
             snapshot = self.order_executor.get_positions_snapshot()
@@ -247,7 +247,7 @@ class AccountService:
                 self.pm.total_value = self.pm.current_balance + total_margin_used + total_unrealized_pnl
 
                 if abs(old_total - self.pm.total_value) > 0.01:
-                    print(f"[STATS] Total value updated: ${old_total:.2f} → ${self.pm.total_value:.2f}")
+                    print(f"[INFO]  Total value updated: ${old_total:.2f} → ${self.pm.total_value:.2f}")
                     print(
                         f"   (Available cash: ${self.pm.current_balance:.2f} + Margin used: ${total_margin_used:.2f} + Unrealized PnL: ${total_unrealized_pnl:.2f})",
                     )
@@ -266,7 +266,7 @@ class AccountService:
                             diff = abs(self.pm.total_value - total_wb)
                             if diff > 0.10:  # More than 10 cents difference
                                 print(
-                                    f"   [WARNING] Warning: Calculated total_value differs from Binance totalWalletBalance by ${diff:.2f}",
+                                    f"   [WARN]  Warning: Calculated total_value differs from Binance totalWalletBalance by ${diff:.2f}",
                                 )
             else:
                 self.pm.positions = {}
@@ -280,9 +280,9 @@ class AccountService:
                 else:
                     self.pm.total_value = self.pm.current_balance
         except BinanceAPIError as exc:
-            print(f"[WARNING] Binance position sync failed: {exc}")
+            print(f"[WARN]  Binance position sync failed: {exc}")
         except Exception as exc:
-            print(f"[WARNING] Unexpected Binance position sync error: {exc}")
+            print(f"[WARN]  Unexpected Binance position sync error: {exc}")
 
     @staticmethod
     def _calculate_realized_pnl(
@@ -398,13 +398,13 @@ class AccountService:
                             else None
                         )
                     except Exception as e:
-                        print(f"[WARNING] ATR fetch failed for {coin}: {e}")
+                        print(f"[WARN]  ATR fetch failed for {coin}: {e}")
                         atr_value = None
 
                     # Fallback: If ATR unavailable, use 2% of price
                     if not atr_value or atr_value <= 0:
                         atr_value = avg_price * 0.02
-                        print(f"[WARNING] ATR fallback for {coin}: Using 2% of price = ${atr_value:.4f}")
+                        print(f"[WARN]  ATR fallback for {coin}: Using 2% of price = ${atr_value:.4f}")
 
                     # Calculate stop distance using Config multiplier
                     sl_distance = atr_value * Config.ATR_SL_MULTIPLIER
@@ -423,12 +423,12 @@ class AccountService:
                         if final_stop_loss >= avg_price:
                             final_stop_loss = avg_price - (avg_price * 0.02)
                             print(
-                                f"[WARNING] Final validation: Stop loss for {coin} LONG was invalid (>= entry), recalculated to ${format_num(final_stop_loss, 4)}",
+                                f"[WARN]  Final validation: Stop loss for {coin} LONG was invalid (>= entry), recalculated to ${format_num(final_stop_loss, 4)}",
                             )
                     elif final_stop_loss <= avg_price:
                         final_stop_loss = avg_price + (avg_price * 0.02)
                         print(
-                            f"[WARNING] Final validation: Stop loss for {coin} SHORT was invalid (<= entry), recalculated to ${format_num(final_stop_loss, 4)}",
+                            f"[WARN]  Final validation: Stop loss for {coin} SHORT was invalid (<= entry), recalculated to ${format_num(final_stop_loss, 4)}",
                         )
 
                     # Save ATR-based stop loss and profit target to exit_plan
@@ -459,10 +459,10 @@ class AccountService:
                 "notional_usd": notional_runtime,
             }
         except BinanceAPIError as exc:
-            print(f"[ERROR] Binance entry order failed for {coin}: {exc}")
+            print(f"[ERR]   Binance entry order failed for {coin}: {exc}")
             return {"success": False, "error": str(exc)}
         except Exception as exc:
-            print(f"[ERROR] Unexpected Binance entry error for {coin}: {exc}")
+            print(f"[ERR]   Unexpected Binance entry error for {coin}: {exc}")
             return {"success": False, "error": str(exc)}
 
     def execute_live_close(
@@ -533,10 +533,10 @@ class AccountService:
                 "history_entry": history_entry,
             }
         except BinanceAPIError as exc:
-            print(f"[ERROR] Binance close order failed for {coin}: {exc}")
+            print(f"[ERR]   Binance close order failed for {coin}: {exc}")
             return {"success": False, "error": str(exc)}
         except Exception as exc:
-            print(f"[ERROR] Unexpected Binance close error for {coin}: {exc}")
+            print(f"[ERR]   Unexpected Binance close error for {coin}: {exc}")
             return {"success": False, "error": str(exc)}
 
     def execute_live_partial_close(
@@ -604,10 +604,10 @@ class AccountService:
                 "history_entry": history_entry,
             }
         except BinanceAPIError as exc:
-            print(f"[ERROR] Binance partial close failed for {coin}: {exc}")
+            print(f"[ERR]   Binance partial close failed for {coin}: {exc}")
             return {"success": False, "error": str(exc)}
         except Exception as exc:
-            print(f"[ERROR] Unexpected Binance partial close error for {coin}: {exc}")
+            print(f"[ERR]   Unexpected Binance partial close error for {coin}: {exc}")
             return {"success": False, "error": str(exc)}
 
     def close_position(
@@ -672,7 +672,7 @@ class AccountService:
         del self.pm.positions[coin]
 
         print(
-            f"[SUCCESS] PAPER CLOSE: {direction} {coin} @ ${format_num(current_price, 4)} (PnL: ${format_num(profit, 2)}, Commission: ${format_num(commission, 3)})",
+            f"[OK]    PAPER CLOSE: {direction} {coin} @ ${format_num(current_price, 4)} (PnL: ${format_num(profit, 2)}, Commission: ${format_num(commission, 3)})",
         )
 
         self.pm.save_state()
@@ -689,12 +689,12 @@ class AccountService:
         """
         # Enhanced exit strategy control - check if enabled
         if hasattr(self, "bot") and not self.pm.bot.enhanced_exit_enabled:
-            print("⏸️ Enhanced exit strategy paused during cycle")
+            print("[PAUSED] Enhanced exit strategy paused during cycle")
             return False
 
         # All TP/SL decisions made by 30-second monitoring (like simulation mode)
         # No Binance TP/SL orders - all managed by monitoring loop
-        print("[INFO] Checking for TP/SL triggers (30-second monitoring mode)")
+        # print("[INFO] Checking for TP/SL triggers (30-second monitoring mode)")  # Silenced check heartbeat
 
         closed_positions = []  # Keep track of positions closed in this check
         updated_stops = []  # Track positions with updated trailing stops
@@ -739,7 +739,7 @@ class AccountService:
             # Debug log if margin_used is still 0
             if margin_used <= 0:
                 print(
-                    f"⚠️ Warning: margin_used is 0 for {coin}. Position data: margin_usd={position.get('margin_usd')}, notional={position.get('notional_usd')}, leverage={position.get('leverage')}, entry={entry_price}, qty={quantity}",
+                    f"[WARN]  Warning: margin_used is 0 for {coin}. Position data: margin_usd={position.get('margin_usd')}, notional={position.get('notional_usd')}, leverage={position.get('leverage')}, entry={entry_price}, qty={quantity}",
                 )
 
             close_reason = None
@@ -800,9 +800,9 @@ class AccountService:
                     # Sync account balance after partial close in live mode
                     try:
                         self.sync_live_account()
-                        print(f"✅ Account balance synced after partial close of {coin}")
+                        print(f"[OK]    Account balance synced after partial close of {coin}")
                     except Exception as sync_exc:
-                        print(f"⚠️ Failed to sync account after partial close: {sync_exc}")
+                        print(f"[WARN]  Failed to sync account after partial close: {sync_exc}")
                     continue
 
                 close_quantity = quantity * close_percent
@@ -826,7 +826,7 @@ class AccountService:
                     old_peak = position["peak_pnl"]
                     position["peak_pnl"] = position["peak_pnl"] * (1 - close_percent)
                     print(
-                        f"   📊 peak_pnl adjusted: ${format_num(old_peak, 2)} → ${format_num(position['peak_pnl'], 2)} (after {close_percent * 100:.0f}% close)",
+                        f"   [INFO]  peak_pnl adjusted: ${format_num(old_peak, 2)} → ${format_num(position['peak_pnl'], 2)} (after {close_percent * 100:.0f}% close)",
                     )
 
                 # Add profit to balance
@@ -942,7 +942,7 @@ class AccountService:
                     executed_qty = live_result.get("executed_qty", 0)
                     avg_price = live_result.get("avg_price", 0)
                     print(
-                        f"[SUCCESS] Binance CLOSE order executed for {coin}: orderId={order_id}, qty={format_num(executed_qty, 4)}, avgPrice=${format_num(avg_price, 4)}",
+                        f"[OK]    Binance CLOSE order executed for {coin}: orderId={order_id}, qty={format_num(executed_qty, 4)}, avgPrice=${format_num(avg_price, 4)}",
                     )
 
                     history_entry = live_result.get("history_entry")
@@ -954,9 +954,9 @@ class AccountService:
                     # Sync account balance after closing position in live mode
                     try:
                         self.sync_live_account()
-                        print(f"✅ Account balance synced after closing {coin}")
+                        print(f"[OK]    Account balance synced after closing {coin}")
                     except Exception as sync_exc:
-                        print(f"⚠️ Failed to sync account after close: {sync_exc}")
+                        print(f"[WARN]  Failed to sync account after close: {sync_exc}")
                     continue
 
                 if direction == "long":
@@ -994,9 +994,9 @@ class AccountService:
                 state_changed = True
 
         if closed_positions:
-            print(f"✅ Auto-closed positions: {', '.join(closed_positions)}")
+            print(f"[OK]    Auto-closed positions: {', '.join(closed_positions)}")
         if updated_stops:
-            print(f"📈 Updated trailing stops: {', '.join(updated_stops)}")
+            print(f"[OK]    Updated trailing stops: {', '.join(updated_stops)}")
 
         if state_changed:
             self.pm.save_state()
@@ -1107,7 +1107,7 @@ class AccountService:
         # Extended profit exit - take profit after N positive cycles
         if profit_cycle_count >= Config.EXTENDED_PROFIT_CYCLES and unrealized_pnl > 0:
             reason = f"Taking profit after {profit_cycle_count} profitable cycles (PnL ${unrealized_pnl:.2f})"
-            print(f"💰 Extended profit exit: {position['symbol']} {direction} closed ({reason}).")
+            print(f"[OK]    Extended profit exit: {position['symbol']} {direction} closed ({reason}).")
             return {"action": "close_position", "reason": reason}
 
         # --- GRADUATED LOSS CUTTING MECHANISM (Margin-based) ---
@@ -1141,7 +1141,7 @@ class AccountService:
         take3 = profit_levels["take3"]
 
         print(
-            f"[STATS] Dynamic profit levels for ${notional_usd:.2f} notional: {level1 * 100:.1f}%/{level2 * 100:.1f}%/{level3 * 100:.1f}%",
+            f"[INFO]  Dynamic profit levels for ${notional_usd:.2f} notional: {level1 * 100:.1f}%/{level2 * 100:.1f}%/{level3 * 100:.1f}%",
         )
 
         if direction == "long":
@@ -1399,7 +1399,7 @@ class AccountService:
                 self.pm.market_data.get_technical_indicators(symbol, "3m") if self.pm.market_data else {}
             )
         except Exception as exc:
-            print(f"⚠️ Trailing stop indicator fetch failed for {symbol}: {exc}")
+            print(f"[WARN]  Trailing stop indicator fetch failed for {symbol}: {exc}")
             indicators_3m = {}
 
         if isinstance(indicators_3m, dict):
@@ -1455,7 +1455,7 @@ class AccountService:
                     atr_buffer = atr_buffer * 0.5
                     overbought_protect_active = True
                     print(
-                        f"[PROTECTION] OVERBOUGHT PROTECT: {symbol} zone={zone} RSI={rsi_htf:.1f} -> Buffer halved",
+                        f"[WARN]  OVERBOUGHT PROTECT: {symbol} zone={zone} RSI={rsi_htf:.1f} -> Buffer halved",
                     )
         except Exception:
             pass  # Silently continue without overbought protection
@@ -1576,7 +1576,7 @@ class AccountService:
                 # Apply kademeli position limit
                 if current_positions >= max_positions_for_cycle:
                     print(
-                        f"⚠️ KADEMELİ POZİSYON LİMİTİ (Cycle {cycle_number}): Max {max_positions_for_cycle} positions allowed. Skipping {coin} entry.",
+                        f"[WARN]  KADEMELİ POZİSYON LİMİTİ (Cycle {cycle_number}): Max {max_positions_for_cycle} positions allowed. Skipping {coin} entry.",
                     )
                     continue
                 current_positions += 1

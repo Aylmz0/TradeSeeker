@@ -50,9 +50,11 @@ class MLService:
                 logger.warning("[MLService] ML Artifacts missing. Service will run in DEGRADED (AI-Only) mode.")
                 return
                 
-            # Load XGBoost Classifier Shell
-            self.model = xgb.XGBClassifier()
-            self.model.load_model(self.model_path)
+            import warnings
+            with warnings.catch_warnings():
+                warnings.filterwarnings("ignore", category=UserWarning)
+                self.model = xgb.XGBClassifier()
+                self.model.load_model(self.model_path)
             
             # Load Scikit-Learn Scaler and Feature Names
             self.scaler = joblib.load(self.scaler_path)

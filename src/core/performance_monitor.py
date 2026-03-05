@@ -235,7 +235,7 @@ class PerformanceMonitor:
             return performance_report
 
         except Exception as e:
-            print(f"[ERROR] Performance analysis error: {e}")
+            print(f"[ERR]   Performance analysis error: {e}")
             return {"error": f"Performance analysis failed: {str(e)}"}
 
     def _calculate_max_drawdown(self, value_history: list[float]) -> float:
@@ -334,7 +334,7 @@ class PerformanceMonitor:
     def print_performance_summary(self, report: dict):
         """Print a formatted performance summary"""
         if "error" in report:
-            print(f"[ERROR] Performance analysis failed: {report['error']}")
+            print(f"[ERR]   Performance analysis failed: {report['error']}")
             return
 
         if "info" in report:
@@ -342,7 +342,7 @@ class PerformanceMonitor:
             return
 
         print(f"\n{'=' * 60}")
-        print(f"[STATS] PERFORMANCE REPORT - {report.get('analysis_period', 'N/A')}")
+        print(f"[INFO]  PERFORMANCE REPORT - {report.get('analysis_period', 'N/A')}")
         print(f"{'=' * 60}")
 
         # Trading Activity
@@ -355,7 +355,7 @@ class PerformanceMonitor:
 
         # Trade Performance
         trade_perf = report.get("trade_performance", {})
-        print("\n[STATS] TRADE PERFORMANCE:")
+        print("\n[INFO]   TRADE PERFORMANCE:")
         print(f"   Total Trades: {trade_perf.get('total_trades', 0)}")
         print(f"   Profitability Index: {trade_perf.get('profitability_index', 0):.1f}%")
         print(f"   Total PnL: ${trade_perf.get('total_pnl', 0):.2f}")
@@ -364,7 +364,7 @@ class PerformanceMonitor:
 
         # Portfolio Performance
         portfolio_perf = report.get("portfolio_performance", {})
-        print("\n[STATS] PORTFOLIO PERFORMANCE:")
+        print("\n[INFO]   PORTFOLIO PERFORMANCE:")
         print(f"   Total Return: {portfolio_perf.get('total_return', 0):.2f}%")
         print(f"   Sharpe Ratio: {portfolio_perf.get('sharpe_ratio', 0):.3f}")
         print(f"   Sortino Ratio: {portfolio_perf.get('sortino_ratio', 0):.3f}")
@@ -374,7 +374,7 @@ class PerformanceMonitor:
         # Coin Performance
         coin_perf = report.get("coin_performance", {})
         if coin_perf:
-            print("\n[STATS] COIN PERFORMANCE:")
+            print("\n[INFO]   COIN PERFORMANCE:")
             for coin, stats in coin_perf.items():
                 profitability_index = stats.get("profitability_index", 0)
                 total_pnl = stats.get("total_pnl", 0)
@@ -609,7 +609,7 @@ class PerformanceMonitor:
             return loss_risk_signals
 
         except Exception as e:
-            print(f"[ERROR] Error in trend break analysis for all coins: {e}")
+            print(f"[ERR]   Error in trend break analysis for all coins: {e}")
             return {"error": f"Trend break analysis failed: {str(e)}"}
 
     def _generate_reversal_recommendations(

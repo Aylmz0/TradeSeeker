@@ -85,7 +85,7 @@ class RealMarketData:
 
                 if len(data) < 50:
                     print(
-                        f"[WARNING] Insufficient kline data for {symbol} ({interval}). Got {len(data)}.",
+                        f"[WARN] Insufficient kline data for {symbol} ({interval}). Got {len(data)}.",
                     )
                     return pd.DataFrame()
 
@@ -113,7 +113,7 @@ class RealMarketData:
                 # Sanitize corrupted candles
                 df.replace([np.inf, -np.inf], np.nan, inplace=True)
                 if df.isna().any().any():
-                    print(f"[WARNING] Invalid candles (NaN/Inf) detected for {symbol} ({interval}). Dropping invalid rows.")
+                    print(f"[WARN] Invalid candles (NaN/Inf) detected for {symbol} ({interval}). Dropping invalid rows.")
                     df.dropna(inplace=True)
 
                 # Enhanced data validation
@@ -124,34 +124,34 @@ class RealMarketData:
                     return df
                 else:
                     print(
-                        f"[ERROR] Data validation failed for {symbol} ({interval}) - attempt {attempt + 1}/{max_retries}",
+                        f"[ERR]   Data validation failed for {symbol} ({interval}) - attempt {attempt + 1}/{max_retries}",
                     )
                     if attempt < max_retries - 1:
                         time.sleep(2**attempt)  # Exponential backoff
                         continue
                     else:
                         print(
-                            f"[ERROR] All retries failed for {symbol} ({interval}). Returning empty DataFrame.",
+                            f"[ERR]   All retries failed for {symbol} ({interval}). Returning empty DataFrame.",
                         )
                         return pd.DataFrame()
 
             except requests.exceptions.Timeout:
-                print(f"[ERROR] Timeout for {symbol} ({interval}) - attempt {attempt + 1}/{max_retries}")
+                print(f"[ERR]   Timeout for {symbol} ({interval}) - attempt {attempt + 1}/{max_retries}")
                 if attempt < max_retries - 1:
                     time.sleep(2**attempt)
                     continue
                 else:
-                    print(f"[ERROR] All retries timed out for {symbol} ({interval})")
+                    print(f"[ERR]   All retries timed out for {symbol} ({interval})")
                     return pd.DataFrame()
             except Exception as e:
                 print(
-                    f"[ERROR] Kline data error {symbol} ({interval}) - attempt {attempt + 1}/{max_retries}: {e}",
+                    f"[ERR]   Kline data error {symbol} ({interval}) - attempt {attempt + 1}/{max_retries}: {e}",
                 )
                 if attempt < max_retries - 1:
                     time.sleep(2**attempt)
                     continue
                 else:
-                    print(f"[ERROR] All retries failed for {symbol} ({interval})")
+                    print(f"[ERR]   All retries failed for {symbol} ({interval})")
                     return pd.DataFrame()
 
         return pd.DataFrame()
@@ -159,7 +159,7 @@ class RealMarketData:
     def _validate_kline_data(self, df: pd.DataFrame, symbol: str, interval: str) -> bool:
         """Validate kline data quality with enhanced volume checks"""
         if df.empty:
-            print(f"[WARNING] Empty DataFrame for {symbol} ({interval})")
+            print(f"[WARN] Empty DataFrame for {symbol} ({interval})")
             return False
 
         # Check for zero or negative prices
@@ -167,14 +167,14 @@ class RealMarketData:
         for col in price_cols:
             if (df[col] <= 0).any():
                 print(
-                    f"[WARNING] Invalid price data for {symbol} ({interval}): {col} contains zero/negative values",
+                    f"[WARN] Invalid price data for {symbol} ({interval}): {col} contains zero/negative values",
                 )
                 return False
 
         # Check for identical prices (stuck data)
         if df["close"].nunique() < 3:  # Less than 3 unique prices
             print(
-                f"[WARNING] Stuck price data for {symbol} ({interval}): only {df['close'].nunique()} unique prices",
+                f"[WARN] Stuck price data for {symbol} ({interval}): only {df['close'].nunique()} unique prices",
             )
             return False
 
@@ -183,7 +183,7 @@ class RealMarketData:
 
         # Check for zero volume (data quality issue)
         if volume_sum == 0:
-            print(f"[WARNING] Zero volume for {symbol} ({interval})")
+            print(f"[WARN] Zero volume for {symbol} ({interval})")
             return False
 
         # NOTE: Removed hard volume threshold filter
@@ -193,7 +193,7 @@ class RealMarketData:
         # Check for reasonable price movement
         price_range = df["high"].max() - df["low"].min()
         if price_range == 0:
-            print(f"[WARNING] No price movement for {symbol} ({interval})")
+            print(f"[WARN] No price movement for {symbol} ({interval})")
             return False
 
         return True
@@ -211,7 +211,7 @@ class RealMarketData:
             if isinstance(e, requests.exceptions.HTTPError) and e.response.status_code == 404:
                 print(f"[INFO] OI not available for {symbol}USDT on Futures.")
             else:
-                print(f"[ERROR] OI error for {symbol}: {e}")
+                print(f"[ERR]   OI error for {symbol}: {e}")
             return 0.0
 
     def get_funding_rate(self, symbol: str) -> float:
@@ -239,7 +239,7 @@ class RealMarketData:
             ):
                 print(f"[INFO] Funding Rate not available for {symbol}USDT on Futures.")
             else:
-                print(f"[ERROR] Funding Rate error for {symbol}: {e}")
+                print(f"[ERR]   Funding Rate error for {symbol}: {e}")
             return 0.0
 
     # --- Indicator Calculation Functions ---
@@ -406,7 +406,7 @@ class RealMarketData:
             self.store_preloaded_indicator(coin, interval, indicators)
             return indicators
         except Exception as e:
-            print(f"[ERROR] Indicator error {coin} ({interval}): {e}")
+            print(f"[ERR]   Indicator error {coin} ({interval}): {e}")
             traceback.print_exc()
             return {"current_price": current_price, "error": str(e)}
 
@@ -423,7 +423,7 @@ class RealMarketData:
                     raise ValueError(f"Invalid price value {price_val}")
                 prices[coin] = price_val
             except Exception as e:
-                print(f"[WARNING] Invalid bulk price for {coin}: {raw_price} ({e}). Using fallback.")
+                print(f"[WARN] Invalid bulk price for {coin}: {raw_price} ({e}). Using fallback.")
                 prices[coin] = self._get_fallback_price(coin)
 
         # First try batched endpoint (single request, lower latency)
@@ -444,19 +444,19 @@ class RealMarketData:
                 # Ensure we filled everything; fall back only for missing
                 missing = [coin for coin in self.available_coins if coin not in prices]
                 if not missing:
-                    for coin, val in prices.items():
-                        print(f"[SUCCESS] {coin}: ${val:.4f}")
+                    prices_str = " | ".join([f"{coin}: ${val:.4f}" for coin, val in prices.items()])
+                    print(f"[OK]    Prices: {prices_str}")
                     return prices
                 else:
                     print(
-                        f"[WARNING] Bulk price missing for: {', '.join(missing)}. Falling back to individual requests.",
+                        f"[WARN] Bulk price missing for: {', '.join(missing)}. Falling back to individual requests.",
                     )
             else:
                 print(
-                    "[WARNING] Unexpected bulk ticker response format. Falling back to individual requests.",
+                    "[WARN] Unexpected bulk ticker response format. Falling back to individual requests.",
                 )
         except Exception as e:
-            print(f"[WARNING] Bulk price fetch failed: {e}. Falling back to individual requests.")
+            print(f"[WARN] Bulk price fetch failed: {e}. Falling back to individual requests.")
 
         # Fallback to individual calls (still using session, without artificial delay)
         for coin in self.available_coins:
@@ -470,10 +470,13 @@ class RealMarketData:
                 if price_val <= 0 or np.isnan(price_val) or np.isinf(price_val):
                     raise ValueError(f"Invalid price value {price_val}")
                 prices[coin] = price_val
-                print(f"[SUCCESS] {coin}: ${price_val:.4f}")
             except Exception as e:
-                print(f"[ERROR] {coin} price error: {e}. Using fallback...")
+                print(f"[ERR]   {coin} price error: {e}. Using fallback...")
                 prices[coin] = self._get_fallback_price(coin)
+
+        if len(prices) > 0:
+            prices_str = " | ".join([f"{c}: ${p:.4f}" for c, p in prices.items()])
+            print(f"[OK]    Prices: {prices_str}")
 
         return prices
 

@@ -35,7 +35,7 @@ class StrategyAnalyzer:
             return trend_aligned
 
         except Exception as e:
-            print(f"[WARNING] Trend alignment error for {coin}: {e}")
+            print(f"[WARN]  Trend alignment error for {coin}: {e}")
             return False
 
     def check_momentum_alignment(self, coin: str) -> bool:
@@ -75,7 +75,7 @@ class StrategyAnalyzer:
             return momentum_aligned
 
         except Exception as e:
-            print(f"[WARNING] Momentum alignment error for {coin}: {e}")
+            print(f"[WARN]  Momentum alignment error for {coin}: {e}")
             return False
 
     def enhanced_trend_detection(self, coin: str) -> dict[str, Any]:
@@ -167,7 +167,7 @@ class StrategyAnalyzer:
             }
 
         except Exception as e:
-            print(f"[WARNING] Enhanced trend detection error for {coin}: {e}")
+            print(f"[WARN]  Enhanced trend detection error for {coin}: {e}")
             return {
                 "trend_strength": 0,
                 "trend_direction": "NEUTRAL",
@@ -235,7 +235,7 @@ class StrategyAnalyzer:
             }
 
         except Exception as e:
-            print(f"[WARNING] Comprehensive trend strength error for {coin}: {e}")
+            print(f"[WARN]  Comprehensive trend strength error for {coin}: {e}")
             return {"strength_score": 0, "trend_direction": "UNCLEAR", "component_scores": {}}
 
     def analyze_rsi_strength(self, rsi: float) -> float:
@@ -309,7 +309,7 @@ class StrategyAnalyzer:
                 return 0.2  # No trend (consolidation)
 
         except Exception as e:
-            print(f"[WARNING] Bollinger Bands analysis error: {e}")
+            print(f"[WARN]  Bollinger Bands analysis error: {e}")
             return 0.5
 
     def analyze_moving_averages_strength(self, price: float, ema20: float, ema50: float) -> float:
@@ -328,7 +328,7 @@ class StrategyAnalyzer:
                 return 0.3  # No clear alignment
 
         except Exception as e:
-            print(f"[WARNING] Moving Averages analysis error: {e}")
+            print(f"[WARN]  Moving Averages analysis error: {e}")
             return 0.5
 
     def determine_trend_direction(
@@ -415,7 +415,7 @@ class StrategyAnalyzer:
                 return 0.1
 
         except Exception as e:
-            print(f"[WARNING] Volume confidence calculation error for {coin}: {e}")
+            print(f"[WARN]  Volume confidence calculation error for {coin}: {e}")
             return 0.0
 
     def calculate_volume_quality_score(
@@ -449,7 +449,7 @@ class StrategyAnalyzer:
                 return 20.0
 
         except Exception as e:
-            print(f"[WARNING] Volume quality score calculation error for {coin}: {e}")
+            print(f"[WARN]  Volume quality score calculation error for {coin}: {e}")
             return 0.0
 
     def should_enhance_short_sizing(self, coin: str) -> bool:
@@ -475,7 +475,7 @@ class StrategyAnalyzer:
             return rsi_3m > 70 and volume_ratio > 1.5 and trend_bearish
 
         except Exception as e:
-            print(f"[WARNING] Enhanced short sizing check error for {coin}: {e}")
+            print(f"[WARN]  Enhanced short sizing check error for {coin}: {e}")
             return False
 
     def generate_advanced_exit_plan(
@@ -528,7 +528,7 @@ class StrategyAnalyzer:
             }
 
         except Exception as e:
-            print(f"[WARNING] Advanced exit plan generation error for {coin}: {e}")
+            print(f"[WARN]  Advanced exit plan generation error for {coin}: {e}")
             return {
                 "profit_target": None,
                 "stop_loss": None,
@@ -621,6 +621,6 @@ class StrategyAnalyzer:
                 return "NEUTRAL"
 
         except Exception as e:
-            print(f"[WARNING] Regime detection error for {coin}: {e}")
+            print(f"[WARN]  Regime detection error for {coin}: {e}")
             return "UNCLEAR"
 

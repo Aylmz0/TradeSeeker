@@ -144,16 +144,16 @@ class AlphaArenaDeepSeek:
                     # Include small ATR values as well (adjust floating-point precision)
                     if atr is not None and atr > 1e-6:  # Higher than 0.000001
                         atr_values.append(atr)
-                        print(f"[STATS] {coin} ATR: {atr:.6f}")
+                        # print(f"[INFO]  {coin} ATR: {atr:.6f}") # Commented out for less noise
 
             if not atr_values:
-                print(
-                    f"[WARNING] No valid ATR values found, using .env value: {Config.CYCLE_INTERVAL_MINUTES} minutes",
-                )
+                # print( # Commented out for less noise
+                #     f"[WARN]  No valid ATR values found, using .env value: {Config.CYCLE_INTERVAL_MINUTES} minutes",
+                # )
                 return min_interval
 
             avg_atr = sum(atr_values) / len(atr_values)
-            print(f"[STATS] Average ATR: {avg_atr:.6f}")
+            # print(f"[INFO]  Average ATR: {avg_atr:.6f}") # Commented out for less noise
 
             # Adjust cycle frequency based on volatility
             # But never go below .env minimum
@@ -166,11 +166,11 @@ class AlphaArenaDeepSeek:
 
             # Use the larger of calculated and .env minimum
             result = max(calculated, min_interval)
-            print(f"[INFO] Cycle interval: {result}s (min from .env: {min_interval}s)")
+            # print(f"[INFO] Cycle interval: {result}s (min from .env: {min_interval}s)") # Commented out for less noise
             return result
 
         except Exception as e:
-            print(f"[WARNING] Cycle frequency calculation error: {e}")
+            print(f"[WARN]  Cycle frequency calculation error: {e}")
             return Config.CYCLE_INTERVAL_MINUTES * 60  # Use .env value as fallback
 
     def track_performance_metrics(self, cycle_number: int):
@@ -195,7 +195,7 @@ class AlphaArenaDeepSeek:
             )  # Last 100 cycles
 
         except Exception as e:
-            print(f"[WARNING] Performance tracking error: {e}")
+            print(f"[WARN]  Performance tracking error: {e}")
 
     def should_run_performance_analysis(self, cycle_number: int) -> bool:
         """Run analysis every 10 cycles or in critical situations"""
@@ -216,7 +216,7 @@ class AlphaArenaDeepSeek:
     def run_trading_cycle(self, cycle_number: int):
         """Run a single trading cycle with auto TP/SL and enhanced features"""
         print(
-            f"\n{'=' * 80}\n[INFO] TRADING CYCLE {cycle_number} | [INFO] {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n{'=' * 80}",
+            f"\n==== CYCLE {cycle_number} | {datetime.now().strftime('%Y-%m-%d %H:%M:%S')} {'=' * 50}",
         )
 
         # Check bot control at cycle start
@@ -243,7 +243,7 @@ class AlphaArenaDeepSeek:
         cycle_timing: dict[str, float] = {}
         try:
             # Enhanced exit strategy control - pause during cycle
-            print("[PAUSED] Enhanced exit strategy paused during cycle")
+            # Enhanced exit strategy paused silently during cycle
             self.enhanced_exit_enabled = False
 
             # Track performance metrics every cycle
@@ -251,13 +251,13 @@ class AlphaArenaDeepSeek:
 
             # Run performance analysis every 10 cycles or on critical conditions
             if self.should_run_performance_analysis(cycle_number):
-                print(f"[STATS] PERFORMANCE ANALYSIS - Cycle {cycle_number}")
+                print(f"[INFO]  Performance analysis (Cycle {cycle_number})")
                 from src.core.performance_monitor import PerformanceMonitor
 
                 monitor = PerformanceMonitor()
                 report = monitor.analyze_performance(last_n_cycles=10)
                 monitor.print_performance_summary(report)
-            print("\n[STATS] FETCHING MARKET DATA...")
+            print("\n[INFO]  Fetching market data...")
             md_start = time.perf_counter()
             real_prices = self.market_data.get_all_real_prices()
             valid_prices = {
@@ -343,7 +343,7 @@ class AlphaArenaDeepSeek:
                     return
 
                 ai_timer_start = time.perf_counter()
-                print("\n[AI] GENERATING PROMPT...")
+                print("\n[AI]    Generating prompt...")
                 self.invocation_count += 1  # Increment AI call count
                 # Use JSON prompt if enabled, with fallback to text format
                 prompt = None
@@ -354,16 +354,15 @@ class AlphaArenaDeepSeek:
                     try:
                         prompt = self.ai_service.generate_alpha_arena_prompt_json()
                         prompt_format_used = "json"
-                        print(f"[SUCCESS] Using JSON prompt format (version {Config.JSON_PROMPT_VERSION})")
+                        print(f"[OK]    JSON prompt format v{Config.JSON_PROMPT_VERSION}")
                     except Exception as e:
                         json_serialization_error = str(e)
-                        print(f"[WARNING] JSON prompt generation failed: {e}")
-                        print("   Falling back to text format...")
+                        print(f"[WARN]  JSON prompt failed: {e} -- falling back to text")
                         prompt = self.ai_service.generate_alpha_arena_prompt()
                         prompt_format_used = "json_fallback"
                 else:
                     prompt = self.ai_service.generate_alpha_arena_prompt()
-                print("[INFO] USER PROMPT (summary): " + prompt[:200] + "...")
+                print("[INFO]  Prompt: " + prompt[:160] + "...")
 
                 # Check bot control before AI API call (can be slow in live mode)
                 control = self._read_bot_control()
@@ -376,7 +375,7 @@ class AlphaArenaDeepSeek:
                     self.cycle_active = False
                     return
 
-                print("\n[AI] AI ANALYZING...")
+                print("[AI]    Sending to API...")
                 ai_response = self.deepseek.get_ai_decision(prompt)
 
                 # Check bot control after AI API call (may have taken time in live mode)
@@ -398,13 +397,15 @@ class AlphaArenaDeepSeek:
                 cycle_timing["ai_ms"] = round((time.perf_counter() - ai_timer_start) * 1000, 2)
 
                 if not isinstance(decisions, dict):
-                    print(f"[ERROR] AI decisions not dict ({type(decisions)}). Resetting.")
+                    print(f"[ERR]   AI decisions not dict ({type(decisions)}). Resetting.")
                     thoughts += "\nError: Decisions not dict."
                     decisions = {}
 
-                print("\n[DEBUG] CHAIN_OF_THOUGHTS:\n", thoughts)
+                if isinstance(thoughts, str):
+                    thoughts = thoughts.replace("\\n", "\n")
+                print("\n[AI]    REASONING:\n" + thoughts)
                 print(
-                    "\n[RESULT] AI TRADING DECISIONS:",
+                    "\n[AI]    DECISIONS:",
                     json.dumps(decisions, indent=2) if decisions else "{}",
                 )
 
@@ -414,7 +415,7 @@ class AlphaArenaDeepSeek:
 
                 if current_positions >= max_positions_for_cycle:
                     print(
-                        f"[PROTECTION] POSITION LIMIT REACHED (Cycle {cycle_number}): Max {max_positions_for_cycle} positions allowed",
+                        f"[WARN]  Position limit reached: max {max_positions_for_cycle} for cycle {cycle_number}",
                     )
                     # If position limit is reached, convert new entry signals to hold
                     filtered_decisions = {}
@@ -423,7 +424,7 @@ class AlphaArenaDeepSeek:
                             signal = trade.get("signal")
                             if signal in ["buy_to_enter", "sell_to_enter"]:
                                 print(
-                                    f"   [WARNING] {coin} {signal} -> HOLD (Position limit: {max_positions_for_cycle})",
+                                    f"        {coin} {signal} -> HOLD (limit)",
                                 )
                                 filtered_decisions[coin] = {
                                     "signal": "hold",
@@ -470,7 +471,7 @@ class AlphaArenaDeepSeek:
                 }
 
                 if has_close_position_signal:
-                    print("[ALERT] AI CLOSE_POSITION SIGNAL: Only specified positions are being closed")
+                    print("[AI]    CLOSE_POSITION signal -- executing closes")
                     # Close only the coins with close_position signal
                     for coin, trade in decisions.items():
                         if not isinstance(trade, dict):
@@ -496,7 +497,7 @@ class AlphaArenaDeepSeek:
                                     )
                                     if not live_result.get("success"):
                                         error_msg = live_result.get("error", "unknown_error")
-                                        print(f"[ERROR] AI LIVE CLOSE FAILED: {coin} ({error_msg})")
+                                        print(f"[ERR]   Live close failed: {coin} ({error_msg})")
                                         close_execution_report["blocked"].append(
                                             {
                                                 "coin": coin,
@@ -519,7 +520,7 @@ class AlphaArenaDeepSeek:
                                             },
                                         )
                                         print(
-                                            f"[SUCCESS] AI LIVE CLOSE: Closed {direction} {coin} @ ${format_num(current_price, 4)} (PnL: ${format_num(live_result.get('pnl', 0), 2)})",
+                                            f"[OK]    Closed {direction} {coin} @ ${format_num(current_price, 4)} (PnL: ${format_num(live_result.get('pnl', 0), 2)}) [LIVE]",
                                         )
                                     continue
 
@@ -536,7 +537,7 @@ class AlphaArenaDeepSeek:
                                 self.portfolio.current_balance += margin_used + profit
 
                                 print(
-                                    f"[SUCCESS] AI CLOSE: Closed {direction} {coin} @ ${format_num(current_price, 4)} (PnL: ${format_num(profit, 2)}, Commission: ${format_num(commission, 3)})",
+                                    f"[OK]    Closed {direction} {coin} @ ${format_num(current_price, 4)} (PnL: ${format_num(profit, 2)})",
                                 )
 
                                 history_entry = {
@@ -619,7 +620,7 @@ class AlphaArenaDeepSeek:
                 execution_elapsed = time.perf_counter() - exec_start
 
             elif isinstance(decisions, dict):
-                print("[INFO] No AI/Manual trading actions to execute this cycle.")
+                print("[INFO]  No trading actions this cycle.")
 
             if execution_elapsed is not None:
                 cycle_timing["execution_ms"] = round(execution_elapsed * 1000, 2)
@@ -662,7 +663,7 @@ class AlphaArenaDeepSeek:
                 if "execution_ms" in cycle_timing:
                     timing_summary.append(f"exec {cycle_timing['execution_ms']:.2f}ms")
                 if timing_summary:
-                    print("[TIME] Cycle timers -> " + " | ".join(timing_summary))
+                    print("[INFO]  Timers: " + " | ".join(timing_summary))
 
             self.portfolio.add_to_cycle_history(
                 cycle_number,
@@ -680,11 +681,11 @@ class AlphaArenaDeepSeek:
                 self.portfolio.tick_cooldowns()
 
             # Enhanced exit strategy control - re-enable after cycle completion
-            print("[INFO] Enhanced exit strategy re-enabled after cycle completion")
+            # Enhanced exit strategy re-enabled silently after cycle completion
             self.show_status()
 
         except Exception as e:
-            print(f"[ERROR] CRITICAL CYCLE ERROR: {e}")
+            print(f"[ERR]   CRITICAL CYCLE ERROR: {e}")
             traceback.print_exc()
             try:
                 decisions_log = decisions if isinstance(decisions, dict) else {}
@@ -697,7 +698,7 @@ class AlphaArenaDeepSeek:
                     metadata={"exception": str(e)},
                 )
             except Exception as log_e:
-                print(f"[ERROR] Failed to save error to cycle history: {log_e}")
+                print(f"[ERR]   Failed to save error to cycle history: {log_e}")
         finally:
             self.cycle_active = False
             self.enhanced_exit_enabled = True
@@ -710,18 +711,15 @@ class AlphaArenaDeepSeek:
             except SystemExit:
                 raise
             except Exception as control_e:
-                print(f"[WARNING] Failed to check bot control after exception: {control_e}")
+                print(f"[WARN]  Failed to check bot control after exception: {control_e}")
 
     def show_status(self):
         """Show current status in the console"""
-        print("\n[STATS] CURRENT STATUS:")
+        print("\n--- STATUS ---")
         print(
-            f"[INFO] Total Value: ${format_num(self.portfolio.total_value, 2)} (Initial: ${format_num(self.portfolio.initial_balance, 2)})",
+            f"[INFO]  Value: ${format_num(self.portfolio.total_value, 2)} | Return: {format_num(self.portfolio.total_return, 2)}% | Cash: ${format_num(self.portfolio.current_balance, 2)} | Trades: {self.portfolio.trade_count}",
         )
-        print(f"[INFO] Total Return: {format_num(self.portfolio.total_return, 2)}%")
-        print(f"[INFO] Available Cash: ${format_num(self.portfolio.current_balance, 2)}")
-        print(f"[INFO] Total Closed Trades: {self.portfolio.trade_count}")
-        print(f"\n[INFO] CURRENT POSITIONS ({len(self.portfolio.positions)} open):")
+        print(f"\n[INFO]  Positions ({len(self.portfolio.positions)} open):")
         if not self.portfolio.positions:
             print("  No open positions.")
         else:
@@ -747,7 +745,7 @@ class AlphaArenaDeepSeek:
         self.is_running = True
         self.tp_sl_timer = threading.Thread(target=self._tp_sl_monitoring_loop, daemon=True)
         self.tp_sl_timer.start()
-        print("[SUCCESS] TP/SL monitoring started (30 second interval)")
+        print("[OK]    TP/SL monitoring started (30s interval)")
 
     def stop_tp_sl_monitoring(self):
         """Stop TP/SL monitoring timer"""
@@ -760,7 +758,7 @@ class AlphaArenaDeepSeek:
 
     def _tp_sl_monitoring_loop(self):
         """Background thread that checks TP/SL every 30 seconds"""
-        print("[INFO] TP/SL monitoring loop started (20 second interval)")
+        # TP/SL monitoring loop started silently
         while self.is_running:
             try:
                 # Check bot control file for pause/stop command
@@ -807,7 +805,7 @@ class AlphaArenaDeepSeek:
                     continue
 
                 if not self.enhanced_exit_enabled:
-                    print("[PAUSED] Enhanced exit strategy paused during cycle - TP/SL monitoring waiting")
+                    # Enhanced exit strategy paused - TP/SL monitoring waiting silently
                     # Wait 10 seconds and check again
                     for _ in range(10):
                         if not self.is_running:
@@ -861,7 +859,7 @@ class AlphaArenaDeepSeek:
                                         )
                                         flash_exits_triggered = True
                         if flash_exits_triggered:
-                            print("[ALERT] 20-SECOND FLASH EXIT: V-Reversal detected and closed")
+                            print("[ALERT]  Flash exit: V-Reversal detected and closed")
 
                     # Run TP/SL check - all decisions made by 20-second monitoring (like simulation mode)
                     # No Binance TP/SL orders - all managed by monitoring loop
@@ -870,11 +868,10 @@ class AlphaArenaDeepSeek:
                     if positions_closed:
                         print("[INFO] 20-SECOND TP/SL CHECK: Positions closed")
                     else:
-                        print(
-                            f"[INFO] 20-SECOND TP/SL CHECK: No triggers ({len(self.portfolio.positions)} positions monitored)",
-                        )
+                        # No TP/SL triggers this check — log only when there are triggers
+                        pass
                 else:
-                    print("[WARNING] TP/SL monitoring: No valid prices available")
+                    print("[WARN]  TP/SL monitoring: No valid prices")
 
                 # Check bot control before sleep
                 control = self._read_bot_control()
@@ -884,7 +881,7 @@ class AlphaArenaDeepSeek:
                     break
 
             except Exception as e:
-                print(f"[ERROR] TP/SL monitoring error: {e}")
+                print(f"[ERR]   TP/SL monitoring error: {e}")
                 # Check bot control after exception
                 try:
                     control = self._read_bot_control()
@@ -893,7 +890,7 @@ class AlphaArenaDeepSeek:
                         self.is_running = False
                         break
                 except Exception as control_e:
-                    print(f"[WARNING] Failed to check bot control after TP/SL exception: {control_e}")
+                    print(f"[WARN]  Failed to check bot control after TP/SL exception: {control_e}")
 
             # Wait 30 seconds before next check
             if self.is_running:
@@ -901,17 +898,11 @@ class AlphaArenaDeepSeek:
 
     def run_simulation(self, total_duration_hours: int = 168, cycle_interval_minutes: int = 2):
         """Run the simulation with dynamic cycle frequency and TP/SL monitoring"""
-        print(f"[INFO] ALPHA ARENA - DEEPSEEK INTEGRATION (V{VERSION})")
+        print(f"[INFO]  ALPHA ARENA v{VERSION}")
         print(
-            f"[INFO] Simulating with ${format_num(self.portfolio.initial_balance, 2)} budget for {total_duration_hours} hours.",
+            f"[INFO]  Budget: ${format_num(self.portfolio.initial_balance, 2)} | Duration: {total_duration_hours}h | Coins: {', '.join(self.market_data.available_coins)}",
         )
-        print(f"   Trading: {', '.join(self.market_data.available_coins)}")
-        print(f"   State File: {self.portfolio.state_file}")
-        print(f"   Trade History File: {self.portfolio.history_file}")
-        print(f"   Cycle History File: {self.portfolio.cycle_history_file}")
-        print(f"   Override File Check: {self.portfolio.override_file}")
-        print("   Dynamic Cycle Frequency: Enabled (2-4 minutes based on volatility)")
-        print("   TP/SL Monitoring: Enabled (30 second interval)")
+        print(f"[INFO]  Dynamic cycle: 2-4 min | TP/SL monitor: 30s interval")
 
         # Start TP/SL monitoring
         self.start_tp_sl_monitoring()
@@ -922,7 +913,7 @@ class AlphaArenaDeepSeek:
         cycles_since_reset = len(self.portfolio.cycle_history)
         start_cycle = last_reset + cycles_since_reset + 1
         print(
-            f"   Resuming from Cycle {start_cycle}... (last reset: {last_reset}, cycles since: {cycles_since_reset})",
+            f"[INFO]  Resuming from cycle {start_cycle}",
         )
         self.invocation_count = start_cycle - 1
         current_cycle_number = start_cycle - 1
@@ -969,7 +960,7 @@ class AlphaArenaDeepSeek:
                 # Calculate dynamic cycle frequency
                 dynamic_cycle_interval = self.calculate_optimal_cycle_frequency()
                 print(
-                    f"[INFO] Dynamic cycle frequency: {dynamic_cycle_interval} seconds ({dynamic_cycle_interval / 60:.1f} minutes)",
+                    f"[INFO]  Cycle interval: {dynamic_cycle_interval}s ({dynamic_cycle_interval / 60:.1f} min)",
                 )
 
                 self.run_trading_cycle(current_cycle_number)
@@ -978,7 +969,7 @@ class AlphaArenaDeepSeek:
                 elapsed_time = time.time() - cycle_start_time
                 sleep_time = max(0, dynamic_cycle_interval - elapsed_time)
                 print(
-                    f"\n[INFO] Cycle {current_cycle_number} complete in {format_num(elapsed_time, 2)}s. Next cycle in {format_num(sleep_time / 60, 2)} mins... (Ctrl+C to stop)",
+                    f"\n[INFO]  Cycle {current_cycle_number} done in {format_num(elapsed_time, 2)}s. Next in {format_num(sleep_time / 60, 2)} min.",
                 )
                 time.sleep(max(sleep_time, 0.5))
 
@@ -1011,7 +1002,9 @@ class AlphaArenaDeepSeek:
             # Stop TP/SL monitoring
             self.stop_tp_sl_monitoring()
 
-        print(f"\n{'=' * 80}\n[INFO] SIMULATION COMPLETED\n{'=' * 80}")
+        print(f"\n{'=' * 60}")
+        print("[INFO]  SIMULATION COMPLETED")
+        print(f"{'=' * 60}")
         self.show_status()
 
     def _adjust_partial_sale_for_min_limit(self, position: dict, proposed_percent: float) -> float:
@@ -1040,7 +1033,7 @@ class AlphaArenaDeepSeek:
             adjusted_percent = adjusted_sale_amount / current_margin
 
             print(
-                f"[STATS] Adjusted partial sale: {proposed_percent * 100:.0f}% -> {adjusted_percent * 100:.0f}% to maintain ${min_remaining:.2f} minimum limit",
+                f"[INFO]  Adjusted partial sale: {proposed_percent * 100:.0f}% -> {adjusted_percent * 100:.0f}% to maintain ${min_remaining:.2f} minimum limit",
             )
             return adjusted_percent
 
@@ -1068,7 +1061,7 @@ class AlphaArenaDeepSeek:
                 {"status": "running", "last_updated": datetime.now().isoformat()},
             )
         except Exception as e:
-            print(f"[WARNING] Failed to read bot_control.json: {e}")
+            print(f"[WARN]  Failed to read bot_control.json: {e}")
             # Return default running state if file read fails (fail-safe)
             return {"status": "running", "last_updated": datetime.now().isoformat()}
 
@@ -1114,7 +1107,7 @@ def main():
     try:
         api_key = os.getenv("DEEPSEEK_API_KEY")
         if not api_key:
-            print("[WARNING] No DEEPSEEK_API_KEY found. Running simulation mode...")
+            print("[WARN]  No DEEPSEEK_API_KEY found. Running simulation mode...")
         arena = AlphaArenaDeepSeek(api_key)
         arena.run_simulation(total_duration_hours=168, cycle_interval_minutes=2)
     except KeyboardInterrupt:

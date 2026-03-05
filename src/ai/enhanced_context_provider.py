@@ -35,7 +35,7 @@ class EnhancedContextProvider:
 
                     return json.loads(content)
         except Exception as e:
-            print(f"[WARNING] Error reading {file_path}: {e}")
+            print(f"[WARN]  Error reading {file_path}: {e}")
         return default_data if default_data is not None else []
 
     def get_enhanced_position_context(self, portfolio_state: dict) -> dict[str, Any]:
@@ -172,7 +172,7 @@ class EnhancedContextProvider:
                     "price_vs_ema20": price_vs_ema20,
                 }
             except Exception as e:
-                print(f"[WARNING] Market regime calculation error for {coin}: {e}")
+                print(f"[WARN]  Market regime calculation error for {coin}: {e}")
                 coin_regimes[coin] = {"regime": "error", "score": 0, "price_vs_ema20": "unknown"}
 
         coin_count = len(market_data.available_coins) if market_data.available_coins else 0
@@ -360,7 +360,7 @@ class EnhancedContextProvider:
             return enhanced_context
 
         except Exception as e:
-            print(f"[ERROR] Enhanced context generation error: {e}")
+            print(f"[ERR]   Enhanced context generation error: {e}")
             return {"error": f"Context generation failed: {str(e)}"}
 
     def generate_suggestions(self, portfolio_state: dict, market_regime: dict) -> list[str]:
@@ -387,7 +387,7 @@ class EnhancedContextProvider:
     def print_enhanced_context(self, context: dict):
         """Prints enhanced context in formatted way"""
         if "error" in context:
-            print(f"[ERROR] Enhanced context error: {context['error']}")
+            print(f"[ERR]   Enhanced context error: {context['error']}")
             return
 
         print(f"\n{'=' * 60}")

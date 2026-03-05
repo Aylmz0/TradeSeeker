@@ -84,7 +84,7 @@ class DeepSeekAPI:
                 )
 
         if not self.api_key:
-            print("[ERROR] No API key found! Set MIMO_API_KEY, ZAI_API_KEY or DEEPSEEK_API_KEY in .env")
+            print("[ERR]   No API key found! Set MIMO_API_KEY, ZAI_API_KEY or DEEPSEEK_API_KEY in .env")
             print("[INFO] Please check your .env file configuration.")
 
     def _build_system_prompt(self) -> str:
@@ -401,7 +401,7 @@ class DeepSeekAPI:
                         if len(collected_content) % 10 == 0:
                             print(".", end="", flush=True)
 
-            print(" [DONE]")
+            print(" [OK]")
             content = "".join(collected_content)
 
             # Robust JSON extraction using JSONDecoder
@@ -419,12 +419,12 @@ class DeepSeekAPI:
                     # Re-serialize to ensure valid JSON string is returned
                     content = json.dumps(obj, indent=2)
                 else:
-                    print("[WARNING] No JSON object found in response")
+                    print("[WARN]  No JSON object found in response")
                     # Return safe hold response when no valid JSON found
                     return self.get_safe_hold_decisions()
 
             except Exception as e:
-                print(f"[WARNING] JSON extraction warning: {e}")
+                print(f"[WARN]  JSON extraction warning: {e}")
 
                 # Try to repair common JSON issues
                 try:
@@ -457,7 +457,7 @@ class DeepSeekAPI:
                     if last_valid_pos > 0:
                         repaired = repaired[:last_valid_pos]
                         obj = json.loads(repaired)
-                        print(f"[SUCCESS] JSON repaired successfully (truncated at pos {last_valid_pos})")
+                        print(f"[OK]    JSON repaired successfully (truncated at pos {last_valid_pos})")
                         return json.dumps(obj, indent=2)
                 except:
                     pass
@@ -472,7 +472,7 @@ class DeepSeekAPI:
                 try:
                     json.loads(content)
                 except:
-                    print("[ERROR] JSON parse failed completely, returning safe HOLD decisions")
+                    print("[ERR]   JSON parse failed completely, returning safe HOLD decisions")
                     return self.get_safe_hold_decisions()
 
             return content.strip()
@@ -480,7 +480,7 @@ class DeepSeekAPI:
         except Exception as e:
             # Detailed error logging
             error_type = type(e).__name__
-            print(f"[ERROR] API error ({error_type}): {e}")
+            print(f"[ERR]   API error ({error_type}): {e}")
             return self._get_error_response(f"{error_type}: {e}")
 
     def _get_gemini_decision(self, prompt: str) -> str:
@@ -524,7 +524,7 @@ class DeepSeekAPI:
                     if len(collected_content) % 5 == 0:
                         print(".", end="", flush=True)
 
-            print(" [SUCCESS]")
+            print(" [OK]")
             content = "".join(collected_content)
 
             # Extract JSON from response
@@ -536,10 +536,10 @@ class DeepSeekAPI:
                     obj, _ = decoder.raw_decode(json_candidate)
                     content = json.dumps(obj, indent=2)
                 else:
-                    print("[WARNING] No JSON object found in Gemini response")
+                    print("[WARN]  No JSON object found in Gemini response")
                     return self.get_safe_hold_decisions()
             except Exception as e:
-                print(f"[WARNING] Gemini JSON extraction warning: {e}")
+                print(f"[WARN]  Gemini JSON extraction warning: {e}")
                 # Try to clean up
                 if "```json" in content:
                     content = content.replace("```json", "").replace("```", "")
@@ -550,12 +550,12 @@ class DeepSeekAPI:
 
         except Exception as e:
             error_type = type(e).__name__
-            print(f"[ERROR] Gemini API error ({error_type}): {e}")
+            print(f"[ERR]   Gemini API error ({error_type}): {e}")
             return self._get_error_response(f"{error_type}: {e}")
 
     def _get_simulation_response(self, prompt: str) -> str:
         """Simulation response without API - Returns valid JSON string"""
-        print("[WARNING] Using simulation mode...")
+        print("[WARN]  Using simulation mode...")
         simulation_data = {
             "CHAIN_OF_THOUGHTS": f"Simulation Mode: Assuming market pullback. Shorting SOL based on simulated {HTF_LABEL} resistance. Aiming for 1:1.5 R/R using simulated ATR. Holding others.",
             "DECISIONS": {
@@ -601,7 +601,7 @@ class DeepSeekAPI:
             return self.get_safe_hold_decisions()
 
         except Exception as e:
-            print(f"[WARNING] Cache retrieval error: {e}")
+            print(f"[WARN]  Cache retrieval error: {e}")
             return self.get_safe_hold_decisions()
 
     def get_safe_hold_decisions(self) -> str:
@@ -622,7 +622,7 @@ class DeepSeekAPI:
 
     def _get_error_response(self, error_message: str) -> str:
         """Enhanced error response with intelligent recovery"""
-        print(f"[ERROR] Enhanced error handling for: {error_message}")
+        print(f"[ERR]   Enhanced error handling for: {error_message}")
 
         error_type = (
             type(error_message).__name__

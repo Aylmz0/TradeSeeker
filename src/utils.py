@@ -46,9 +46,9 @@ def safe_file_read_cached(file_path: str, default_data=None):
         return copy.deepcopy(data)
         
     except json.JSONDecodeError as e:
-        logger.warning(f"[WARNING] Invalid JSON in {file_path}: {e}")
+        logger.warning(f"[WARN]  Invalid JSON in {file_path}: {e}")
     except Exception as e:
-        logger.warning(f"[WARNING] Error reading {file_path}: {e}")
+        logger.warning(f"[WARN]  Error reading {file_path}: {e}")
         
     return default_data if default_data is not None else {}
 
@@ -70,9 +70,9 @@ def safe_file_read(file_path: str, default_data=None):
 
                 return json.loads(content)
     except json.JSONDecodeError as e:
-        logger.warning(f"[WARNING] Invalid JSON in {file_path}: {e}")
+        logger.warning(f"[WARN]  Invalid JSON in {file_path}: {e}")
     except Exception as e:
-        logger.warning(f"[WARNING] Error reading {file_path}: {e}")
+        logger.warning(f"[WARN]  Error reading {file_path}: {e}")
     return default_data if default_data is not None else []
 
 
@@ -95,7 +95,7 @@ def safe_file_write(file_path: str, data):
         os.replace(temp_file_path, file_path)
         return True
     except Exception as e:
-        logger.error(f"[ERROR] Error writing {file_path}: {e}")
+        logger.error(f"[ERR]   Error writing {file_path}: {e}")
         # Clean up temp file if it exists
         if "temp_file_path" in locals() and os.path.exists(temp_file_path):
             try:
@@ -176,7 +176,7 @@ class DataValidator:
         if required_columns:
             missing_cols = [col for col in required_columns if col not in df.columns]
             if missing_cols:
-                logger.warning(f"[WARNING] Missing columns: {missing_cols}")
+                logger.warning(f"[WARN]  Missing columns: {missing_cols}")
                 return False
 
         # Check for NaN in critical columns if needed

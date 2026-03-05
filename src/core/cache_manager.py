@@ -254,7 +254,7 @@ def fetch_all_indicators_parallel(
                 sentiment,
             )
         except Exception as e:
-            print(f"⚠️ Error fetching indicators for {coin}: {e}")
+            print(f"[WARN]  Error fetching indicators for {coin}: {e}")
             return (
                 coin,
                 {
@@ -277,7 +277,7 @@ def fetch_all_indicators_parallel(
             all_sentiment[coin] = sentiment
 
     elapsed = time.time() - start_time
-    print(f"[SUCCESS] Fetched all indicators in {elapsed:.2f}s (parallel)")
+    print(f"[OK]    Fetched all indicators in {elapsed:.2f}s (parallel)")
 
     return all_indicators, all_sentiment
 
@@ -331,7 +331,7 @@ class SmartIndicatorCache:
                 return market_data_instance.get_technical_indicators(coin, interval)
             else:
                 # Force fresh for cacheable intervals
-                print(f"[FETCH] {coin} {interval}: Force fresh (cache bypass)")
+                # print(f"[FETCH] {coin} {interval}: Force fresh (cache bypass)")
                 data = market_data_instance.get_technical_indicators(coin, interval)
                 # Update cache even when forced fresh
                 if interval in self.cacheable_intervals:
@@ -346,18 +346,18 @@ class SmartIndicatorCache:
         if cached:
             self.hits += 1
             self.api_calls_saved += 1
-            print(f"[CACHE] {coin} {interval}: Cache HIT")
+            # print(f"[CACHE] {coin} {interval}: Cache HIT")
             return cached
 
         # Cache miss, fetch from API
         self.misses += 1
-        print(f"[FETCH] {coin} {interval}: Cache MISS, fetching from API")
+        # print(f"[FETCH] {coin} {interval}: Cache MISS, fetching from API")
         fresh_data = market_data_instance.get_technical_indicators(coin, interval)
 
         # Cache with smart TTL
         ttl = self._calculate_smart_ttl(interval)
         self._set_to_cache(coin, interval, fresh_data, ttl)
-        print(f"[CACHE] {coin} {interval}: Cached (TTL={ttl}s)")
+        # print(f"[CACHE] {coin} {interval}: Cached (TTL={ttl}s)")
 
         return fresh_data
 
@@ -464,7 +464,7 @@ class SmartIndicatorCache:
         """Print cache statistics"""
         stats = self.get_stats()
         print("\n" + "=" * 50)
-        print("[STATS] SMART CACHE STATISTICS")
+        print("[INFO]  SMART CACHE STATISTICS")
         print("=" * 50)
         print(f"Cache Entries:     {stats['total_entries']}")
         print(f"Hits:              {stats['hits']}")
@@ -564,7 +564,7 @@ def fetch_all_indicators_with_cache(
                 sentiment,
             )
         except Exception as e:
-            print(f"⚠️ Error fetching indicators for {coin}: {e}")
+            print(f"[WARN]  Error fetching indicators for {coin}: {e}")
             return (
                 coin,
                 {
@@ -594,7 +594,7 @@ def fetch_all_indicators_with_cache(
     cache_info = (
         f"Cache: {stats['hits']}/{stats['hits'] + stats['misses']} hits ({stats['hit_rate_pct']}%)"
     )
-    print(f"[SUCCESS] Fetched in {elapsed:.2f}s (parallel + cache) | {cache_info}")
+    print(f"[OK]    Fetched in {elapsed:.2f}s (parallel + cache) | {cache_info}")
 
     # Periodically clear expired entries
     cache.clear_expired()
