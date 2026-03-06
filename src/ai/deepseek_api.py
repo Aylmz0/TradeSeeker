@@ -608,7 +608,7 @@ class DeepSeekAPI:
                     {"role": "user", "content": user_message_content},
                 ],
                 temperature=0.5,  # Reduced from 1 to 0.5 for trading stability
-                max_completion_tokens=4000,
+                max_completion_tokens=2000,
                 top_p=1,
                 stream=True,
                 stop=None,

@@ -22,6 +22,7 @@ from src.core.backtest import AdvancedRiskManager
 from src.core.market_data import RealMarketData
 from src.core.portfolio_manager import PortfolioManager
 from src.core.data_engine import DataEngine
+from src.core.strategy_analyzer import StrategyAnalyzer
 from src.utils import (
     format_num,
     safe_file_read,
