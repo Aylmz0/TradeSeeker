@@ -409,9 +409,13 @@ class DeepSeekAPI:
                 ],
                 "temperature": 0.5,
                 "max_tokens": 4000,
-                "response_format": {"type": "json_object"},
                 "stream": True,
             }
+
+            # Only use strict JSON mode if reasoning is NOT enabled
+            # reasoning and json_object mode sometimes conflict on OpenRouter
+            if not (self.provider == "OpenRouter" and self.thinking_enabled):
+                request_params["response_format"] = {"type": "json_object"}
 
             # Add thinking support for Z.AI
             if self.provider == "Z.AI" and self.thinking_enabled:
@@ -426,10 +430,19 @@ class DeepSeekAPI:
 
             print("[WAIT] Receiving stream...", end="", flush=True)
             collected_content = []
+            collected_reasoning = []
+            
             for chunk in stream:
                 # Safe access - check if choices exists and has content
                 if hasattr(chunk, "choices") and chunk.choices and len(chunk.choices) > 0:
                     delta = chunk.choices[0].delta
+                    
+                    # OpenRouter specific: check for reasoning_details or reasoning
+                    # Some models send reasoning in 'reasoning' or 'thought' or 'reasoning_details'
+                    reasoning = getattr(delta, "reasoning", None) or getattr(delta, "reasoning_details", None)
+                    if reasoning:
+                        collected_reasoning.append(str(reasoning))
+                    
                     if hasattr(delta, "content") and delta.content:
                         content_chunk = delta.content
                         collected_content.append(content_chunk)
@@ -439,6 +452,12 @@ class DeepSeekAPI:
 
             print(" [OK]")
             content = "".join(collected_content)
+            reasoning_content = "".join(collected_reasoning)
+
+            # If content is empty but reasoning has data, the model might have put everything in reasoning
+            if not content and reasoning_content:
+                print("[INFO] Using reasoning as fallback content for JSON search")
+                content = reasoning_content
 
             # Robust JSON extraction using JSONDecoder
             try:
@@ -452,9 +471,15 @@ class DeepSeekAPI:
                     decoder = json.JSONDecoder()
                     obj, end_index = decoder.raw_decode(json_candidate)
 
+                    # If we have reasoning from OpenRouter and the JSON doesn't have thoughts, inject it
+                    if reasoning_content and "CHAIN_OF_THOUGHTS" not in obj:
+                         obj["CHAIN_OF_THOUGHTS"] = reasoning_content
+
                     # Re-serialize to ensure valid JSON string is returned
                     content = json.dumps(obj, indent=2)
                 else:
+                    if reasoning_content:
+                         print(f"[WARN] No JSON found, but reasoning exists: {reasoning_content[:100]}...")
                     print("[WARN]  No JSON object found in response")
                     # Return safe hold response when no valid JSON found
                     return self.get_safe_hold_decisions()
