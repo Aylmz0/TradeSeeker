@@ -1,6 +1,8 @@
 import logging
 import os
 import sqlite3
+import time
+import json
 
 import numpy as np
 import pandas as pd
@@ -106,6 +108,48 @@ class DataEngine:
         finally:
             conn.close()
 
+    def log_market_data(self, df: pd.DataFrame, coin: str, interval: str):
+        """Public method to log raw OHLCV data."""
+        self._insert_klines_bulk(df, coin, interval)
+
+    def log_cycle_features(self, coin: str, interval: str, indicators: dict[str, Any]):
+        """
+        Logs indicator snapshots to the 'features' table.
+        Indicators should be a dict containing numeric values or series.
+        """
+        if not isinstance(indicators, dict):
+            return
+
+        conn = self._get_connection()
+        try:
+            # Prepare feature JSON (sanitize to ensure JSON serializable)
+            feature_data = {}
+            for k, v in indicators.items():
+                if isinstance(v, (int, float, str, bool)):
+                    feature_data[k] = v
+                elif hasattr(v, "tolist"):  # numpy/pandas series
+                    feature_data[k] = v.tolist()[-1] if len(v) > 0 else None
+                elif isinstance(v, list):
+                    feature_data[k] = v[-1] if v else None
+            
+            cursor = conn.cursor()
+            cursor.execute(
+                """INSERT OR REPLACE INTO features (timestamp, coin, interval, feature_json)
+                   VALUES (?, ?, ?, ?)""",
+                (
+                    int(time.time() * 1000),
+                    coin,
+                    interval,
+                    json.dumps(feature_data)
+                )
+            )
+            conn.commit()
+        except Exception as e:
+            logger.error(f"[DataEngine] Failed to log features for {coin}: {e}")
+            conn.rollback()
+        finally:
+            conn.close()
+
     def _insert_klines_bulk(self, df: pd.DataFrame, coin: str, interval: str):
         """Bulk insert a pandas DataFrame of KLines into SQLite."""
         if df.empty:
@@ -116,11 +160,14 @@ class DataEngine:
             cursor = conn.cursor()
 
             # Convert timestamp to integer milliseconds for storage
-            # The DF arriving from RealMarketData has 'timestamp' as datetime64
             records = []
             for _, row in df.iterrows():
-                # Extract int timestamp
-                ts_int = int(row["timestamp"].timestamp() * 1000)
+                ts_val = row["timestamp"]
+                if hasattr(ts_val, "timestamp"):
+                    ts_int = int(ts_val.timestamp() * 1000)
+                else:
+                    # Fallback for integer milliseconds or numpy.int64
+                    ts_int = int(ts_val)
 
                 records.append(
                     (

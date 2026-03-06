@@ -21,7 +21,7 @@ from src.core.ai_service import AIService
 from src.core.backtest import AdvancedRiskManager
 from src.core.market_data import RealMarketData
 from src.core.portfolio_manager import PortfolioManager
-from src.core.strategy_analyzer import StrategyAnalyzer
+from src.core.data_engine import DataEngine
 from src.utils import (
     format_num,
     safe_file_read,
@@ -46,6 +46,7 @@ class AlphaArenaDeepSeek:
         self.account_service = AccountService(self.portfolio)
         self.deepseek = DeepSeekAPI(api_key)
         self.risk_manager = AdvancedRiskManager()
+        self.data_engine = DataEngine()
         self.invocation_count = 0  # Track AI calls since bot start
         self.tp_sl_timer = None
         self.is_running = False
@@ -336,6 +337,23 @@ class AlphaArenaDeepSeek:
                 else:
                     prompt = self.ai_service.generate_alpha_arena_prompt()
                 print("[INFO]  Prompt: " + prompt[:160] + "...")
+
+                # PHASE 10: AUTOMATED DATA COLLECTION
+                # Log indicators and market data fetched during prompt generation
+                try:
+                    latest_indicators = getattr(self.ai_service, "latest_indicators", {})
+                    for coin in self.market_data.available_coins:
+                        # 1. Log Raw OHLCV Data (Market Data Table)
+                        for interval in ["3m", "15m", HTF_INTERVAL]:
+                            df_raw = self.market_data.get_cached_raw_dataframe(coin, interval)
+                            if df_raw is not None and not df_raw.empty:
+                                self.data_engine.log_market_data(df_raw, coin, interval)
+                        
+                        # 2. Log Indicator Snapshots (Features Table)
+                        if coin in latest_indicators and "15m" in latest_indicators[coin]:
+                            self.data_engine.log_cycle_features(coin, "15m", latest_indicators[coin]["15m"])
+                except Exception as log_err:
+                    print(f"[WARN]  Database logging failed: {log_err}")
 
                 # Check bot control before AI API call (can be slow in live mode)
                 control = self._read_bot_control()

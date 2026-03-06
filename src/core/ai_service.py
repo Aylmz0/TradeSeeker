@@ -211,6 +211,8 @@ class AIService:
 
         # OPTIMIZATION 1 & 2: Fetch all indicators in parallel ONCE, then share
         all_indicators, all_sentiment = self._fetch_all_indicators_parallel()
+        self.latest_indicators = all_indicators
+        self.latest_sentiment = all_sentiment
 
         # OPTIMIZATION 3: Get enhanced context and other data in parallel (non-blocking)
         # These don't need fresh market data, so can run in parallel
@@ -768,6 +770,8 @@ Current live positions & performance:"""
 
         # Fetch all indicators in parallel (same as original)
         all_indicators, all_sentiment = self._fetch_all_indicators_parallel()
+        self.latest_indicators = all_indicators
+        self.latest_sentiment = all_sentiment
 
         # Get enhanced context and other data
         # NOTE: enhanced_context removed - data was 100% redundant with PORTFOLIO/RISK_STATUS
