@@ -129,49 +129,14 @@ class AlphaArenaDeepSeek:
             self.invocation_count = 0
 
     def calculate_optimal_cycle_frequency(self) -> int:
-        """Calculate optimal cycle frequency based on market volatility
-        Uses CYCLE_INTERVAL_MINUTES from .env as the minimum value"""
+        """Calculate optimal cycle frequency based on user configuration.
+        Strictly uses CYCLE_INTERVAL_MINUTES from .env as requested by the user,
+        disabling the previous dynamic ATR-based volatility logic."""
         try:
-            # Get minimum from .env
-            min_interval = Config.CYCLE_INTERVAL_MINUTES * 60  # Convert to seconds
-
-            atr_values = []
-            # Include all coins (including ASTER)
-            for coin in self.market_data.available_coins:
-                indicators_3m = self.market_data.get_technical_indicators(coin, "3m")
-                if "error" not in indicators_3m:
-                    atr = indicators_3m.get("atr_14", 0)
-                    # Include small ATR values as well (adjust floating-point precision)
-                    if atr is not None and atr > 1e-6:  # Higher than 0.000001
-                        atr_values.append(atr)
-                        # print(f"[INFO]  {coin} ATR: {atr:.6f}") # Commented out for less noise
-
-            if not atr_values:
-                # print( # Commented out for less noise
-                #     f"[WARN]  No valid ATR values found, using .env value: {Config.CYCLE_INTERVAL_MINUTES} minutes",
-                # )
-                return min_interval
-
-            avg_atr = sum(atr_values) / len(atr_values)
-            # print(f"[INFO]  Average ATR: {avg_atr:.6f}") # Commented out for less noise
-
-            # Adjust cycle frequency based on volatility
-            # But never go below .env minimum
-            if avg_atr < 0.3:  # Low volatility
-                calculated = 240  # Cycle every 4 minutes
-            elif avg_atr < 0.6:  # Medium volatility
-                calculated = 180  # Cycle every 3 minutes
-            else:  # High volatility
-                calculated = 120  # Cycle every 2 minutes
-
-            # Use the larger of calculated and .env minimum
-            result = max(calculated, min_interval)
-            # print(f"[INFO] Cycle interval: {result}s (min from .env: {min_interval}s)") # Commented out for less noise
-            return result
-
+            return Config.CYCLE_INTERVAL_MINUTES * 60  # Convert to seconds
         except Exception as e:
             print(f"[WARN]  Cycle frequency calculation error: {e}")
-            return Config.CYCLE_INTERVAL_MINUTES * 60  # Use .env value as fallback
+            return 180  # Default to 3 minutes fallback
 
     def track_performance_metrics(self, cycle_number: int):
         """Record basic performance metrics for each cycle"""

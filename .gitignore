@@ -47,8 +47,6 @@ share/
 
 # === Data & ML Artifacts ===
 data/*
-!data/bot_control.json
-!data/portfolio_state.json
 archive/
 models/*
 logs/
