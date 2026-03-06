@@ -802,8 +802,9 @@ async function fetchMLData() {
         }
 
         updateMLPanel(latestPred, driftData);
-    } catch (e) {
-        console.warn('ML data fetch failed:', e.message);
+
+    } catch (error) {
+        console.error('Error fetching ML data:', error);
     }
 }
 
@@ -816,76 +817,182 @@ function updateMLPanel(pred, drift) {
     const holdPct = document.getElementById('mlHoldPct');
     const buyPct = document.getElementById('mlBuyPct');
 
-    if (pred) {
-        const sell = pred.sell || 0;
-        const hold = pred.hold || 0;
-        const buy = pred.buy || 0;
+    if (pred && pred.probabilities) {
+        const probs = pred.probabilities;
+        const sellP = (probs['SELL'] || 0) * 100;
+        const holdP = (probs['HOLD'] || 0) * 100;
+        const buyP = (probs['BUY'] || 0) * 100;
 
-        if (sellBar) sellBar.style.width = sell + '%';
-        if (holdBar) holdBar.style.width = hold + '%';
-        if (buyBar) buyBar.style.width = buy + '%';
-        if (sellPct) sellPct.textContent = sell.toFixed(1) + '%';
-        if (holdPct) holdPct.textContent = hold.toFixed(1) + '%';
-        if (buyPct) buyPct.textContent = buy.toFixed(1) + '%';
+        if (sellBar) sellBar.style.width = `${sellP}%`;
+        if (holdBar) holdBar.style.width = `${holdP}%`;
+        if (buyBar) buyBar.style.width = `${buyP}%`;
 
-        // Dominant signal badge
-        const badge = document.getElementById('mlDominantBadge');
-        const dom = pred.dominant || '---';
-        if (badge) {
-            badge.textContent = dom;
-            badge.className = 'text-3xl font-black tracking-wider px-6 py-2 rounded-lg ';
-            if (dom === 'BUY') badge.className += 'bg-green-900/50 text-green-400 border border-green-500/30';
-            else if (dom === 'SELL') badge.className += 'bg-red-900/50 text-red-400 border border-red-500/30';
-            else badge.className += 'bg-yellow-900/50 text-yellow-400 border border-yellow-500/30';
+        if (sellPct) sellPct.textContent = `${sellP.toFixed(1)}%`;
+        if (holdPct) holdPct.textContent = `${holdP.toFixed(1)}%`;
+        if (buyPct) buyPct.textContent = `${buyP.toFixed(1)}%`;
+
+        const domBadge = document.getElementById('mlDominantBadge');
+        if (domBadge) {
+            const dom = pred.dominant || 'HOLD';
+            domBadge.textContent = dom;
+            domBadge.className = `text-3xl font-black tracking-wider px-6 py-2 rounded-lg ${dom === 'SELL' ? 'bg-red-500/20 text-red-500' :
+                dom === 'BUY' ? 'bg-green-500/20 text-green-500' :
+                    'bg-yellow-500/20 text-yellow-500'
+                }`;
         }
 
-        // Confidence
         const confEl = document.getElementById('mlConfidence');
-        const conf = pred.confidence || 0;
-        if (confEl) confEl.textContent = conf.toFixed(1) + '%';
+        if (confEl) confEl.textContent = `${((pred.confidence || 0) * 100).toFixed(1)}%`;
 
-        // Strength
-        const strEl = document.getElementById('mlStrength');
-        if (strEl) {
-            let strength = 'WEAK';
-            let strClass = 'bg-red-900/50 text-red-400';
-            if (conf >= 45) { strength = 'STRONG'; strClass = 'bg-green-900/50 text-green-400'; }
-            else if (conf >= 35) { strength = 'MODERATE'; strClass = 'bg-yellow-900/50 text-yellow-400'; }
-            strEl.textContent = strength;
-            strEl.className = 'text-xs px-2 py-0.5 rounded-full ' + strClass;
+        const strengthEl = document.getElementById('mlStrength');
+        if (strengthEl) {
+            const conf = pred.confidence || 0;
+            let text = 'WEAK'; let cls = 'text-gray-400 bg-gray-700';
+            if (conf >= 0.70) { text = 'STRONG'; cls = 'text-indigo-400 bg-indigo-500/20'; }
+            else if (conf >= 0.50) { text = 'MODERATE'; cls = 'text-blue-400 bg-blue-500/20'; }
+
+            strengthEl.textContent = text;
+            strengthEl.className = `text-xs px-2 py-0.5 rounded-full font-bold tracking-wide ${cls}`;
         }
     }
 
-    // Model health
+    // Drift Data
     if (drift) {
-        const trainAcc = document.getElementById('mlTrainingAcc');
-        const liveAcc = document.getElementById('mlLiveAcc');
+        const trainAccEl = document.getElementById('mlTrainingAcc');
+        const liveAccEl = document.getElementById('mlLiveAcc');
         const driftEl = document.getElementById('mlDrift');
-        const predCount = document.getElementById('mlPredCount');
+        const countEl = document.getElementById('mlPredCount');
         const statusEl = document.getElementById('mlModelStatus');
 
-        if (trainAcc) trainAcc.textContent = drift.training_accuracy + '%';
-        if (liveAcc) liveAcc.textContent = drift.live_accuracy !== null ? drift.live_accuracy + '%' : 'No data';
-        if (driftEl) {
-            if (drift.drift_pct !== null) {
-                driftEl.textContent = (drift.drift_pct > 0 ? '+' : '') + drift.drift_pct + '%';
-                driftEl.className = 'text-sm font-mono ' + (Math.abs(drift.drift_pct) > 10 ? 'text-red-400' : 'text-green-400');
-            } else {
-                driftEl.textContent = '--';
-            }
+        if (trainAccEl && drift.training_accuracy !== null) trainAccEl.textContent = `${drift.training_accuracy}%`;
+        if (liveAccEl && drift.live_accuracy !== null) liveAccEl.textContent = `${drift.live_accuracy}%`;
+        if (countEl) countEl.textContent = drift.total_predictions || 0;
+
+        if (driftEl && drift.drift_pct !== null) {
+            const d = parseFloat(drift.drift_pct);
+            const isPos = d > 0;
+            driftEl.textContent = `${isPos ? '+' : ''}${drift.drift_pct}%`;
+            driftEl.className = `text-sm font-mono ${isPos ? 'text-red-400' : 'text-green-400'}`;
         }
-        if (predCount) predCount.textContent = drift.total_predictions;
+
         if (statusEl) {
-            if (drift.status === 'ok') {
-                statusEl.textContent = 'Healthy';
-                statusEl.className = 'text-xs px-2 py-0.5 rounded-full bg-green-900/50 text-green-400';
-            } else if (drift.status === 'alert') {
-                statusEl.textContent = 'Drift Alert';
-                statusEl.className = 'text-xs px-2 py-0.5 rounded-full bg-red-900/50 text-red-400';
+            const status = drift.status;
+            if (status === 'alert') {
+                statusEl.textContent = 'NEEDS RETRAIN';
+                statusEl.className = 'text-xs px-2 py-0.5 rounded-full bg-red-500/20 text-red-500 font-bold animate-pulse';
+            } else if (status === 'ok') {
+                statusEl.textContent = 'HEALTHY';
+                statusEl.className = 'text-xs px-2 py-0.5 rounded-full bg-green-500/20 text-green-500 font-bold';
             } else {
-                statusEl.textContent = 'Awaiting Data';
-                statusEl.className = 'text-xs px-2 py-0.5 rounded-full bg-gray-600 text-gray-400';
+                statusEl.textContent = 'AWAITING DATA';
+                statusEl.className = 'text-xs px-2 py-0.5 rounded-full bg-gray-600 text-gray-400 font-bold';
             }
         }
+    }
+}
+
+// --- ML Control Functions (Train & Scan) ---
+
+let mlPollInterval = null;
+
+async function retrainGlobalModel() {
+    const btn = document.getElementById('mlRetrainBtn');
+    const spinner = document.getElementById('mlRetrainSpinner');
+    const text = document.getElementById('mlRetrainText');
+
+    if (!confirm("Are you sure you want to retrain the global ML model? This is a CPU intensive process and will take some time.")) {
+        return;
+    }
+
+    try {
+        // UI Loading State
+        btn.disabled = true;
+        btn.classList.add('cursor-not-allowed', 'opacity-75');
+        spinner.classList.remove('hidden');
+        text.textContent = 'Starting Training...';
+
+        const response = await fetch(apiUrl('/api/ml/train'), {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' }
+        });
+
+        if (response.ok) {
+            text.textContent = 'Training (Background)...';
+            // Start polling for status
+            pollMlTrainingStatus();
+        } else {
+            const result = await response.json();
+            throw new Error(result.message || 'Unknown error starting training');
+        }
+    } catch (error) {
+        console.error('ML Training Error:', error);
+        alert(`Failed to start ML training: ${error.message}`);
+        resetMlRetrainButton();
+    }
+}
+
+function pollMlTrainingStatus() {
+    if (mlPollInterval) clearInterval(mlPollInterval);
+
+    mlPollInterval = setInterval(async () => {
+        try {
+            const response = await fetch(apiUrl('/api/ml/status'));
+            if (response.ok) {
+                const data = await response.json();
+                if (data.status === 'idle') {
+                    clearInterval(mlPollInterval);
+                    mlPollInterval = null;
+                    resetMlRetrainButton();
+                    showErrorNotification("✅ Global ML Model training completed successfully!");
+                    // Refresh ML data to show new metrics
+                    fetchMLData();
+                } else if (data.status === 'error') {
+                    clearInterval(mlPollInterval);
+                    mlPollInterval = null;
+                    resetMlRetrainButton();
+                    alert(`❌ ML Training failed: ${data.message || 'Unknown error'}`);
+                }
+            }
+        } catch (error) {
+            console.error('Error polling ML status:', error);
+        }
+    }, 5000); // Check every 5 seconds
+}
+
+function resetMlRetrainButton() {
+    const btn = document.getElementById('mlRetrainBtn');
+    const spinner = document.getElementById('mlRetrainSpinner');
+    const text = document.getElementById('mlRetrainText');
+
+    if (btn && spinner && text) {
+        btn.disabled = false;
+        btn.classList.remove('cursor-not-allowed', 'opacity-75');
+        spinner.classList.add('hidden');
+        text.textContent = 'Retrain Global Model';
+    }
+}
+
+async function runMlDiagnosticScan() {
+    const btn = document.getElementById('mlScanBtn');
+    const originalContent = btn.innerHTML;
+
+    try {
+        btn.disabled = true;
+        btn.innerHTML = `<svg class="animate-spin mr-2 h-4 w-4 text-indigo-400" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg><span>Scanning...</span>`;
+
+        await fetch(apiUrl('/api/ml/scan'), {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' }
+        });
+
+        await fetchMLData();
+
+    } catch (error) {
+        console.error('ML Scan Error:', error);
+        alert(`Failed to run diagnostic scan: ${error.message}`);
+    } finally {
+        btn.disabled = false;
+        btn.innerHTML = originalContent;
+        showErrorNotification("Scan complete. Dashboard updated."); // using this as a quick toast
     }
 }
