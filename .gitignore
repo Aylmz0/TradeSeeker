@@ -46,17 +46,18 @@ include/
 share/
 
 # === Data & ML Artifacts ===
-data/*.sqlite
-data/*.db
-data/*.json
-!data/bot_control.json      # KEEP configuration
-!data/portfolio_state.json  # KEEP state
+data/*
+!data/bot_control.json
+!data/portfolio_state.json
 archive/
-models/*.xgb
-models/*.joblib
+models/*
+logs/
 *.log
+*.log.*
 *.sqlite
 *.db
+*.csv
+.DS_Store
 
 # === IDEs ===
 .idea/
