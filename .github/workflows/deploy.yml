@@ -1,0 +1,41 @@
+name: Deploy TradeSeeker to VPS
+
+on:
+  push:
+    branches: [ main ]
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v3
+
+      - name: Deploy to VPS using rsync
+        uses: appleboy/scp-action@master
+        with:
+          host: ${{ secrets.VPS_IP }}
+          username: ${{ secrets.VPS_USERNAME }}
+          key: ${{ secrets.SSH_PRIVATE_KEY }}
+          source: "."
+          target: "~/TradeSeeker"
+          # Rsync parametreleri: Gereksiz dosyaları atlıyoruz
+          strip_components: 0
+          rm: false
+
+      - name: Execute Remote SSH commands (Restart Bot)
+        uses: appleboy/ssh-action@master
+        with:
+          host: ${{ secrets.VPS_IP }}
+          username: ${{ secrets.VPS_USERNAME }}
+          key: ${{ secrets.SSH_PRIVATE_KEY }}
+          script: |
+            cd ~/TradeSeeker
+            # Sanal ortam aktifken botu yeniden başlat
+            # Tmux oturumu varsa Window 0'daki işlemi durdur (C-c) ve baştan başlat
+            # Bu script tmux session'ın hazır olduğunu varsayar
+            tmux send-keys -t tradeseeker:0 C-c Enter
+            sleep 2
+            tmux send-keys -t tradeseeker:0 "source .venv/bin/activate.fish" Enter
+            tmux send-keys -t tradeseeker:0 "python3 src/main.py" Enter
+            echo "Bot successfully updated and restarted."
