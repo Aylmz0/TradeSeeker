@@ -2,6 +2,8 @@ import copy
 import json
 import logging
 import os
+import shutil
+import threading
 import time
 from functools import wraps
 
@@ -17,6 +19,7 @@ logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(
 logger = logging.getLogger(__name__)
 
 _FILE_CACHE = {}
+_file_lock = threading.Lock()
 
 
 def safe_file_read_cached(file_path: str, default_data=None):
@@ -80,27 +83,42 @@ def safe_file_read(file_path: str, default_data=None):
 
 
 def safe_file_write(file_path: str, data):
-    """Safely write JSON file with error handling and atomicity"""
+    """Safely write JSON file with error handling and atomicity (Thread-Safe)"""
+    temp_file_path = None
     try:
-        # Ensure directory exists
-        directory = os.path.dirname(file_path)
-        if directory and not os.path.exists(directory):
-            os.makedirs(directory)
+        # Mutex to prevent internal thread-race on the same file operation
+        with _file_lock:
+            # CRITICAL FIX: Ensure absolute path to prevent [Errno 2] Issues
+            abs_file_path = os.path.abspath(file_path)
+            
+            # Ensure directory exists with full hierarchy
+            directory = os.path.dirname(abs_file_path)
+            if directory and not os.path.exists(directory):
+                os.makedirs(directory, exist_ok=True)
 
-        # Write to a temporary file first
-        temp_file_path = f"{file_path}.tmp"
-        with open(temp_file_path, "w", encoding="utf-8") as f:
-            json.dump(data, f, indent=2, ensure_ascii=False)
-            f.flush()
-            os.fsync(f.fileno())  # Ensure data is written to disk
+            # Write to a UNIQUE temporary file to prevent thread collisions
+            # Using PID + ThreadID for perfect isolation
+            temp_file_path = f"{abs_file_path}.{os.getpid()}.{threading.get_ident()}.tmp"
+            
+            with open(temp_file_path, "w", encoding="utf-8") as f:
+                json.dump(data, f, indent=2, ensure_ascii=False)
+                f.flush()
+                os.fsync(f.fileno())  # Ensure data is written to disk
 
-        # Atomic replace
-        os.replace(temp_file_path, file_path)
-        return True
+            # Atomic replace (using absolute paths)
+            try:
+                os.replace(temp_file_path, abs_file_path)
+            except OSError:
+                # Fallback for cross-device or permission quirks
+                shutil.move(temp_file_path, abs_file_path)
+                
+            return True
     except Exception as e:
-        logger.error(f"[ERR]   Error writing {file_path}: {e}")
+        # Get CWD for debugging
+        cwd = os.getcwd()
+        logger.error(f"[ERR]   Error writing {file_path} (CWD: {cwd}): {e}")
         # Clean up temp file if it exists
-        if "temp_file_path" in locals() and os.path.exists(temp_file_path):
+        if temp_file_path and os.path.exists(temp_file_path):
             try:
                 os.remove(temp_file_path)
             except:

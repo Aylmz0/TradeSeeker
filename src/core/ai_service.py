@@ -503,7 +503,8 @@ REMEMBER: These are suggestions only. You make the final trading decisions based
 
             # --- End inner function ---
 
-            prompt += "--- Intraday series (3-minute intervals) ---\n"
+            prompt += "--- LIQUIDITY & MICRO-REACTION (3-Minute Noise Layer) ---\n"
+            prompt += "[CONTEXT] Use this section ONLY for identifying liquidity surges (Volume Ratio) or immediate exhaustion spikes. Do NOT use it as a primary trend gate.\n"
             prompt += format_indicators(indicators_3m)
             prompt += "\n--- Medium-term context (15-minute intervals) ---\n"
             prompt += format_indicators(indicators_15m)

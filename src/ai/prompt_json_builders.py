@@ -141,13 +141,13 @@ def _sv_volume_label(indicators_3m: dict[str, Any]) -> str:
     else:
         ratio = (vol or 0) / (avg_vol or 1)
 
-    if ratio > 2.5:
+    if ratio >= 2.5:
         return "EXCELLENT"
-    if ratio > 1.8:
+    if ratio >= 1.8:
         return "GOOD"
-    if ratio > 1.2:
+    if ratio >= 1.2:
         return "FAIR"
-    if ratio > 0.7:
+    if ratio >= 0.20:
         return "POOR"
     return "LOW"
 

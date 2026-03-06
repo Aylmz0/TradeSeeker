@@ -235,8 +235,9 @@ class DeepSeekAPI:
                     },
                     "volume_rule": {
                         "threshold": "volume_ratio < 0.20 = LOW",
-                        "for_entry": "Do NOT enter with LOW volume.",
+                        "for_entry": "Do NOT enter with LOW volume. EXCEPTION: Significant divergence with 15m structure.",
                         "for_exit": "LOW volume ≠ exit signal.",
+                        "interpretation": "3m is your SENSOR. 15m is your ADVISOR. 1h is your BOSS. Do not let 3m noise block a structural 1h/15m setup.",
                         "labels": {
                             "excellent": "> 2.5x",
                             "good": "> 1.8x",
@@ -292,13 +293,13 @@ class DeepSeekAPI:
                 "BE AGGRESSIVE but disciplined - Take calculated risks based on technical analysis.",
             ],
             "analysis_process": [
-                "1. Check each coin's market_context.regime and risk_profile.",
-                "2. Review technical_summary: trend_alignment, momentum, structure_15m, volume_support.",
-                "3. Use key_levels (price, ema20_htf, rsi_15m, atr_htf) for independent reasoning.",
-                "4. CROSS-REFERENCE with ml_consensus (XGBoost) if available. If null, rely STRICTLY on technical_summary and key_levels.",
+                "1. Check EACH coin's market_context.regime (1h Boss) and risk_profile.",
+                "2. Review technical_summary (15m Advisor): trend_alignment, momentum, structure_15m.",
+                "3. Use 3m (Sensor) ONLY for entry timing via volume surges or RSI extremes. Do NOT block 1h/15m setups if 3m is neutral/noisy.",
+                "4. CROSS-REFERENCE with ml_consensus (XGBoost) if available. If null, rely STRICTLY on technical_summary (15m) and key_levels.",
                 "5. Evaluate risk_profile: counter_trade_risk + reversal_threat.",
                 "6. Check sentiment: funding_rate, open_interest.",
-                "7. Decide direction based on strongest quantified edge (AI logic + ML consensus if present).",
+                "7. Decide direction based on strongest quantified edge (1h Direction + 15m Structure).",
                 "8. Verify constraints (Position Slots, Cooldowns) before proposing.",
             ],
             "execution_meta": {
@@ -329,7 +330,7 @@ class DeepSeekAPI:
             "response_schema": {
                 "format": "JSON",
                 "required_keys": ["CHAIN_OF_THOUGHTS", "DECISIONS"],
-                "CHAIN_OF_THOUGHTS": f"String. Analyze {HTF_LABEL}, 15m, and 3m for EACH coin. Justify decisions.",
+                "CHAIN_OF_THOUGHTS": f"String. 'High-Density Hybrid Analysis' structure. Analyze {HTF_LABEL}, 15m, and 3m for EACH coin individually. Include Technicals + ML Consensus + Logic for each. Format like: 'COIN: 1h... 15m... Logic... Decision...'",
                 "DECISIONS": {
                     "COIN_TICKER": {
                         "signal": "buy_to_enter | sell_to_enter | hold | close_position",
@@ -408,7 +409,7 @@ class DeepSeekAPI:
                     {"role": "user", "content": user_message_content},
                 ],
                 "temperature": 0.5,
-                "max_tokens": 4000,
+                "max_tokens": 8000,
                 "stream": True,
             }
 
@@ -633,7 +634,7 @@ class DeepSeekAPI:
                     {"role": "user", "content": user_message_content},
                 ],
                 temperature=0.5,  # Reduced from 1 to 0.5 for trading stability
-                max_completion_tokens=2000,
+                max_completion_tokens=8000,
                 top_p=1,
                 stream=True,
                 stop=None,
