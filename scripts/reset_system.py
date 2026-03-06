@@ -1,6 +1,6 @@
 import os
 import shutil
-import glob
+
 
 # Alpha Arena Reset Script
 # This script clears all runtime data for a fresh start.
@@ -13,12 +13,13 @@ target_files = [
     "data/ml_predictions.jsonl",
     "data/performance_report.json",
     "data/performance_history.json",
-    "data/bot_control.json"
+    "data/bot_control.json",
 ]
+
 
 def reset_system():
     print("--- Alpha Arena System Reset ---")
-    
+
     # 1. Delete specific trackable JSON files
     for f in target_files:
         if os.path.exists(f):
@@ -27,7 +28,7 @@ def reset_system():
                 print(f"[OK] Deleted: {f}")
             except Exception as e:
                 print(f"[ERR] Failed to delete {f}: {e}")
-    
+
     # 2. Clear backups
     if os.path.exists("data/backups"):
         try:
@@ -46,9 +47,10 @@ def reset_system():
     print("\n[SUCCESS] System is clean. Ready for a fresh start.")
     print("Next: Run 'python3 src/main.py' to begin first cycle.")
 
+
 if __name__ == "__main__":
     confirm = input("This will reset all trade history and portfolio state. Are you sure? (y/n): ")
-    if confirm.lower() == 'y':
+    if confirm.lower() == "y":
         reset_system()
     else:
         print("Reset cancelled.")

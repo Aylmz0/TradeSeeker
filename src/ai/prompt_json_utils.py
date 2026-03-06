@@ -22,16 +22,15 @@ class SafeJSONEncoder(json.JSONEncoder):
         """Recursively clean values, converting NaN/None to null."""
         if value is None:
             return None
-        elif isinstance(value, float):
+        if isinstance(value, float):
             if math.isnan(value) or math.isinf(value):
                 return None
             return value
-        elif isinstance(value, dict):
+        if isinstance(value, dict):
             return {k: self._clean_value(v) for k, v in value.items()}
-        elif isinstance(value, (list, tuple)):
+        if isinstance(value, (list, tuple)):
             return [self._clean_value(item) for item in value]
-        else:
-            return value
+        return value
 
 
 def safe_json_dumps(
@@ -67,7 +66,11 @@ def safe_json_dumps(
 
         # Serialize with custom encoder
         json_str = json.dumps(
-            obj, cls=SafeJSONEncoder, indent=indent, separators=separators, ensure_ascii=False,
+            obj,
+            cls=SafeJSONEncoder,
+            indent=indent,
+            separators=separators,
+            ensure_ascii=False,
         )
 
         return json_str
@@ -88,7 +91,10 @@ def safe_json_dumps(
 
 
 def compress_series(
-    series: list[Any], max_length: int = 50, keep_first: int = 5, keep_last: int = 5,
+    series: list[Any],
+    max_length: int = 50,
+    keep_first: int = 5,
+    keep_last: int = 5,
 ) -> dict[str, Any]:
     """
     Compress a long series by keeping first N, last N, and summary stats.
@@ -169,7 +175,10 @@ def format_number_for_json(value: Any, precision: int = 4) -> float | int | None
 
 
 def create_json_section(
-    section_name: str, data: Any, compact: bool = False, description: str | None = None,
+    section_name: str,
+    data: Any,
+    compact: bool = False,
+    description: str | None = None,
 ) -> str:
     """
     Create a formatted JSON section for hybrid prompt.

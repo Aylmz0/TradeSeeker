@@ -4,51 +4,82 @@ version = "0.1.0"
 requires-python = ">=3.10"
 
 [tool.ruff]
-# Line length limit
+# Target Python version and maximum line length
+target-version = "py310"
 line-length = 100
 
-# E/F/W: pycodestyle/pyflakes/warnings
-# I: isort (import sorting)
-# B: flake8-bugbear (bugs)
-# UP: pyupgrade (modern python)
-# SIM: flake8-simplify (simplification)
-# N: pep8-naming (naming)
-# PTH: flake8-use-pathlib (modern paths)
-# PL: pylint (quality)
-# TID: flake8-tidy-imports
-# C90: mccabe (complexity)
-# A: flake8-builtins (shading)
-# COM: flake8-commas (trailing commas)
-# T20: flake8-print (logging check)
-# ERA: eradicate (dead code)
-# FURB: refurb (refurbish)
-lint.select = ["E", "F", "W", "I", "B", "UP", "SIM", "N", "PTH", "PL", "TID", "C90", "A", "COM", "T20", "ERA", "FURB"]
-
-# Ignored error codes
-# PLR2004: Disable magic numbers warning (frequently used in trading projects)
-# T201: Allow print statements (used for console logging in this bot)
-lint.ignore = ["PLR2004", "T201"]
-
-[tool.ruff]
-target-version = "py310"
+# Directories to exclude from all checks and formatting
 exclude = [
     ".git",
+    ".idea",
+    ".mypy_cache",
+    ".ruff_cache",
     ".venv",
     "__pycache__",
+    "build",
+    "dist",
+    "venv",
     "data",
     "models",
     "logs",
-    "build",
-    "dist",
+    "archive",
+]
+
+[tool.ruff.lint]
+# Select an elite-tier range of code quality rules
+select = [
+    "E",      # pycodestyle errors
+    "W",      # pycodestyle warnings
+    "F",      # pyflakes
+    "I",      # isort (import sorting)
+    "N",      # pep8-naming
+    "UP",     # pyupgrade (modernize syntax)
+    "B",      # flake8-bugbear (prevent common bugs)
+    "C4",     # flake8-comprehensions (better list/dict comprehensions)
+    "DTZ",    # flake8-datetimez (timezone aware datetimes)
+    "PT",     # flake8-pytest-style
+    "SIM",    # flake8-simplify (code simplification)
+    "TCH",    # flake8-type-checking
+    "PTH",    # flake8-use-pathlib (modern file paths)
+    "RET",    # flake8-return (cleaner return statements)
+    "RUF",    # ruff-specific advanced rules
+    "PL",     # pylint (deep code analysis)
+    "TID",    # flake8-tidy-imports
+    "C90",    # mccabe complexity indicator
+]
+
+# Ignore specific rules that conflict with the formatter or project needs
+ignore = [
+    "E501",    # Line too long (handled by the formatter naturally)
+    "PLR2004", # Magic numbers (trading config relies on direct numbers)
+    "PLR0913", # Too many arguments in functions (common in ML/Trading)
+    "PLR0915", # Too many statements (acceptable in main trading loops)
+    "PLR0912", # Too many branches
+    "ISC001",  # Implicit string concatenation (conflicts with Ruff format)
+    "COM812",  # Trailing comma missing (conflicts with Ruff format)
+    "T201",    # Allow print statements (used for console output logging here)
+    "RUF012",  # Mutable class attributes (acceptable in config classes)
 ]
 
 [tool.ruff.lint.mccabe]
-# Complexity threshold (A function can be at most 10 units complex)
-max-complexity = 10
+# Function complexity threshold (a bit more relaxed for trading algorithms)
+max-complexity = 15
+
+[tool.ruff.lint.isort]
+# Professional import sorting style
+combine-as-imports = true
+lines-after-imports = 2
+known-first-party = ["src", "config", "tests"]
+
+[tool.ruff.lint.flake8-tidy-imports]
+# Ban relative imports (e.g., from ..core import X) to enforce absolute imports
+ban-relative-imports = "all"
 
 [tool.ruff.format]
-# Kod formatlama stili
+# Strict formatting rules
 quote-style = "double"
 indent-style = "space"
 skip-magic-trailing-comma = false
 line-ending = "auto"
+docstring-code-format = true  # Format code snippets inside docstrings
+docstring-code-line-length = "dynamic"

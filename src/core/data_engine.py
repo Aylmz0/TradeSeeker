@@ -6,9 +6,11 @@ import numpy as np
 import pandas as pd
 import requests
 
+
 # Configure logging
 logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
 logger = logging.getLogger(__name__)
+
 
 class DataEngine:
     """
@@ -43,7 +45,7 @@ class DataEngine:
             cursor = conn.cursor()
 
             # 1. Market Data Table: Stores raw OHLCV from Binance (3m, 15m, 1h)
-            cursor.execute('''
+            cursor.execute("""
                 CREATE TABLE IF NOT EXISTS market_data (
                     timestamp INTEGER,
                     coin TEXT,
@@ -55,10 +57,10 @@ class DataEngine:
                     volume REAL,
                     PRIMARY KEY (timestamp, coin, interval)
                 )
-            ''')
+            """)
 
             # 2. Decisions Table: The Feedback Loop (Self-Learning memory)
-            cursor.execute('''
+            cursor.execute("""
                 CREATE TABLE IF NOT EXISTS decisions (
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
                     timestamp INTEGER,
@@ -71,12 +73,12 @@ class DataEngine:
                     pnl_result REAL,      -- The actual realized PnL
                     status TEXT           -- OPEN, CLOSED
                 )
-            ''')
+            """)
 
             # 3. Features Table: Normalized indicator values ready for XGBoost DMatrix
-            # We use a JSON text field for feature_data to allow adding/removing indicators 
+            # We use a JSON text field for feature_data to allow adding/removing indicators
             # without requiring complex schema migrations (Schema Evolution flexibility).
-            cursor.execute('''
+            cursor.execute("""
                 CREATE TABLE IF NOT EXISTS features (
                     timestamp INTEGER,
                     coin TEXT,
@@ -84,15 +86,19 @@ class DataEngine:
                     feature_json TEXT,
                     PRIMARY KEY (timestamp, coin, interval)
                 )
-            ''')
-            
+            """)
+
             # Create indexes for query performance (O(log N) lookups)
-            cursor.execute('CREATE INDEX IF NOT EXISTS idx_market_data_coin_interval ON market_data (coin, interval)')
-            cursor.execute('CREATE INDEX IF NOT EXISTS idx_decisions_status ON decisions (status)')
-            
+            cursor.execute(
+                "CREATE INDEX IF NOT EXISTS idx_market_data_coin_interval ON market_data (coin, interval)"
+            )
+            cursor.execute("CREATE INDEX IF NOT EXISTS idx_decisions_status ON decisions (status)")
+
             conn.commit()
-            logger.info(f"[DataEngine] Database schema initialized successfully at '{self.db_path}'.")
-            
+            logger.info(
+                f"[DataEngine] Database schema initialized successfully at '{self.db_path}'."
+            )
+
         except Exception as e:
             logger.error(f"[DataEngine] Failed to initialize database: {e}")
             conn.rollback()
@@ -104,36 +110,41 @@ class DataEngine:
         """Bulk insert a pandas DataFrame of KLines into SQLite."""
         if df.empty:
             return
-            
+
         conn = self._get_connection()
         try:
             cursor = conn.cursor()
-            
+
             # Convert timestamp to integer milliseconds for storage
             # The DF arriving from RealMarketData has 'timestamp' as datetime64
             records = []
             for _, row in df.iterrows():
                 # Extract int timestamp
-                ts_int = int(row['timestamp'].timestamp() * 1000)
-                
-                records.append((
-                    ts_int,
-                    coin,
-                    interval,
-                    float(row['open']),
-                    float(row['high']),
-                    float(row['low']),
-                    float(row['close']),
-                    float(row['volume']),
-                ))
-                
+                ts_int = int(row["timestamp"].timestamp() * 1000)
+
+                records.append(
+                    (
+                        ts_int,
+                        coin,
+                        interval,
+                        float(row["open"]),
+                        float(row["high"]),
+                        float(row["low"]),
+                        float(row["close"]),
+                        float(row["volume"]),
+                    )
+                )
+
             # INSERT OR IGNORE protects against duplicate timestamp overlapping
-            cursor.executemany('''
+            cursor.executemany(
+                """
                 INSERT OR IGNORE INTO market_data 
                 (timestamp, coin, interval, open, high, low, close, volume)
                 VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-            ''', records)
-            
+            """,
+                records,
+            )
+
             conn.commit()
             logger.info(f"[DataEngine] Ingested {len(records)} '{interval}' candles for {coin}.")
         except Exception as e:
@@ -143,11 +154,15 @@ class DataEngine:
         finally:
             conn.close()
 
-    def get_raw_market_data(self, coin: str, interval: str, limit: int | None = None) -> pd.DataFrame:
+    def get_raw_market_data(
+        self, coin: str, interval: str, limit: int | None = None
+    ) -> pd.DataFrame:
         """Fetch raw market data from SQLite into a pandas DataFrame."""
         conn = self._get_connection()
         try:
-            query = "SELECT * FROM market_data WHERE coin = ? AND interval = ? ORDER BY timestamp ASC"
+            query = (
+                "SELECT * FROM market_data WHERE coin = ? AND interval = ? ORDER BY timestamp ASC"
+            )
             params = [coin, interval]
             if limit:
                 # We need to get the "latest" N candles, so we sort DESC then reverse,
@@ -160,23 +175,23 @@ class DataEngine:
                     ) ORDER BY timestamp ASC
                 """
                 params.append(limit)
-                
+
             df = pd.read_sql_query(query, conn, params=params)
-            
+
             if not df.empty:
-                df['timestamp'] = pd.to_datetime(df['timestamp'], unit='ms')
-                
+                df["timestamp"] = pd.to_datetime(df["timestamp"], unit="ms")
+
             return df
         finally:
             conn.close()
 
     def get_labeled_data(
-        self, 
-        coin: str, 
-        interval: str, 
+        self,
+        coin: str,
+        interval: str,
         lookahead_periods: int = 5,
         profit_threshold: float = 0.005,  # 0.5% profit
-        loss_threshold: float = -0.005,   # -0.5% loss
+        loss_threshold: float = -0.005,  # -0.5% loss
         limit: int | None = None,
     ) -> pd.DataFrame:
         """
@@ -190,26 +205,28 @@ class DataEngine:
         df = self.get_raw_market_data(coin, interval, limit=limit)
         if df.empty:
             return df
-            
+
         # Calculate future return using Vectorized shift (O(1) equivalent in pandas)
         # Shift with negative number moves future values backwards to the current row
-        df['future_close'] = df['close'].shift(-lookahead_periods)
-        df['future_return'] = (df['future_close'] - df['close']) / df['close']
-        
+        df["future_close"] = df["close"].shift(-lookahead_periods)
+        df["future_return"] = (df["future_close"] - df["close"]) / df["close"]
+
         # Apply labels using numpy.select for blazing fast vectorization
         conditions = [
-            (df['future_return'] >= profit_threshold),
-            (df['future_return'] <= loss_threshold),
+            (df["future_return"] >= profit_threshold),
+            (df["future_return"] <= loss_threshold),
         ]
-        choices = [1, -1] # 1=BUY, -1=SELL
-        
+        choices = [1, -1]  # 1=BUY, -1=SELL
+
         # Default is 0 (HOLD)
-        df['target_label'] = np.select(conditions, choices, default=0)
-        
+        df["target_label"] = np.select(conditions, choices, default=0)
+
         # Drop rows with NaN future_return (the last 'lookahead_periods' rows have no future yet)
-        df.dropna(subset=['future_return'], inplace=True)
-        
-        logger.info(f"[Labeling] {coin} {interval} -> Created labels with {lookahead_periods} periods lookahead.")
+        df.dropna(subset=["future_return"], inplace=True)
+
+        logger.info(
+            f"[Labeling] {coin} {interval} -> Created labels with {lookahead_periods} periods lookahead."
+        )
         return df
 
     def fetch_and_store_klines(self, coin: str, interval: str, limit: int = 1000):
@@ -222,32 +239,43 @@ class DataEngine:
             response = requests.get(url, params=params, timeout=10)
             response.raise_for_status()
             data = response.json()
-            
+
             if not data:
                 logger.warning(f"[DataEngine] Received empty data for {coin} ({interval}).")
                 return False
-                
+
             df = pd.DataFrame(
                 data,
                 columns=[
-                    "timestamp", "open", "high", "low", "close", "volume",
-                    "close_time", "quote_asset_volume", "number_of_trades",
-                    "taker_buy_base_asset_volume", "taker_buy_quote_asset_volume", "ignore",
+                    "timestamp",
+                    "open",
+                    "high",
+                    "low",
+                    "close",
+                    "volume",
+                    "close_time",
+                    "quote_asset_volume",
+                    "number_of_trades",
+                    "taker_buy_base_asset_volume",
+                    "taker_buy_quote_asset_volume",
+                    "ignore",
                 ],
             )
             for col in ["open", "high", "low", "close", "volume"]:
                 df[col] = df[col].astype(float).round(8)
             df["timestamp"] = pd.to_datetime(df["timestamp"], unit="ms")
-            
+
             # Sanitize corrupted candles
             df.replace([np.inf, -np.inf], np.nan, inplace=True)
             df.dropna(inplace=True)
-            
+
             self._insert_klines_bulk(df, coin, interval)
             return True
-            
+
         except Exception as e:
-            logger.error(f"[DataEngine] Failed to fetch and store klines for {coin} ({interval}): {e}")
+            logger.error(
+                f"[DataEngine] Failed to fetch and store klines for {coin} ({interval}): {e}"
+            )
             return False
 
     def log_decision_open(
@@ -277,7 +305,9 @@ class DataEngine:
             )
             conn.commit()
             row_id = cursor.lastrowid
-            logger.info(f"[DataEngine] Logged OPEN decision for {coin} ({direction}) -> row_id={row_id}")
+            logger.info(
+                f"[DataEngine] Logged OPEN decision for {coin} ({direction}) -> row_id={row_id}"
+            )
             return row_id
         except Exception as e:
             logger.error(f"[DataEngine] Failed to log OPEN decision: {e}")
@@ -309,11 +339,12 @@ class DataEngine:
             )
             conn.commit()
             if cursor.rowcount > 0:
-                logger.info(f"[DataEngine] Closed decision for {coin}: exit=${exit_price:.4f}, PnL=${pnl_result:.2f}")
+                logger.info(
+                    f"[DataEngine] Closed decision for {coin}: exit=${exit_price:.4f}, PnL=${pnl_result:.2f}"
+                )
                 return True
-            else:
-                logger.warning(f"[DataEngine] No OPEN decision found for {coin} to close.")
-                return False
+            logger.warning(f"[DataEngine] No OPEN decision found for {coin} to close.")
+            return False
         except Exception as e:
             logger.error(f"[DataEngine] Failed to log CLOSE decision: {e}")
             conn.rollback()
@@ -324,13 +355,14 @@ class DataEngine:
 
 if __name__ == "__main__":
     import time
+
     # Test execution for Faz 1.2
     print("--- TradeSeeker Data Engine Ingestion Test ---")
     engine = DataEngine()
-    
+
     test_coin = "XRP"
     intervals = ["3m", "15m", "1h"]
-    
+
     for ival in intervals:
         print(f"\n[Test] Backfilling 1000 candles for {test_coin} [{ival}]...")
         success = engine.fetch_and_store_klines(test_coin, interval=ival, limit=1000)
@@ -338,19 +370,25 @@ if __name__ == "__main__":
             print(f"[OK] Successfully written to SQLite (market_data table) for {ival}.")
         else:
             print(f"[FAIL] Failed to write {ival} data.")
-        time.sleep(1) # Sleep to avoid rate limits
-        
+        time.sleep(1)  # Sleep to avoid rate limits
+
     print("\n[Test] Testing Labeling Logic (Faz 1.3)...")
-    df_labeled = engine.get_labeled_data("XRP", "15m", lookahead_periods=5, profit_threshold=0.005, loss_threshold=-0.005)
-    
+    df_labeled = engine.get_labeled_data(
+        "XRP", "15m", lookahead_periods=5, profit_threshold=0.005, loss_threshold=-0.005
+    )
+
     if not df_labeled.empty:
         print(f"[OK] Labeling complete. Extracted {len(df_labeled)} labeled rows.")
         # Show distribution of labels
-        distribution = df_labeled['target_label'].value_counts().to_dict()
+        distribution = df_labeled["target_label"].value_counts().to_dict()
         print(f"[INFO] Label Distribution [1=BUY, -1=SELL, 0=HOLD]: {distribution}")
-        print("\nDemo Row:\n", df_labeled[['timestamp', 'close', 'future_close', 'future_return', 'target_label']].tail(1))
+        print(
+            "\nDemo Row:\n",
+            df_labeled[
+                ["timestamp", "close", "future_close", "future_return", "target_label"]
+            ].tail(1),
+        )
     else:
         print("[FAIL] Labeling failed or empty dataframe.")
-        
-    print("\n[OK] Phase 1.3 Labeling test completed.")
 
+    print("\n[OK] Phase 1.3 Labeling test completed.")

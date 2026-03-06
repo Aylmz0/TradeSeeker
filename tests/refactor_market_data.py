@@ -1,4 +1,3 @@
-
 with open("src/core/market_data.py") as f:
     lines = f.readlines()
 
@@ -11,15 +10,15 @@ for line in lines:
         in_indicator_funcs = True
     elif "def get_technical_indicators(" in line:
         in_indicator_funcs = False
-        
+
     if "def calculate_efficiency_ratio(" in line:
         in_eff = True
     elif "def get_all_real_prices(" in line:
         in_eff = False
-        
+
     if in_indicator_funcs or in_eff:
         continue
-        
+
     out.append(line)
 
 code = "".join(out)
@@ -47,7 +46,9 @@ from src.core.indicators import (
     calculate_obv, calculate_supertrend, calculate_efficiency_ratio,
     extract_semantic_features, generate_smart_sparkline, calculate_pivots, generate_tags
 )"""
-code = code.replace("from config.config import Config\nfrom src.utils import RetryManager", import_str)
+code = code.replace(
+    "from config.config import Config\nfrom src.utils import RetryManager", import_str
+)
 
 with open("src/core/market_data.py", "w") as f:
     f.write(code)

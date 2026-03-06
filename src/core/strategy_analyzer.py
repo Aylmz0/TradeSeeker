@@ -3,8 +3,10 @@ from typing import Any
 from config.config import Config
 from src.utils import format_num
 
-HTF_INTERVAL = getattr(Config, 'HTF_INTERVAL', '1h') or '1h'
+
+HTF_INTERVAL = getattr(Config, "HTF_INTERVAL", "1h") or "1h"
 HTF_LABEL = HTF_INTERVAL
+
 
 class StrategyAnalyzer:
     def __init__(self, market_data):
@@ -128,13 +130,8 @@ class StrategyAnalyzer:
 
             # Multi-timeframe alignment bonus (1h + 15m + 3m)
             alignment_count = 0
-            if (
-                price_htf > ema20_htf
-                and price_15m > ema20_15m
-                and price_3m > ema20_3m
-                or price_htf < ema20_htf
-                and price_15m < ema20_15m
-                and price_3m < ema20_3m
+            if (price_htf > ema20_htf and price_15m > ema20_15m and price_3m > ema20_3m) or (
+                price_htf < ema20_htf and price_15m < ema20_15m and price_3m < ema20_3m
             ):
                 alignment_count = 3
             elif (
@@ -212,13 +209,17 @@ class StrategyAnalyzer:
 
             # Weighted average - each indicator has different importance
             total_strength = (
-                + bb_strength * 0.20  # 20% weight
+                +bb_strength * 0.20  # 20% weight
                 + ma_strength * 0.20  # 20% weight
             )
 
             # Determine trend direction
             trend_direction = self.determine_trend_direction(
-                price_htf, ema20_htf, ema50_htf, rsi_htf, macd_htf,
+                price_htf,
+                ema20_htf,
+                ema50_htf,
+                rsi_htf,
+                macd_htf,
             )
 
             return {
@@ -242,31 +243,29 @@ class StrategyAnalyzer:
         """Analyze RSI strength (0-1 scale)"""
         if rsi > 70:
             return 0.9  # Overbought - strong trend continuation
-        elif rsi > 60:
+        if rsi > 60:
             return 0.7  # Bullish momentum
-        elif rsi > 50:
+        if rsi > 50:
             return 0.5  # Neutral bullish
-        elif rsi > 40:
+        if rsi > 40:
             return 0.3  # Neutral bearish
-        elif rsi > 30:
+        if rsi > 30:
             return 0.1  # Bearish momentum
-        else:
-            return 0.0  # Oversold - weak trend
+        return 0.0  # Oversold - weak trend
 
     def analyze_macd_strength(self, macd: float) -> float:
         """Analyze MACD strength (0-1 scale)"""
         if macd > 0.01:
             return 1.0  # Strong bullish
-        elif macd > 0.005:
+        if macd > 0.005:
             return 0.8  # Moderate bullish
-        elif macd > 0:
+        if macd > 0:
             return 0.6  # Weak bullish
-        elif macd > -0.005:
+        if macd > -0.005:
             return 0.4  # Weak bearish
-        elif macd > -0.01:
+        if macd > -0.01:
             return 0.2  # Moderate bearish
-        else:
-            return 0.0  # Strong bearish
+        return 0.0  # Strong bearish
 
     def analyze_volume_strength(self, volume: float, avg_volume: float) -> float:
         """Analyze volume strength (0-1 scale)"""
@@ -277,14 +276,14 @@ class StrategyAnalyzer:
 
         if volume_ratio >= 1.8:  # High volume: >1.8x average
             return 1.0
-        elif volume_ratio >= 1.3:  # Medium-high volume: >1.3x average
+        if volume_ratio >= 1.3:  # Medium-high volume: >1.3x average
             return 0.8
-        elif volume_ratio >= 0.8:  # Normal volume: >0.8x average
+        if volume_ratio >= 0.8:  # Normal volume: >0.8x average
             return 0.6
-        elif volume_ratio >= 0.5:  # Low volume: >0.5x average
+        if volume_ratio >= 0.5:  # Low volume: >0.5x average
             return 0.3
-        else:  # Very low volume: <0.5x average
-            return 0.1
+        # Very low volume: <0.5x average
+        return 0.1
 
     def analyze_bollinger_bands_strength(self, indicators: dict) -> float:
         """Analyze Bollinger Bands strength (0-1 scale)"""
@@ -301,12 +300,11 @@ class StrategyAnalyzer:
 
             if distance > 2.0:
                 return 1.0  # Strong trend (price far from EMA)
-            elif distance > 1.0:
+            if distance > 1.0:
                 return 0.7  # Moderate trend
-            elif distance > 0.5:
+            if distance > 0.5:
                 return 0.4  # Weak trend
-            else:
-                return 0.2  # No trend (consolidation)
+            return 0.2  # No trend (consolidation)
 
         except Exception as e:
             print(f"[WARN]  Bollinger Bands analysis error: {e}")
@@ -318,21 +316,25 @@ class StrategyAnalyzer:
             # EMA alignment strength
             if ema20 > ema50 and price > ema20:
                 return 1.0  # Strong bullish alignment
-            elif ema20 < ema50 and price < ema20:
+            if ema20 < ema50 and price < ema20:
                 return 1.0  # Strong bearish alignment
-            elif ema20 > ema50:
+            if ema20 > ema50:
                 return 0.6  # Weak bullish alignment
-            elif ema20 < ema50:
+            if ema20 < ema50:
                 return 0.6  # Weak bearish alignment
-            else:
-                return 0.3  # No clear alignment
+            return 0.3  # No clear alignment
 
         except Exception as e:
             print(f"[WARN]  Moving Averages analysis error: {e}")
             return 0.5
 
     def determine_trend_direction(
-        self, price: float, ema20: float, ema50: float, rsi: float, macd: float,
+        self,
+        price: float,
+        ema20: float,
+        ema50: float,
+        rsi: float,
+        macd: float,
     ) -> str:
         """Determine overall trend direction based on multiple indicators"""
         bullish_signals = 0
@@ -364,27 +366,25 @@ class StrategyAnalyzer:
 
         if bullish_signals >= 3:
             return "STRONG_BULLISH"
-        elif bearish_signals >= 3:
+        if bearish_signals >= 3:
             return "STRONG_BEARISH"
-        elif bullish_signals > bearish_signals:
+        if bullish_signals > bearish_signals:
             return "WEAK_BULLISH"
-        elif bearish_signals > bullish_signals:
+        if bearish_signals > bullish_signals:
             return "WEAK_BEARISH"
-        else:
-            return "NEUTRAL"
+        return "NEUTRAL"
 
     def get_confidence_level(self, strength_score: float) -> str:
         """Get confidence level based on trend strength score"""
         if strength_score > 0.75:
             return "VERY_HIGH"
-        elif strength_score > 0.60:
+        if strength_score > 0.60:
             return "HIGH"
-        elif strength_score > 0.45:
+        if strength_score > 0.45:
             return "MEDIUM"
-        elif strength_score > 0.30:
+        if strength_score > 0.30:
             return "LOW"
-        else:
-            return "VERY_LOW"
+        return "VERY_LOW"
 
     def calculate_volume_confidence(self, coin: str) -> float:
         """Calculate volume confidence based on current vs average volume"""
@@ -405,21 +405,23 @@ class StrategyAnalyzer:
             # Volume confidence scoring
             if volume_ratio >= 1.8:  # High volume: >1.8x average
                 return 1.0
-            elif volume_ratio >= 1.3:  # Medium-high volume: >1.3x average
+            if volume_ratio >= 1.3:  # Medium-high volume: >1.3x average
                 return 0.8
-            elif volume_ratio >= 0.8:  # Normal volume: >0.8x average
+            if volume_ratio >= 0.8:  # Normal volume: >0.8x average
                 return 0.6
-            elif volume_ratio >= 0.5:  # Low volume: >0.5x average
+            if volume_ratio >= 0.5:  # Low volume: >0.5x average
                 return 0.3
-            else:  # Very low volume: <0.5x average
-                return 0.1
+            # Very low volume: <0.5x average
+            return 0.1
 
         except Exception as e:
             print(f"[WARN]  Volume confidence calculation error for {coin}: {e}")
             return 0.0
 
     def calculate_volume_quality_score(
-        self, coin: str, indicators_3m: dict[str, Any] | None = None,
+        self,
+        coin: str,
+        indicators_3m: dict[str, Any] | None = None,
     ) -> float:
         """Calculate volume quality score (0-100) based on Config thresholds"""
         try:
@@ -439,14 +441,13 @@ class StrategyAnalyzer:
             # Calculate score based on Config thresholds
             if volume_ratio >= Config.VOLUME_QUALITY_THRESHOLDS["excellent"]:
                 return 90.0
-            elif volume_ratio >= Config.VOLUME_QUALITY_THRESHOLDS["good"]:
+            if volume_ratio >= Config.VOLUME_QUALITY_THRESHOLDS["good"]:
                 return 75.0
-            elif volume_ratio >= Config.VOLUME_QUALITY_THRESHOLDS["fair"]:
+            if volume_ratio >= Config.VOLUME_QUALITY_THRESHOLDS["fair"]:
                 return 60.0
-            elif volume_ratio >= Config.VOLUME_QUALITY_THRESHOLDS["poor"]:
+            if volume_ratio >= Config.VOLUME_QUALITY_THRESHOLDS["poor"]:
                 return 40.0
-            else:
-                return 20.0
+            return 20.0
 
         except Exception as e:
             print(f"[WARN]  Volume quality score calculation error for {coin}: {e}")
@@ -479,7 +480,10 @@ class StrategyAnalyzer:
             return False
 
     def generate_advanced_exit_plan(
-        self, coin: str, direction: str, entry_price: float,
+        self,
+        coin: str,
+        direction: str,
+        entry_price: float,
     ) -> dict[str, Any]:
         """Generate advanced exit plan - TP/SL is now handled by execute_live_entry using Config multipliers"""
         try:
@@ -532,7 +536,7 @@ class StrategyAnalyzer:
             return {
                 "profit_target": None,
                 "stop_loss": None,
-                "invalidation_condition": f"Error generating exit plan: {str(e)}",
+                "invalidation_condition": f"Error generating exit plan: {e!s}",
             }
 
     def detect_market_regime(
@@ -607,20 +611,16 @@ class StrategyAnalyzer:
                 # For BULLISH: 1h bullish AND (3m bullish OR 15m bullish)
                 if trend_3m == "bullish" or trend_15m == "bullish":
                     return "BULLISH"
-                else:
-                    # 1h bullish but shorter timeframes bearish = NEUTRAL (counter-trend opportunity)
-                    return "NEUTRAL"
-            elif htf_trend == "bearish":
+                # 1h bullish but shorter timeframes bearish = NEUTRAL (counter-trend opportunity)
+                return "NEUTRAL"
+            if htf_trend == "bearish":
                 # For BEARISH: 1h bearish AND (3m bearish OR 15m bearish)
                 if trend_3m == "bearish" or trend_15m == "bearish":
                     return "BEARISH"
-                else:
-                    # 1h bearish but shorter timeframes bullish = NEUTRAL (counter-trend opportunity)
-                    return "NEUTRAL"
-            else:
+                # 1h bearish but shorter timeframes bullish = NEUTRAL (counter-trend opportunity)
                 return "NEUTRAL"
+            return "NEUTRAL"
 
         except Exception as e:
             print(f"[WARN]  Regime detection error for {coin}: {e}")
             return "UNCLEAR"
-

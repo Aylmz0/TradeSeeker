@@ -3,7 +3,9 @@ import pandas as pd
 
 from src.core.indicators import calculate_obv, calculate_supertrend, generate_smart_sparkline
 
+
 np.random.seed(42)
+
 
 def generate_test_data(size=100):
     prices = [100.0]
@@ -17,17 +19,20 @@ def generate_test_data(size=100):
         highs.append(new_price + abs(np.random.normal(0, 1)))
         lows.append(new_price - abs(np.random.normal(0, 1)))
         volumes.append(abs(np.random.normal(100, 20)))
-    
+
     # Trim initial to match sizes
     prices = prices[1:]
-    
-    df = pd.DataFrame({
-        'close': prices,
-        'high': highs,
-        'low': lows,
-        'volume': volumes,
-    })
+
+    df = pd.DataFrame(
+        {
+            "close": prices,
+            "high": highs,
+            "low": lows,
+            "volume": volumes,
+        }
+    )
     return df
+
 
 def calculate_obv_legacy(close: pd.Series, volume: pd.Series):
     if len(close) < 10:
@@ -63,12 +68,16 @@ def calculate_obv_legacy(close: pd.Series, volume: pd.Series):
 
     return current_obv, obv_trend, divergence
 
-def calculate_supertrend_legacy(high: pd.Series, low: pd.Series, close: pd.Series, period: int = 10, multiplier: float = 3.0):
+
+def calculate_supertrend_legacy(
+    high: pd.Series, low: pd.Series, close: pd.Series, period: int = 10, multiplier: float = 3.0
+):
     if len(close) < period + 1:
         return float(close.iloc[-1]) if len(close) > 0 else 0.0, "UP"
 
     tr = pd.concat(
-        [high - low, abs(high - close.shift(1)), abs(low - close.shift(1))], axis=1,
+        [high - low, abs(high - close.shift(1)), abs(low - close.shift(1))],
+        axis=1,
     ).max(axis=1)
     atr = tr.ewm(span=period, adjust=False).mean()
 
@@ -98,27 +107,29 @@ def calculate_supertrend_legacy(high: pd.Series, low: pd.Series, close: pd.Serie
 
 if __name__ == "__main__":
     df = generate_test_data(500)
-    
+
     print("Testing OBV Vectorization Parity...")
-    leg_obv, leg_tr, leg_div = calculate_obv_legacy(df['close'], df['volume'])
-    vec_obv, vec_tr, vec_div = calculate_obv(df['close'], df['volume'])
-    
+    leg_obv, leg_tr, leg_div = calculate_obv_legacy(df["close"], df["volume"])
+    vec_obv, vec_tr, vec_div = calculate_obv(df["close"], df["volume"])
+
     assert np.isclose(leg_obv, vec_obv), f"OBV mismatch: Legacy {leg_obv} != Vectorized {vec_obv}"
     assert leg_tr == vec_tr, "OBV trend mismatch"
     assert leg_div == vec_div, "OBV divergence mismatch"
     print("✅ OBV Vectorization passed!")
-    
+
     print("Testing Supertrend Vectorization Parity...")
-    leg_st, leg_dir = calculate_supertrend_legacy(df['high'], df['low'], df['close'])
-    vec_st, vec_dir = calculate_supertrend(df['high'], df['low'], df['close'])
-    
-    assert np.isclose(leg_st, vec_st), f"Supertrend mismatch: Legacy {leg_st} != Vectorized {vec_st}"
+    leg_st, leg_dir = calculate_supertrend_legacy(df["high"], df["low"], df["close"])
+    vec_st, vec_dir = calculate_supertrend(df["high"], df["low"], df["close"])
+
+    assert np.isclose(leg_st, vec_st), (
+        f"Supertrend mismatch: Legacy {leg_st} != Vectorized {vec_st}"
+    )
     assert leg_dir == vec_dir, "Supertrend direction mismatch"
     print("✅ Supertrend Vectorization passed!")
-    
+
     print("Testing Smart Sparkline Execution (no crash)...")
-    res = generate_smart_sparkline(df['close'], 24)
-    assert res['momentum'] in ["STRENGTHENING", "WEAKENING", "STABLE"]
+    res = generate_smart_sparkline(df["close"], 24)
+    assert res["momentum"] in ["STRENGTHENING", "WEAKENING", "STABLE"]
     print("✅ Smart Sparkline passed!")
-    
+
     print("\nALL PARITY TESTS SUCCESSFUL. MATHEMATICAL INTEGRITY MAINTAINED.")

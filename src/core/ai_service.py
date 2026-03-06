@@ -1,4 +1,3 @@
-
 import json
 import warnings
 from datetime import datetime
@@ -11,8 +10,10 @@ from src.core.performance_monitor import PerformanceMonitor
 from src.services.ml_service import MLService
 from src.utils import format_num
 
-HTF_INTERVAL = getattr(Config, 'HTF_INTERVAL', '1h') or '1h'
+
+HTF_INTERVAL = getattr(Config, "HTF_INTERVAL", "1h") or "1h"
 HTF_LABEL = HTF_INTERVAL
+
 
 class AIService:
     def __init__(self, portfolio, market_data, strategy_analyzer):
@@ -27,12 +28,16 @@ class AIService:
         """
         if Config.USE_SMART_CACHE:
             return fetch_all_indicators_with_cache(
-                self.market_data, self.market_data.available_coins, HTF_INTERVAL, use_cache=True,
+                self.market_data,
+                self.market_data.available_coins,
+                HTF_INTERVAL,
+                use_cache=True,
             )
-        else:
-            return fetch_all_indicators_parallel(
-                self.market_data, self.market_data.available_coins, HTF_INTERVAL,
-            )
+        return fetch_all_indicators_parallel(
+            self.market_data,
+            self.market_data.available_coins,
+            HTF_INTERVAL,
+        )
 
     def get_enhanced_context(self) -> dict[str, Any]:
         """Get enhanced context for AI decision making"""
@@ -41,7 +46,7 @@ class AIService:
             return provider.generate_enhanced_context()
         except Exception as e:
             print(f"[WARN]  Enhanced context error: {e}")
-            return {"error": f"Enhanced context failed: {str(e)}"}
+            return {"error": f"Enhanced context failed: {e!s}"}
 
     def get_directional_bias_metrics(self) -> dict[str, dict[str, Any]]:
         """Get directional bias metrics from portfolio"""
@@ -131,14 +136,13 @@ class AIService:
 
         if long_count > short_count and long_confidence > short_confidence:
             return f"Strong Bullish bias ({long_count} longs, avg confidence: {long_confidence / long_count:.2f})"
-        elif short_count > long_count and short_confidence > long_confidence:
+        if short_count > long_count and short_confidence > long_confidence:
             return f"Strong Bearish bias ({short_count} shorts, avg confidence: {short_confidence / short_count:.2f})"
-        elif long_count > short_count:
+        if long_count > short_count:
             return f"Bullish bias ({long_count} longs)"
-        elif short_count > long_count:
+        if short_count > long_count:
             return f"Bearish bias ({short_count} shorts)"
-        else:
-            return "Balanced market"
+        return "Balanced market"
 
     def _analyze_performance_trend(self, recent_cycles: list[dict]) -> str:
         """Analyze performance trend based on recent cycles"""
@@ -171,18 +175,15 @@ class AIService:
 
         if entry_rate > 0.4 and close_rate < 0.2:
             return "Aggressive accumulation phase"
-        elif close_rate > 0.3:
+        if close_rate > 0.3:
             return "Profit-taking phase"
-        elif hold_signals > entry_signals + close_signals:
+        if hold_signals > entry_signals + close_signals:
             return "Consolidation phase"
-        else:
-            return "Balanced trading"
+        return "Balanced trading"
 
     def get_max_positions_for_cycle(self, cycle_number: int) -> int:
         """Delegate to portfolio manager"""
         return self.portfolio.get_max_positions_for_cycle(cycle_number)
-
-
 
     def generate_alpha_arena_prompt(self) -> str:
         """
@@ -278,7 +279,9 @@ class AIService:
 
         recent_flips = self.portfolio.get_recent_trend_flip_summary()
         flip_history_window = getattr(
-            self.portfolio, "trend_flip_history_window", self.portfolio.trend_flip_cooldown,
+            self.portfolio,
+            "trend_flip_history_window",
+            self.portfolio.trend_flip_cooldown,
         )
         if recent_flips:
             trend_flip_section = "\n".join(f"  - {entry}" for entry in recent_flips)
@@ -290,7 +293,8 @@ class AIService:
 
         # Calculate slot status for prompt context
         position_slots = build_position_slot_json(
-            self.portfolio.positions, self.get_max_positions_for_cycle(self.current_cycle_number),
+            self.portfolio.positions,
+            self.get_max_positions_for_cycle(self.current_cycle_number),
         )
 
         # Add slot constraint instruction to the prompt if applicable
@@ -528,7 +532,8 @@ REMEMBER: These are suggestions only. You make the final trading decisions based
                     try:
                         entry_dt = datetime.fromisoformat(entry_time_str)
                         position_duration_minutes = max(
-                            0, int((datetime.now() - entry_dt).total_seconds() // 60),
+                            0,
+                            int((datetime.now() - entry_dt).total_seconds() // 60),
                         )
                         position_duration_hours = position_duration_minutes / 60.0
                     except Exception:
@@ -771,7 +776,8 @@ Current live positions & performance:"""
 
         performance_monitor = PerformanceMonitor()
         trend_reversal_analysis = performance_monitor.detect_trend_reversal_for_all_coins(
-            self.market_data.available_coins, indicators_cache=all_indicators,
+            self.market_data.available_coins,
+            indicators_cache=all_indicators,
         )
 
         # Get cooldown status
@@ -789,7 +795,9 @@ Current live positions & performance:"""
         # Get trend flip summary
         recent_flips = self.portfolio.get_recent_trend_flip_summary()
         flip_history_window = getattr(
-            self.portfolio, "trend_flip_history_window", self.portfolio.trend_flip_cooldown,
+            self.portfolio,
+            "trend_flip_history_window",
+            self.portfolio.trend_flip_cooldown,
         )
 
         # Build JSON sections
@@ -831,7 +839,8 @@ Current live positions & performance:"""
 
         # Trend reversal threats (compact dict: {coin: {strength}})
         reversal_threats = build_trend_reversal_json(
-            trend_reversal_analysis, self.portfolio.positions,
+            trend_reversal_analysis,
+            self.portfolio.positions,
         )
 
         # Cooldown status
@@ -848,7 +857,9 @@ Current live positions & performance:"""
         )
         effective_limit = self.portfolio.get_effective_same_direction_limit()
         position_slot_json = build_position_slot_json(
-            self.portfolio.positions, max_positions, same_direction_limit=effective_limit,
+            self.portfolio.positions,
+            max_positions,
+            same_direction_limit=effective_limit,
         )
 
         # State Vector data (per coin) - only for tradeable coins
@@ -1012,4 +1023,3 @@ Each coin below contains a State Vector with:
             else:
                 cleaned_decisions[coin] = trade
         return cleaned_decisions
-

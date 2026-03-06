@@ -5,6 +5,7 @@ Tests the complete ML inference pipeline end-to-end:
 
 No external API dependencies (OpenAI, Binance) required.
 """
+
 import json
 import sqlite3
 
@@ -41,7 +42,9 @@ def run_dry_run(coin: str = "XRP", interval: str = "15m"):
     # Chronological order
     df_raw = df_raw.sort_values("timestamp").reset_index(drop=True)
     df_raw["timestamp"] = pd.to_datetime(df_raw["timestamp"], unit="ms")
-    print(f"[OK] Loaded {len(df_raw)} candles. Range: {df_raw['timestamp'].iloc[0]} -> {df_raw['timestamp'].iloc[-1]}")
+    print(
+        f"[OK] Loaded {len(df_raw)} candles. Range: {df_raw['timestamp'].iloc[0]} -> {df_raw['timestamp'].iloc[-1]}"
+    )
 
     # Step 2: Boot ML Inference Service
     print("\n[2/4] Booting MLService (Singleton)...")
@@ -85,7 +88,9 @@ def run_dry_run(coin: str = "XRP", interval: str = "15m"):
     print(f"\n[RESULT] Signal: {dominant} | Confidence: {confidence}% | Strength: {strength}")
 
     if strength == "STRONG":
-        print("[INFO] This signal would be injected into the AI prompt as a high-weight technical consensus.")
+        print(
+            "[INFO] This signal would be injected into the AI prompt as a high-weight technical consensus."
+        )
     elif strength == "MODERATE":
         print("[INFO] This signal would be noted by the AI but not treated as decisive alone.")
     else:

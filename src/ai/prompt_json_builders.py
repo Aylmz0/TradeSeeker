@@ -14,6 +14,7 @@ from src.ai.prompt_json_utils import format_number_for_json
 # State Vector Architecture — Helper Functions
 # ============================================================================
 
+
 def _sv_fmt(value) -> float | int | None:
     """Shorthand for format_number_for_json in state vector context."""
     return format_number_for_json(value)
@@ -28,6 +29,7 @@ def _sv_trend_alignment(
     Determine multi-timeframe trend alignment.
     Returns: FULL_BULLISH | FULL_BEARISH | MIXED_BULLISH | MIXED_BEARISH | CONFLICTED
     """
+
     def _trend(ind: dict[str, Any]) -> str | None:
         if not ind or "error" in ind:
             return None
@@ -50,14 +52,13 @@ def _sv_trend_alignment(
 
     if bullish_count == len(trends):
         return "FULL_BULLISH"
-    elif bearish_count == len(trends):
+    if bearish_count == len(trends):
         return "FULL_BEARISH"
-    elif bullish_count > bearish_count:
+    if bullish_count > bearish_count:
         return "MIXED_BULLISH"
-    elif bearish_count > bullish_count:
+    if bearish_count > bullish_count:
         return "MIXED_BEARISH"
-    else:
-        return "CONFLICTED"
+    return "CONFLICTED"
 
 
 def _sv_momentum(indicators_15m: dict[str, Any]) -> str:
@@ -85,7 +86,7 @@ def _sv_price_location(indicators_15m: dict[str, Any]) -> str:
         loc = sparkline.get("price_location", {})
         if isinstance(loc, dict):
             return loc.get("zone", "MIDDLE")
-        elif isinstance(loc, str):
+        if isinstance(loc, str):
             return loc
     return "MIDDLE"
 
@@ -142,14 +143,13 @@ def _sv_volume_label(indicators_3m: dict[str, Any]) -> str:
 
     if ratio > 2.5:
         return "EXCELLENT"
-    elif ratio > 1.8:
+    if ratio > 1.8:
         return "GOOD"
-    elif ratio > 1.2:
+    if ratio > 1.2:
         return "FAIR"
-    elif ratio > 0.7:
+    if ratio > 0.7:
         return "POOR"
-    else:
-        return "LOW"
+    return "LOW"
 
 
 def _sv_build_position(position: dict[str, Any]) -> dict[str, Any]:
@@ -279,7 +279,9 @@ def build_coin_state_vector(
 
 
 def build_metadata_json(
-    minutes_running: int, current_time: datetime, invocation_count: int,
+    minutes_running: int,
+    current_time: datetime,
+    invocation_count: int,
 ) -> dict[str, Any]:
     """Build metadata JSON section."""
     return {
@@ -384,11 +386,8 @@ def build_counter_trade_json(
                     if funding_rate is not None:
                         # BEARISH trend + negative funding = LONG counter-trend favored
                         # BULLISH trend + positive funding = SHORT counter-trend favored
-                        if (
-                            trend_htf == "BEARISH"
-                            and funding_rate < -0.0003
-                            or trend_htf == "BULLISH"
-                            and funding_rate > 0.0003
+                        if (trend_htf == "BEARISH" and funding_rate < -0.0003) or (
+                            trend_htf == "BULLISH" and funding_rate > 0.0003
                         ):  # -0.03%
                             condition_1 = True
                 except Exception:
@@ -516,7 +515,8 @@ def build_counter_trade_json(
 
 
 def build_trend_reversal_json(
-    trend_reversal_analysis: dict[str, Any], portfolio_positions: dict[str, Any],
+    trend_reversal_analysis: dict[str, Any],
+    portfolio_positions: dict[str, Any],
 ) -> dict[str, dict[str, Any]]:
     """
     Build trend reversal detection data from performance_monitor output.
@@ -543,7 +543,6 @@ def build_trend_reversal_json(
     return reversal_dict
 
 
-
 def build_cooldown_status_json(
     directional_cooldowns: dict[str, int],
     coin_cooldowns: dict[str, int],
@@ -560,7 +559,9 @@ def build_cooldown_status_json(
 
 
 def build_position_slot_json(
-    portfolio_positions: dict[str, Any], max_positions: int, same_direction_limit: int = None,
+    portfolio_positions: dict[str, Any],
+    max_positions: int,
+    same_direction_limit: int = None,
 ) -> dict[str, Any]:
     """Build position slot status JSON."""
     from config.config import Config
@@ -585,7 +586,8 @@ def build_position_slot_json(
     weakest_position = None
     if portfolio_positions:
         weakest = min(
-            portfolio_positions.items(), key=lambda x: x[1].get("unrealized_pnl", float("inf")),
+            portfolio_positions.items(),
+            key=lambda x: x[1].get("unrealized_pnl", float("inf")),
         )
         weakest_position = {
             "coin": weakest[0],
@@ -615,7 +617,6 @@ def build_position_slot_json(
         "constraint_mode": constraint_mode,
         "constraint_instruction": "If a direction is FULL, do NOT force trades in the other direction unless they are LOW_RISK or MEDIUM_RISK (High Confidence alone is NOT enough).",
     }
-
 
 
 def build_portfolio_json(portfolio: Any) -> dict[str, Any]:
@@ -721,7 +722,9 @@ def build_directional_bias_json(bias_metrics: dict[str, dict[str, Any]]) -> dict
 
 
 def build_trend_flip_guard_json(
-    trend_flip_summary: list[str], trend_flip_cooldown: int, trend_flip_history_window: int,
+    trend_flip_summary: list[str],
+    trend_flip_cooldown: int,
+    trend_flip_history_window: int,
 ) -> dict[str, Any]:
     """
     Build trend flip guard JSON.
@@ -737,6 +740,6 @@ def build_trend_flip_guard_json(
     return {
         "cooldown_cycles": trend_flip_cooldown,
         "history_window_cycles": trend_flip_history_window,
-        "recent_flips": trend_flip_summary if trend_flip_summary else [],
+        "recent_flips": trend_flip_summary or [],
         "flip_count": len(trend_flip_summary) if trend_flip_summary else 0,
     }

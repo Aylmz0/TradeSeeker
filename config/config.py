@@ -8,6 +8,7 @@ import os
 
 from dotenv import load_dotenv
 
+
 # Load environment variables
 load_dotenv()
 
@@ -32,7 +33,9 @@ class Config:
     ZAI_THINKING_ENABLED: bool = os.getenv("ZAI_THINKING_ENABLED", "true").lower() == "true"
     OPENROUTER_API_KEY: str | None = os.getenv("OPENROUTER_API_KEY")
     OPENROUTER_MODEL: str = os.getenv("OPENROUTER_MODEL", "openrouter/free")
-    OPENROUTER_REASONING_ENABLED: bool = os.getenv("OPENROUTER_REASONING_ENABLED", "true").lower() == "true"
+    OPENROUTER_REASONING_ENABLED: bool = (
+        os.getenv("OPENROUTER_REASONING_ENABLED", "true").lower() == "true"
+    )
     BINANCE_API_KEY: str | None = os.getenv("BINANCE_API_KEY")
     BINANCE_SECRET_KEY: str | None = os.getenv("BINANCE_SECRET_KEY")
 

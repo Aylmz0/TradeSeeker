@@ -34,9 +34,8 @@ class CacheManager:
             if time.time() < cache_entry["expires_at"]:
                 self.hit_count += 1
                 return cache_entry["value"]
-            else:
-                # Remove expired entry
-                del self.cache[key]
+            # Remove expired entry
+            del self.cache[key]
 
         self.miss_count += 1
         return None
@@ -147,7 +146,10 @@ class PerformanceOptimizer:
         return result
 
     def memoize_technical_indicators(
-        self, symbol: str, interval: str, calculation_func: callable,
+        self,
+        symbol: str,
+        interval: str,
+        calculation_func: callable,
     ) -> Any:
         """Memoize technical indicator calculations."""
         cache_key = f"indicators_{symbol}_{interval}"
@@ -214,7 +216,9 @@ def time_execution(func):
 
 
 def fetch_all_indicators_parallel(
-    market_data_instance, available_coins: list, htf_interval: str = "1h",
+    market_data_instance,
+    available_coins: list,
+    htf_interval: str = "1h",
 ) -> tuple[dict[str, dict[str, dict[str, Any]]], dict[str, Any]]:
     """
     Fetch all indicators for all coins in parallel.
@@ -231,9 +235,7 @@ def fetch_all_indicators_parallel(
 
     Example:
         >>> from cache_manager import fetch_all_indicators_parallel
-        >>> indicators, sentiment = fetch_all_indicators_parallel(
-        ...     market_data, ['BTC', 'ETH'], '1h'
-        ... )
+        >>> indicators, sentiment = fetch_all_indicators_parallel(market_data, ["BTC", "ETH"], "1h")
     """
     print("[INFO] Fetching all indicators in parallel...")
     start_time = time.time()
@@ -292,8 +294,8 @@ class SmartIndicatorCache:
     - HTF candles: Cached with dynamic TTL (~93% hit rate for 1h)
 
     Example:
-        >>> cache = SmartIndicatorCache(htf_interval='1h')
-        >>> indicators = cache.get_indicators('BTC', '15m', market_data)
+        >>> cache = SmartIndicatorCache(htf_interval="1h")
+        >>> indicators = cache.get_indicators("BTC", "15m", market_data)
         [INFO] BTC 15m: Cache HIT (or MISS)
     """
 
@@ -310,7 +312,11 @@ class SmartIndicatorCache:
         self.api_calls_saved = 0
 
     def get_indicators(
-        self, coin: str, interval: str, market_data_instance, force_fresh: bool = False,
+        self,
+        coin: str,
+        interval: str,
+        market_data_instance,
+        force_fresh: bool = False,
     ) -> dict[str, Any]:
         """
         Get indicators with smart caching.
@@ -329,15 +335,14 @@ class SmartIndicatorCache:
             if interval == "3m":
                 # Normal behavior for 3m
                 return market_data_instance.get_technical_indicators(coin, interval)
-            else:
-                # Force fresh for cacheable intervals
-                # print(f"[FETCH] {coin} {interval}: Force fresh (cache bypass)")
-                data = market_data_instance.get_technical_indicators(coin, interval)
-                # Update cache even when forced fresh
-                if interval in self.cacheable_intervals:
-                    ttl = self._calculate_smart_ttl(interval)
-                    self._set_to_cache(coin, interval, data, ttl)
-                return data
+            # Force fresh for cacheable intervals
+            # print(f"[FETCH] {coin} {interval}: Force fresh (cache bypass)")
+            data = market_data_instance.get_technical_indicators(coin, interval)
+            # Update cache even when forced fresh
+            if interval in self.cacheable_intervals:
+                ttl = self._calculate_smart_ttl(interval)
+                self._set_to_cache(coin, interval, data, ttl)
+            return data
 
         # Try cache first
         cache_key = self._generate_key(coin, interval)
@@ -500,7 +505,10 @@ def get_smart_cache(htf_interval: str = "1h") -> SmartIndicatorCache:
 
 
 def fetch_all_indicators_with_cache(
-    market_data_instance, available_coins: list, htf_interval: str = "1h", use_cache: bool = True,
+    market_data_instance,
+    available_coins: list,
+    htf_interval: str = "1h",
+    use_cache: bool = True,
 ) -> tuple[dict[str, dict[str, dict[str, Any]]], dict[str, Any]]:
     """
     Fetch all indicators with smart caching support.
@@ -522,12 +530,12 @@ def fetch_all_indicators_with_cache(
     Example:
         >>> # With cache (recommended):
         >>> indicators, sentiment = fetch_all_indicators_with_cache(
-        ...     market_data, ['BTC', 'ETH'], '1h', use_cache=True
+        ...     market_data, ["BTC", "ETH"], "1h", use_cache=True
         ... )
 
         >>> # Without cache (force fresh):
         >>> indicators, sentiment = fetch_all_indicators_with_cache(
-        ...     market_data, ['BTC', 'ETH'], '1h', use_cache=False
+        ...     market_data, ["BTC", "ETH"], "1h", use_cache=False
         ... )
     """
     if not use_cache:

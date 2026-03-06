@@ -24,6 +24,7 @@ import requests
 from config.config import Config
 from src.utils import RetryManager
 
+
 # Increase decimal precision for quantity rounding
 getcontext().prec = 18
 
@@ -81,7 +82,9 @@ class BinanceFuturesClient:
     def _sign(self, payload: dict[str, Any]) -> str:
         query_string = urllib.parse.urlencode(payload, doseq=True)
         signature = hmac.new(
-            self.secret_key.encode("utf-8"), query_string.encode("utf-8"), hashlib.sha256,
+            self.secret_key.encode("utf-8"),
+            query_string.encode("utf-8"),
+            hashlib.sha256,
         ).hexdigest()
         return signature
 
@@ -105,7 +108,11 @@ class BinanceFuturesClient:
         url = f"{self.base_url}{path}"
         try:
             response = self.session.request(
-                method, url, params=params, timeout=self.timeout, headers=headers,
+                method,
+                url,
+                params=params,
+                timeout=self.timeout,
+                headers=headers,
             )
         except requests.RequestException as exc:
             raise BinanceAPIError(f"HTTP request failed: {exc}") from exc
@@ -147,7 +154,10 @@ class BinanceFuturesClient:
 
     def cancel_all_orders(self, symbol: str) -> dict[str, Any]:
         return self._request(
-            "DELETE", "/fapi/v1/allOpenOrders", params={"symbol": symbol}, signed=True,
+            "DELETE",
+            "/fapi/v1/allOpenOrders",
+            params={"symbol": symbol},
+            signed=True,
         )
 
     def get_balance(self) -> list[dict[str, Any]]:
@@ -261,7 +271,7 @@ class BinanceOrderExecutor:
             return value
         d_value = Decimal(str(value))
         d_step = Decimal(str(step))
-        quantized = (d_value / d_step).quantize(Decimal("1"), rounding=ROUND_DOWN) * d_step
+        quantized = (d_value / d_step).quantize(Decimal(1), rounding=ROUND_DOWN) * d_step
         return float(quantized)
 
     def _validate_and_format_quantity(self, symbol: str, quantity: float, price: float) -> float:
@@ -304,8 +314,7 @@ class BinanceOrderExecutor:
         """
         if action == "open":
             return "BUY" if direction == "long" else "SELL"
-        else:
-            return "SELL" if direction == "long" else "BUY"
+        return "SELL" if direction == "long" else "BUY"
 
     def _extract_fill_details(self, order: dict[str, Any]) -> tuple[float, float]:
         executed_qty = float(order.get("executedQty", order.get("origQty", "0")))
@@ -523,10 +532,16 @@ class BinanceOrderExecutor:
                 limit_price = self._round_to_step(limit_price, filters.tick_size)
 
         except Exception as e:
-            logger.warning("Limit order price fetch failed (%s), falling back to MARKET: %s", coin, e)
+            logger.warning(
+                "Limit order price fetch failed (%s), falling back to MARKET: %s", coin, e
+            )
             return self.place_market_order(
-                coin=coin, direction=direction, quantity=quantity,
-                leverage=leverage, price_reference=price_reference, reduce_only=reduce_only,
+                coin=coin,
+                direction=direction,
+                quantity=quantity,
+                leverage=leverage,
+                price_reference=price_reference,
+                reduce_only=reduce_only,
             )
 
         # Step 2: Place LIMIT GTC order
@@ -543,7 +558,11 @@ class BinanceOrderExecutor:
 
         logger.info(
             "Placing LIMIT order %s %s qty=%s price=%s (market ref: %s)",
-            symbol, side, adjusted_qty, limit_price, price_reference,
+            symbol,
+            side,
+            adjusted_qty,
+            limit_price,
+            price_reference,
         )
 
         try:
@@ -569,7 +588,12 @@ class BinanceOrderExecutor:
                     order["executedQty"] = executed_qty_val
                     order["avgPriceComputed"] = avg_price_val
                     order["orderType"] = "LIMIT_FILLED"
-                    logger.info("LIMIT order FILLED for %s: qty=%s avg=%s", coin, executed_qty_val, avg_price_val)
+                    logger.info(
+                        "LIMIT order FILLED for %s: qty=%s avg=%s",
+                        coin,
+                        executed_qty_val,
+                        avg_price_val,
+                    )
                     return order
 
                 if status in ("CANCELED", "EXPIRED", "REJECTED"):
@@ -592,30 +616,42 @@ class BinanceOrderExecutor:
                     remaining = float(adjusted_qty) - partial_qty
                     if remaining > 0:
                         # Fill the rest with market
-                        logger.info("Partial fill %s/%s for %s, sending MARKET for remainder", partial_qty, adjusted_qty, coin)
+                        logger.info(
+                            "Partial fill %s/%s for %s, sending MARKET for remainder",
+                            partial_qty,
+                            adjusted_qty,
+                            coin,
+                        )
                         fallback = self.place_market_order(
-                            coin=coin, direction=direction, quantity=remaining,
-                            leverage=leverage, price_reference=price_reference, reduce_only=reduce_only,
+                            coin=coin,
+                            direction=direction,
+                            quantity=remaining,
+                            leverage=leverage,
+                            price_reference=price_reference,
+                            reduce_only=reduce_only,
                         )
                         # Combine results
                         total_qty = partial_qty + float(fallback.get("executedQty", 0))
                         fallback["executedQty"] = total_qty
                         fallback["orderType"] = "LIMIT_PARTIAL_THEN_MARKET"
                         return fallback
-                    else:
-                        # Fully filled during cancel race
-                        final_status["executedQty"] = partial_qty
-                        final_status["avgPriceComputed"] = avg_p
-                        final_status["orderType"] = "LIMIT_FILLED_ON_CANCEL"
-                        return final_status
+                    # Fully filled during cancel race
+                    final_status["executedQty"] = partial_qty
+                    final_status["avgPriceComputed"] = avg_p
+                    final_status["orderType"] = "LIMIT_FILLED_ON_CANCEL"
+                    return final_status
             except Exception:
                 pass
 
             # Pure fallback: full market order
             logger.info("LIMIT order timeout for %s, executing full MARKET fallback", coin)
             fallback = self.place_market_order(
-                coin=coin, direction=direction, quantity=quantity,
-                leverage=leverage, price_reference=price_reference, reduce_only=reduce_only,
+                coin=coin,
+                direction=direction,
+                quantity=quantity,
+                leverage=leverage,
+                price_reference=price_reference,
+                reduce_only=reduce_only,
             )
             fallback["orderType"] = "MARKET_FALLBACK"
             return fallback
@@ -625,8 +661,12 @@ class BinanceOrderExecutor:
         except Exception as e:
             logger.warning("Smart limit order failed for %s (%s), falling back to MARKET", coin, e)
             fallback = self.place_market_order(
-                coin=coin, direction=direction, quantity=quantity,
-                leverage=leverage, price_reference=price_reference, reduce_only=reduce_only,
+                coin=coin,
+                direction=direction,
+                quantity=quantity,
+                leverage=leverage,
+                price_reference=price_reference,
+                reduce_only=reduce_only,
             )
             fallback["orderType"] = "MARKET_FALLBACK"
             return fallback
@@ -698,7 +738,7 @@ class BinanceOrderExecutor:
             symbol,
             side,
             stop_price,
-            quantity if quantity else "closePosition",
+            quantity or "closePosition",
         )
 
         assert self.client is not None
@@ -755,7 +795,7 @@ class BinanceOrderExecutor:
             symbol,
             side,
             stop_price,
-            quantity if quantity else "closePosition",
+            quantity or "closePosition",
         )
 
         assert self.client is not None

@@ -14,6 +14,7 @@ from typing import Any
 from flask import Flask, jsonify, request, send_from_directory
 from flask_cors import CORS
 
+
 # --- Path Configuration ---
 # Resolve paths relative to this script file
 # Script is in: src/web/admin_server_flask.py
@@ -231,7 +232,8 @@ def get_bot_control():
     """Get current bot control status."""
     try:
         control = safe_file_read(
-            "data/bot_control.json", {"status": "unknown", "last_updated": None},
+            "data/bot_control.json",
+            {"status": "unknown", "last_updated": None},
         )
         return jsonify(control)
     except Exception as e:
@@ -263,6 +265,7 @@ def serve_static_files(filename):
 
 import subprocess
 
+
 # --- ML Control State ---
 # Global variables to track the background training process
 ml_training_process = None
@@ -271,35 +274,38 @@ ml_training_error = ""
 
 # --- API Routes ---
 
+
 @app.route("/api/ml/train", methods=["POST"])
 def trigger_ml_training():
     """Trigger the global ML model training in the background."""
     global ml_training_process, ml_training_status, ml_training_error
-    
+
     # Check if a process is already running
     if ml_training_process is not None:
         if ml_training_process.poll() is None:
             return jsonify({"status": "error", "message": "Training is already in progress."}), 400
-    
+
     try:
         # Resolve path to the training script
         script_path = str(PROJECT_ROOT / "scripts" / "train_model.py")
-        
+
         # Launch as a background process so it doesn't block the Flask response
         logger.info("[INFO] Launching background ML Training Process...")
         ml_training_status = "training"
         ml_training_error = ""
-        
+
         ml_training_process = subprocess.Popen(
             [sys.executable, script_path],
             cwd=str(PROJECT_ROOT),  # Crucial: Run from project root so paths inside script work
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
-            text=True
+            text=True,
         )
-        
-        return jsonify({"status": "success", "message": "Global ML training started in the background."}), 202
-        
+
+        return jsonify(
+            {"status": "success", "message": "Global ML training started in the background."}
+        ), 202
+
     except Exception as e:
         logger.error(f"Error starting ML training: {e}")
         ml_training_status = "error"
@@ -311,34 +317,41 @@ def trigger_ml_training():
 def get_ml_status():
     """Check the status of the background ML training process."""
     global ml_training_process, ml_training_status, ml_training_error
-    
+
     if ml_training_process is not None:
         # poll() returns None if process is still running, otherwise returns the exit code
         return_code = ml_training_process.poll()
-        
+
         if return_code is None:
             ml_training_status = "training"
         elif return_code == 0:
             ml_training_status = "idle"
-            ml_training_process = None # Reset
+            ml_training_process = None  # Reset
             logger.info("[INFO] Background ML Training Process completed successfully.")
         else:
             ml_training_status = "error"
             # Try to grab stderr if available
             err_output = ml_training_process.stderr.read()
             ml_training_error = f"Process exited with code {return_code}. {err_output}"
-            ml_training_process = None # Reset
+            ml_training_process = None  # Reset
             logger.error(f"[ERROR] Background ML Training Failed: {ml_training_error}")
-            
-    return jsonify({
-        "status": ml_training_status,
-        "message": ml_training_error if ml_training_status == 'error' else "Training in progress..." if ml_training_status == 'training' else "Idle"
-    })
+
+    return jsonify(
+        {
+            "status": ml_training_status,
+            "message": ml_training_error
+            if ml_training_status == "error"
+            else "Training in progress..."
+            if ml_training_status == "training"
+            else "Idle",
+        }
+    )
+
 
 @app.route("/api/ml/scan", methods=["POST"])
 def trigger_ml_scan():
     """Trigger a diagnostic scan (Calculates metrics and updates logs without full train)."""
-    # For now, we simulate a scan by forcing a recalculation 
+    # For now, we simulate a scan by forcing a recalculation
     # (In the future, this could trigger a specific validation method in ml_service)
     try:
         # A lightweight check. Mostly handled by the existing /api/ml-drift endpoint
@@ -351,6 +364,7 @@ def trigger_ml_scan():
 
 
 # --- Error Handlers ---
+
 
 @app.route("/api/ml-predictions")
 def get_ml_predictions():
@@ -374,6 +388,7 @@ def get_ml_predictions():
 def get_ml_drift():
     """Get ML model drift status."""
     import sqlite3
+
     training_accuracy = 0.431
     result = {
         "training_accuracy": round(training_accuracy * 100, 1),
@@ -388,7 +403,7 @@ def get_ml_drift():
         jsonl_path = get_file_path("data/ml_predictions.jsonl")
         if os.path.exists(jsonl_path):
             with open(jsonl_path) as f:
-                lines = [l.strip() for l in f.readlines() if l.strip()]
+                lines = [l.strip() for l in f if l.strip()]
             result["total_predictions"] = len(lines)
             if lines:
                 preds = [json.loads(l) for l in lines]
@@ -408,7 +423,9 @@ def get_ml_drift():
             cursor.execute("SELECT COUNT(*) FROM decisions WHERE status='CLOSED'")
             closed = cursor.fetchone()[0]
             if closed > 0:
-                cursor.execute("SELECT COUNT(*) FROM decisions WHERE status='CLOSED' AND pnl_result > 0")
+                cursor.execute(
+                    "SELECT COUNT(*) FROM decisions WHERE status='CLOSED' AND pnl_result > 0"
+                )
                 wins = cursor.fetchone()[0]
                 live_acc = wins / closed
                 result["live_accuracy"] = round(live_acc * 100, 1)
@@ -418,7 +435,6 @@ def get_ml_drift():
     except Exception as e:
         logger.error(f"Error computing drift: {e}")
     return jsonify(result)
-
 
 
 @app.errorhandler(404)

@@ -5,11 +5,13 @@ If live accuracy drops >10% below training accuracy, flags re-training.
 
 Usage: PYTHONPATH=. .venv/bin/python scripts/drift_check.py
 """
+
 import json
 import os
 import sqlite3
 
 import pandas as pd
+
 
 PREDICTION_LOG = "data/ml_predictions.jsonl"
 DATABASE = "data/market_data.db"

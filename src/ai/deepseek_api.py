@@ -5,6 +5,7 @@ from openai import OpenAI
 from config.config import Config
 from src.utils import safe_file_read
 
+
 # Try to import Gemini SDK
 try:
     from google import genai
@@ -17,7 +18,7 @@ except ImportError:
 # Try to import Groq SDK
 try:
     from groq import Groq
-    
+
     GROQ_AVAILABLE = True
 except ImportError:
     GROQ_AVAILABLE = False
@@ -55,7 +56,10 @@ class DeepSeekAPI:
             self.thinking_enabled = getattr(Config, "MIMO_THINKING_ENABLED", False)
             print(f"[INFO] Using MiMo API with model: {self.model}")
             self.client = OpenAI(
-                api_key=self.api_key, base_url=self.base_url, timeout=180.0, max_retries=2,
+                api_key=self.api_key,
+                base_url=self.base_url,
+                timeout=180.0,
+                max_retries=2,
             )
         elif zai_key:
             # Use Z.AI (GLM models with thinking support)
@@ -64,9 +68,14 @@ class DeepSeekAPI:
             self.model = getattr(Config, "ZAI_MODEL", "glm-4.5-flash")
             self.provider = "Z.AI"
             self.thinking_enabled = getattr(Config, "ZAI_THINKING_ENABLED", True)
-            print(f"[INFO] Using Z.AI API with model: {self.model} (thinking: {self.thinking_enabled})")
+            print(
+                f"[INFO] Using Z.AI API with model: {self.model} (thinking: {self.thinking_enabled})"
+            )
             self.client = OpenAI(
-                api_key=self.api_key, base_url=self.base_url, timeout=180.0, max_retries=2,
+                api_key=self.api_key,
+                base_url=self.base_url,
+                timeout=180.0,
+                max_retries=2,
             )
         elif getattr(Config, "OPENROUTER_API_KEY", None):
             # Use OpenRouter (Excellent for cost management)
@@ -75,7 +84,9 @@ class DeepSeekAPI:
             self.model = Config.OPENROUTER_MODEL
             self.provider = "OpenRouter"
             self.thinking_enabled = getattr(Config, "OPENROUTER_REASONING_ENABLED", True)
-            print(f"[INFO] Using OpenRouter API with model: {self.model} (reasoning: {self.thinking_enabled})")
+            print(
+                f"[INFO] Using OpenRouter API with model: {self.model} (reasoning: {self.thinking_enabled})"
+            )
             self.client = OpenAI(
                 api_key=self.api_key,
                 base_url=self.base_url,
@@ -96,11 +107,16 @@ class DeepSeekAPI:
 
             if self.api_key:
                 self.client = OpenAI(
-                    api_key=self.api_key, base_url=self.base_url, timeout=180.0, max_retries=2,
+                    api_key=self.api_key,
+                    base_url=self.base_url,
+                    timeout=180.0,
+                    max_retries=2,
                 )
 
         if not self.api_key:
-            print("[ERR]   No API key found! Set MIMO_API_KEY, ZAI_API_KEY or DEEPSEEK_API_KEY in .env")
+            print(
+                "[ERR]   No API key found! Set MIMO_API_KEY, ZAI_API_KEY or DEEPSEEK_API_KEY in .env"
+            )
             print("[INFO] Please check your .env file configuration.")
 
     def _build_system_prompt(self) -> str:
@@ -277,7 +293,7 @@ class DeepSeekAPI:
             ],
             "analysis_process": [
                 "1. Check each coin's market_context.regime and risk_profile.",
-                f"2. Review technical_summary: trend_alignment, momentum, structure_15m, volume_support.",
+                "2. Review technical_summary: trend_alignment, momentum, structure_15m, volume_support.",
                 "3. Use key_levels (price, ema20_htf, rsi_15m, atr_htf) for independent reasoning.",
                 "4. CROSS-REFERENCE with ml_consensus (XGBoost) if available. If null, rely STRICTLY on technical_summary and key_levels.",
                 "5. Evaluate risk_profile: counter_trade_risk + reversal_threat.",
@@ -401,7 +417,7 @@ class DeepSeekAPI:
             if self.provider == "Z.AI" and self.thinking_enabled:
                 request_params["temperature"] = 1.0  # Required for thinking mode
                 request_params["extra_body"] = {"thinking": {"type": "enabled"}}
-            
+
             # Add reasoning support for OpenRouter
             if self.provider == "OpenRouter" and self.thinking_enabled:
                 request_params["extra_body"] = {"reasoning": {"enabled": True}}
@@ -477,7 +493,9 @@ class DeepSeekAPI:
                     if last_valid_pos > 0:
                         repaired = repaired[:last_valid_pos]
                         obj = json.loads(repaired)
-                        print(f"[OK]    JSON repaired successfully (truncated at pos {last_valid_pos})")
+                        print(
+                            f"[OK]    JSON repaired successfully (truncated at pos {last_valid_pos})"
+                        )
                         return json.dumps(obj, indent=2)
                 except:
                     pass
@@ -577,11 +595,11 @@ class DeepSeekAPI:
         """Get trading decision from Groq API with compound tool support"""
         try:
             user_message_content = f"Analyze the following market data JSON and provide decisions based on the system rules:\n\n{prompt}"
-            
+
             print(
                 f"[INFO] Sending request to Groq API... Payload Size: {len(prompt)} chars",
             )
-            
+
             # Using specific parameters for groq/compound as requested
             stream = self.groq_client.chat.completions.create(
                 model=self.model,
@@ -589,14 +607,16 @@ class DeepSeekAPI:
                     {"role": "system", "content": self._build_system_prompt()},
                     {"role": "user", "content": user_message_content},
                 ],
-                temperature=0.5, # Reduced from 1 to 0.5 for trading stability
+                temperature=0.5,  # Reduced from 1 to 0.5 for trading stability
                 max_completion_tokens=4000,
                 top_p=1,
                 stream=True,
                 stop=None,
-                compound_custom={"tools":{"enabled_tools":["web_search","code_interpreter","visit_website"]}}
+                compound_custom={
+                    "tools": {"enabled_tools": ["web_search", "code_interpreter", "visit_website"]}
+                },
             )
-            
+
             print("[WAIT] Receiving stream...", end="", flush=True)
             collected_content = []
             for chunk in stream:
@@ -606,10 +626,10 @@ class DeepSeekAPI:
                         collected_content.append(delta.content)
                         if len(collected_content) % 10 == 0:
                             print(".", end="", flush=True)
-                            
+
             print(" [OK]")
             content = "".join(collected_content)
-            
+
             # Extract JSON from response
             try:
                 start_index = content.find("{")
@@ -632,11 +652,13 @@ class DeepSeekAPI:
             try:
                 json.loads(content)
             except:
-                print("[ERR]   JSON parse failed completely for Groq, returning safe HOLD decisions")
+                print(
+                    "[ERR]   JSON parse failed completely for Groq, returning safe HOLD decisions"
+                )
                 return self.get_safe_hold_decisions()
-            
+
             return content.strip()
-            
+
         except Exception as e:
             error_type = type(e).__name__
             print(f"[ERR]   Groq API error ({error_type}): {e}")

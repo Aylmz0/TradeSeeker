@@ -26,6 +26,7 @@ from src.core.indicators import (
 )
 from src.utils import RetryManager
 
+
 # add this ass a cycle counter analysez
 
 # HTF_INTERVAL used in main.py, we can get it from Config or define it here
@@ -71,7 +72,10 @@ class RealMarketData:
         self.preloaded_indicators = preloaded
 
     def get_real_time_data(
-        self, symbol: str, interval: str = "3m", limit: int = 100,
+        self,
+        symbol: str,
+        interval: str = "3m",
+        limit: int = 100,
     ) -> pd.DataFrame:
         """Get real OHLCV data from Binance Spot with enhanced error handling and retry logic"""
         max_retries = 3
@@ -113,7 +117,9 @@ class RealMarketData:
                 # Sanitize corrupted candles
                 df.replace([np.inf, -np.inf], np.nan, inplace=True)
                 if df.isna().any().any():
-                    print(f"[WARN] Invalid candles (NaN/Inf) detected for {symbol} ({interval}). Dropping invalid rows.")
+                    print(
+                        f"[WARN] Invalid candles (NaN/Inf) detected for {symbol} ({interval}). Dropping invalid rows."
+                    )
                     df.dropna(inplace=True)
 
                 # Enhanced data validation
@@ -122,27 +128,26 @@ class RealMarketData:
                     coin_key = symbol.replace("USDT", "")
                     self._raw_dataframes.setdefault(coin_key, {})[interval] = df.copy()
                     return df
-                else:
-                    print(
-                        f"[ERR]   Data validation failed for {symbol} ({interval}) - attempt {attempt + 1}/{max_retries}",
-                    )
-                    if attempt < max_retries - 1:
-                        time.sleep(2**attempt)  # Exponential backoff
-                        continue
-                    else:
-                        print(
-                            f"[ERR]   All retries failed for {symbol} ({interval}). Returning empty DataFrame.",
-                        )
-                        return pd.DataFrame()
+                print(
+                    f"[ERR]   Data validation failed for {symbol} ({interval}) - attempt {attempt + 1}/{max_retries}",
+                )
+                if attempt < max_retries - 1:
+                    time.sleep(2**attempt)  # Exponential backoff
+                    continue
+                print(
+                    f"[ERR]   All retries failed for {symbol} ({interval}). Returning empty DataFrame.",
+                )
+                return pd.DataFrame()
 
             except requests.exceptions.Timeout:
-                print(f"[ERR]   Timeout for {symbol} ({interval}) - attempt {attempt + 1}/{max_retries}")
+                print(
+                    f"[ERR]   Timeout for {symbol} ({interval}) - attempt {attempt + 1}/{max_retries}"
+                )
                 if attempt < max_retries - 1:
                     time.sleep(2**attempt)
                     continue
-                else:
-                    print(f"[ERR]   All retries timed out for {symbol} ({interval})")
-                    return pd.DataFrame()
+                print(f"[ERR]   All retries timed out for {symbol} ({interval})")
+                return pd.DataFrame()
             except Exception as e:
                 print(
                     f"[ERR]   Kline data error {symbol} ({interval}) - attempt {attempt + 1}/{max_retries}: {e}",
@@ -150,9 +155,8 @@ class RealMarketData:
                 if attempt < max_retries - 1:
                     time.sleep(2**attempt)
                     continue
-                else:
-                    print(f"[ERR]   All retries failed for {symbol} ({interval})")
-                    return pd.DataFrame()
+                print(f"[ERR]   All retries failed for {symbol} ({interval})")
+                return pd.DataFrame()
 
         return pd.DataFrame()
 
@@ -203,7 +207,9 @@ class RealMarketData:
         try:
             params = {"symbol": f"{symbol}USDT"}
             response = self.session.get(
-                f"{self.futures_url}/openInterest", params=params, timeout=5,
+                f"{self.futures_url}/openInterest",
+                params=params,
+                timeout=5,
             )
             response.raise_for_status()
             return float(response.json()["openInterest"])
@@ -219,7 +225,9 @@ class RealMarketData:
         try:
             params = {"symbol": f"{symbol}USDT"}
             response = self.session.get(
-                f"{self.futures_url}/premiumIndex", params=params, timeout=5,
+                f"{self.futures_url}/premiumIndex",
+                params=params,
+                timeout=5,
             )
             response.raise_for_status()
             data = response.json()
@@ -229,10 +237,9 @@ class RealMarketData:
             rate = data.get("lastFundingRate")
             if rate is not None and rate != "":
                 return float(rate)
-            else:
-                # print(f"[INFO] Using nextFundingRate for {symbol}.")
-                rate = data.get("nextFundingRate")
-                return float(rate) if rate is not None and rate != "" else 0.0
+            # print(f"[INFO] Using nextFundingRate for {symbol}.")
+            rate = data.get("nextFundingRate")
+            return float(rate) if rate is not None and rate != "" else 0.0
         except Exception as e:
             if isinstance(e, requests.exceptions.HTTPError) and (
                 e.response.status_code in [404, 400]
@@ -316,14 +323,18 @@ class RealMarketData:
             # Efficiency Ratio (ER) Calculation for Choppy Regime Detection
             # Using 10 periods (30 mins for 3m interval)
             indicators["efficiency_ratio"] = calculate_efficiency_ratio(
-                close_prices, period=10,
+                close_prices,
+                period=10,
             )
 
             # ==================== NEW INDICATORS (v5.0) ====================
 
             # 1. ADX/DMI - Trend Strength
             adx, plus_di, minus_di = calculate_adx(
-                df["high"], df["low"], df["close"], period=14,
+                df["high"],
+                df["low"],
+                df["close"],
+                period=14,
             )
             indicators["adx"] = adx
             indicators["plus_di"] = plus_di
@@ -350,8 +361,8 @@ class RealMarketData:
                 indicators["price_vs_vwap"] = "UNKNOWN"
 
             # 3. Bollinger Bands
-            bb_upper, bb_middle, bb_lower, bb_bandwidth, bb_percent_b = (
-                calculate_bollinger_bands(close_prices)
+            bb_upper, bb_middle, bb_lower, bb_bandwidth, bb_percent_b = calculate_bollinger_bands(
+                close_prices
             )
             indicators["bb_upper"] = bb_upper
             indicators["bb_lower"] = bb_lower
@@ -385,7 +396,8 @@ class RealMarketData:
             # Smart Sparkline v2.1: HTF (1h) gets full data, 15m gets structure+momentum only
             if interval == HTF_INTERVAL:
                 indicators["smart_sparkline"] = generate_smart_sparkline(
-                    close_prices, period=24,
+                    close_prices,
+                    period=24,
                 )
             elif interval == "15m":
                 # 15m: structure, momentum, and price_location (no key_level for token efficiency)
@@ -394,7 +406,8 @@ class RealMarketData:
                     "structure": full_sparkline.get("structure", "UNCLEAR"),
                     "momentum": full_sparkline.get("momentum", "STABLE"),
                     "price_location": full_sparkline.get(
-                        "price_location", {"zone": "MIDDLE", "percentile": 50},
+                        "price_location",
+                        {"zone": "MIDDLE", "percentile": 50},
                     ),
                 }
             indicators["pivots"] = calculate_pivots(df, periods=24)
@@ -447,10 +460,9 @@ class RealMarketData:
                     prices_str = " | ".join([f"{coin}: ${val:.4f}" for coin, val in prices.items()])
                     print(f"[OK]    Prices: {prices_str}")
                     return prices
-                else:
-                    print(
-                        f"[WARN] Bulk price missing for: {', '.join(missing)}. Falling back to individual requests.",
-                    )
+                print(
+                    f"[WARN] Bulk price missing for: {', '.join(missing)}. Falling back to individual requests.",
+                )
             else:
                 print(
                     "[WARN] Unexpected bulk ticker response format. Falling back to individual requests.",
@@ -462,7 +474,9 @@ class RealMarketData:
         for coin in self.available_coins:
             try:
                 response = self.session.get(
-                    f"{self.spot_url}/ticker/price", params={"symbol": f"{coin}USDT"}, timeout=3,
+                    f"{self.spot_url}/ticker/price",
+                    params={"symbol": f"{coin}USDT"},
+                    timeout=3,
                 )
                 response.raise_for_status()
                 data = response.json()

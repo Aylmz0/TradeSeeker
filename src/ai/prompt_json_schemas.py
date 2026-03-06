@@ -5,6 +5,7 @@ Used for validation and documentation of JSON prompt format.
 
 from typing import Any
 
+
 # JSON Prompt Format Version
 JSON_PROMPT_VERSION = "1.0"
 
@@ -67,8 +68,14 @@ def get_state_vector_schema() -> dict[str, Any]:
                 "properties": {
                     "regime": {"type": "string", "enum": ["BULLISH", "BEARISH", "NEUTRAL"]},
                     "efficiency_ratio": {"type": ["number", "null"]},
-                    "volatility_state": {"type": "string", "enum": ["SQUEEZE", "EXPANDING", "NORMAL"]},
-                    "price_location": {"type": "string", "enum": ["UPPER_10", "LOWER_10", "MIDDLE"]},
+                    "volatility_state": {
+                        "type": "string",
+                        "enum": ["SQUEEZE", "EXPANDING", "NORMAL"],
+                    },
+                    "price_location": {
+                        "type": "string",
+                        "enum": ["UPPER_10", "LOWER_10", "MIDDLE"],
+                    },
                 },
             },
             "technical_summary": {
@@ -109,7 +116,6 @@ def get_state_vector_schema() -> dict[str, Any]:
         },
         "required": ["coin", "market_context", "technical_summary", "key_levels", "risk_profile"],
     }
-
 
 
 def get_portfolio_schema() -> dict[str, Any]:
@@ -209,7 +215,8 @@ def get_full_prompt_schema() -> dict[str, Any]:
 
 
 def validate_json_against_schema(
-    data: dict[str, Any], schema: dict[str, Any],
+    data: dict[str, Any],
+    schema: dict[str, Any],
 ) -> tuple[bool, str | None]:
     """
     Simple JSON schema validation.
@@ -264,4 +271,4 @@ def validate_json_against_schema(
 
         return True, None
     except Exception as e:
-        return False, f"Validation error: {str(e)}"
+        return False, f"Validation error: {e!s}"

@@ -26,7 +26,11 @@ class BacktestEngine:
         self.timestamps = []
 
     def load_historical_data(
-        self, symbol: str, start_date: str, end_date: str, interval: str = "1h",
+        self,
+        symbol: str,
+        start_date: str,
+        end_date: str,
+        interval: str = "1h",
     ) -> pd.DataFrame:
         """
         Load historical price data for backtesting.
@@ -356,7 +360,11 @@ class AdvancedRiskManager:
         self.volatility_history = {}
 
     def calculate_position_size(
-        self, current_balance: float, entry_price: float, stop_loss: float, confidence: float = 0.5,
+        self,
+        current_balance: float,
+        entry_price: float,
+        stop_loss: float,
+        confidence: float = 0.5,
     ) -> float:
         """Calculate optimal position size based on risk parameters with $50 maximum limit."""
         if entry_price <= 0 or stop_loss <= 0:
@@ -403,7 +411,10 @@ class AdvancedRiskManager:
         return max(0.0, confidence_adjusted_size)
 
     def check_portfolio_diversification(
-        self, current_positions: dict, new_symbol: str, max_concentration: float = None,
+        self,
+        current_positions: dict,
+        new_symbol: str,
+        max_concentration: float = None,
     ) -> bool:
         """Check if adding new position maintains portfolio diversification."""
         if not current_positions:
@@ -531,7 +542,7 @@ def sample_strategy(symbol: str, data: pd.DataFrame, portfolio_state: dict) -> d
     if short_ma > long_ma and portfolio_state["current_balance"] > 10:
         # Buy signal
         return {"signal": "buy_to_enter", "quantity": 1.0, "leverage": 2, "confidence": 0.7}
-    elif short_ma < long_ma and symbol in portfolio_state["positions"]:
+    if short_ma < long_ma and symbol in portfolio_state["positions"]:
         # Sell signal
         return {
             "signal": "close_position",

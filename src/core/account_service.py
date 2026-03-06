@@ -5,27 +5,35 @@ from config.config import Config
 from src.core.data_engine import DataEngine
 from src.utils import format_num
 
+
 try:
     from src.services.binance import BinanceAPIError, BinanceOrderExecutor
+
     BINANCE_IMPORT_ERROR = None
 except Exception as e:
     BinanceOrderExecutor = None
     BINANCE_IMPORT_ERROR = str(e)
-    class BinanceAPIError(Exception): pass
 
-HTF_INTERVAL = getattr(Config, 'HTF_INTERVAL', '1h') or '1h'
+    class BinanceAPIError(Exception):
+        pass
+
+
+HTF_INTERVAL = getattr(Config, "HTF_INTERVAL", "1h") or "1h"
 HTF_LABEL = HTF_INTERVAL
+
 
 class AccountService:
     def __init__(self, portfolio_manager):
         self.pm = portfolio_manager
-        self.is_live_trading = getattr(Config, 'TRADING_MODE', 'simulation') == 'live'
+        self.is_live_trading = getattr(Config, "TRADING_MODE", "simulation") == "live"
         self.order_executor = None
-        
+
         if self.is_live_trading:
             self._initialize_live_trading()
         elif BINANCE_IMPORT_ERROR:
-            print(f'[INFO] Binance executor unavailable ({BINANCE_IMPORT_ERROR}). Staying in simulation mode.')
+            print(
+                f"[INFO] Binance executor unavailable ({BINANCE_IMPORT_ERROR}). Staying in simulation mode."
+            )
 
         # Propagate state to PortfolioManager
         self.pm.is_live_trading = self.is_live_trading
@@ -58,10 +66,11 @@ class AccountService:
             print(f"[ERR]   Unexpected Binance setup error: {exc}. Reverting to simulation mode.")
             self.is_live_trading = False
             self.order_executor = None
-        
+
         # Ensure sync back to PM after initialization attempts
         self.pm.is_live_trading = self.is_live_trading
         self.pm.order_executor = self.order_executor
+
     def _build_default_exit_plan(self, direction: str, entry_price: float) -> dict[str, float]:
         """Generate a sensible default exit plan when AI data is unavailable."""
         try:
@@ -84,7 +93,9 @@ class AccountService:
         return {"stop_loss": stop_loss, "profit_target": profit_target}
 
     def _ensure_exit_plan(
-        self, position: dict[str, Any], *candidate_plans: dict[str, Any] | None,
+        self,
+        position: dict[str, Any],
+        *candidate_plans: dict[str, Any] | None,
     ) -> dict[str, Any]:
         """Ensure a position carries a valid exit plan, supplementing with defaults if needed."""
         direction = position.get("direction", "long")
@@ -117,7 +128,8 @@ class AccountService:
         return final_plan
 
     def _merge_live_positions(
-        self, snapshot: dict[str, dict[str, Any]],
+        self,
+        snapshot: dict[str, dict[str, Any]],
     ) -> dict[str, dict[str, Any]]:
         """Merge Binance snapshot with local runtime metadata (exit plans, confidence, etc.)."""
         merged: dict[str, dict[str, Any]] = {}
@@ -244,10 +256,14 @@ class AccountService:
 
                 # Total value = Available cash + Margin used + Unrealized PnL
                 # This is the correct formula: what you have available + what's locked in positions + unrealized gains/losses
-                self.pm.total_value = self.pm.current_balance + total_margin_used + total_unrealized_pnl
+                self.pm.total_value = (
+                    self.pm.current_balance + total_margin_used + total_unrealized_pnl
+                )
 
                 if abs(old_total - self.pm.total_value) > 0.01:
-                    print(f"[INFO]  Total value updated: ${old_total:.2f} → ${self.pm.total_value:.2f}")
+                    print(
+                        f"[INFO]  Total value updated: ${old_total:.2f} → ${self.pm.total_value:.2f}"
+                    )
                     print(
                         f"   (Available cash: ${self.pm.current_balance:.2f} + Margin used: ${total_margin_used:.2f} + Unrealized PnL: ${total_unrealized_pnl:.2f})",
                     )
@@ -343,16 +359,19 @@ class AccountService:
             )
             executed_qty = float(order.get("executedQty", 0.0))
             avg_price = float(order.get("avgPriceComputed", order.get("avgPrice", 0.0)))
-            
+
             # API Consistency Buffer (Ghost Position Ping)
             for attempt in range(5):
                 self.sync_live_account()
                 if coin in self.pm.positions:
                     break
                 import time
-                print(f"[INFO] Resolving Binance replication lag for {coin}... (attempt {attempt+1}/5)")
+
+                print(
+                    f"[INFO] Resolving Binance replication lag for {coin}... (attempt {attempt + 1}/5)"
+                )
                 time.sleep(1)
-                
+
             position = self.pm.positions.get(coin, {})
 
             # Use provided margin_usd if available, otherwise calculate from position or notional
@@ -404,7 +423,9 @@ class AccountService:
                     # Fallback: If ATR unavailable, use 2% of price
                     if not atr_value or atr_value <= 0:
                         atr_value = avg_price * 0.02
-                        print(f"[WARN]  ATR fallback for {coin}: Using 2% of price = ${atr_value:.4f}")
+                        print(
+                            f"[WARN]  ATR fallback for {coin}: Using 2% of price = ${atr_value:.4f}"
+                        )
 
                     # Calculate stop distance using Config multiplier
                     sl_distance = atr_value * Config.ATR_SL_MULTIPLIER
@@ -611,7 +632,10 @@ class AccountService:
             return {"success": False, "error": str(exc)}
 
     def close_position(
-        self, coin: str, current_price: float, reason: str = "Manual Close",
+        self,
+        coin: str,
+        current_price: float,
+        reason: str = "Manual Close",
     ) -> dict[str, Any]:
         """
         Close a position in paper trading mode (simulation).
@@ -700,7 +724,9 @@ class AccountService:
         updated_stops = []  # Track positions with updated trailing stops
         state_changed = False
 
-        for coin, position in list(self.pm.positions.items()):  # Iterate over a copy for safe deletion
+        for coin, position in list(
+            self.pm.positions.items()
+        ):  # Iterate over a copy for safe deletion
             if (
                 coin not in current_prices
                 or not isinstance(current_prices[coin], (int, float))
@@ -868,11 +894,8 @@ class AccountService:
 
             # Traditional TP/SL checks (only if no enhanced exit triggered)
             if close_reason is None and tp is not None:
-                if (
-                    direction == "long"
-                    and current_price >= tp
-                    or direction == "short"
-                    and current_price <= tp
+                if (direction == "long" and current_price >= tp) or (
+                    direction == "short" and current_price <= tp
                 ):
                     close_reason = f"Profit Target ({tp}) hit"
 
@@ -881,11 +904,8 @@ class AccountService:
             if close_reason is None:
                 # Check exit_plan stop_loss first
                 if sl is not None:
-                    if (
-                        direction == "long"
-                        and current_price <= sl
-                        or direction == "short"
-                        and current_price >= sl
+                    if (direction == "long" and current_price <= sl) or (
+                        direction == "short" and current_price >= sl
                     ):
                         close_reason = f"Stop Loss ({sl}) hit"
 
@@ -909,11 +929,8 @@ class AccountService:
                         # No minimum distance adjustment needed
 
                         # Check if current price hit margin-based stop loss
-                        if (
-                            direction == "long"
-                            and current_price <= margin_based_stop_loss
-                            or direction == "short"
-                            and current_price >= margin_based_stop_loss
+                        if (direction == "long" and current_price <= margin_based_stop_loss) or (
+                            direction == "short" and current_price >= margin_based_stop_loss
                         ):
                             close_reason = f"Margin-based Stop Loss ({format_num(margin_based_stop_loss, 4)}) hit (${loss_threshold_usd:.2f} loss limit, {loss_multiplier * 100:.1f}% of ${margin_used:.2f} margin)"
 
@@ -1015,7 +1032,7 @@ class AccountService:
                 "take2": 0.50,  # 50% profit take
                 "take3": 0.75,  # 75% profit take
             }
-        elif notional_usd < 200:
+        if notional_usd < 200:
             # Medium positions: balanced profit taking
             return {
                 "level1": 0.007,  # %0.7
@@ -1025,7 +1042,7 @@ class AccountService:
                 "take2": 0.50,  # 50% profit take
                 "take3": 0.75,  # 75% profit take
             }
-        elif notional_usd < 300:
+        if notional_usd < 300:
             # Medium positions: balanced profit taking
             return {
                 "level1": 0.006,  # %0.7
@@ -1035,7 +1052,7 @@ class AccountService:
                 "take2": 0.50,  # 50% profit take
                 "take3": 0.75,  # 75% profit take
             }
-        elif notional_usd < 400:
+        if notional_usd < 400:
             # Large positions: conservative profit taking
             return {
                 "level1": 0.005,  # %0.6
@@ -1045,7 +1062,7 @@ class AccountService:
                 "take2": 0.50,  # 50% profit take
                 "take3": 0.75,  # 75% profit take
             }
-        elif notional_usd < 500:
+        if notional_usd < 500:
             # xLarge positions: conservative profit taking
             return {
                 "level1": 0.004,  # %0.5
@@ -1055,7 +1072,7 @@ class AccountService:
                 "take2": 0.50,  # 50% profit take
                 "take3": 0.75,  # 75% profit take
             }
-        elif notional_usd < 600:
+        if notional_usd < 600:
             # xxLarge positions: conservative profit taking
             return {
                 "level1": 0.003,  # %0.
@@ -1065,16 +1082,15 @@ class AccountService:
                 "take2": 0.50,  # 50% profit take
                 "take3": 0.75,  # 75% profit take
             }
-        else:
-            # Very large positions: very conservative profit taking
-            return {
-                "level1": 0.002,  # %0.3
-                "level2": 0.003,  # %0.5
-                "level3": 0.004,  # %0.7
-                "take1": 0.25,  # 25% profit take
-                "take2": 0.50,  # 50% profit take
-                "take3": 0.75,  # 75% profit take
-            }
+        # Very large positions: very conservative profit taking
+        return {
+            "level1": 0.002,  # %0.3
+            "level2": 0.003,  # %0.5
+            "level3": 0.004,  # %0.7
+            "take1": 0.25,  # 25% profit take
+            "take2": 0.50,  # 50% profit take
+            "take3": 0.75,  # 75% profit take
+        }
 
     def enhanced_exit_strategy(self, position: dict, current_price: float) -> dict[str, Any]:
         """Enhanced exit strategy with dynamic profit taking and KADEMELİ loss cutting"""
@@ -1092,7 +1108,8 @@ class AccountService:
 
         current_margin = position.get("margin_usd", 0)
         margin_used = position.get(
-            "margin_usd", position.get("notional_usd", 0) / max(position.get("leverage", 1), 1),
+            "margin_usd",
+            position.get("notional_usd", 0) / max(position.get("leverage", 1), 1),
         )
         loss_cycle_count = position.get("loss_cycle_count", 0)
         profit_cycle_count = position.get("profit_cycle_count", 0)
@@ -1107,7 +1124,9 @@ class AccountService:
         # Extended profit exit - take profit after N positive cycles
         if profit_cycle_count >= Config.EXTENDED_PROFIT_CYCLES and unrealized_pnl > 0:
             reason = f"Taking profit after {profit_cycle_count} profitable cycles (PnL ${unrealized_pnl:.2f})"
-            print(f"[OK]    Extended profit exit: {position['symbol']} {direction} closed ({reason}).")
+            print(
+                f"[OK]    Extended profit exit: {position['symbol']} {direction} closed ({reason})."
+            )
             return {"action": "close_position", "reason": reason}
 
         # --- GRADUATED LOSS CUTTING MECHANISM (Margin-based) ---
@@ -1166,7 +1185,8 @@ class AccountService:
             if unrealized_pnl_percent >= level3:  # Level 3 profit - take 75%
                 take_profit_percent = take3
                 adjusted_percent, force_close, reason = self.pm._adjust_partial_sale_for_max_limit(
-                    position, take_profit_percent,
+                    position,
+                    take_profit_percent,
                 )
                 if force_close:
                     return {
@@ -1182,7 +1202,8 @@ class AccountService:
             elif unrealized_pnl_percent >= level2:  # Level 2 profit - take 50%
                 take_profit_percent = take2
                 adjusted_percent, force_close, reason = self.pm._adjust_partial_sale_for_max_limit(
-                    position, take_profit_percent,
+                    position,
+                    take_profit_percent,
                 )
                 if force_close:
                     return {
@@ -1198,7 +1219,8 @@ class AccountService:
             elif unrealized_pnl_percent >= level1:  # Level 1 profit - take 25%
                 take_profit_percent = take1
                 adjusted_percent, force_close, reason = self.pm._adjust_partial_sale_for_max_limit(
-                    position, take_profit_percent,
+                    position,
+                    take_profit_percent,
                 )
                 if force_close:
                     return {
@@ -1238,7 +1260,8 @@ class AccountService:
             if unrealized_pnl_percent >= level3:  # Level 3 profit - take 75%
                 take_profit_percent = take3
                 adjusted_percent, force_close, reason = self.pm._adjust_partial_sale_for_max_limit(
-                    position, take_profit_percent,
+                    position,
+                    take_profit_percent,
                 )
                 if force_close:
                     return {
@@ -1254,7 +1277,8 @@ class AccountService:
             elif unrealized_pnl_percent >= level2:  # Level 2 profit - take 50%
                 take_profit_percent = take2
                 adjusted_percent, force_close, reason = self.pm._adjust_partial_sale_for_max_limit(
-                    position, take_profit_percent,
+                    position,
+                    take_profit_percent,
                 )
                 if force_close:
                     return {
@@ -1270,7 +1294,8 @@ class AccountService:
             elif unrealized_pnl_percent >= level1:  # Level 1 profit - take 25%
                 take_profit_percent = take1
                 adjusted_percent, force_close, reason = self.pm._adjust_partial_sale_for_max_limit(
-                    position, take_profit_percent,
+                    position,
+                    take_profit_percent,
                 )
                 if force_close:
                     return {
@@ -1396,7 +1421,9 @@ class AccountService:
         atr_value = None
         try:
             indicators_3m = (
-                self.pm.market_data.get_technical_indicators(symbol, "3m") if self.pm.market_data else {}
+                self.pm.market_data.get_technical_indicators(symbol, "3m")
+                if self.pm.market_data
+                else {}
             )
         except Exception as exc:
             print(f"[WARN]  Trailing stop indicator fetch failed for {symbol}: {exc}")
@@ -1585,6 +1612,7 @@ class AccountService:
 
         if decisions_to_execute:
             self.pm.execute_decision(
-                decisions_to_execute, valid_prices, indicator_cache=indicator_cache,
+                decisions_to_execute,
+                valid_prices,
+                indicator_cache=indicator_cache,
             )
-

@@ -5,6 +5,7 @@ from typing import Any
 
 from config.config import Config
 
+
 HTF_INTERVAL = getattr(Config, "HTF_INTERVAL", "1h") or "1h"
 HTF_LABEL = HTF_INTERVAL
 
@@ -85,18 +86,21 @@ class EnhancedContextProvider:
                 "remaining_to_target_pct": remaining_pct,
                 "time_in_trade_minutes": round(time_in_trade, 2),
                 "distance_to_stop_pct": round(
-                    abs(stop_loss - current_price) / current_price * 100, 2,
+                    abs(stop_loss - current_price) / current_price * 100,
+                    2,
                 )
                 if current_price
                 else 0,
                 "risk_reward_ratio": round(
-                    abs(profit_target - entry_price) / abs(stop_loss - entry_price), 2,
+                    abs(profit_target - entry_price) / abs(stop_loss - entry_price),
+                    2,
                 )
                 if stop_loss != entry_price
                 else 0,
                 "direction": direction,
                 "trend_alignment": position.get(
-                    "trend_alignment", position.get("trend_context", {}).get("alignment", "unknown"),
+                    "trend_alignment",
+                    position.get("trend_context", {}).get("alignment", "unknown"),
                 ),
                 "trend_context": position.get("trend_context", {}),
                 "confidence": position.get("confidence"),
@@ -205,7 +209,9 @@ class EnhancedContextProvider:
         }
 
     def get_performance_insights(
-        self, trade_history: list, portfolio_state: dict,
+        self,
+        trade_history: list,
+        portfolio_state: dict,
     ) -> dict[str, Any]:
         """Performance-based insights for better decision making"""
         if not trade_history:
@@ -295,7 +301,8 @@ class EnhancedContextProvider:
 
                 if direction_profit + direction_loss > 0:
                     direction_stats["profitability_index"] = round(
-                        (direction_profit / (direction_profit + direction_loss)) * 100, 1,
+                        (direction_profit / (direction_profit + direction_loss)) * 100,
+                        1,
                     )
                 else:
                     direction_stats["profitability_index"] = 0.0
@@ -350,7 +357,8 @@ class EnhancedContextProvider:
                 "position_context": self.get_enhanced_position_context(portfolio_state),
                 "market_regime": market_regime,
                 "performance_insights": self.get_performance_insights(
-                    trade_history, portfolio_state,
+                    trade_history,
+                    portfolio_state,
                 ),
                 "directional_feedback": self.get_directional_feedback(trade_history),
                 "risk_context": self.get_risk_context(portfolio_state),
@@ -361,7 +369,7 @@ class EnhancedContextProvider:
 
         except Exception as e:
             print(f"[ERR]   Enhanced context generation error: {e}")
-            return {"error": f"Context generation failed: {str(e)}"}
+            return {"error": f"Context generation failed: {e!s}"}
 
     def generate_suggestions(self, portfolio_state: dict, market_regime: dict) -> list[str]:
         """Non-manipulative suggestions for AI"""
@@ -401,7 +409,8 @@ class EnhancedContextProvider:
             for symbol, data in position_context.items():
                 pnl = data.get("unrealized_pnl", 0)
                 remaining_pct = data.get(
-                    "remaining_to_target_pct", data.get("profit_target_progress", 0),
+                    "remaining_to_target_pct",
+                    data.get("profit_target_progress", 0),
                 )
                 time_in_trade = data.get("time_in_trade_minutes", 0)
                 print(

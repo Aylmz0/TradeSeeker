@@ -12,6 +12,7 @@ from src.core.backtest import AdvancedRiskManager
 from src.core.market_data import RealMarketData
 from src.utils import format_num, safe_file_read, safe_file_read_cached, safe_file_write
 
+
 # Define HTF constants
 HTF_INTERVAL = getattr(Config, "HTF_INTERVAL", "1h") or "1h"
 HTF_LABEL = HTF_INTERVAL
@@ -89,10 +90,9 @@ class PortfolioManager:
         ]  # Track portfolio values for Sharpe ratio
         self.sharpe_ratio = 0.0
 
-
-
         self.update_prices(
-            {}, increment_loss_counters=False,
+            {},
+            increment_loss_counters=False,
         )  # Calculate initial value with loaded positions
 
     def _ensure_full_history_exists(self):
@@ -134,7 +134,8 @@ class PortfolioManager:
         self.current_balance = data.get("current_balance", self.initial_balance)
         self.positions = data.get("positions", {})
         self.trade_count = data.get(
-            "trade_count", len(self.trade_history),
+            "trade_count",
+            len(self.trade_history),
         )  # Initialize from history if not in state
         print(
             f"[OK]    Loaded state ({len(self.positions)} positions, {self.trade_count} closed trades)"
@@ -159,10 +160,12 @@ class PortfolioManager:
                 stats["caution_win_progress"] = stored.get("caution_win_progress", 0)
                 stats["loss_streak_loss_usd"] = stored.get("loss_streak_loss_usd", 0.0)
         self.last_history_reset_cycle = data.get(
-            "last_history_reset_cycle", self.last_history_reset_cycle,
+            "last_history_reset_cycle",
+            self.last_history_reset_cycle,
         )
         self.cycles_since_history_reset = data.get(
-            "cycles_since_history_reset", self.cycles_since_history_reset,
+            "cycles_since_history_reset",
+            self.cycles_since_history_reset,
         )
         self.directional_cooldowns = data.get("directional_cooldowns", {"long": 0, "short": 0})
         self.relaxed_countertrend_cycles = data.get("relaxed_countertrend_cycles", 0)
@@ -582,27 +585,26 @@ class PortfolioManager:
                     "alignment_info": f"Perfect alignment: {HTF_LABEL}+15m+3m all {signal_direction}",
                     "trends": {"1h": trend_1h, "15m": trend_15m, "3m": trend_3m},
                 }
-            elif trend_1h == trend_15m == signal_direction:
+            if trend_1h == trend_15m == signal_direction:
                 # MEDIUM_15: 1h + 15m aynı (3m farklı)
                 return {
                     "strength": "MEDIUM_15",
                     "alignment_info": f"Moderate: {HTF_LABEL}+15m {signal_direction} (3m {trend_3m})",
                     "trends": {"1h": trend_1h, "15m": trend_15m, "3m": trend_3m},
                 }
-            elif trend_1h == trend_3m == signal_direction:
+            if trend_1h == trend_3m == signal_direction:
                 # MEDIUM_3: 1h + 3m aynı (15m farklı)
                 return {
                     "strength": "MEDIUM_3",
                     "alignment_info": f"Moderate: {HTF_LABEL}+3m {signal_direction} (15m {trend_15m})",
                     "trends": {"1h": trend_1h, "15m": trend_15m, "3m": trend_3m},
                 }
-            else:
-                # WEAK: Sadece 1h aynı (15m ve 3m farklı)
-                return {
-                    "strength": "WEAK",
-                    "alignment_info": f"Weak: Only {HTF_LABEL} {signal_direction} (15m {trend_15m}, 3m {trend_3m})",
-                    "trends": {"1h": trend_1h, "15m": trend_15m, "3m": trend_3m},
-                }
+            # WEAK: Sadece 1h aynı (15m ve 3m farklı)
+            return {
+                "strength": "WEAK",
+                "alignment_info": f"Weak: Only {HTF_LABEL} {signal_direction} (15m {trend_15m}, 3m {trend_3m})",
+                "trends": {"1h": trend_1h, "15m": trend_15m, "3m": trend_3m},
+            }
 
         except Exception as e:
             print(f"[WARN]  Trend-following strength detection error for {coin}: {e}")
@@ -934,7 +936,9 @@ class PortfolioManager:
             htf_interval = Config.HTF_INTERVAL if hasattr(Config, "HTF_INTERVAL") else "1h"
             if hasattr(self, "indicator_cache") and self.indicator_cache:
                 indicators_htf = self.indicator_cache.get_indicators(
-                    coin_name, htf_interval, self.market_data,
+                    coin_name,
+                    htf_interval,
+                    self.market_data,
                 )
                 if indicators_htf and "smart_sparkline" in indicators_htf:
                     sparkline = indicators_htf.get("smart_sparkline", {})
@@ -1220,7 +1224,10 @@ class PortfolioManager:
         return override_data
 
     def _estimate_liquidation_price(
-        self, entry_price: float, leverage: int, direction: str,
+        self,
+        entry_price: float,
+        leverage: int,
+        direction: str,
     ) -> float:
         """Estimate liquidation price."""
         if leverage <= 1 or entry_price <= 0:
@@ -1240,7 +1247,11 @@ class PortfolioManager:
 
     # --- NEW: Enhanced Auto TP/SL Check with Advanced Exit Strategies ---
     def calculate_dynamic_position_size(
-        self, coin: str, confidence: float, market_regime: str, trend_strength: int,
+        self,
+        coin: str,
+        confidence: float,
+        market_regime: str,
+        trend_strength: int,
     ) -> float:
         """Calculate dynamic position size based on multiple factors"""
         base_risk = 25.0  # Reduced maximum risk to $25
@@ -1295,17 +1306,18 @@ class PortfolioManager:
 
         if cycle_number == 1:
             return min(1, max_allowed)  # Cycle 1: max 1 position (or MAX_POSITIONS)
-        elif cycle_number == 2:
+        if cycle_number == 2:
             return min(2, max_allowed)  # Cycle 2: max 2 positions (or MAX_POSITIONS)
-        elif cycle_number == 3:
+        if cycle_number == 3:
             return min(3, max_allowed)  # Cycle 3: max 3 positions (or MAX_POSITIONS)
-        elif cycle_number == 4:
+        if cycle_number == 4:
             return min(4, max_allowed)  # Cycle 4: max 4 positions (or MAX_POSITIONS)
-        else:
-            return max_allowed  # Cycle 5+: use MAX_POSITIONS value
+        return max_allowed  # Cycle 5+: use MAX_POSITIONS value
 
     def _get_indicator_snapshot(
-        self, coin: str, indicator_cache: dict[str, dict[str, Any]] | None = None,
+        self,
+        coin: str,
+        indicator_cache: dict[str, dict[str, Any]] | None = None,
     ) -> tuple[dict[str, Any] | None, dict[str, Any] | None]:
         """Fetch indicators for 3m and higher timeframe from cache if available, otherwise from market data."""
         cache_source = (
@@ -1367,7 +1379,9 @@ class PortfolioManager:
 
         if decisions_to_execute:
             self.execute_decision(
-                decisions_to_execute, valid_prices, indicator_cache=indicator_cache,
+                decisions_to_execute,
+                valid_prices,
+                indicator_cache=indicator_cache,
             )
 
     def _calculate_maximum_limit(self) -> float:
@@ -1382,7 +1396,9 @@ class PortfolioManager:
         return max_limit
 
     def _adjust_partial_sale_for_max_limit(
-        self, position: dict, proposed_percent: float,
+        self,
+        position: dict,
+        proposed_percent: float,
     ) -> tuple[float, bool, str | None]:
         """Adjust partial sale percentage to ensure position doesn't go below maximum limit"""
         current_margin = position.get("margin_usd", 0)
@@ -1394,7 +1410,8 @@ class PortfolioManager:
                 current_margin = notional / leverage
             elif position.get("entry_price", 0) > 0 and position.get("quantity", 0) > 0:
                 current_margin = (position["entry_price"] * position["quantity"]) / position.get(
-                    "leverage", 10,
+                    "leverage",
+                    10,
                 )
 
         # Calculate maximum limit: $15 fixed OR 15% of available cash, whichever is larger
@@ -1417,15 +1434,14 @@ class PortfolioManager:
         if remaining_after_proposed >= max_limit:
             # Proposed sale keeps us above maximum limit, use as-is
             return proposed_percent, False, None
-        else:
-            # Adjust sale to leave exactly max_limit margin
-            adjusted_sale_amount = current_margin - max_limit
-            adjusted_percent = adjusted_sale_amount / current_margin
+        # Adjust sale to leave exactly max_limit margin
+        adjusted_sale_amount = current_margin - max_limit
+        adjusted_percent = adjusted_sale_amount / current_margin
 
-            print(
-                f"[INFO]  Adjusted partial sale: {proposed_percent * 100:.0f}% → {adjusted_percent * 100:.0f}% to maintain ${max_limit:.2f} maximum limit",
-            )
-            return adjusted_percent, False, None
+        print(
+            f"[INFO]  Adjusted partial sale: {proposed_percent * 100:.0f}% → {adjusted_percent * 100:.0f}% to maintain ${max_limit:.2f} maximum limit",
+        )
+        return adjusted_percent, False, None
 
     def _adjust_partial_sale_for_min_limit(self, position: dict, proposed_percent: float) -> float:
         """Adjust partial sale percentage to ensure minimum limit remains after sale"""
@@ -1438,7 +1454,8 @@ class PortfolioManager:
                 current_margin = notional / leverage
             elif position.get("entry_price", 0) > 0 and position.get("quantity", 0) > 0:
                 current_margin = (position["entry_price"] * position["quantity"]) / position.get(
-                    "leverage", 10,
+                    "leverage",
+                    10,
                 )
 
         # Calculate dynamic minimum limit: $15 fixed OR 10% of available cash, whichever is larger
@@ -1457,18 +1474,21 @@ class PortfolioManager:
         if remaining_after_proposed >= min_remaining:
             # Proposed sale keeps us above minimum, use as-is
             return proposed_percent
-        else:
-            # Adjust sale to leave exactly min_remaining margin
-            adjusted_sale_amount = current_margin - min_remaining
-            adjusted_percent = adjusted_sale_amount / current_margin
+        # Adjust sale to leave exactly min_remaining margin
+        adjusted_sale_amount = current_margin - min_remaining
+        adjusted_percent = adjusted_sale_amount / current_margin
 
-            print(
-                f"[INFO]  Adjusted partial sale: {proposed_percent * 100:.0f}% → {adjusted_percent * 100:.0f}% to maintain ${min_remaining:.2f} minimum limit",
-            )
-            return adjusted_percent
+        print(
+            f"[INFO]  Adjusted partial sale: {proposed_percent * 100:.0f}% → {adjusted_percent * 100:.0f}% to maintain ${min_remaining:.2f} minimum limit",
+        )
+        return adjusted_percent
 
     def _is_counter_trend_trade(
-        self, coin: str, signal: str, indicators_3m: dict, indicators_htf: dict,
+        self,
+        coin: str,
+        signal: str,
+        indicators_3m: dict,
+        indicators_htf: dict,
     ) -> bool:
         """Check if trade is counter-trend based on higher timeframe trend vs 15m+3m signal"""
         try:
@@ -1531,7 +1551,7 @@ class PortfolioManager:
             if is_counter_trend and trend_15m and trend_15m == trend_3m == signal_direction:
                 # STRONG counter-trend: 15m + 3m both support the counter-trend signal
                 return True
-            elif is_counter_trend:
+            if is_counter_trend:
                 # Counter-trend but not STRONG (15m or 3m doesn't align)
                 return True  # Still counter-trend, just not STRONG
 
@@ -1601,17 +1621,18 @@ class PortfolioManager:
         """
         if margin_usd < 20:
             return 0.50  # %50 for margin < 20 (Allows wide stops)
-        elif margin_usd < 30:
+        if margin_usd < 30:
             return 0.45  # %45 for margin 20-30
-        elif margin_usd < 40:
+        if margin_usd < 40:
             return 0.40  # %40 for margin 30-40
-        elif margin_usd < 50:
+        if margin_usd < 50:
             return 0.35  # %35 for margin 40-50
-        else:
-            return 0.30  # %30 for margin >= 50
+        return 0.30  # %30 for margin >= 50
 
     def calculate_volume_quality_score(
-        self, coin: str, indicators_3m: dict[str, Any] | None = None,
+        self,
+        coin: str,
+        indicators_3m: dict[str, Any] | None = None,
     ) -> float:
         """Calculate volume quality score (0-100) based on Config thresholds"""
         try:
@@ -1634,14 +1655,13 @@ class PortfolioManager:
             # Calculate score based on Config thresholds
             if volume_ratio >= Config.VOLUME_QUALITY_THRESHOLDS["excellent"]:
                 return 90.0
-            elif volume_ratio >= Config.VOLUME_QUALITY_THRESHOLDS["good"]:
+            if volume_ratio >= Config.VOLUME_QUALITY_THRESHOLDS["good"]:
                 return 75.0
-            elif volume_ratio >= Config.VOLUME_QUALITY_THRESHOLDS["fair"]:
+            if volume_ratio >= Config.VOLUME_QUALITY_THRESHOLDS["fair"]:
                 return 60.0
-            elif volume_ratio >= Config.VOLUME_QUALITY_THRESHOLDS["poor"]:
+            if volume_ratio >= Config.VOLUME_QUALITY_THRESHOLDS["poor"]:
                 return 40.0
-            else:
-                return 20.0
+            return 20.0
 
         except Exception as e:
             print(f"[WARN]  Volume quality score calculation error for {coin}: {e}")
@@ -1877,7 +1897,9 @@ class PortfolioManager:
                 print("[OK]    Exit validated by Strong 3m Reversal (Price+RSI)")
                 return True
 
-            print(f"[BLOCK] Exit blocked: Weak 3m reversal without confirmation (PnL: {pnl_pct:.2f}%)")
+            print(
+                f"[BLOCK] Exit blocked: Weak 3m reversal without confirmation (PnL: {pnl_pct:.2f}%)"
+            )
             return False
 
         except Exception as e:
@@ -1943,10 +1965,9 @@ class PortfolioManager:
                 confidence = 0
             if signal in ["buy_to_enter", "sell_to_enter"]:
                 return (0, -confidence)  # Entry signals first, sorted by confidence desc
-            elif signal == "close_position":
+            if signal == "close_position":
                 return (1, 0)  # Close signals after entries
-            else:
-                return (2, 0)  # Hold signals last
+            return (2, 0)  # Hold signals last
 
         sorted_decisions = sorted(decisions.items(), key=get_signal_priority)
         entry_signals = [
@@ -2302,7 +2323,8 @@ class PortfolioManager:
                 trend_classification = "unknown"
                 try:
                     indicators_3m, indicators_htf = self._get_indicator_snapshot(
-                        coin, indicator_cache,
+                        coin,
+                        indicator_cache,
                     )
                     if ("error" in indicators_3m) or ("error" in indicators_htf):
                         print(
@@ -2315,7 +2337,8 @@ class PortfolioManager:
                         continue
                     # Volume quality scoring using the same data the AI saw
                     volume_quality_score = self.calculate_volume_quality_score(
-                        coin, indicators_3m=indicators_3m,
+                        coin,
+                        indicators_3m=indicators_3m,
                     )
                     confidence = min(1.0, confidence + (volume_quality_score / 1000))
                     trade["volume_quality_score"] = volume_quality_score
@@ -2358,7 +2381,7 @@ class PortfolioManager:
                         )
                         trade["runtime_decision"] = "blocked_hard_volume_filter"
                         continue
-                    elif volume_ratio < volume_threshold and has_existing_position:
+                    if volume_ratio < volume_threshold and has_existing_position:
                         _log_debug(
                             "info",
                             f"[INFO] Volume filter BYPASS for {coin}: existing position (vol={volume_ratio:.2f})",
@@ -2426,11 +2449,8 @@ class PortfolioManager:
                     # BULLISH trend + SHORT signal = counter-trend (clash)
                     # BEARISH trend + LONG signal = counter-trend (clash)
                     ai_runtime_clash = False
-                    if (
-                        current_trend == "BULLISH"
-                        and direction == "short"
-                        or current_trend == "BEARISH"
-                        and direction == "long"
+                    if (current_trend == "BULLISH" and direction == "short") or (
+                        current_trend == "BEARISH" and direction == "long"
                     ):
                         ai_runtime_clash = True
                         trade["classification"] = "counter_trend"
@@ -2459,7 +2479,10 @@ class PortfolioManager:
 
                     pre_bias_confidence = confidence
                     confidence = self.apply_directional_bias(
-                        signal, confidence, bias_metrics, current_trend,
+                        signal,
+                        confidence,
+                        bias_metrics,
+                        current_trend,
                     )
                     if confidence != pre_bias_confidence:
                         _log_debug(
@@ -2474,7 +2497,10 @@ class PortfolioManager:
                         )
                         trade["confidence"] = confidence
                     is_counter_trend = self._is_counter_trend_trade(
-                        coin, signal, indicators_3m, indicators_htf,
+                        coin,
+                        signal,
+                        indicators_3m,
+                        indicators_htf,
                     )
                     trend_classification = (
                         "counter_trend" if is_counter_trend else "trend_following"
@@ -2614,7 +2640,8 @@ class PortfolioManager:
                                         trade["runtime_decision"] = "blocked_trend_flip_confidence"
                                         continue
                                     partial_margin_factor = min(
-                                        partial_margin_factor, 0.8,
+                                        partial_margin_factor,
+                                        0.8,
                                     )  # Tolerant: was 0.7
                                     _log_debug(
                                         "sizing",
@@ -2650,7 +2677,8 @@ class PortfolioManager:
                                         trade["runtime_decision"] = "blocked_trend_flip_confidence"
                                         continue
                                     partial_margin_factor = min(
-                                        partial_margin_factor, 0.9,
+                                        partial_margin_factor,
+                                        0.9,
                                     )  # Tolerant: was 0.8
                                     _log_debug(
                                         "sizing",
@@ -2681,7 +2709,8 @@ class PortfolioManager:
                                         trade["runtime_decision"] = "blocked_trend_flip_confidence"
                                         continue
                                     partial_margin_factor = min(
-                                        partial_margin_factor, 1.0,
+                                        partial_margin_factor,
+                                        1.0,
                                     )  # Tolerant: was 0.9 - full margin
                                     _log_debug(
                                         "sizing",
@@ -2731,7 +2760,9 @@ class PortfolioManager:
                                 if guard_cycles_since_flip == 0:
                                     # Relaxed: 0.97 instead of 0.90
                                     confidence = max(
-                                        confidence * 0.97, confidence - 0.02, original_conf * 0.95,
+                                        confidence * 0.97,
+                                        confidence - 0.02,
+                                        original_conf * 0.95,
                                     )
                                     partial_margin_factor = min(partial_margin_factor, 0.7)
                                     _log_debug(
@@ -2748,7 +2779,9 @@ class PortfolioManager:
                                 elif guard_cycles_since_flip == 1:
                                     # Relaxed: 0.98 instead of 0.95
                                     confidence = max(
-                                        confidence * 0.98, confidence - 0.01, original_conf * 0.97,
+                                        confidence * 0.98,
+                                        confidence - 0.01,
+                                        original_conf * 0.97,
                                     )
                                     partial_margin_factor = min(partial_margin_factor, 0.8)
                                     _log_debug(
@@ -3044,7 +3077,9 @@ class PortfolioManager:
 
                 direction = "long" if signal == "buy_to_enter" else "short"
                 estimated_liq_price = self._estimate_liquidation_price(
-                    current_price, leverage, direction,
+                    current_price,
+                    leverage,
+                    direction,
                 )
 
                 self.positions[coin] = {
@@ -3198,7 +3233,8 @@ class PortfolioManager:
                 direction = position.get("direction", "long")
                 entry_price = position["entry_price"]
                 margin_used = position.get(
-                    "margin_usd", position.get("notional_usd", 0) / position.get("leverage", 1),
+                    "margin_usd",
+                    position.get("notional_usd", 0) / position.get("leverage", 1),
                 )
 
                 profit = (
@@ -3241,7 +3277,9 @@ class PortfolioManager:
             elif signal == "hold":
                 # For hold signals, just log the decision - no action needed
                 if position:
-                    print(f"[INFO]  HOLD: Holding {position.get('direction', 'long')} {coin} position.")
+                    print(
+                        f"[INFO]  HOLD: Holding {position.get('direction', 'long')} {coin} position."
+                    )
                 else:
                     print(f"[INFO]  HOLD: Staying cash in {coin}.")
                 execution_report["holds"].append({"coin": coin, "has_position": bool(position)})

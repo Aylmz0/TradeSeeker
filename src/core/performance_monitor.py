@@ -199,7 +199,10 @@ class PerformanceMonitor:
                 "coin_performance": coin_performance,
                 # Recommendations
                 "recommendations": self._generate_recommendations(
-                    profitability_index, profit_factor, coin_performance, open_positions_count,
+                    profitability_index,
+                    profit_factor,
+                    coin_performance,
+                    open_positions_count,
                 ),
             }
 
@@ -236,7 +239,7 @@ class PerformanceMonitor:
 
         except Exception as e:
             print(f"[ERR]   Performance analysis error: {e}")
-            return {"error": f"Performance analysis failed: {str(e)}"}
+            return {"error": f"Performance analysis failed: {e!s}"}
 
     def _calculate_max_drawdown(self, value_history: list[float]) -> float:
         """Calculate Maximum Drawdown from value history"""
@@ -254,7 +257,9 @@ class PerformanceMonitor:
         return -max_dd
 
     def _calculate_sortino_ratio(
-        self, value_history: list[float], risk_free_rate: float = 0.0,
+        self,
+        value_history: list[float],
+        risk_free_rate: float = 0.0,
     ) -> float:
         """Calculate Sortino Ratio (downside risk only)"""
         if not value_history or len(value_history) < 2:
@@ -512,7 +517,9 @@ class PerformanceMonitor:
         return suggestions
 
     def detect_trend_reversal_for_all_coins(
-        self, coins: list[str], indicators_cache: dict[str, dict[str, dict[str, Any]]] = None,
+        self,
+        coins: list[str],
+        indicators_cache: dict[str, dict[str, dict[str, Any]]] = None,
     ) -> dict[str, Any]:
         """Detect trend break signals for all specified coins (Loss Risk Information Only)"""
         try:
@@ -541,13 +548,17 @@ class PerformanceMonitor:
                 else:
                     indicators_3m = market_data.get_technical_indicators(coin, "3m")
                     indicators_15m = market_data.get_technical_indicators(
-                        coin, "15m",
+                        coin,
+                        "15m",
                     )  # Added 15m
                     indicators_htf = market_data.get_technical_indicators(coin, HTF_INTERVAL)
 
                 # Call centralized logic with 15m support
                 reversal_result = market_data.detect_trend_reversal_signals(
-                    coin, indicators_3m, indicators_htf, indicators_15m,
+                    coin,
+                    indicators_3m,
+                    indicators_htf,
+                    indicators_15m,
                 )
                 reversal_results[coin] = reversal_result
 
@@ -600,7 +611,8 @@ class PerformanceMonitor:
                 loss_risk_signals[coin] = {
                     "loss_risk_signals": signals,
                     "current_trend_4h": result.get(
-                        "trend_htf", "UNKNOWN",
+                        "trend_htf",
+                        "UNKNOWN",
                     ),  # Mapping trend_htf to current_trend_4h/1h
                     "current_trend_3m": result.get("trend_3m", "UNKNOWN"),
                     "signal_strength": result.get("strength", "NO_LOSS_RISK"),
@@ -610,10 +622,12 @@ class PerformanceMonitor:
 
         except Exception as e:
             print(f"[ERR]   Error in trend break analysis for all coins: {e}")
-            return {"error": f"Trend break analysis failed: {str(e)}"}
+            return {"error": f"Trend break analysis failed: {e!s}"}
 
     def _generate_reversal_recommendations(
-        self, summary: dict, reversal_results: dict,
+        self,
+        summary: dict,
+        reversal_results: dict,
     ) -> list[str]:
         """Generate recommendations based on trend reversal analysis"""
         recommendations = []
