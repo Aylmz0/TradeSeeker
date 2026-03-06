@@ -14,6 +14,14 @@ try:
 except ImportError:
     GEMINI_AVAILABLE = False
 
+# Try to import Groq SDK
+try:
+    from groq import Groq
+    
+    GROQ_AVAILABLE = True
+except ImportError:
+    GROQ_AVAILABLE = False
+
 # HTF_INTERVAL used in prompt, we can get it from Config
 HTF_INTERVAL = getattr(Config, "HTF_INTERVAL", "1h") or "1h"
 HTF_LABEL = HTF_INTERVAL
@@ -23,14 +31,22 @@ class DeepSeekAPI:
     """AI API integration with MiMo/Z.AI/DeepSeek support"""
 
     def __init__(self, api_key: str = None):
-        # Check for MiMo API key first (priority)
+        primary_provider = getattr(Config, "PRIMARY_AI_PROVIDER", "openrouter")
         mimo_key = getattr(Config, "MIMO_API_KEY", None)
         zai_key = getattr(Config, "ZAI_API_KEY", None)
 
         self.gemini_client = None
+        self.groq_client = None
         self.client = None
 
-        if mimo_key:
+        if primary_provider == "groq" and getattr(Config, "GROQ_API_KEY", None) and GROQ_AVAILABLE:
+            self.api_key = Config.GROQ_API_KEY
+            self.model = getattr(Config, "GROQ_MODEL", "groq/compound")
+            self.provider = "Groq"
+            self.thinking_enabled = False
+            print(f"[INFO] Using Groq API with model: {self.model}")
+            self.groq_client = Groq(api_key=self.api_key)
+        elif mimo_key:
             # Use MiMo (Xiaomi AI - fast and free)
             self.api_key = mimo_key
             self.base_url = "https://api.xiaomimimo.com/v1"
@@ -349,8 +365,12 @@ class DeepSeekAPI:
     def get_ai_decision(self, prompt: str) -> str:
         """Get trading decision from AI API using structured JSON prompting"""
         # Check if using Gemini
-        if self.provider == "Gemini" and self.gemini_client:
+        if getattr(self, "provider", None) == "Gemini" and getattr(self, "gemini_client", None):
             return self._get_gemini_decision(prompt)
+
+        # Check if using Groq
+        if getattr(self, "provider", None) == "Groq" and getattr(self, "groq_client", None):
+            return self._get_groq_decision(prompt)
 
         if not self.client:
             return self._get_simulation_response(prompt)
@@ -551,6 +571,75 @@ class DeepSeekAPI:
         except Exception as e:
             error_type = type(e).__name__
             print(f"[ERR]   Gemini API error ({error_type}): {e}")
+            return self._get_error_response(f"{error_type}: {e}")
+
+    def _get_groq_decision(self, prompt: str) -> str:
+        """Get trading decision from Groq API with compound tool support"""
+        try:
+            user_message_content = f"Analyze the following market data JSON and provide decisions based on the system rules:\n\n{prompt}"
+            
+            print(
+                f"[INFO] Sending request to Groq API... Payload Size: {len(prompt)} chars",
+            )
+            
+            # Using specific parameters for groq/compound as requested
+            stream = self.groq_client.chat.completions.create(
+                model=self.model,
+                messages=[
+                    {"role": "system", "content": self._build_system_prompt()},
+                    {"role": "user", "content": user_message_content},
+                ],
+                temperature=0.5, # Reduced from 1 to 0.5 for trading stability
+                max_completion_tokens=4000,
+                top_p=1,
+                stream=True,
+                stop=None,
+                compound_custom={"tools":{"enabled_tools":["web_search","code_interpreter","visit_website"]}}
+            )
+            
+            print("[WAIT] Receiving stream...", end="", flush=True)
+            collected_content = []
+            for chunk in stream:
+                if hasattr(chunk, "choices") and chunk.choices and len(chunk.choices) > 0:
+                    delta = chunk.choices[0].delta
+                    if hasattr(delta, "content") and delta.content:
+                        collected_content.append(delta.content)
+                        if len(collected_content) % 10 == 0:
+                            print(".", end="", flush=True)
+                            
+            print(" [OK]")
+            content = "".join(collected_content)
+            
+            # Extract JSON from response
+            try:
+                start_index = content.find("{")
+                if start_index != -1:
+                    json_candidate = content[start_index:]
+                    decoder = json.JSONDecoder()
+                    obj, _ = decoder.raw_decode(json_candidate)
+                    content = json.dumps(obj, indent=2)
+                else:
+                    print("[WARN]  No JSON object found in Groq response")
+                    return self.get_safe_hold_decisions()
+            except Exception as e:
+                print(f"[WARN]  Groq JSON extraction warning: {e}")
+                if "```json" in content:
+                    content = content.replace("```json", "").replace("```", "")
+                elif "```" in content:
+                    content = content.replace("```", "")
+
+            # Strict final parse to guarantee we return JSON
+            try:
+                json.loads(content)
+            except:
+                print("[ERR]   JSON parse failed completely for Groq, returning safe HOLD decisions")
+                return self.get_safe_hold_decisions()
+            
+            return content.strip()
+            
+        except Exception as e:
+            error_type = type(e).__name__
+            print(f"[ERR]   Groq API error ({error_type}): {e}")
             return self._get_error_response(f"{error_type}: {e}")
 
     def _get_simulation_response(self, prompt: str) -> str:

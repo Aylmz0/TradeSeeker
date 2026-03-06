@@ -6,6 +6,7 @@ python-dotenv>=1.0.0
 flask>=2.3.0
 flask-cors>=4.0.0
 openai>=1.0.0
+groq>=0.4.0
 
 # ML dependencies
 xgboost>=2.0.0

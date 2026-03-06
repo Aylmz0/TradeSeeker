@@ -15,7 +15,14 @@ load_dotenv()
 class Config:
     """Application configuration with secure API key handling."""
 
-    # API Keys
+    # AI Provider Selection
+    PRIMARY_AI_PROVIDER: str = os.getenv("PRIMARY_AI_PROVIDER", "openrouter").lower()
+
+    # Groq Settings
+    GROQ_API_KEY: str | None = os.getenv("GROQ_API_KEY")
+    GROQ_MODEL: str = os.getenv("GROQ_MODEL", "groq/compound")
+
+    # OpenRouter & DeepSeek Keys
     DEEPSEEK_API_KEY: str | None = os.getenv("DEEPSEEK_API_KEY")
     MIMO_API_KEY: str | None = os.getenv("MIMO_API_KEY")
     MIMO_MODEL: str = os.getenv("MIMO_MODEL", "mimo-v2-flash")
