@@ -42,6 +42,7 @@ class MLService:
         self.feature_cols = None
         self.is_ready = False
         self.prediction_log_path = "data/ml_predictions.jsonl"
+        self.last_model_mtime = 0  # Track file modification time for hot-reload
 
         self._load_artifacts()
         self._initialized = True
@@ -68,8 +69,9 @@ class MLService:
             self.scaler = joblib.load(self.scaler_path)
             self.feature_cols = joblib.load(self.features_path)
 
+            self.last_model_mtime = os.path.getmtime(self.model_path)
             self.is_ready = True
-            logger.info("[MLService] XGBoost Inference Engine loaded and READY.")
+            logger.info(f"[MLService] XGBoost Inference Engine loaded and READY. (mtime: {self.last_model_mtime})")
         except Exception as e:
             logger.error(f"[MLService] Failed to load ML artifacts: {e}")
             self.is_ready = False
@@ -78,7 +80,15 @@ class MLService:
         """
         Takes raw OHLCV from Binance, extracts features, scales the latest row,
         and computes the directional multi-class probability.
+        Includes automatic HOT-RELOAD if model file on disk is newer.
         """
+        # --- HOT-RELOAD CHECK ---
+        if os.path.exists(self.model_path):
+            current_mtime = os.path.getmtime(self.model_path)
+            if current_mtime > self.last_model_mtime:
+                logger.info("[MLService] NEW MODEL DETECTED on disk. Triggering hot-reload...")
+                self._load_artifacts()
+
         if not self.is_ready or df_raw.empty or len(df_raw) < 50:
             return None
 

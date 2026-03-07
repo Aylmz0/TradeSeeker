@@ -39,6 +39,33 @@ app = Flask(__name__, static_folder=str(PROJECT_ROOT), template_folder=str(TEMPL
 # Enable CORS
 CORS(app, resources={r"/*": {"origins": "*"}})
 
+# --- Environment Detection ---
+
+
+def get_python_executable() -> str:
+    """Detect and return the absolute path to the .venv python if it exists."""
+    venv_python = PROJECT_ROOT / ".venv" / "bin" / "python"
+    if venv_python.exists():
+        return str(venv_python)
+    return sys.executable
+
+
+def get_log_file(name: str):
+    """Ensure data/logs directory exists and return the log file handle."""
+    log_dir = PROJECT_ROOT / "data" / "logs"
+    os.makedirs(log_dir, exist_ok=True)
+    return open(log_dir / f"{name}.log", "a", encoding="utf-8")
+
+
+# --- Error Handlers ---
+
+
+@app.errorhandler(Exception)
+def handle_exception(e):
+    """Global error handler to ensure all errors return JSON instead of HTML."""
+    logger.error(f"Global Error Hook: {e}", exc_info=True)
+    return jsonify({"status": "error", "message": str(e)}), 500
+
 # --- Utility Functions ---
 
 
@@ -141,20 +168,25 @@ def get_performance():
 
 @app.route("/api/performance/refresh", methods=["POST"])
 def refresh_performance():
-    """Trigger a new performance analysis."""
+    """Trigger a new performance analysis in the background."""
     try:
-        # Import here to avoid circular imports and ensure path is set
-        from src.core.performance_monitor import PerformanceMonitor
+        script_path = str(PROJECT_ROOT / "scripts" / "generate_performance_report.py")
+        if not os.path.exists(script_path):
+            return jsonify({"status": "error", "message": "Performance script missing."}), 404
 
-        monitor = PerformanceMonitor()
-        report = monitor.analyze_performance(last_n_cycles=10)
-
-        return jsonify(
-            {"status": "success", "message": "Performance analysis completed", "report": report},
+        # Run as background process to avoid blocking
+        log_file = get_log_file("performance_refresh")
+        subprocess.Popen(
+            [get_python_executable(), script_path],
+            cwd=str(PROJECT_ROOT),
+            stdout=log_file,
+            stderr=subprocess.STDOUT,
+            start_new_session=True,  # Fully detached
         )
 
+        return jsonify({"status": "success", "message": "Performance refresh started in background."})
     except Exception as e:
-        logger.error(f"Error refreshing performance: {e}")
+        logger.error(f"Error starting performance refresh: {e}")
         return jsonify({"status": "error", "message": str(e)}), 500
 
 
@@ -241,19 +273,6 @@ def get_bot_control():
         return jsonify({"status": "error", "message": str(e)}), 500
 
 
-@app.route("/<path:filename>", methods=["GET"])
-def serve_static_files(filename):
-    """Serve static files (JSON data files, etc.) from PROJECT ROOT."""
-    if filename.startswith("api/"):
-        return jsonify({"status": "error", "message": "Endpoint not found"}), 404
-
-    # Security check: prevent directory traversal
-    if ".." in filename or filename.startswith("/"):
-        return jsonify({"status": "error", "message": "Invalid filename"}), 400
-
-    # Serve from project root
-    try:
-        response = send_from_directory(str(PROJECT_ROOT), filename)
         if filename.endswith(".json"):
             response.headers["Cache-Control"] = "no-cache, no-store, must-revalidate"
             response.headers["Pragma"] = "no-cache"
@@ -295,11 +314,11 @@ def trigger_ml_training():
         ml_training_error = ""
 
         ml_training_process = subprocess.Popen(
-            [sys.executable, script_path],
-            cwd=str(PROJECT_ROOT),  # Crucial: Run from project root so paths inside script work
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
-            text=True,
+            [get_python_executable(), script_path],
+            cwd=str(PROJECT_ROOT),
+            stdout=get_log_file("ml_training"),
+            stderr=subprocess.STDOUT,
+            start_new_session=True,  # Fully detached
         )
 
         return jsonify(
@@ -445,6 +464,32 @@ def not_found(error):
 @app.errorhandler(500)
 def internal_error(error):
     return jsonify({"status": "error", "message": "Internal server error"}), 500
+
+
+# --- Static File Serving (Greedy Route) ---
+# MOVED TO BOTTOM to prevent intercepting specific API routes
+
+
+@app.route("/<path:filename>", methods=["GET"])
+def serve_static_files(filename):
+    """Serve static files (JSON data files, etc.) from PROJECT ROOT."""
+    if filename.startswith("api/"):
+        return jsonify({"status": "error", "message": "Endpoint not found"}), 404
+
+    # Security check: prevent directory traversal
+    if ".." in filename or filename.startswith("/"):
+        return jsonify({"status": "error", "message": "Invalid filename"}), 400
+
+    # Serve from project root
+    try:
+        response = send_from_directory(str(PROJECT_ROOT), filename)
+        if filename.endswith(".json"):
+            response.headers["Cache-Control"] = "no-cache, no-store, must-revalidate"
+            response.headers["Pragma"] = "no-cache"
+            response.headers["Expires"] = "0"
+        return response
+    except Exception:
+        return jsonify({"status": "error", "message": "File not found"}), 404
 
 
 # --- Main Application ---

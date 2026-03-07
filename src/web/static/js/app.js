@@ -610,15 +610,23 @@ async function refreshPerformance() {
         });
 
         if (response.ok) {
-            const result = await response.json();
+            const responseText = await response.text();
+            let result;
+            try {
+                result = JSON.parse(responseText);
+            } catch (e) {
+                throw new Error(`Server returned invalid JSON: ${responseText.substring(0, 100)}...`);
+            }
+
             if (result.status === 'success') {
                 await loadPerformanceData();
-                alert('Performance analysis completed successfully!');
+                alert('Performance analysis completed or started in background!');
             } else {
                 throw new Error(result.message || 'Unknown error');
             }
         } else {
-            throw new Error('Failed to refresh performance data');
+            const respText = await response.text();
+            throw new Error(`Failed to refresh performance data: ${respText.substring(0, 100)}`);
         }
     } catch (error) {
         console.error('Performance refresh order:', error);
@@ -921,7 +929,14 @@ async function retrainGlobalModel() {
             // Start polling for status
             pollMlTrainingStatus();
         } else {
-            const result = await response.json();
+            // Safe JSON parse check
+            let result;
+            const responseText = await response.text();
+            try {
+                result = JSON.parse(responseText);
+            } catch (e) {
+                throw new Error(`Server returned non-JSON response (likely HTML): ${responseText.substring(0, 100)}...`);
+            }
             throw new Error(result.message || 'Unknown error starting training');
         }
     } catch (error) {
