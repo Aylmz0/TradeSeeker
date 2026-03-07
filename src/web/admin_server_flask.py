@@ -447,7 +447,7 @@ def get_ml_drift():
     # Get live health from engine
     health = ml_service.get_model_health()
     live_acc = health.get("live_accuracy")
-    
+
     drift_pct = None
     if live_acc is not None:
         drift_pct = round((training_accuracy - live_acc) * 100, 1)

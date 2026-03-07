@@ -1,7 +1,7 @@
 import json
 import logging
 import os
-from datetime import datetime
+from datetime import datetime, timedelta
 from typing import Any
 
 import joblib
@@ -149,16 +149,16 @@ class MLService:
 
             from src.core.data_engine import DataEngine
             engine = DataEngine()
-            
-            with open(self.prediction_log_path, "r") as f:
+
+            with open(self.prediction_log_path) as f:
                 lines = [json.loads(line) for line in f if line.strip()]
-            
+
             if len(lines) < 10:
                 return {"status": "insufficient_data", "count": len(lines)}
 
             correct = 0
             evaluated = 0
-            
+
             # Group by coin to minimize DB calls
             from collections import defaultdict
             by_coin = defaultdict(list)
@@ -169,24 +169,32 @@ class MLService:
                 # Get labeled data for these timestamps
                 df_truth = engine.get_labeled_data(coin, "15m", lookahead_periods=5)
                 if df_truth.empty: continue
-                
+
                 # Map true labels to SELL(0), HOLD(1), BUY(2)
                 df_truth["label_idx"] = df_truth["target_label"].map({-1: 0, 0: 1, 1: 2})
                 truth_map = df_truth.set_index("timestamp")["label_idx"].to_dict()
 
                 for p in preds:
-                    ts = p.get("ts")
-                    # Predictions are instantaneous, truth is established lookahead_periods later.
-                    # The timestamp in truth_map matches the prediction's 'start' time.
-                    if ts in truth_map:
-                        truth = truth_map[ts]
-                        # Map dominant signal to index
-                        pred_idx = {"SELL": 0, "HOLD": 1, "BUY": 2}.get(p.get("dominant"))
-                        if pred_idx is not None:
-                            if pred_idx == truth:
-                                correct += 1
-                            evaluated += 1
-            
+                    ts_str = p.get("ts")
+                    if not ts_str: continue
+
+                    try:
+                        # Floor prediction timestamp to the nearest 15m to match candle alignment
+                        dt = datetime.fromisoformat(ts_str)
+                        # Floor to 15m: 6:23 -> 6:15
+                        floored_dt = dt - timedelta(minutes=dt.minute % 15, seconds=dt.second, microseconds=dt.microsecond)
+                        floored_ts = floored_dt.isoformat()
+
+                        if floored_ts in truth_map:
+                            truth = truth_map[floored_ts]
+                            # Map dominant signal to index
+                            pred_idx = {"SELL": 0, "HOLD": 1, "BUY": 2}.get(p.get("dominant"))
+                            if pred_idx is not None:
+                                if pred_idx == truth:
+                                    correct += 1
+                                evaluated += 1
+                    except: continue
+
             if evaluated == 0:
                 return {"status": "waiting_for_labels", "count": len(lines)}
 

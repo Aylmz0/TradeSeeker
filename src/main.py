@@ -20,9 +20,9 @@ from src.ai.deepseek_api import DeepSeekAPI
 from src.core.account_service import AccountService
 from src.core.ai_service import AIService
 from src.core.backtest import AdvancedRiskManager
+from src.core.data_engine import DataEngine
 from src.core.market_data import RealMarketData
 from src.core.portfolio_manager import PortfolioManager
-from src.core.data_engine import DataEngine
 from src.core.strategy_analyzer import StrategyAnalyzer
 from src.utils import (
     format_num,
@@ -233,16 +233,16 @@ class AlphaArenaDeepSeek:
             # PHASE 27: AUTOMATED ML TRAINING (Every 12 cycles = ~3 hours)
             self.auto_train_cycle_count += 1
             if self.auto_train_cycle_count >= 12:
-                print(f"\n[AUTO-ML] Triggering 3-hour automated model retraining...")
+                print("\n[AUTO-ML] Triggering 3-hour automated model retraining...")
                 try:
                     import subprocess
                     # Run train_model.py in the background
                     venv_py = os.path.join(PROJECT_ROOT, ".venv", "bin", "python")
                     if not os.path.exists(venv_py): venv_py = "python3"
-                    
+
                     cmd = [venv_py, os.path.join(PROJECT_ROOT, "scripts", "train_model.py")]
                     subprocess.Popen(cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-                    print(f"[AUTO-ML] Training started in background. Hot-reload will trigger on completion.")
+                    print("[AUTO-ML] Training started in background. Hot-reload will trigger on completion.")
                     self.auto_train_cycle_count = 0 # Reset counter
                 except Exception as aml_err:
                     print(f"[WARN]   Failed to trigger automated training: {aml_err}")
@@ -370,7 +370,7 @@ class AlphaArenaDeepSeek:
                             df_raw = self.market_data.get_cached_raw_dataframe(coin, interval)
                             if df_raw is not None and not df_raw.empty:
                                 self.data_engine.log_market_data(df_raw, coin, interval)
-                        
+
                         # 2. Log Indicator Snapshots (Features Table)
                         if coin in latest_indicators and "15m" in latest_indicators[coin]:
                             self.data_engine.log_cycle_features(coin, "15m", latest_indicators[coin]["15m"])
