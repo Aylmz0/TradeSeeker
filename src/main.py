@@ -199,6 +199,7 @@ class AlphaArenaDeepSeek:
 
         self.current_cycle_number = cycle_number
         self.portfolio.current_cycle_number = cycle_number
+        self.ai_service.current_cycle_number = cycle_number
         # [SUCCESS] FIX: tick_cooldowns() must be called AFTER the prompt is generated
         # Because cooldown values are needed while generating the prompt
         # tick_cooldowns() decrements cooldowns, so it must be called AFTER the prompt

@@ -25,30 +25,31 @@ _file_lock = threading.Lock()
 def safe_file_read_cached(file_path: str, default_data=None):
     """Read a JSON file using a mem-cache based on filesystem mtime to O(1) avoid disk lookups."""
     try:
-        if not os.path.exists(file_path):
-            return default_data if default_data is not None else {}
+        with _file_lock:
+            if not os.path.exists(file_path):
+                return default_data if default_data is not None else {}
 
-        current_mtime = os.path.getmtime(file_path)
+            current_mtime = os.path.getmtime(file_path)
 
-        if file_path in _FILE_CACHE:
-            cached_mtime, cached_data = _FILE_CACHE[file_path]
-            if current_mtime == cached_mtime:
-                # Return deepcopy to prevent accidental mutation of the cache by callers
-                return copy.deepcopy(cached_data)
+            if file_path in _FILE_CACHE:
+                cached_mtime, cached_data = _FILE_CACHE[file_path]
+                if current_mtime == cached_mtime:
+                    # Return deepcopy to prevent accidental mutation of the cache by callers
+                    return copy.deepcopy(cached_data)
 
-        # Cache miss or file updated
-        if os.path.getsize(file_path) == 0:
-            data = default_data if default_data is not None else {}
-        else:
-            with open(file_path, encoding="utf-8") as f:
-                content = f.read().strip()
-                if not content:
-                    data = default_data if default_data is not None else {}
-                else:
-                    data = json.loads(content)
+            # Cache miss or file updated
+            if os.path.getsize(file_path) == 0:
+                data = default_data if default_data is not None else {}
+            else:
+                with open(file_path, encoding="utf-8") as f:
+                    content = f.read().strip()
+                    if not content:
+                        data = default_data if default_data is not None else {}
+                    else:
+                        data = json.loads(content)
 
-        _FILE_CACHE[file_path] = (current_mtime, data)
-        return copy.deepcopy(data)
+            _FILE_CACHE[file_path] = (current_mtime, data)
+            return copy.deepcopy(data)
 
     except json.JSONDecodeError as e:
         logger.warning(f"[WARN]  Invalid JSON in {file_path}: {e}")

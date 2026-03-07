@@ -3,6 +3,7 @@ import os
 import time
 from collections import deque
 from datetime import datetime
+import threading
 from typing import Any
 
 import numpy as np
@@ -51,6 +52,7 @@ class PortfolioManager:
 
         self.current_balance = self.initial_balance
         self.positions = {}
+        self._lock = threading.Lock()
         self.directional_bias = self._init_directional_bias()
         self.trend_state: dict[str, dict[str, Any]] = {}
         self.trend_flip_cooldown = 2
@@ -174,26 +176,27 @@ class PortfolioManager:
         self.coin_cooldowns = data.get("coin_cooldowns", {})
 
     def save_state(self):
-        data = {
-            "current_balance": self.current_balance,
-            "positions": self.positions,
-            "total_value": self.total_value,
-            "total_return": self.total_return,
-            "initial_balance": self.initial_balance,
-            "trade_count": self.trade_count,
-            "last_updated": datetime.now().isoformat(),
-            "sharpe_ratio": self.sharpe_ratio,
-            "directional_bias": self._serialize_directional_bias(),
-            "last_history_reset_cycle": self.last_history_reset_cycle,
-            "cycles_since_history_reset": self.cycles_since_history_reset,
-            "directional_cooldowns": self.directional_cooldowns,
-            "relaxed_countertrend_cycles": self.relaxed_countertrend_cycles,
-            "counter_trend_cooldown": self.counter_trend_cooldown,
-            "counter_trend_consecutive_losses": self.counter_trend_consecutive_losses,
-            "coin_cooldowns": self.coin_cooldowns,
-        }
-        safe_file_write(self.state_file, data)
-        # print("[OK]    Saved state.") # Silenced for less console noise
+        with self._lock:
+            data = {
+                "current_balance": self.current_balance,
+                "positions": self.positions,
+                "total_value": self.total_value,
+                "total_return": self.total_return,
+                "initial_balance": self.initial_balance,
+                "trade_count": self.trade_count,
+                "last_updated": datetime.now().isoformat(),
+                "sharpe_ratio": self.sharpe_ratio,
+                "directional_bias": self._serialize_directional_bias(),
+                "last_history_reset_cycle": self.last_history_reset_cycle,
+                "cycles_since_history_reset": self.cycles_since_history_reset,
+                "directional_cooldowns": self.directional_cooldowns,
+                "relaxed_countertrend_cycles": self.relaxed_countertrend_cycles,
+                "counter_trend_cooldown": self.counter_trend_cooldown,
+                "counter_trend_consecutive_losses": self.counter_trend_consecutive_losses,
+                "coin_cooldowns": self.coin_cooldowns,
+            }
+            safe_file_write(self.state_file, data)
+            # print("[OK]    Saved state.") # Silenced for less console noise
 
     # --- Live trading helpers -------------------------------------------------
     def _backup_historical_files(self, cycle_number: int) -> str | None:
@@ -243,8 +246,9 @@ class PortfolioManager:
 
     def reset_historical_data(self, cycle_number: int):
         """Clear historical logs to prevent long-term bias while keeping live positions."""
-        self._backup_historical_files(cycle_number)
-        print(f"[CLEANUP] HISTORY RESET: Clearing logs at cycle {cycle_number}")
+        with self._lock:
+            self._backup_historical_files(cycle_number)
+            print(f"[CLEANUP] HISTORY RESET: Clearing logs at cycle {cycle_number}")
         self.trade_history = []
         self.trade_count = 0
         self.directional_bias = self._init_directional_bias()
@@ -319,7 +323,8 @@ class PortfolioManager:
         print(f"[OK]    Saved {len(history_to_save)} trades.")
 
     def add_to_history(self, trade: dict):
-        self.trade_history.append(trade)
+        with self._lock:
+            self.trade_history.append(trade)
         self.trade_count = len(self.trade_history)
         self.save_trade_history()
 
@@ -825,7 +830,8 @@ class PortfolioManager:
         status: str = "ai_decision",
         metadata: dict[str, Any] | None = None,
     ):
-        prompt_summary = "N/A"
+        with self._lock:
+            prompt_summary = "N/A"
         if isinstance(prompt, str) and prompt not in (None, "N/A"):
             # For JSON prompts, try to extract a meaningful summary
             # Check for all JSON sections
@@ -984,7 +990,8 @@ class PortfolioManager:
 
     def update_prices(self, new_prices: dict[str, float], increment_loss_counters: bool = True):
         """Updates prices and recalculates total value."""
-        total_unrealized_pnl = 0.0
+        with self._lock:
+            total_unrealized_pnl = 0.0
         for coin, price in new_prices.items():
             if coin in self.positions and isinstance(price, (int, float)) and price > 0:
                 pos = self.positions[coin]
