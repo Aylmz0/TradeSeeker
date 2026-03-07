@@ -138,6 +138,69 @@ class MLService:
             logger.error(f"[MLService] Error during prediction: {e}")
             return None
 
+    def get_model_health(self) -> dict[str, Any]:
+        """
+        Audit live predictions against ground truth from DataEngine.
+        Requires at least 5 periods (lookahead) to pass to determine truth.
+        """
+        try:
+            if not os.path.exists(self.prediction_log_path):
+                return {"status": "no_logs"}
+
+            from src.core.data_engine import DataEngine
+            engine = DataEngine()
+            
+            with open(self.prediction_log_path, "r") as f:
+                lines = [json.loads(line) for line in f if line.strip()]
+            
+            if len(lines) < 10:
+                return {"status": "insufficient_data", "count": len(lines)}
+
+            correct = 0
+            evaluated = 0
+            
+            # Group by coin to minimize DB calls
+            from collections import defaultdict
+            by_coin = defaultdict(list)
+            for p in lines[-200:]: # Audit last 200 predictions
+                by_coin[p["coin"]].append(p)
+
+            for coin, preds in by_coin.items():
+                # Get labeled data for these timestamps
+                df_truth = engine.get_labeled_data(coin, "15m", lookahead_periods=5)
+                if df_truth.empty: continue
+                
+                # Map true labels to SELL(0), HOLD(1), BUY(2)
+                df_truth["label_idx"] = df_truth["target_label"].map({-1: 0, 0: 1, 1: 2})
+                truth_map = df_truth.set_index("timestamp")["label_idx"].to_dict()
+
+                for p in preds:
+                    ts = p.get("ts")
+                    # Predictions are instantaneous, truth is established lookahead_periods later.
+                    # The timestamp in truth_map matches the prediction's 'start' time.
+                    if ts in truth_map:
+                        truth = truth_map[ts]
+                        # Map dominant signal to index
+                        pred_idx = {"SELL": 0, "HOLD": 1, "BUY": 2}.get(p.get("dominant"))
+                        if pred_idx is not None:
+                            if pred_idx == truth:
+                                correct += 1
+                            evaluated += 1
+            
+            if evaluated == 0:
+                return {"status": "waiting_for_labels", "count": len(lines)}
+
+            live_acc = round(correct / evaluated, 3)
+            return {
+                "status": "success",
+                "live_accuracy": live_acc,
+                "evaluated_count": evaluated,
+                "total_logged": len(lines)
+            }
+        except Exception as e:
+            logger.error(f"[MLService] Health audit failed: {e}")
+            return {"status": "error", "message": str(e)}
+
     def _log_prediction(self, result: dict[str, Any], coin: str, interval: str = "15m") -> None:
         """Append prediction to JSONL log file (one JSON object per line)."""
         try:

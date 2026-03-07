@@ -404,6 +404,12 @@ def get_ml_predictions():
                     hold = raw_pred.get("hold", raw_pred.get("probabilities", {}).get("HOLD", 0))
                     buy = raw_pred.get("buy", raw_pred.get("probabilities", {}).get("BUY", 0))
 
+                    # Legacy Normalization: If values are > 1 (e.g. 51.2), they are in 0-100 scale.
+                    # Standardize everything to 0-1 for the Frontend.
+                    if sell > 1.0: sell /= 100.0
+                    if hold > 1.0: hold /= 100.0
+                    if buy > 1.0: buy /= 100.0
+
                     predictions.append({
                         "ts": raw_pred.get("ts"),
                         "coin": raw_pred.get("coin"),
@@ -425,13 +431,31 @@ def get_ml_drift():
     """Get ML model drift status."""
     import sqlite3
 
-    training_accuracy = 0.431
+    # Load real training metrics if they exist
+    training_accuracy = 0.431 # Default fallback
+    metrics_path = get_file_path("models/model_metrics.json")
+    if os.path.exists(metrics_path):
+        try:
+            with open(metrics_path) as f:
+                m = json.load(f)
+                training_accuracy = m.get("accuracy", 0.431)
+        except: pass
+
+    # Get live health from engine
+    health = ml_service.get_model_health()
+    live_acc = health.get("live_accuracy")
+    
+    drift_pct = None
+    if live_acc is not None:
+        drift_pct = round((training_accuracy - live_acc) * 100, 1)
+
     result = {
         "training_accuracy": round(training_accuracy * 100, 1),
-        "live_accuracy": None,
-        "drift_pct": None,
-        "status": "no_data",
-        "total_predictions": 0,
+        "live_accuracy": round(live_acc * 100, 1) if live_acc is not None else None,
+        "drift_pct": drift_pct,
+        "status": health.get("status", "no_data"),
+        "total_predictions": health.get("total_logged", 0),
+        "evaluated_count": health.get("evaluated_count", 0),
         "prediction_distribution": {},
         "avg_confidence": 0,
     }
