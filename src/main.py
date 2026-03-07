@@ -12,7 +12,8 @@ from typing import Any
 
 
 # Add project root to sys.path to ensure imports work correctly
-sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+sys.path.append(PROJECT_ROOT)
 
 from config.config import Config
 from src.ai.deepseek_api import DeepSeekAPI
@@ -57,6 +58,7 @@ class AlphaArenaDeepSeek:
         # Trend flip cooldown management is handled in PortfolioManager.
         self.latest_indicator_cache: dict[str, dict[str, dict[str, Any]]] = {}
         self.history_reset_interval = Config.HISTORY_RESET_INTERVAL
+        self.auto_train_cycle_count = 0  # Track cycles for 3h automated retrain
 
     def _apply_directional_capacity_filter(
         self,
@@ -227,6 +229,24 @@ class AlphaArenaDeepSeek:
                 monitor = PerformanceMonitor()
                 report = monitor.analyze_performance(last_n_cycles=10)
                 monitor.print_performance_summary(report)
+
+            # PHASE 27: AUTOMATED ML TRAINING (Every 12 cycles = ~3 hours)
+            self.auto_train_cycle_count += 1
+            if self.auto_train_cycle_count >= 12:
+                print(f"\n[AUTO-ML] Triggering 3-hour automated model retraining...")
+                try:
+                    import subprocess
+                    # Run train_model.py in the background
+                    venv_py = os.path.join(PROJECT_ROOT, ".venv", "bin", "python")
+                    if not os.path.exists(venv_py): venv_py = "python3"
+                    
+                    cmd = [venv_py, os.path.join(PROJECT_ROOT, "scripts", "train_model.py")]
+                    subprocess.Popen(cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+                    print(f"[AUTO-ML] Training started in background. Hot-reload will trigger on completion.")
+                    self.auto_train_cycle_count = 0 # Reset counter
+                except Exception as aml_err:
+                    print(f"[WARN]   Failed to trigger automated training: {aml_err}")
+
             print("\n[INFO]  Fetching market data...")
             md_start = time.perf_counter()
             real_prices = self.market_data.get_all_real_prices()

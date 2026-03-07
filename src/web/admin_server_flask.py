@@ -410,11 +410,14 @@ def get_ml_predictions():
                     if hold > 1.0: hold /= 100.0
                     if buy > 1.0: buy /= 100.0
 
+                    confidence = raw_pred.get("confidence", 0)
+                    if confidence > 1.0: confidence /= 100.0
+
                     predictions.append({
                         "ts": raw_pred.get("ts"),
                         "coin": raw_pred.get("coin"),
                         "dominant": raw_pred.get("dominant"),
-                        "confidence": raw_pred.get("confidence"),
+                        "confidence": confidence,
                         "probabilities": {
                             "SELL": sell,
                             "HOLD": hold,
