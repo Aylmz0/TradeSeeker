@@ -14,8 +14,6 @@ from typing import Any
 from flask import Flask, jsonify, request, send_from_directory
 from flask_cors import CORS
 
-from src.services.ml_service import MLService
-
 
 # --- Path Configuration ---
 # Resolve paths relative to this script file
@@ -28,6 +26,8 @@ TEMPLATE_DIR = WEB_DIR / "templates"
 # Add project root to sys.path to allow imports from src
 if str(PROJECT_ROOT) not in sys.path:
     sys.path.append(str(PROJECT_ROOT))
+
+from src.services.ml_service import MLService
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
