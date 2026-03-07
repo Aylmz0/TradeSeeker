@@ -462,84 +462,65 @@ class DeepSeekAPI:
 
             # Robust JSON extraction using JSONDecoder
             try:
-                # Find the first '{'
+                # 1. First Pass: Find the first '{' and try raw_decode
                 start_index = content.find("{")
                 if start_index != -1:
-                    # Slice from the first '{' to the end
                     json_candidate = content[start_index:]
+                    try:
+                        decoder = json.JSONDecoder()
+                        obj, end_index = decoder.raw_decode(json_candidate)
+                        
+                        if reasoning_content and "CHAIN_OF_THOUGHTS" not in obj:
+                             obj["CHAIN_OF_THOUGHTS"] = reasoning_content
+                             
+                        return json.dumps(obj, indent=2)
+                    except Exception as e:
+                        print(f"[WARN]  Strict JSON parse failed ({e}), attempting aggressive repair...")
+                        import re
+                        
+                        # Aggressive Repair 1: Strip markdown and clean text
+                        cleaned = re.sub(r'```json\s*', '', json_candidate)
+                        cleaned = re.sub(r'```\s*', '', cleaned)
+                        
+                        # Aggressive Repair 2: Fix missing commas between properties (common AI error)
+                        cleaned = re.sub(r'(?<=[}\]])\s*(?=[{"\w])', ',', cleaned)
+                        
+                        # Aggressive Repair 3: Fix trailing commas
+                        cleaned = re.sub(r',\s*([}\]])', r'\1', cleaned)
+                        
+                        try:
+                            # Try loading the cleaned string directly
+                            obj = json.loads(cleaned)
+                            if reasoning_content and "CHAIN_OF_THOUGHTS" not in obj:
+                                 obj["CHAIN_OF_THOUGHTS"] = reasoning_content
+                            print(f"[OK]    JSON repaired successfully via regex filtering.")
+                            return json.dumps(obj, indent=2)
+                        except Exception as inner_e:
+                            print(f"[WARN]  Regex repair failed: {inner_e}")
+                            
+                            # Aggressive Repair 4: Try to extract just the DECISIONS block if everything else is corrupted
+                            match = re.search(r'"DECISIONS"\s*:\s*({[^}]+(}[^{}]*)*})', cleaned)
+                            if match:
+                                try:
+                                    decisions_str = "{" + match.group(0) + "}"
+                                    obj = json.loads(decisions_str)
+                                    print(f"[OK]    JSON repaired successfully by extracting DECISIONS block only.")
+                                    return json.dumps(obj, indent=2)
+                                except:
+                                    pass
 
-                    # Use raw_decode to parse the JSON object and ignore trailing data
-                    decoder = json.JSONDecoder()
-                    obj, end_index = decoder.raw_decode(json_candidate)
-
-                    # If we have reasoning from OpenRouter and the JSON doesn't have thoughts, inject it
-                    if reasoning_content and "CHAIN_OF_THOUGHTS" not in obj:
-                         obj["CHAIN_OF_THOUGHTS"] = reasoning_content
-
-                    # Re-serialize to ensure valid JSON string is returned
-                    content = json.dumps(obj, indent=2)
                 else:
                     if reasoning_content:
                          print(f"[WARN] No JSON found, but reasoning exists: {reasoning_content[:100]}...")
                     print("[WARN]  No JSON object found in response")
-                    # Return safe hold response when no valid JSON found
                     return self.get_safe_hold_decisions()
 
             except Exception as e:
                 print(f"[WARN]  JSON extraction warning: {e}")
 
-                # Try to repair common JSON issues
-                try:
-                    # Fix unterminated strings by finding the last complete JSON structure
-                    repaired = content
-
-                    # Count braces to find complete JSON
-                    brace_count = 0
-                    last_valid_pos = 0
-                    in_string = False
-                    escape_next = False
-
-                    for i, char in enumerate(repaired):
-                        if escape_next:
-                            escape_next = False
-                            continue
-                        if char == "\\":
-                            escape_next = True
-                            continue
-                        if char == '"' and not escape_next:
-                            in_string = not in_string
-                        if not in_string:
-                            if char == "{":
-                                brace_count += 1
-                            elif char == "}":
-                                brace_count -= 1
-                                if brace_count == 0:
-                                    last_valid_pos = i + 1
-
-                    if last_valid_pos > 0:
-                        repaired = repaired[:last_valid_pos]
-                        obj = json.loads(repaired)
-                        print(
-                            f"[OK]    JSON repaired successfully (truncated at pos {last_valid_pos})"
-                        )
-                        return json.dumps(obj, indent=2)
-                except:
-                    pass
-
-                # Fallback: try stripping markdown if extraction failed
-                if "```json" in content:
-                    content = content.replace("```json", "").replace("```", "")
-                elif "```" in content:
-                    content = content.replace("```", "")
-
-                # Final validation - if still not valid JSON, return safe hold
-                try:
-                    json.loads(content)
-                except:
-                    print("[ERR]   JSON parse failed completely, returning safe HOLD decisions")
-                    return self.get_safe_hold_decisions()
-
-            return content.strip()
+            # Final validation - if still not valid JSON, return safe hold
+            print("[ERR]   JSON parse failed completely, returning safe HOLD decisions")
+            return self.get_safe_hold_decisions()
 
         except Exception as e:
             # Detailed error logging
