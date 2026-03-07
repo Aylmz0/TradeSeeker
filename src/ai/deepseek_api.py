@@ -409,7 +409,7 @@ class DeepSeekAPI:
                     {"role": "user", "content": user_message_content},
                 ],
                 "temperature": 0.5,
-                "max_tokens": 8000,
+                "max_tokens": 10000,
                 "stream": True,
             }
 
@@ -498,16 +498,60 @@ class DeepSeekAPI:
                         except Exception as inner_e:
                             print(f"[WARN]  Regex repair failed: {inner_e}")
                             
-                            # Aggressive Repair 4: Try to extract just the DECISIONS block if everything else is corrupted
-                            match = re.search(r'"DECISIONS"\s*:\s*({[^}]+(}[^{}]*)*})', cleaned)
-                            if match:
-                                try:
-                                    decisions_str = "{" + match.group(0) + "}"
-                                    obj = json.loads(decisions_str)
-                                    print(f"[OK]    JSON repaired successfully by extracting DECISIONS block only.")
-                                    return json.dumps(obj, indent=2)
-                                except:
-                                    pass
+                            # Aggressive Repair 4: Count braces and close strings (Hard Truncation Fix)
+                            try:
+                                print(f"[INFO]  Attempting Brace-Count String Repair...")
+                                repaired = cleaned
+                                brace_count = 0
+                                last_valid_pos = 0
+                                in_string = False
+                                escape_next = False
+
+                                for i, char in enumerate(repaired):
+                                    if escape_next:
+                                        escape_next = False
+                                        continue
+                                    if char == "\\":
+                                        escape_next = True
+                                        continue
+                                    if char == '"' and not escape_next:
+                                        in_string = not in_string
+                                    if not in_string:
+                                        if char == "{":
+                                            brace_count += 1
+                                        elif char == "}":
+                                            brace_count -= 1
+                                            if brace_count == 0:
+                                                last_valid_pos = i + 1
+
+                                if last_valid_pos > 0:
+                                    # If we found a clean closing, use it
+                                    repaired = repaired[:last_valid_pos]
+                                else:
+                                    # If it's hard truncated, close the string and add closing braces
+                                    if in_string:
+                                        repaired += '"'
+                                    if brace_count > 0:
+                                        repaired += "}" * brace_count
+                                        
+                                obj = json.loads(repaired)
+                                if reasoning_content and "CHAIN_OF_THOUGHTS" not in obj:
+                                    obj["CHAIN_OF_THOUGHTS"] = reasoning_content
+                                print(f"[OK]    JSON repaired via Brace-Count & Truncation Closure.")
+                                return json.dumps(obj, indent=2)
+                            except Exception as truncate_e:
+                                print(f"[WARN]  Truncation repair failed: {truncate_e}")
+                                
+                                # Aggressive Repair 5: Try to extract just the DECISIONS block if everything else is corrupted
+                                match = re.search(r'"DECISIONS"\s*:\s*({[^}]+(}[^{}]*)*})', cleaned)
+                                if match:
+                                    try:
+                                        decisions_str = "{" + match.group(0) + "}"
+                                        obj = json.loads(decisions_str)
+                                        print(f"[OK]    JSON repaired successfully by extracting DECISIONS block only.")
+                                        return json.dumps(obj, indent=2)
+                                    except:
+                                        pass
 
                 else:
                     if reasoning_content:
@@ -615,7 +659,7 @@ class DeepSeekAPI:
                     {"role": "user", "content": user_message_content},
                 ],
                 temperature=0.5,  # Reduced from 1 to 0.5 for trading stability
-                max_completion_tokens=8000,
+                max_completion_tokens=10000,
                 top_p=1,
                 stream=True,
                 stop=None,
