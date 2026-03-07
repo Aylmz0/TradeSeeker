@@ -14,6 +14,8 @@ from typing import Any
 from flask import Flask, jsonify, request, send_from_directory
 from flask_cors import CORS
 
+from src.services.ml_service import MLService
+
 
 # --- Path Configuration ---
 # Resolve paths relative to this script file
@@ -40,6 +42,8 @@ app = Flask(__name__, static_folder=str(PROJECT_ROOT), template_folder=str(TEMPL
 CORS(app, resources={r"/*": {"origins": "*"}})
 
 # --- Environment Detection ---
+
+ml_service = MLService()
 
 
 def get_python_executable() -> str:
