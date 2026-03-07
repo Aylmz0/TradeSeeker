@@ -397,7 +397,24 @@ def get_ml_predictions():
             for line in lines[-50:]:
                 line = line.strip()
                 if line:
-                    predictions.append(json.loads(line))
+                    raw_pred = json.loads(line)
+                    # Map lowercase internal keys to Frontend-expected probabilities
+                    # Supports both old and new formats
+                    sell = raw_pred.get("sell", raw_pred.get("probabilities", {}).get("SELL", 0))
+                    hold = raw_pred.get("hold", raw_pred.get("probabilities", {}).get("HOLD", 0))
+                    buy = raw_pred.get("buy", raw_pred.get("probabilities", {}).get("BUY", 0))
+
+                    predictions.append({
+                        "ts": raw_pred.get("ts"),
+                        "coin": raw_pred.get("coin"),
+                        "dominant": raw_pred.get("dominant"),
+                        "confidence": raw_pred.get("confidence"),
+                        "probabilities": {
+                            "SELL": sell,
+                            "HOLD": hold,
+                            "BUY": buy
+                        }
+                    })
     except Exception as e:
         logger.error(f"Error reading ML predictions: {e}")
     return jsonify(predictions)

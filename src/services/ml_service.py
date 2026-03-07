@@ -146,11 +146,13 @@ class MLService:
                 "ts": datetime.now().isoformat(timespec="seconds"),
                 "coin": coin,
                 "interval": interval,
-                "sell": result["SELL"],
-                "hold": result["HOLD"],
-                "buy": result["BUY"],
                 "dominant": result["dominant_signal"],
                 "confidence": result["confidence"],
+                "probabilities": {
+                    "SELL": result["SELL"],
+                    "HOLD": result["HOLD"],
+                    "BUY": result["BUY"]
+                }
             }
             with open(self.prediction_log_path, "a") as f:
                 f.write(json.dumps(log_entry) + "\n")
