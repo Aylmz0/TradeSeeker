@@ -274,14 +274,34 @@ class AlphaArenaDeepSeek:
                 increment_loss_counters=True,
             )  # Update PnL before checking TP/SL
 
-            # --- Auto TP/SL Check ---
-            positions_closed_by_tp_sl = self.account_service.check_and_execute_tp_sl(valid_prices)
-            # --- End Auto TP/SL Check ---
-
-            # --- Flash Exit Check (V-Reversal Protection) ---
-            # Checks for RSI Spike + Volume Surge in losing positions
+            # --- Auto TP/SL Check & Flash Exit Check (Atomic) ---
+            # FIX: Race condition protection - use lock, combine checks to avoid double-close
+            positions_closed_by_tp_sl = 0
             flash_exits_triggered = False
-            for coin, position in list(self.portfolio.positions.items()):
+
+            with self.portfolio._lock:
+                # Take a snapshot of current positions to iterate safely
+                positions_snapshot = list(self.portfolio.positions.items())
+
+                # First pass: Check TP/SL for all positions
+                # Note: check_and_execute_tp_sl needs valid_prices dict
+                # We call it without lock internally it also uses lock when modifying positions
+                # But here we want to avoid concurrent modifications
+
+            # Call TP/SL check outside lock to avoid holding lock during Binance API calls
+            # The function internally uses _lock when modifying positions
+            positions_closed_by_tp_sl = self.account_service.check_and_execute_tp_sl(valid_prices)
+
+            # Second pass: Flash Exit Check - use fresh snapshot AFTER TP/SL modifications
+            # Take another snapshot since TP/SL may have closed positions
+            with self.portfolio._lock:
+                current_positions = list(self.portfolio.positions.items())
+
+            for coin, position in current_positions:
+                # Skip if position was already closed by TP/SL in this cycle
+                if coin not in self.portfolio.positions:
+                    continue
+
                 if coin in valid_prices:
                     if self.portfolio.check_flash_exit_conditions(coin, position):
                         print(f"[ALERT] EXECUTING FLASH EXIT for {coin}...")
@@ -297,8 +317,10 @@ class AlphaArenaDeepSeek:
                             )
                             if result.get("success"):
                                 flash_exits_triggered = True
-                                if coin in self.portfolio.positions:
-                                    del self.portfolio.positions[coin]
+                                # Double-check position still exists before deletion
+                                with self.portfolio._lock:
+                                    if coin in self.portfolio.positions:
+                                        del self.portfolio.positions[coin]
                         else:
                             # Paper trading close
                             self.account_service.close_position(

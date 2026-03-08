@@ -1,5 +1,6 @@
 import copy
 import json
+import threading
 import time
 import traceback
 from typing import Any
@@ -45,6 +46,14 @@ class RealMarketData:
         self.preloaded_indicators: dict[str, dict[str, dict[str, Any]]] = {}
         self._raw_dataframes: dict[str, dict[str, pd.DataFrame]] = {}
 
+        # FIX: Circuit breaker state to prevent hammering Binance during outages
+        # Thread-safe: uses lock to protect state mutations from concurrent access
+        self._circuit_breaker_failures = 0
+        self._circuit_breaker_threshold = 5  # Trip after 5 consecutive failures
+        self._circuit_breaker_timeout = 60  # Stay open for 60 seconds
+        self._circuit_breaker_until = 0  # Timestamp when breaker resets
+        self._circuit_breaker_lock = threading.Lock()  # Thread safety for circuit breaker state
+
     def clear_preloaded_indicators(self):
         """Clear any preloaded indicator snapshots (typically once per cycle)."""
         self.preloaded_indicators = {}
@@ -77,7 +86,18 @@ class RealMarketData:
         interval: str = "3m",
         limit: int = 100,
     ) -> pd.DataFrame:
-        """Get real OHLCV data from Binance Spot with enhanced error handling and retry logic"""
+        """Get real OHLCV data from Binance Spot with enhanced error handling, retry logic, and circuit breaker"""
+        import time as _time_module
+
+        # FIX: Circuit breaker check - if tripped, fail fast to avoid hammering API
+        # Thread-safe: check is atomic (no lock needed for read)
+        current_time = _time_module.time()
+        if current_time < self._circuit_breaker_until:
+            print(
+                f"[CIRCUIT] OPEN for {symbol} {interval} - cooling down until {self._circuit_breaker_until:.0f}"
+            )
+            return pd.DataFrame()
+
         max_retries = 3
         for attempt in range(max_retries):
             try:
@@ -86,6 +106,13 @@ class RealMarketData:
                 response = self.session.get(f"{self.spot_url}/klines", params=params, timeout=10)
                 response.raise_for_status()
                 data = response.json()
+
+                # FIX: Success - reset circuit breaker (thread-safe)
+                with self._circuit_breaker_lock:
+                    if self._circuit_breaker_failures > 0:
+                        print(f"[CIRCUIT] Reset after {self._circuit_breaker_failures} failures")
+                        self._circuit_breaker_failures = 0
+                        self._circuit_breaker_until = 0
 
                 if len(data) < 50:
                     print(
@@ -137,6 +164,14 @@ class RealMarketData:
                 print(
                     f"[ERR]   All retries failed for {symbol} ({interval}). Returning empty DataFrame.",
                 )
+                # FIX: Circuit breaker - increment failure count and trip if threshold reached (thread-safe)
+                with self._circuit_breaker_lock:
+                    self._circuit_breaker_failures += 1
+                    if self._circuit_breaker_failures >= self._circuit_breaker_threshold:
+                        self._circuit_breaker_until = _time_module.time() + self._circuit_breaker_timeout
+                        print(
+                            f"[CIRCUIT] TRIPPED for {symbol} {interval} - open for {self._circuit_breaker_timeout}s (failures: {self._circuit_breaker_failures})"
+                        )
                 return pd.DataFrame()
 
             except requests.exceptions.Timeout:
@@ -147,6 +182,14 @@ class RealMarketData:
                     time.sleep(2**attempt)
                     continue
                 print(f"[ERR]   All retries timed out for {symbol} ({interval})")
+                # FIX: Circuit breaker - increment failure count and trip if threshold reached (thread-safe)
+                with self._circuit_breaker_lock:
+                    self._circuit_breaker_failures += 1
+                    if self._circuit_breaker_failures >= self._circuit_breaker_threshold:
+                        self._circuit_breaker_until = _time_module.time() + self._circuit_breaker_timeout
+                        print(
+                            f"[CIRCUIT] TRIPPED for {symbol} {interval} - open for {self._circuit_breaker_timeout}s (failures: {self._circuit_breaker_failures})"
+                        )
                 return pd.DataFrame()
             except Exception as e:
                 print(
@@ -156,6 +199,14 @@ class RealMarketData:
                     time.sleep(2**attempt)
                     continue
                 print(f"[ERR]   All retries failed for {symbol} ({interval})")
+                # FIX: Circuit breaker - increment failure count and trip if threshold reached (thread-safe)
+                with self._circuit_breaker_lock:
+                    self._circuit_breaker_failures += 1
+                    if self._circuit_breaker_failures >= self._circuit_breaker_threshold:
+                        self._circuit_breaker_until = _time_module.time() + self._circuit_breaker_timeout
+                        print(
+                            f"[CIRCUIT] TRIPPED for {symbol} {interval} - open for {self._circuit_breaker_timeout}s (failures: {self._circuit_breaker_failures})"
+                        )
                 return pd.DataFrame()
 
         return pd.DataFrame()
@@ -261,6 +312,9 @@ class RealMarketData:
             return {"error": f"Not enough data for {coin} {interval} (got {len(df)})"}
 
         close_prices = df["close"]
+        # FIX: Bounds check for empty series (defensive)
+        if len(close_prices) == 0:
+            return {"error": f"Empty close price series for {coin} {interval}"}
         current_price = close_prices.iloc[-1]
         hist_len = self.indicator_history_length
         indicators = {"current_price": current_price}

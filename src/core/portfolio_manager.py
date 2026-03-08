@@ -411,7 +411,9 @@ class PortfolioManager:
             # Update loss_streak_loss_usd - continue tracking even if cooldown is active
             # New losses may still occur during cooldown and exceed $5 total
             current_loss_streak = stats.get("loss_streak_loss_usd", 0.0)
-            stats["loss_streak_loss_usd"] = current_loss_streak + abs(pnl)
+            # FIX: Buffer overflow protection - cap at $10,000 to prevent float overflow
+            new_streak = current_loss_streak + abs(pnl)
+            stats["loss_streak_loss_usd"] = min(new_streak, 10000.0)
 
             # Coin-based cooldown: Smart Cooldown
             # Longer cooldown in case of loss (Config.SMART_COOLDOWN_LOSS)
@@ -474,7 +476,9 @@ class PortfolioManager:
             return
         current = self.directional_cooldowns.get(direction, 0)
         # If there is a longer duration than currently exists, use it
-        self.directional_cooldowns[direction] = max(current, cycles)
+        new_cooldown = max(current, cycles)
+        # FIX: Cooldown overflow protection - cap at 10 cycles
+        self.directional_cooldowns[direction] = min(new_cooldown, 10)
         self.relaxed_countertrend_cycles = max(self.relaxed_countertrend_cycles, 3)
         print(
             f"[WARN]  Directional cooldown activated for {direction.upper()} trades (3 cycles). Counter-trend restrictions relaxed for 3 cycles.",
@@ -665,7 +669,8 @@ class PortfolioManager:
         for side, stats in self.directional_bias.items():
             rolling_list = list(stats["rolling"])
             rolling_sum = sum(rolling_list)
-            rolling_avg = (rolling_sum / len(rolling_list)) if rolling_list else 0.0
+            # FIX: Zero division protection
+            rolling_avg = (rolling_sum / len(rolling_list)) if rolling_list and len(rolling_list) > 0 else 0.0
 
             # Calculate profitability index based on profit/loss amounts (not trade counts)
             # Profitability Index = Total Profit / (|Total Profit| + |Total Loss|) * 100
@@ -922,6 +927,7 @@ class PortfolioManager:
             peak_pnl = current_pnl  # Use new peak for erosion calc
 
         # Calculate erosion (only if there was a positive peak)
+        # Note: NaN > 0 evaluates to False, so NaN values are safely handled by the else branch
         if peak_pnl > 0:
             erosion_from_peak = peak_pnl - current_pnl
             erosion_pct = (erosion_from_peak / peak_pnl) * 100

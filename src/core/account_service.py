@@ -360,17 +360,34 @@ class AccountService:
             executed_qty = float(order.get("executedQty", 0.0))
             avg_price = float(order.get("avgPriceComputed", order.get("avgPrice", 0.0)))
 
-            # API Consistency Buffer (Ghost Position Ping)
-            for attempt in range(5):
+            # FIX: Ghost Position Resolution with exponential backoff and ultimate timeout
+            # Binance replication lag can take up to 30 seconds in rare cases
+            import time as _time_module  # Already imported at top, but safe here
+
+            max_attempts = 10
+            timeout_seconds = 30
+            start_time = _time_module.time()
+            position_found = False
+
+            for attempt in range(max_attempts):
                 self.sync_live_account()
                 if coin in self.pm.positions:
+                    position_found = True
                     break
-                import time
 
+                elapsed = _time_module.time() - start_time
+                if elapsed >= timeout_seconds:
+                    print(
+                        f"[WARN]  Ghost position resolution timeout for {coin} after {elapsed:.1f}s"
+                    )
+                    break
+
+                # Exponential backoff: 1s, 2s, 4s, 8s, ... max 8s between retries
+                backoff_seconds = min(2 ** min(attempt, 3), 8)
                 print(
-                    f"[INFO] Resolving Binance replication lag for {coin}... (attempt {attempt + 1}/5)"
+                    f"[INFO] Resolving Binance replication lag for {coin}... (attempt {attempt + 1}/{max_attempts}, wait={backoff_seconds}s, elapsed={elapsed:.1f}s)"
                 )
-                time.sleep(1)
+                _time_module.sleep(backoff_seconds)
 
             position = self.pm.positions.get(coin, {})
 
@@ -743,8 +760,9 @@ class AccountService:
             tp = exit_plan.get("profit_target")
             sl = exit_plan.get("stop_loss")
             direction = position.get("direction", "long")
-            entry_price = position["entry_price"]
-            quantity = position["quantity"]
+            # FIX: KeyError protection - use .get() with fallback to current_price
+            entry_price = position.get("entry_price", position.get("current_price", 0.0))
+            quantity = position.get("quantity", 0.0)
 
             # Calculate margin_used properly - try multiple fallback methods
             margin_used = position.get("margin_usd")
@@ -758,7 +776,11 @@ class AccountService:
                 elif entry_price > 0 and quantity > 0:
                     notional = entry_price * quantity
                     leverage = position.get("leverage", 10)
-                    margin_used = notional / leverage
+                    # FIX: Leverage zero protection
+                    if leverage and leverage > 0:
+                        margin_used = notional / leverage
+                    else:
+                        margin_used = 0
                 else:
                     margin_used = 0
 
