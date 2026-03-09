@@ -961,9 +961,9 @@ class PortfolioManager:
                     sparkline = indicators_htf.get("smart_sparkline", {})
                     price_location = sparkline.get("price_location", {})
                     zone = price_location.get("zone", "MIDDLE")
-            except (KeyError, AttributeError, TypeError) as e:
-                # FIX: Specific exception handling for zone extraction
-                zone = "MIDDLE"
+        except (KeyError, AttributeError, TypeError) as e:
+            # FIX: Specific exception handling for zone extraction
+            zone = "MIDDLE"
 
         # Set erosion rate based on zone - USE CONFIG VALUES
         if zone in ["LOWER_10", "UPPER_10"]:
