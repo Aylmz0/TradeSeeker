@@ -1,0 +1,3159 @@
+[
+  {
+    "analysis_period": "Last 10 cycles (Total: 31)",
+    "timestamp": "2026-03-08T05:15:58.986523",
+    "trading_activity": {
+      "total_decisions": 59,
+      "entry_signals": 2,
+      "hold_signals": 55,
+      "close_signals": 2,
+      "decision_rate": 3.389830508474576
+    },
+    "trade_performance": {
+      "total_trades": 11,
+      "winning_trades": 6,
+      "losing_trades": 5,
+      "break_even_trades": 0,
+      "profitability_index": 45.37,
+      "total_pnl": -0.32,
+      "average_pnl": -0.03,
+      "profit_factor": 0.83,
+      "largest_win": 0.51,
+      "largest_loss": -0.88
+    },
+    "portfolio_performance": {
+      "initial_balance": 200.0,
+      "current_balance": 97.4406635759802,
+      "total_value": 191.07576460264195,
+      "total_return": -4.46,
+      "sharpe_ratio": -26.177,
+      "sortino_ratio": 0.0,
+      "max_drawdown": 0.0,
+      "open_positions": 4
+    },
+    "coin_performance": {
+      "XRP": {
+        "trades": 5,
+        "total_pnl": 0.21248666369170133,
+        "wins": 3,
+        "losses": 2,
+        "profitability_index": 55.316568692762644,
+        "avg_pnl": 0.04249733273834026
+      },
+      "DOGE": {
+        "trades": 1,
+        "total_pnl": -0.8142399325602526,
+        "wins": 0,
+        "losses": 1,
+        "profitability_index": 0.0,
+        "avg_pnl": -0.8142399325602526
+      },
+      "TRX": {
+        "trades": 1,
+        "total_pnl": 0.2218477966991249,
+        "wins": 1,
+        "losses": 0,
+        "profitability_index": 100.0,
+        "avg_pnl": 0.2218477966991249
+      },
+      "SOL": {
+        "trades": 4,
+        "total_pnl": 0.06092660856882379,
+        "wins": 2,
+        "losses": 2,
+        "profitability_index": 57.48834918476198,
+        "avg_pnl": 0.015231652142205947
+      }
+    },
+    "recommendations": [
+      "[INFO] Cash balance $97.44 vs $200.00 initial; liquidity below 50% of baseline",
+      "[INFO] Position count 4; exceeds reference threshold (>=3)",
+      "[INFO] Recorded return -4.46% within analysis window; below growth target",
+      "[INFO] Coins with cumulative negative PnL: DOGE"
+    ]
+  },
+  {
+    "analysis_period": "Last 10 cycles (Total: 32)",
+    "timestamp": "2026-03-08T05:19:58.985983",
+    "trading_activity": {
+      "total_decisions": 59,
+      "entry_signals": 2,
+      "hold_signals": 55,
+      "close_signals": 2,
+      "decision_rate": 3.389830508474576
+    },
+    "trade_performance": {
+      "total_trades": 12,
+      "winning_trades": 7,
+      "losing_trades": 5,
+      "break_even_trades": 0,
+      "profitability_index": 49.63,
+      "total_pnl": -0.03,
+      "average_pnl": -0.0,
+      "profit_factor": 0.99,
+      "largest_win": 0.51,
+      "largest_loss": -0.88
+    },
+    "portfolio_performance": {
+      "initial_balance": 200.0,
+      "current_balance": 103.42672818816676,
+      "total_value": 190.8428690330326,
+      "total_return": -4.58,
+      "sharpe_ratio": -29.257,
+      "sortino_ratio": 0.0,
+      "max_drawdown": 0.0,
+      "open_positions": 4
+    },
+    "coin_performance": {
+      "XRP": {
+        "trades": 6,
+        "total_pnl": 0.5038573994448767,
+        "wins": 4,
+        "losses": 2,
+        "profitability_index": 61.00262382150782,
+        "avg_pnl": 0.08397623324081278
+      },
+      "DOGE": {
+        "trades": 1,
+        "total_pnl": -0.8142399325602526,
+        "wins": 0,
+        "losses": 1,
+        "profitability_index": 0.0,
+        "avg_pnl": -0.8142399325602526
+      },
+      "TRX": {
+        "trades": 1,
+        "total_pnl": 0.2218477966991249,
+        "wins": 1,
+        "losses": 0,
+        "profitability_index": 100.0,
+        "avg_pnl": 0.2218477966991249
+      },
+      "SOL": {
+        "trades": 4,
+        "total_pnl": 0.06092660856882379,
+        "wins": 2,
+        "losses": 2,
+        "profitability_index": 57.48834918476198,
+        "avg_pnl": 0.015231652142205947
+      }
+    },
+    "recommendations": [
+      "[INFO] Position count 4; exceeds reference threshold (>=3)",
+      "[INFO] Recorded return -4.58% within analysis window; below growth target",
+      "[INFO] Coins with cumulative negative PnL: DOGE"
+    ]
+  },
+  {
+    "analysis_period": "Last 10 cycles (Total: 33)",
+    "timestamp": "2026-03-08T05:23:58.988944",
+    "trading_activity": {
+      "total_decisions": 59,
+      "entry_signals": 2,
+      "hold_signals": 56,
+      "close_signals": 1,
+      "decision_rate": 3.389830508474576
+    },
+    "trade_performance": {
+      "total_trades": 12,
+      "winning_trades": 7,
+      "losing_trades": 5,
+      "break_even_trades": 0,
+      "profitability_index": 49.63,
+      "total_pnl": -0.03,
+      "average_pnl": -0.0,
+      "profit_factor": 0.99,
+      "largest_win": 0.51,
+      "largest_loss": -0.88
+    },
+    "portfolio_performance": {
+      "initial_balance": 200.0,
+      "current_balance": 103.42672818816676,
+      "total_value": 191.14906540867764,
+      "total_return": -4.43,
+      "sharpe_ratio": -22.903,
+      "sortino_ratio": 0.0,
+      "max_drawdown": 0.0,
+      "open_positions": 4
+    },
+    "coin_performance": {
+      "XRP": {
+        "trades": 6,
+        "total_pnl": 0.5038573994448767,
+        "wins": 4,
+        "losses": 2,
+        "profitability_index": 61.00262382150782,
+        "avg_pnl": 0.08397623324081278
+      },
+      "DOGE": {
+        "trades": 1,
+        "total_pnl": -0.8142399325602526,
+        "wins": 0,
+        "losses": 1,
+        "profitability_index": 0.0,
+        "avg_pnl": -0.8142399325602526
+      },
+      "TRX": {
+        "trades": 1,
+        "total_pnl": 0.2218477966991249,
+        "wins": 1,
+        "losses": 0,
+        "profitability_index": 100.0,
+        "avg_pnl": 0.2218477966991249
+      },
+      "SOL": {
+        "trades": 4,
+        "total_pnl": 0.06092660856882379,
+        "wins": 2,
+        "losses": 2,
+        "profitability_index": 57.48834918476198,
+        "avg_pnl": 0.015231652142205947
+      }
+    },
+    "recommendations": [
+      "[INFO] Position count 4; exceeds reference threshold (>=3)",
+      "[INFO] Recorded return -4.43% within analysis window; below growth target",
+      "[INFO] Coins with cumulative negative PnL: DOGE"
+    ]
+  },
+  {
+    "analysis_period": "Last 10 cycles (Total: 34)",
+    "timestamp": "2026-03-08T05:27:58.988302",
+    "trading_activity": {
+      "total_decisions": 59,
+      "entry_signals": 2,
+      "hold_signals": 56,
+      "close_signals": 1,
+      "decision_rate": 3.389830508474576
+    },
+    "trade_performance": {
+      "total_trades": 12,
+      "winning_trades": 7,
+      "losing_trades": 5,
+      "break_even_trades": 0,
+      "profitability_index": 49.63,
+      "total_pnl": -0.03,
+      "average_pnl": -0.0,
+      "profit_factor": 0.99,
+      "largest_win": 0.51,
+      "largest_loss": -0.88
+    },
+    "portfolio_performance": {
+      "initial_balance": 200.0,
+      "current_balance": 103.42672818816676,
+      "total_value": 190.93421948056695,
+      "total_return": -4.53,
+      "sharpe_ratio": -25.761,
+      "sortino_ratio": 0.0,
+      "max_drawdown": 0.0,
+      "open_positions": 4
+    },
+    "coin_performance": {
+      "XRP": {
+        "trades": 6,
+        "total_pnl": 0.5038573994448767,
+        "wins": 4,
+        "losses": 2,
+        "profitability_index": 61.00262382150782,
+        "avg_pnl": 0.08397623324081278
+      },
+      "DOGE": {
+        "trades": 1,
+        "total_pnl": -0.8142399325602526,
+        "wins": 0,
+        "losses": 1,
+        "profitability_index": 0.0,
+        "avg_pnl": -0.8142399325602526
+      },
+      "TRX": {
+        "trades": 1,
+        "total_pnl": 0.2218477966991249,
+        "wins": 1,
+        "losses": 0,
+        "profitability_index": 100.0,
+        "avg_pnl": 0.2218477966991249
+      },
+      "SOL": {
+        "trades": 4,
+        "total_pnl": 0.06092660856882379,
+        "wins": 2,
+        "losses": 2,
+        "profitability_index": 57.48834918476198,
+        "avg_pnl": 0.015231652142205947
+      }
+    },
+    "recommendations": [
+      "[INFO] Position count 4; exceeds reference threshold (>=3)",
+      "[INFO] Recorded return -4.53% within analysis window; below growth target",
+      "[INFO] Coins with cumulative negative PnL: DOGE"
+    ]
+  },
+  {
+    "reset_reason": "periodic_bias_control",
+    "reset_at_cycle": 626,
+    "timestamp": "2026-03-08T05:31:59.046480"
+  },
+  {
+    "analysis_period": "Last 4 cycles (Total: 4)",
+    "timestamp": "2026-03-08T05:47:58.985297",
+    "trading_activity": {
+      "total_decisions": 24,
+      "entry_signals": 2,
+      "hold_signals": 18,
+      "close_signals": 4,
+      "decision_rate": 8.333333333333332
+    },
+    "trade_performance": {
+      "total_trades": 0,
+      "winning_trades": 0,
+      "losing_trades": 0,
+      "break_even_trades": 0,
+      "profitability_index": 0,
+      "total_pnl": 0,
+      "average_pnl": 0,
+      "profit_factor": 0,
+      "largest_win": 0,
+      "largest_loss": 0
+    },
+    "portfolio_performance": {
+      "initial_balance": 200.0,
+      "current_balance": 133.9364516833,
+      "total_value": 190.32211050479933,
+      "total_return": -4.84,
+      "sharpe_ratio": -21.163,
+      "sortino_ratio": 0.0,
+      "max_drawdown": 0.0,
+      "open_positions": 2
+    },
+    "coin_performance": {},
+    "recommendations": [
+      "[INFO] Recorded return -4.84% within analysis window; below growth target"
+    ]
+  },
+  {
+    "analysis_period": "Last 10 cycles (Total: 14)",
+    "timestamp": "2026-03-08T06:27:58.995279",
+    "trading_activity": {
+      "total_decisions": 58,
+      "entry_signals": 1,
+      "hold_signals": 56,
+      "close_signals": 1,
+      "decision_rate": 1.7241379310344827
+    },
+    "trade_performance": {
+      "total_trades": 1,
+      "winning_trades": 0,
+      "losing_trades": 1,
+      "break_even_trades": 0,
+      "profitability_index": 0.0,
+      "total_pnl": -0.25,
+      "average_pnl": -0.25,
+      "profit_factor": 0.0,
+      "largest_win": -0.25,
+      "largest_loss": -0.25
+    },
+    "portfolio_performance": {
+      "initial_balance": 200.0,
+      "current_balance": 133.68780745983298,
+      "total_value": 191.8234224493225,
+      "total_return": -4.09,
+      "sharpe_ratio": 56.965,
+      "sortino_ratio": 0.0,
+      "max_drawdown": 0.0,
+      "open_positions": 2
+    },
+    "coin_performance": {
+      "SOL": {
+        "trades": 1,
+        "total_pnl": -0.24864422346700543,
+        "wins": 0,
+        "losses": 1,
+        "profitability_index": 0.0,
+        "avg_pnl": -0.24864422346700543
+      }
+    },
+    "recommendations": [
+      "[INFO] Recorded return -4.09% within analysis window; below growth target",
+      "[INFO] Coins with cumulative negative PnL: SOL"
+    ]
+  },
+  {
+    "analysis_period": "Last 10 cycles (Total: 24)",
+    "timestamp": "2026-03-08T07:07:59.000371",
+    "trading_activity": {
+      "total_decisions": 56,
+      "entry_signals": 8,
+      "hold_signals": 45,
+      "close_signals": 3,
+      "decision_rate": 14.285714285714285
+    },
+    "trade_performance": {
+      "total_trades": 4,
+      "winning_trades": 2,
+      "losing_trades": 2,
+      "break_even_trades": 0,
+      "profitability_index": 71.49,
+      "total_pnl": 0.82,
+      "average_pnl": 0.21,
+      "profit_factor": 2.51,
+      "largest_win": 0.82,
+      "largest_loss": -0.3
+    },
+    "portfolio_performance": {
+      "initial_balance": 200.0,
+      "current_balance": 130.36556071047727,
+      "total_value": 189.070845503691,
+      "total_return": -5.46,
+      "sharpe_ratio": -22.935,
+      "sortino_ratio": 0.0,
+      "max_drawdown": 0.0,
+      "open_positions": 2
+    },
+    "coin_performance": {
+      "SOL": {
+        "trades": 1,
+        "total_pnl": -0.24864422346700543,
+        "wins": 0,
+        "losses": 1,
+        "profitability_index": 0.0,
+        "avg_pnl": -0.24864422346700543
+      },
+      "TRX": {
+        "trades": 1,
+        "total_pnl": 0.5467244429056763,
+        "wins": 1,
+        "losses": 0,
+        "profitability_index": 100.0,
+        "avg_pnl": 0.5467244429056763
+      },
+      "XRP": {
+        "trades": 1,
+        "total_pnl": 0.8240263606307786,
+        "wins": 1,
+        "losses": 0,
+        "profitability_index": 100.0,
+        "avg_pnl": 0.8240263606307786
+      },
+      "DOGE": {
+        "trades": 1,
+        "total_pnl": -0.29811633252668285,
+        "wins": 0,
+        "losses": 1,
+        "profitability_index": 0.0,
+        "avg_pnl": -0.29811633252668285
+      }
+    },
+    "recommendations": [
+      "[INFO] Recorded return -5.46% within analysis window; below growth target",
+      "[INFO] Coins with cumulative negative PnL: SOL, DOGE"
+    ]
+  },
+  {
+    "analysis_period": "Last 10 cycles (Total: 34)",
+    "timestamp": "2026-03-08T07:47:59.004670",
+    "trading_activity": {
+      "total_decisions": 56,
+      "entry_signals": 2,
+      "hold_signals": 54,
+      "close_signals": 0,
+      "decision_rate": 3.571428571428571
+    },
+    "trade_performance": {
+      "total_trades": 7,
+      "winning_trades": 3,
+      "losing_trades": 4,
+      "break_even_trades": 0,
+      "profitability_index": 35.51,
+      "total_pnl": -1.6,
+      "average_pnl": -0.23,
+      "profit_factor": 0.55,
+      "largest_win": 0.82,
+      "largest_loss": -1.59
+    },
+    "portfolio_performance": {
+      "initial_balance": 200.0,
+      "current_balance": 174.00798643581223,
+      "total_value": 188.95102446799876,
+      "total_return": -5.52,
+      "sharpe_ratio": -19.037,
+      "sortino_ratio": 0.0,
+      "max_drawdown": 0.0,
+      "open_positions": 1
+    },
+    "coin_performance": {
+      "SOL": {
+        "trades": 1,
+        "total_pnl": -0.24864422346700543,
+        "wins": 0,
+        "losses": 1,
+        "profitability_index": 0.0,
+        "avg_pnl": -0.24864422346700543
+      },
+      "TRX": {
+        "trades": 2,
+        "total_pnl": -0.8772899149340383,
+        "wins": 1,
+        "losses": 1,
+        "profitability_index": 27.742105787884686,
+        "avg_pnl": -0.43864495746701915
+      },
+      "XRP": {
+        "trades": 2,
+        "total_pnl": -0.7655922430925332,
+        "wins": 1,
+        "losses": 1,
+        "profitability_index": 34.14033019770554,
+        "avg_pnl": -0.3827961215462666
+      },
+      "DOGE": {
+        "trades": 2,
+        "total_pnl": 0.2916714636726488,
+        "wins": 1,
+        "losses": 1,
+        "profitability_index": 66.42471603838275,
+        "avg_pnl": 0.1458357318363244
+      }
+    },
+    "recommendations": [
+      "[INFO] Recorded return -5.52% within analysis window; below growth target",
+      "[INFO] Coins with cumulative negative PnL: SOL, TRX, XRP"
+    ]
+  },
+  {
+    "reset_reason": "periodic_bias_control",
+    "reset_at_cycle": 661,
+    "timestamp": "2026-03-08T07:51:59.044574"
+  },
+  {
+    "analysis_period": "Last 9 cycles (Total: 9)",
+    "timestamp": "2026-03-08T08:27:59.008510",
+    "trading_activity": {
+      "total_decisions": 52,
+      "entry_signals": 5,
+      "hold_signals": 47,
+      "close_signals": 0,
+      "decision_rate": 9.615384615384617
+    },
+    "trade_performance": {
+      "total_trades": 2,
+      "winning_trades": 2,
+      "losing_trades": 0,
+      "break_even_trades": 0,
+      "profitability_index": 100.0,
+      "total_pnl": 0.99,
+      "average_pnl": 0.5,
+      "profit_factor": Infinity,
+      "largest_win": 0.95,
+      "largest_loss": 0.04
+    },
+    "portfolio_performance": {
+      "initial_balance": 200.0,
+      "current_balance": 157.32725163988562,
+      "total_value": 187.34984918386138,
+      "total_return": -6.33,
+      "sharpe_ratio": -71.914,
+      "sortino_ratio": 0.0,
+      "max_drawdown": 0.0,
+      "open_positions": 2
+    },
+    "coin_performance": {
+      "SOL": {
+        "trades": 2,
+        "total_pnl": 0.9922178527834369,
+        "wins": 2,
+        "losses": 0,
+        "profitability_index": 100.0,
+        "avg_pnl": 0.49610892639171844
+      }
+    },
+    "recommendations": [
+      "[INFO] Recorded return -6.33% within analysis window; below growth target"
+    ]
+  },
+  {
+    "analysis_period": "Last 10 cycles (Total: 19)",
+    "timestamp": "2026-03-08T09:08:21.672818",
+    "trading_activity": {
+      "total_decisions": 60,
+      "entry_signals": 0,
+      "hold_signals": 58,
+      "close_signals": 2,
+      "decision_rate": 0.0
+    },
+    "trade_performance": {
+      "total_trades": 4,
+      "winning_trades": 2,
+      "losing_trades": 2,
+      "break_even_trades": 0,
+      "profitability_index": 36.06,
+      "total_pnl": -0.77,
+      "average_pnl": -0.19,
+      "profit_factor": 0.56,
+      "largest_win": 0.95,
+      "largest_loss": -0.99
+    },
+    "portfolio_performance": {
+      "initial_balance": 200.0,
+      "current_balance": 187.7980173265986,
+      "total_value": 187.7980173265986,
+      "total_return": -6.1,
+      "sharpe_ratio": -35.364,
+      "sortino_ratio": 0.0,
+      "max_drawdown": 0.0,
+      "open_positions": 0
+    },
+    "coin_performance": {
+      "SOL": {
+        "trades": 2,
+        "total_pnl": 0.9922178527834369,
+        "wins": 2,
+        "losses": 0,
+        "profitability_index": 100.0,
+        "avg_pnl": 0.49610892639171844
+      },
+      "XRP": {
+        "trades": 1,
+        "total_pnl": -0.7652899359105315,
+        "wins": 0,
+        "losses": 1,
+        "profitability_index": 0.0,
+        "avg_pnl": -0.7652899359105315
+      },
+      "DOGE": {
+        "trades": 1,
+        "total_pnl": -0.9939913664345097,
+        "wins": 0,
+        "losses": 1,
+        "profitability_index": 0.0,
+        "avg_pnl": -0.9939913664345097
+      }
+    },
+    "recommendations": [
+      "[INFO] Recorded return -6.10% within analysis window; below growth target",
+      "[INFO] Coins with cumulative negative PnL: XRP, DOGE"
+    ]
+  },
+  {
+    "analysis_period": "Last 10 cycles (Total: 29)",
+    "timestamp": "2026-03-08T09:48:21.678348",
+    "trading_activity": {
+      "total_decisions": 51,
+      "entry_signals": 8,
+      "hold_signals": 40,
+      "close_signals": 3,
+      "decision_rate": 15.686274509803921
+    },
+    "trade_performance": {
+      "total_trades": 8,
+      "winning_trades": 3,
+      "losing_trades": 5,
+      "break_even_trades": 0,
+      "profitability_index": 31.27,
+      "total_pnl": -1.3,
+      "average_pnl": -0.16,
+      "profit_factor": 0.45,
+      "largest_win": 0.95,
+      "largest_loss": -0.99
+    },
+    "portfolio_performance": {
+      "initial_balance": 200.0,
+      "current_balance": 147.61143369336042,
+      "total_value": 186.10363883761963,
+      "total_return": -6.95,
+      "sharpe_ratio": -54.34,
+      "sortino_ratio": 0.0,
+      "max_drawdown": 0.0,
+      "open_positions": 2
+    },
+    "coin_performance": {
+      "SOL": {
+        "trades": 3,
+        "total_pnl": 0.9736152665917142,
+        "wins": 2,
+        "losses": 1,
+        "profitability_index": 98.1596547245737,
+        "avg_pnl": 0.32453842219723805
+      },
+      "XRP": {
+        "trades": 2,
+        "total_pnl": -1.0418245728563758,
+        "wins": 0,
+        "losses": 2,
+        "profitability_index": 0.0,
+        "avg_pnl": -0.5209122864281879
+      },
+      "DOGE": {
+        "trades": 2,
+        "total_pnl": -0.8989509520931143,
+        "wins": 1,
+        "losses": 1,
+        "profitability_index": 8.727056089555228,
+        "avg_pnl": -0.44947547604655713
+      },
+      "ETH": {
+        "trades": 1,
+        "total_pnl": -0.33568528167173606,
+        "wins": 0,
+        "losses": 1,
+        "profitability_index": 0.0,
+        "avg_pnl": -0.33568528167173606
+      }
+    },
+    "recommendations": [
+      "[INFO] Recorded return -6.95% within analysis window; below growth target",
+      "[INFO] Coins with cumulative negative PnL: XRP, DOGE, ETH"
+    ]
+  },
+  {
+    "reset_reason": "periodic_bias_control",
+    "reset_at_cycle": 696,
+    "timestamp": "2026-03-08T10:12:21.720138"
+  },
+  {
+    "analysis_period": "Last 4 cycles (Total: 4)",
+    "timestamp": "2026-03-08T10:28:21.681606",
+    "trading_activity": {
+      "total_decisions": 24,
+      "entry_signals": 0,
+      "hold_signals": 24,
+      "close_signals": 0,
+      "decision_rate": 0.0
+    },
+    "trade_performance": {
+      "total_trades": 0,
+      "winning_trades": 0,
+      "losing_trades": 0,
+      "break_even_trades": 0,
+      "profitability_index": 0,
+      "total_pnl": 0,
+      "average_pnl": 0,
+      "profit_factor": 0,
+      "largest_win": 0,
+      "largest_loss": 0
+    },
+    "portfolio_performance": {
+      "initial_balance": 200.0,
+      "current_balance": 114.54647254604768,
+      "total_value": 186.44318580961243,
+      "total_return": -6.78,
+      "sharpe_ratio": 99.15,
+      "sortino_ratio": 0.0,
+      "max_drawdown": 0.0,
+      "open_positions": 3
+    },
+    "coin_performance": {},
+    "recommendations": [
+      "[INFO] Position count 3; exceeds reference threshold (>=3)",
+      "[INFO] Recorded return -6.78% within analysis window; below growth target"
+    ]
+  },
+  {
+    "analysis_period": "Last 10 cycles (Total: 14)",
+    "timestamp": "2026-03-08T11:09:47.293579",
+    "trading_activity": {
+      "total_decisions": 60,
+      "entry_signals": 2,
+      "hold_signals": 57,
+      "close_signals": 1,
+      "decision_rate": 3.3333333333333335
+    },
+    "trade_performance": {
+      "total_trades": 0,
+      "winning_trades": 0,
+      "losing_trades": 0,
+      "break_even_trades": 0,
+      "profitability_index": 0,
+      "total_pnl": 0,
+      "average_pnl": 0,
+      "profit_factor": 0,
+      "largest_win": 0,
+      "largest_loss": 0
+    },
+    "portfolio_performance": {
+      "initial_balance": 200.0,
+      "current_balance": 114.54647254604768,
+      "total_value": 187.21689753257107,
+      "total_return": -6.39,
+      "sharpe_ratio": 71.787,
+      "sortino_ratio": 0.0,
+      "max_drawdown": 0.0,
+      "open_positions": 3
+    },
+    "coin_performance": {},
+    "recommendations": [
+      "[INFO] Position count 3; exceeds reference threshold (>=3)",
+      "[INFO] Recorded return -6.39% within analysis window; below growth target"
+    ]
+  },
+  {
+    "analysis_period": "Last 10 cycles (Total: 24)",
+    "timestamp": "2026-03-08T11:49:47.300648",
+    "trading_activity": {
+      "total_decisions": 52,
+      "entry_signals": 6,
+      "hold_signals": 46,
+      "close_signals": 0,
+      "decision_rate": 11.538461538461538
+    },
+    "trade_performance": {
+      "total_trades": 3,
+      "winning_trades": 1,
+      "losing_trades": 2,
+      "break_even_trades": 0,
+      "profitability_index": 30.65,
+      "total_pnl": -1.03,
+      "average_pnl": -0.34,
+      "profit_factor": 0.44,
+      "largest_win": 0.82,
+      "largest_loss": -1.02
+    },
+    "portfolio_performance": {
+      "initial_balance": 200.0,
+      "current_balance": 126.46422022160174,
+      "total_value": 186.33503150504944,
+      "total_return": -6.83,
+      "sharpe_ratio": 17.001,
+      "sortino_ratio": 0.0,
+      "max_drawdown": 0.0,
+      "open_positions": 2
+    },
+    "coin_performance": {
+      "ETH": {
+        "trades": 1,
+        "total_pnl": -1.0228237199502752,
+        "wins": 0,
+        "losses": 1,
+        "profitability_index": 0.0,
+        "avg_pnl": -1.0228237199502752
+      },
+      "XRP": {
+        "trades": 1,
+        "total_pnl": -0.8315278428022091,
+        "wins": 0,
+        "losses": 1,
+        "profitability_index": 0.0,
+        "avg_pnl": -0.8315278428022091
+      },
+      "TRX": {
+        "trades": 1,
+        "total_pnl": 0.8196611670419827,
+        "wins": 1,
+        "losses": 0,
+        "profitability_index": 100.0,
+        "avg_pnl": 0.8196611670419827
+      }
+    },
+    "recommendations": [
+      "[INFO] Recorded return -6.83% within analysis window; below growth target",
+      "[INFO] Coins with cumulative negative PnL: ETH, XRP"
+    ]
+  },
+  {
+    "analysis_period": "Last 10 cycles (Total: 34)",
+    "timestamp": "2026-03-08T12:29:47.306928",
+    "trading_activity": {
+      "total_decisions": 57,
+      "entry_signals": 1,
+      "hold_signals": 54,
+      "close_signals": 2,
+      "decision_rate": 1.7543859649122806
+    },
+    "trade_performance": {
+      "total_trades": 5,
+      "winning_trades": 2,
+      "losing_trades": 3,
+      "break_even_trades": 0,
+      "profitability_index": 34.27,
+      "total_pnl": -1.02,
+      "average_pnl": -0.2,
+      "profit_factor": 0.52,
+      "largest_win": 0.82,
+      "largest_loss": -1.02
+    },
+    "portfolio_performance": {
+      "initial_balance": 200.0,
+      "current_balance": 161.6537256301608,
+      "total_value": 186.48216616666238,
+      "total_return": -6.76,
+      "sharpe_ratio": 15.151,
+      "sortino_ratio": 0.0,
+      "max_drawdown": 0.0,
+      "open_positions": 1
+    },
+    "coin_performance": {
+      "ETH": {
+        "trades": 1,
+        "total_pnl": -1.0228237199502752,
+        "wins": 0,
+        "losses": 1,
+        "profitability_index": 0.0,
+        "avg_pnl": -1.0228237199502752
+      },
+      "XRP": {
+        "trades": 2,
+        "total_pnl": -0.5419923578736129,
+        "wins": 1,
+        "losses": 1,
+        "profitability_index": 25.826862565797953,
+        "avg_pnl": -0.27099617893680644
+      },
+      "TRX": {
+        "trades": 2,
+        "total_pnl": 0.5470317874287328,
+        "wins": 1,
+        "losses": 1,
+        "profitability_index": 75.0405805078068,
+        "avg_pnl": 0.2735158937143664
+      }
+    },
+    "recommendations": [
+      "[INFO] Recorded return -6.76% within analysis window; below growth target",
+      "[INFO] Coins with cumulative negative PnL: ETH, XRP"
+    ]
+  },
+  {
+    "reset_reason": "periodic_bias_control",
+    "reset_at_cycle": 731,
+    "timestamp": "2026-03-08T12:33:47.353461"
+  },
+  {
+    "analysis_period": "Last 9 cycles (Total: 9)",
+    "timestamp": "2026-03-08T13:09:47.309523",
+    "trading_activity": {
+      "total_decisions": 54,
+      "entry_signals": 2,
+      "hold_signals": 52,
+      "close_signals": 0,
+      "decision_rate": 3.7037037037037033
+    },
+    "trade_performance": {
+      "total_trades": 0,
+      "winning_trades": 0,
+      "losing_trades": 0,
+      "break_even_trades": 0,
+      "profitability_index": 0,
+      "total_pnl": 0,
+      "average_pnl": 0,
+      "profit_factor": 0,
+      "largest_win": 0,
+      "largest_loss": 0
+    },
+    "portfolio_performance": {
+      "initial_balance": 200.0,
+      "current_balance": 147.30643371506812,
+      "total_value": 186.1465045882628,
+      "total_return": -6.93,
+      "sharpe_ratio": -34.73,
+      "sortino_ratio": 0.0,
+      "max_drawdown": 0.0,
+      "open_positions": 2
+    },
+    "coin_performance": {},
+    "recommendations": [
+      "[INFO] Recorded return -6.93% within analysis window; below growth target"
+    ]
+  },
+  {
+    "analysis_period": "Last 10 cycles (Total: 19)",
+    "timestamp": "2026-03-08T13:49:47.318313",
+    "trading_activity": {
+      "total_decisions": 53,
+      "entry_signals": 10,
+      "hold_signals": 39,
+      "close_signals": 4,
+      "decision_rate": 18.867924528301888
+    },
+    "trade_performance": {
+      "total_trades": 4,
+      "winning_trades": 1,
+      "losing_trades": 3,
+      "break_even_trades": 0,
+      "profitability_index": 36.32,
+      "total_pnl": -0.22,
+      "average_pnl": -0.05,
+      "profit_factor": 0.57,
+      "largest_win": 0.29,
+      "largest_loss": -0.3
+    },
+    "portfolio_performance": {
+      "initial_balance": 200.0,
+      "current_balance": 106.91210713073845,
+      "total_value": 185.64322129146234,
+      "total_return": -7.18,
+      "sharpe_ratio": -34.31,
+      "sortino_ratio": 0.0,
+      "max_drawdown": 0.0,
+      "open_positions": 3
+    },
+    "coin_performance": {
+      "XRP": {
+        "trades": 1,
+        "total_pnl": -0.3007920405105127,
+        "wins": 0,
+        "losses": 1,
+        "profitability_index": 0.0,
+        "avg_pnl": -0.3007920405105127
+      },
+      "DOGE": {
+        "trades": 1,
+        "total_pnl": 0.2918040015008534,
+        "wins": 1,
+        "losses": 0,
+        "profitability_index": 100.0,
+        "avg_pnl": 0.2918040015008534
+      },
+      "ETH": {
+        "trades": 1,
+        "total_pnl": -0.09602824545654022,
+        "wins": 0,
+        "losses": 1,
+        "profitability_index": 0.0,
+        "avg_pnl": -0.09602824545654022
+      },
+      "SOL": {
+        "trades": 1,
+        "total_pnl": -0.11481674464524835,
+        "wins": 0,
+        "losses": 1,
+        "profitability_index": 0.0,
+        "avg_pnl": -0.11481674464524835
+      }
+    },
+    "recommendations": [
+      "[INFO] Position count 3; exceeds reference threshold (>=3)",
+      "[INFO] Recorded return -7.18% within analysis window; below growth target",
+      "[INFO] Coins with cumulative negative PnL: XRP, ETH, SOL"
+    ]
+  },
+  {
+    "analysis_period": "Last 10 cycles (Total: 29)",
+    "timestamp": "2026-03-08T14:29:47.324866",
+    "trading_activity": {
+      "total_decisions": 59,
+      "entry_signals": 1,
+      "hold_signals": 57,
+      "close_signals": 1,
+      "decision_rate": 1.694915254237288
+    },
+    "trade_performance": {
+      "total_trades": 5,
+      "winning_trades": 2,
+      "losing_trades": 3,
+      "break_even_trades": 0,
+      "profitability_index": 57.45,
+      "total_pnl": 0.18,
+      "average_pnl": 0.04,
+      "profit_factor": 1.35,
+      "largest_win": 0.4,
+      "largest_loss": -0.3
+    },
+    "portfolio_performance": {
+      "initial_balance": 200.0,
+      "current_balance": 127.92740659707653,
+      "total_value": 186.12258028159866,
+      "total_return": -6.94,
+      "sharpe_ratio": -11.43,
+      "sortino_ratio": 0.0,
+      "max_drawdown": 0.0,
+      "open_positions": 2
+    },
+    "coin_performance": {
+      "XRP": {
+        "trades": 1,
+        "total_pnl": -0.3007920405105127,
+        "wins": 0,
+        "losses": 1,
+        "profitability_index": 0.0,
+        "avg_pnl": -0.3007920405105127
+      },
+      "DOGE": {
+        "trades": 2,
+        "total_pnl": 0.6906660118049146,
+        "wins": 2,
+        "losses": 0,
+        "profitability_index": 100.0,
+        "avg_pnl": 0.3453330059024573
+      },
+      "ETH": {
+        "trades": 1,
+        "total_pnl": -0.09602824545654022,
+        "wins": 0,
+        "losses": 1,
+        "profitability_index": 0.0,
+        "avg_pnl": -0.09602824545654022
+      },
+      "SOL": {
+        "trades": 1,
+        "total_pnl": -0.11481674464524835,
+        "wins": 0,
+        "losses": 1,
+        "profitability_index": 0.0,
+        "avg_pnl": -0.11481674464524835
+      }
+    },
+    "recommendations": [
+      "[INFO] Recorded return -6.94% within analysis window; below growth target",
+      "[INFO] Coins with cumulative negative PnL: XRP, ETH, SOL"
+    ]
+  },
+  {
+    "reset_reason": "periodic_bias_control",
+    "reset_at_cycle": 766,
+    "timestamp": "2026-03-08T14:53:47.370342"
+  },
+  {
+    "analysis_period": "Last 4 cycles (Total: 4)",
+    "timestamp": "2026-03-08T15:09:47.325247",
+    "trading_activity": {
+      "total_decisions": 24,
+      "entry_signals": 0,
+      "hold_signals": 24,
+      "close_signals": 0,
+      "decision_rate": 0.0
+    },
+    "trade_performance": {
+      "total_trades": 0,
+      "winning_trades": 0,
+      "losing_trades": 0,
+      "break_even_trades": 0,
+      "profitability_index": 0,
+      "total_pnl": 0,
+      "average_pnl": 0,
+      "profit_factor": 0,
+      "largest_win": 0,
+      "largest_loss": 0
+    },
+    "portfolio_performance": {
+      "initial_balance": 200.0,
+      "current_balance": 185.54345144004103,
+      "total_value": 185.54345144004103,
+      "total_return": -7.23,
+      "sharpe_ratio": 0.0,
+      "sortino_ratio": 0.0,
+      "max_drawdown": 0.0,
+      "open_positions": 0
+    },
+    "coin_performance": {},
+    "recommendations": [
+      "[INFO] Recorded return -7.23% within analysis window; below growth target"
+    ]
+  },
+  {
+    "analysis_period": "Last 10 cycles (Total: 14)",
+    "timestamp": "2026-03-08T15:49:47.332806",
+    "trading_activity": {
+      "total_decisions": 60,
+      "entry_signals": 5,
+      "hold_signals": 55,
+      "close_signals": 0,
+      "decision_rate": 8.333333333333332
+    },
+    "trade_performance": {
+      "total_trades": 0,
+      "winning_trades": 0,
+      "losing_trades": 0,
+      "break_even_trades": 0,
+      "profitability_index": 0,
+      "total_pnl": 0,
+      "average_pnl": 0,
+      "profit_factor": 0,
+      "largest_win": 0,
+      "largest_loss": 0
+    },
+    "portfolio_performance": {
+      "initial_balance": 200.0,
+      "current_balance": 154.43248154602517,
+      "total_value": 184.41739958998372,
+      "total_return": -7.79,
+      "sharpe_ratio": -44.836,
+      "sortino_ratio": 0.0,
+      "max_drawdown": 0.0,
+      "open_positions": 2
+    },
+    "coin_performance": {},
+    "recommendations": [
+      "[INFO] Recorded return -7.79% within analysis window; below growth target"
+    ]
+  },
+  {
+    "analysis_period": "Last 10 cycles (Total: 24)",
+    "timestamp": "2026-03-08T16:29:47.343000",
+    "trading_activity": {
+      "total_decisions": 56,
+      "entry_signals": 2,
+      "hold_signals": 52,
+      "close_signals": 2,
+      "decision_rate": 3.571428571428571
+    },
+    "trade_performance": {
+      "total_trades": 2,
+      "winning_trades": 0,
+      "losing_trades": 2,
+      "break_even_trades": 0,
+      "profitability_index": 0.0,
+      "total_pnl": -0.55,
+      "average_pnl": -0.28,
+      "profit_factor": 0.0,
+      "largest_win": -0.21,
+      "largest_loss": -0.34
+    },
+    "portfolio_performance": {
+      "initial_balance": 200.0,
+      "current_balance": 149.18192647711186,
+      "total_value": 184.97460532592837,
+      "total_return": -7.51,
+      "sharpe_ratio": -12.123,
+      "sortino_ratio": 0.0,
+      "max_drawdown": 0.0,
+      "open_positions": 2
+    },
+    "coin_performance": {
+      "XRP": {
+        "trades": 1,
+        "total_pnl": -0.21164243263775506,
+        "wins": 0,
+        "losses": 1,
+        "profitability_index": 0.0,
+        "avg_pnl": -0.21164243263775506
+      },
+      "ASTER": {
+        "trades": 1,
+        "total_pnl": -0.338403420880195,
+        "wins": 0,
+        "losses": 1,
+        "profitability_index": 0.0,
+        "avg_pnl": -0.338403420880195
+      }
+    },
+    "recommendations": [
+      "[INFO] Recorded return -7.51% within analysis window; below growth target",
+      "[INFO] Coins with cumulative negative PnL: XRP, ASTER"
+    ]
+  },
+  {
+    "analysis_period": "Last 10 cycles (Total: 34)",
+    "timestamp": "2026-03-08T17:09:47.345608",
+    "trading_activity": {
+      "total_decisions": 58,
+      "entry_signals": 3,
+      "hold_signals": 50,
+      "close_signals": 5,
+      "decision_rate": 5.172413793103448
+    },
+    "trade_performance": {
+      "total_trades": 4,
+      "winning_trades": 1,
+      "losing_trades": 3,
+      "break_even_trades": 0,
+      "profitability_index": 39.99,
+      "total_pnl": -0.24,
+      "average_pnl": -0.06,
+      "profit_factor": 0.67,
+      "largest_win": 0.48,
+      "largest_loss": -0.34
+    },
+    "portfolio_performance": {
+      "initial_balance": 200.0,
+      "current_balance": 136.25480719465702,
+      "total_value": 186.10554488807955,
+      "total_return": -6.95,
+      "sharpe_ratio": 7.751,
+      "sortino_ratio": 0.0,
+      "max_drawdown": 0.0,
+      "open_positions": 2
+    },
+    "coin_performance": {
+      "XRP": {
+        "trades": 2,
+        "total_pnl": -0.3885839568880414,
+        "wins": 0,
+        "losses": 2,
+        "profitability_index": 0.0,
+        "avg_pnl": -0.1942919784440207
+      },
+      "ASTER": {
+        "trades": 1,
+        "total_pnl": -0.338403420880195,
+        "wins": 0,
+        "losses": 1,
+        "profitability_index": 0.0,
+        "avg_pnl": -0.338403420880195
+      },
+      "ETH": {
+        "trades": 1,
+        "total_pnl": 0.4845571341399581,
+        "wins": 1,
+        "losses": 0,
+        "profitability_index": 100.0,
+        "avg_pnl": 0.4845571341399581
+      }
+    },
+    "recommendations": [
+      "[INFO] Recorded return -6.95% within analysis window; below growth target",
+      "[INFO] Coins with cumulative negative PnL: XRP, ASTER"
+    ]
+  },
+  {
+    "reset_reason": "periodic_bias_control",
+    "reset_at_cycle": 801,
+    "timestamp": "2026-03-08T17:13:47.402442"
+  },
+  {
+    "analysis_period": "Last 9 cycles (Total: 9)",
+    "timestamp": "2026-03-08T17:49:47.352372",
+    "trading_activity": {
+      "total_decisions": 53,
+      "entry_signals": 2,
+      "hold_signals": 50,
+      "close_signals": 1,
+      "decision_rate": 3.7735849056603774
+    },
+    "trade_performance": {
+      "total_trades": 1,
+      "winning_trades": 1,
+      "losing_trades": 0,
+      "break_even_trades": 0,
+      "profitability_index": 100.0,
+      "total_pnl": 0.02,
+      "average_pnl": 0.02,
+      "profit_factor": Infinity,
+      "largest_win": 0.02,
+      "largest_loss": 0.02
+    },
+    "portfolio_performance": {
+      "initial_balance": 200.0,
+      "current_balance": 123.98961634761771,
+      "total_value": 185.7417480617681,
+      "total_return": -7.13,
+      "sharpe_ratio": 16.372,
+      "sortino_ratio": 0.0,
+      "max_drawdown": 0.0,
+      "open_positions": 3
+    },
+    "coin_performance": {
+      "DOGE": {
+        "trades": 1,
+        "total_pnl": 0.01809625492966188,
+        "wins": 1,
+        "losses": 0,
+        "profitability_index": 100.0,
+        "avg_pnl": 0.01809625492966188
+      }
+    },
+    "recommendations": [
+      "[INFO] Position count 3; exceeds reference threshold (>=3)",
+      "[INFO] Recorded return -7.13% within analysis window; below growth target"
+    ]
+  },
+  {
+    "analysis_period": "Last 10 cycles (Total: 18)",
+    "timestamp": "2026-03-09T03:45:05.605708",
+    "trading_activity": {
+      "total_decisions": 54,
+      "entry_signals": 7,
+      "hold_signals": 43,
+      "close_signals": 4,
+      "decision_rate": 12.962962962962962
+    },
+    "trade_performance": {
+      "total_trades": 5,
+      "winning_trades": 1,
+      "losing_trades": 4,
+      "break_even_trades": 0,
+      "profitability_index": 0.47,
+      "total_pnl": -3.81,
+      "average_pnl": -0.76,
+      "profit_factor": 0.0,
+      "largest_win": 0.02,
+      "largest_loss": -1.84
+    },
+    "portfolio_performance": {
+      "initial_balance": 200.0,
+      "current_balance": 151.957312058591,
+      "total_value": 182.4471291602254,
+      "total_return": -8.78,
+      "sharpe_ratio": 0.0,
+      "sortino_ratio": 0.0,
+      "max_drawdown": 0.0,
+      "open_positions": 2
+    },
+    "coin_performance": {
+      "DOGE": {
+        "trades": 2,
+        "total_pnl": -1.820373996940238,
+        "wins": 1,
+        "losses": 1,
+        "profitability_index": 0.9747162228439138,
+        "avg_pnl": -0.910186998470119
+      },
+      "ETH": {
+        "trades": 1,
+        "total_pnl": -0.142587249246435,
+        "wins": 0,
+        "losses": 1,
+        "profitability_index": 0.0,
+        "avg_pnl": -0.142587249246435
+      },
+      "SOL": {
+        "trades": 1,
+        "total_pnl": -0.23191221121073885,
+        "wins": 0,
+        "losses": 1,
+        "profitability_index": 0.0,
+        "avg_pnl": -0.23191221121073885
+      },
+      "TRX": {
+        "trades": 1,
+        "total_pnl": -1.618851321998599,
+        "wins": 0,
+        "losses": 1,
+        "profitability_index": 0.0,
+        "avg_pnl": -1.618851321998599
+      }
+    },
+    "recommendations": [
+      "[INFO] Recorded return -8.78% within analysis window; below growth target",
+      "[INFO] Coins with cumulative negative PnL: DOGE, ETH, SOL, TRX"
+    ]
+  },
+  {
+    "analysis_period": "Last 10 cycles (Total: 19)",
+    "timestamp": "2026-03-09T03:51:22.313625",
+    "trading_activity": {
+      "total_decisions": 48,
+      "entry_signals": 7,
+      "hold_signals": 37,
+      "close_signals": 4,
+      "decision_rate": 14.583333333333334
+    },
+    "trade_performance": {
+      "total_trades": 7,
+      "winning_trades": 1,
+      "losing_trades": 6,
+      "break_even_trades": 0,
+      "profitability_index": 0.19,
+      "total_pnl": -9.35,
+      "average_pnl": -1.34,
+      "profit_factor": 0.0,
+      "largest_win": 0.02,
+      "largest_loss": -3.08
+    },
+    "portfolio_performance": {
+      "initial_balance": 200.0,
+      "current_balance": 176.46539136943164,
+      "total_value": 176.46539136943164,
+      "total_return": -11.77,
+      "sharpe_ratio": 0.0,
+      "sortino_ratio": 0.0,
+      "max_drawdown": 0.0,
+      "open_positions": 0
+    },
+    "coin_performance": {
+      "DOGE": {
+        "trades": 2,
+        "total_pnl": -1.820373996940238,
+        "wins": 1,
+        "losses": 1,
+        "profitability_index": 0.9747162228439138,
+        "avg_pnl": -0.910186998470119
+      },
+      "ETH": {
+        "trades": 1,
+        "total_pnl": -0.142587249246435,
+        "wins": 0,
+        "losses": 1,
+        "profitability_index": 0.0,
+        "avg_pnl": -0.142587249246435
+      },
+      "SOL": {
+        "trades": 1,
+        "total_pnl": -0.23191221121073885,
+        "wins": 0,
+        "losses": 1,
+        "profitability_index": 0.0,
+        "avg_pnl": -0.23191221121073885
+      },
+      "TRX": {
+        "trades": 1,
+        "total_pnl": -1.618851321998599,
+        "wins": 0,
+        "losses": 1,
+        "profitability_index": 0.0,
+        "avg_pnl": -1.618851321998599
+      },
+      "XRP": {
+        "trades": 1,
+        "total_pnl": -2.462844790793787,
+        "wins": 0,
+        "losses": 1,
+        "profitability_index": 0.0,
+        "avg_pnl": -2.462844790793787
+      },
+      "ASTER": {
+        "trades": 1,
+        "total_pnl": -3.075544390138559,
+        "wins": 0,
+        "losses": 1,
+        "profitability_index": 0.0,
+        "avg_pnl": -3.075544390138559
+      }
+    },
+    "recommendations": [
+      "[INFO] Recorded return -11.77% within analysis window; below growth target",
+      "[INFO] Coins with cumulative negative PnL: DOGE, ETH, SOL, TRX, XRP, ASTER"
+    ]
+  },
+  {
+    "analysis_period": "Last 10 cycles (Total: 20)",
+    "timestamp": "2026-03-09T03:52:14.587312",
+    "trading_activity": {
+      "total_decisions": 45,
+      "entry_signals": 6,
+      "hold_signals": 37,
+      "close_signals": 2,
+      "decision_rate": 13.333333333333334
+    },
+    "trade_performance": {
+      "total_trades": 7,
+      "winning_trades": 1,
+      "losing_trades": 6,
+      "break_even_trades": 0,
+      "profitability_index": 0.19,
+      "total_pnl": -9.35,
+      "average_pnl": -1.34,
+      "profit_factor": 0.0,
+      "largest_win": 0.02,
+      "largest_loss": -3.08
+    },
+    "portfolio_performance": {
+      "initial_balance": 200.0,
+      "current_balance": 176.46539136943164,
+      "total_value": 176.46539136943164,
+      "total_return": -11.77,
+      "sharpe_ratio": 0.0,
+      "sortino_ratio": 0.0,
+      "max_drawdown": 0.0,
+      "open_positions": 0
+    },
+    "coin_performance": {
+      "DOGE": {
+        "trades": 2,
+        "total_pnl": -1.820373996940238,
+        "wins": 1,
+        "losses": 1,
+        "profitability_index": 0.9747162228439138,
+        "avg_pnl": -0.910186998470119
+      },
+      "ETH": {
+        "trades": 1,
+        "total_pnl": -0.142587249246435,
+        "wins": 0,
+        "losses": 1,
+        "profitability_index": 0.0,
+        "avg_pnl": -0.142587249246435
+      },
+      "SOL": {
+        "trades": 1,
+        "total_pnl": -0.23191221121073885,
+        "wins": 0,
+        "losses": 1,
+        "profitability_index": 0.0,
+        "avg_pnl": -0.23191221121073885
+      },
+      "TRX": {
+        "trades": 1,
+        "total_pnl": -1.618851321998599,
+        "wins": 0,
+        "losses": 1,
+        "profitability_index": 0.0,
+        "avg_pnl": -1.618851321998599
+      },
+      "XRP": {
+        "trades": 1,
+        "total_pnl": -2.462844790793787,
+        "wins": 0,
+        "losses": 1,
+        "profitability_index": 0.0,
+        "avg_pnl": -2.462844790793787
+      },
+      "ASTER": {
+        "trades": 1,
+        "total_pnl": -3.075544390138559,
+        "wins": 0,
+        "losses": 1,
+        "profitability_index": 0.0,
+        "avg_pnl": -3.075544390138559
+      }
+    },
+    "recommendations": [
+      "[INFO] Recorded return -11.77% within analysis window; below growth target",
+      "[INFO] Coins with cumulative negative PnL: DOGE, ETH, SOL, TRX, XRP, ASTER"
+    ]
+  },
+  {
+    "analysis_period": "Last 10 cycles (Total: 21)",
+    "timestamp": "2026-03-09T03:54:04.514875",
+    "trading_activity": {
+      "total_decisions": 44,
+      "entry_signals": 6,
+      "hold_signals": 36,
+      "close_signals": 2,
+      "decision_rate": 13.636363636363635
+    },
+    "trade_performance": {
+      "total_trades": 7,
+      "winning_trades": 1,
+      "losing_trades": 6,
+      "break_even_trades": 0,
+      "profitability_index": 0.19,
+      "total_pnl": -9.35,
+      "average_pnl": -1.34,
+      "profit_factor": 0.0,
+      "largest_win": 0.02,
+      "largest_loss": -3.08
+    },
+    "portfolio_performance": {
+      "initial_balance": 200.0,
+      "current_balance": 176.46539136943164,
+      "total_value": 176.46539136943164,
+      "total_return": -11.77,
+      "sharpe_ratio": 0.0,
+      "sortino_ratio": 0.0,
+      "max_drawdown": 0.0,
+      "open_positions": 0
+    },
+    "coin_performance": {
+      "DOGE": {
+        "trades": 2,
+        "total_pnl": -1.820373996940238,
+        "wins": 1,
+        "losses": 1,
+        "profitability_index": 0.9747162228439138,
+        "avg_pnl": -0.910186998470119
+      },
+      "ETH": {
+        "trades": 1,
+        "total_pnl": -0.142587249246435,
+        "wins": 0,
+        "losses": 1,
+        "profitability_index": 0.0,
+        "avg_pnl": -0.142587249246435
+      },
+      "SOL": {
+        "trades": 1,
+        "total_pnl": -0.23191221121073885,
+        "wins": 0,
+        "losses": 1,
+        "profitability_index": 0.0,
+        "avg_pnl": -0.23191221121073885
+      },
+      "TRX": {
+        "trades": 1,
+        "total_pnl": -1.618851321998599,
+        "wins": 0,
+        "losses": 1,
+        "profitability_index": 0.0,
+        "avg_pnl": -1.618851321998599
+      },
+      "XRP": {
+        "trades": 1,
+        "total_pnl": -2.462844790793787,
+        "wins": 0,
+        "losses": 1,
+        "profitability_index": 0.0,
+        "avg_pnl": -2.462844790793787
+      },
+      "ASTER": {
+        "trades": 1,
+        "total_pnl": -3.075544390138559,
+        "wins": 0,
+        "losses": 1,
+        "profitability_index": 0.0,
+        "avg_pnl": -3.075544390138559
+      }
+    },
+    "recommendations": [
+      "[INFO] Recorded return -11.77% within analysis window; below growth target",
+      "[INFO] Coins with cumulative negative PnL: DOGE, ETH, SOL, TRX, XRP, ASTER"
+    ]
+  },
+  {
+    "analysis_period": "Last 10 cycles (Total: 22)",
+    "timestamp": "2026-03-09T03:56:14.596027",
+    "trading_activity": {
+      "total_decisions": 43,
+      "entry_signals": 6,
+      "hold_signals": 35,
+      "close_signals": 2,
+      "decision_rate": 13.953488372093023
+    },
+    "trade_performance": {
+      "total_trades": 7,
+      "winning_trades": 1,
+      "losing_trades": 6,
+      "break_even_trades": 0,
+      "profitability_index": 0.19,
+      "total_pnl": -9.35,
+      "average_pnl": -1.34,
+      "profit_factor": 0.0,
+      "largest_win": 0.02,
+      "largest_loss": -3.08
+    },
+    "portfolio_performance": {
+      "initial_balance": 200.0,
+      "current_balance": 176.46539136943164,
+      "total_value": 176.46539136943164,
+      "total_return": -11.77,
+      "sharpe_ratio": -147.986,
+      "sortino_ratio": 0.0,
+      "max_drawdown": 0.0,
+      "open_positions": 0
+    },
+    "coin_performance": {
+      "DOGE": {
+        "trades": 2,
+        "total_pnl": -1.820373996940238,
+        "wins": 1,
+        "losses": 1,
+        "profitability_index": 0.9747162228439138,
+        "avg_pnl": -0.910186998470119
+      },
+      "ETH": {
+        "trades": 1,
+        "total_pnl": -0.142587249246435,
+        "wins": 0,
+        "losses": 1,
+        "profitability_index": 0.0,
+        "avg_pnl": -0.142587249246435
+      },
+      "SOL": {
+        "trades": 1,
+        "total_pnl": -0.23191221121073885,
+        "wins": 0,
+        "losses": 1,
+        "profitability_index": 0.0,
+        "avg_pnl": -0.23191221121073885
+      },
+      "TRX": {
+        "trades": 1,
+        "total_pnl": -1.618851321998599,
+        "wins": 0,
+        "losses": 1,
+        "profitability_index": 0.0,
+        "avg_pnl": -1.618851321998599
+      },
+      "XRP": {
+        "trades": 1,
+        "total_pnl": -2.462844790793787,
+        "wins": 0,
+        "losses": 1,
+        "profitability_index": 0.0,
+        "avg_pnl": -2.462844790793787
+      },
+      "ASTER": {
+        "trades": 1,
+        "total_pnl": -3.075544390138559,
+        "wins": 0,
+        "losses": 1,
+        "profitability_index": 0.0,
+        "avg_pnl": -3.075544390138559
+      }
+    },
+    "recommendations": [
+      "[INFO] Recorded return -11.77% within analysis window; below growth target",
+      "[INFO] Coins with cumulative negative PnL: DOGE, ETH, SOL, TRX, XRP, ASTER"
+    ]
+  },
+  {
+    "analysis_period": "Last 10 cycles (Total: 22)",
+    "timestamp": "2026-03-09T03:56:28.675234",
+    "trading_activity": {
+      "total_decisions": 43,
+      "entry_signals": 6,
+      "hold_signals": 35,
+      "close_signals": 2,
+      "decision_rate": 13.953488372093023
+    },
+    "trade_performance": {
+      "total_trades": 7,
+      "winning_trades": 1,
+      "losing_trades": 6,
+      "break_even_trades": 0,
+      "profitability_index": 0.19,
+      "total_pnl": -9.35,
+      "average_pnl": -1.34,
+      "profit_factor": 0.0,
+      "largest_win": 0.02,
+      "largest_loss": -3.08
+    },
+    "portfolio_performance": {
+      "initial_balance": 200.0,
+      "current_balance": 176.46539136943164,
+      "total_value": 176.46539136943164,
+      "total_return": -11.77,
+      "sharpe_ratio": 0.0,
+      "sortino_ratio": 0.0,
+      "max_drawdown": 0.0,
+      "open_positions": 0
+    },
+    "coin_performance": {
+      "DOGE": {
+        "trades": 2,
+        "total_pnl": -1.820373996940238,
+        "wins": 1,
+        "losses": 1,
+        "profitability_index": 0.9747162228439138,
+        "avg_pnl": -0.910186998470119
+      },
+      "ETH": {
+        "trades": 1,
+        "total_pnl": -0.142587249246435,
+        "wins": 0,
+        "losses": 1,
+        "profitability_index": 0.0,
+        "avg_pnl": -0.142587249246435
+      },
+      "SOL": {
+        "trades": 1,
+        "total_pnl": -0.23191221121073885,
+        "wins": 0,
+        "losses": 1,
+        "profitability_index": 0.0,
+        "avg_pnl": -0.23191221121073885
+      },
+      "TRX": {
+        "trades": 1,
+        "total_pnl": -1.618851321998599,
+        "wins": 0,
+        "losses": 1,
+        "profitability_index": 0.0,
+        "avg_pnl": -1.618851321998599
+      },
+      "XRP": {
+        "trades": 1,
+        "total_pnl": -2.462844790793787,
+        "wins": 0,
+        "losses": 1,
+        "profitability_index": 0.0,
+        "avg_pnl": -2.462844790793787
+      },
+      "ASTER": {
+        "trades": 1,
+        "total_pnl": -3.075544390138559,
+        "wins": 0,
+        "losses": 1,
+        "profitability_index": 0.0,
+        "avg_pnl": -3.075544390138559
+      }
+    },
+    "recommendations": [
+      "[INFO] Recorded return -11.77% within analysis window; below growth target",
+      "[INFO] Coins with cumulative negative PnL: DOGE, ETH, SOL, TRX, XRP, ASTER"
+    ]
+  },
+  {
+    "analysis_period": "Last 10 cycles (Total: 22)",
+    "timestamp": "2026-03-09T04:00:14.733669",
+    "trading_activity": {
+      "total_decisions": 46,
+      "entry_signals": 6,
+      "hold_signals": 38,
+      "close_signals": 2,
+      "decision_rate": 13.043478260869565
+    },
+    "trade_performance": {
+      "total_trades": 7,
+      "winning_trades": 1,
+      "losing_trades": 6,
+      "break_even_trades": 0,
+      "profitability_index": 0.19,
+      "total_pnl": -9.35,
+      "average_pnl": -1.34,
+      "profit_factor": 0.0,
+      "largest_win": 0.02,
+      "largest_loss": -3.08
+    },
+    "portfolio_performance": {
+      "initial_balance": 200.0,
+      "current_balance": 176.46539136943164,
+      "total_value": 176.46539136943164,
+      "total_return": -11.77,
+      "sharpe_ratio": -109.295,
+      "sortino_ratio": 0.0,
+      "max_drawdown": 0.0,
+      "open_positions": 0
+    },
+    "coin_performance": {
+      "DOGE": {
+        "trades": 2,
+        "total_pnl": -1.820373996940238,
+        "wins": 1,
+        "losses": 1,
+        "profitability_index": 0.9747162228439138,
+        "avg_pnl": -0.910186998470119
+      },
+      "ETH": {
+        "trades": 1,
+        "total_pnl": -0.142587249246435,
+        "wins": 0,
+        "losses": 1,
+        "profitability_index": 0.0,
+        "avg_pnl": -0.142587249246435
+      },
+      "SOL": {
+        "trades": 1,
+        "total_pnl": -0.23191221121073885,
+        "wins": 0,
+        "losses": 1,
+        "profitability_index": 0.0,
+        "avg_pnl": -0.23191221121073885
+      },
+      "TRX": {
+        "trades": 1,
+        "total_pnl": -1.618851321998599,
+        "wins": 0,
+        "losses": 1,
+        "profitability_index": 0.0,
+        "avg_pnl": -1.618851321998599
+      },
+      "XRP": {
+        "trades": 1,
+        "total_pnl": -2.462844790793787,
+        "wins": 0,
+        "losses": 1,
+        "profitability_index": 0.0,
+        "avg_pnl": -2.462844790793787
+      },
+      "ASTER": {
+        "trades": 1,
+        "total_pnl": -3.075544390138559,
+        "wins": 0,
+        "losses": 1,
+        "profitability_index": 0.0,
+        "avg_pnl": -3.075544390138559
+      }
+    },
+    "recommendations": [
+      "[INFO] Recorded return -11.77% within analysis window; below growth target",
+      "[INFO] Coins with cumulative negative PnL: DOGE, ETH, SOL, TRX, XRP, ASTER"
+    ]
+  },
+  {
+    "analysis_period": "Last 10 cycles (Total: 23)",
+    "timestamp": "2026-03-09T04:02:07.204153",
+    "trading_activity": {
+      "total_decisions": 43,
+      "entry_signals": 6,
+      "hold_signals": 35,
+      "close_signals": 2,
+      "decision_rate": 13.953488372093023
+    },
+    "trade_performance": {
+      "total_trades": 7,
+      "winning_trades": 1,
+      "losing_trades": 6,
+      "break_even_trades": 0,
+      "profitability_index": 0.19,
+      "total_pnl": -9.35,
+      "average_pnl": -1.34,
+      "profit_factor": 0.0,
+      "largest_win": 0.02,
+      "largest_loss": -3.08
+    },
+    "portfolio_performance": {
+      "initial_balance": 200.0,
+      "current_balance": 176.46539136943164,
+      "total_value": 176.46539136943164,
+      "total_return": -11.77,
+      "sharpe_ratio": 0.0,
+      "sortino_ratio": 0.0,
+      "max_drawdown": 0.0,
+      "open_positions": 0
+    },
+    "coin_performance": {
+      "DOGE": {
+        "trades": 2,
+        "total_pnl": -1.820373996940238,
+        "wins": 1,
+        "losses": 1,
+        "profitability_index": 0.9747162228439138,
+        "avg_pnl": -0.910186998470119
+      },
+      "ETH": {
+        "trades": 1,
+        "total_pnl": -0.142587249246435,
+        "wins": 0,
+        "losses": 1,
+        "profitability_index": 0.0,
+        "avg_pnl": -0.142587249246435
+      },
+      "SOL": {
+        "trades": 1,
+        "total_pnl": -0.23191221121073885,
+        "wins": 0,
+        "losses": 1,
+        "profitability_index": 0.0,
+        "avg_pnl": -0.23191221121073885
+      },
+      "TRX": {
+        "trades": 1,
+        "total_pnl": -1.618851321998599,
+        "wins": 0,
+        "losses": 1,
+        "profitability_index": 0.0,
+        "avg_pnl": -1.618851321998599
+      },
+      "XRP": {
+        "trades": 1,
+        "total_pnl": -2.462844790793787,
+        "wins": 0,
+        "losses": 1,
+        "profitability_index": 0.0,
+        "avg_pnl": -2.462844790793787
+      },
+      "ASTER": {
+        "trades": 1,
+        "total_pnl": -3.075544390138559,
+        "wins": 0,
+        "losses": 1,
+        "profitability_index": 0.0,
+        "avg_pnl": -3.075544390138559
+      }
+    },
+    "recommendations": [
+      "[INFO] Recorded return -11.77% within analysis window; below growth target",
+      "[INFO] Coins with cumulative negative PnL: DOGE, ETH, SOL, TRX, XRP, ASTER"
+    ]
+  },
+  {
+    "analysis_period": "Last 10 cycles (Total: 23)",
+    "timestamp": "2026-03-09T04:02:40.228439",
+    "trading_activity": {
+      "total_decisions": 43,
+      "entry_signals": 6,
+      "hold_signals": 35,
+      "close_signals": 2,
+      "decision_rate": 13.953488372093023
+    },
+    "trade_performance": {
+      "total_trades": 7,
+      "winning_trades": 1,
+      "losing_trades": 6,
+      "break_even_trades": 0,
+      "profitability_index": 0.19,
+      "total_pnl": -9.35,
+      "average_pnl": -1.34,
+      "profit_factor": 0.0,
+      "largest_win": 0.02,
+      "largest_loss": -3.08
+    },
+    "portfolio_performance": {
+      "initial_balance": 200.0,
+      "current_balance": 176.46539136943164,
+      "total_value": 176.46539136943164,
+      "total_return": -11.77,
+      "sharpe_ratio": 0.0,
+      "sortino_ratio": 0.0,
+      "max_drawdown": 0.0,
+      "open_positions": 0
+    },
+    "coin_performance": {
+      "DOGE": {
+        "trades": 2,
+        "total_pnl": -1.820373996940238,
+        "wins": 1,
+        "losses": 1,
+        "profitability_index": 0.9747162228439138,
+        "avg_pnl": -0.910186998470119
+      },
+      "ETH": {
+        "trades": 1,
+        "total_pnl": -0.142587249246435,
+        "wins": 0,
+        "losses": 1,
+        "profitability_index": 0.0,
+        "avg_pnl": -0.142587249246435
+      },
+      "SOL": {
+        "trades": 1,
+        "total_pnl": -0.23191221121073885,
+        "wins": 0,
+        "losses": 1,
+        "profitability_index": 0.0,
+        "avg_pnl": -0.23191221121073885
+      },
+      "TRX": {
+        "trades": 1,
+        "total_pnl": -1.618851321998599,
+        "wins": 0,
+        "losses": 1,
+        "profitability_index": 0.0,
+        "avg_pnl": -1.618851321998599
+      },
+      "XRP": {
+        "trades": 1,
+        "total_pnl": -2.462844790793787,
+        "wins": 0,
+        "losses": 1,
+        "profitability_index": 0.0,
+        "avg_pnl": -2.462844790793787
+      },
+      "ASTER": {
+        "trades": 1,
+        "total_pnl": -3.075544390138559,
+        "wins": 0,
+        "losses": 1,
+        "profitability_index": 0.0,
+        "avg_pnl": -3.075544390138559
+      }
+    },
+    "recommendations": [
+      "[INFO] Recorded return -11.77% within analysis window; below growth target",
+      "[INFO] Coins with cumulative negative PnL: DOGE, ETH, SOL, TRX, XRP, ASTER"
+    ]
+  },
+  {
+    "analysis_period": "Last 10 cycles (Total: 23)",
+    "timestamp": "2026-03-09T04:04:14.596969",
+    "trading_activity": {
+      "total_decisions": 43,
+      "entry_signals": 6,
+      "hold_signals": 35,
+      "close_signals": 2,
+      "decision_rate": 13.953488372093023
+    },
+    "trade_performance": {
+      "total_trades": 7,
+      "winning_trades": 1,
+      "losing_trades": 6,
+      "break_even_trades": 0,
+      "profitability_index": 0.19,
+      "total_pnl": -9.35,
+      "average_pnl": -1.34,
+      "profit_factor": 0.0,
+      "largest_win": 0.02,
+      "largest_loss": -3.08
+    },
+    "portfolio_performance": {
+      "initial_balance": 200.0,
+      "current_balance": 176.46539136943164,
+      "total_value": 176.46539136943164,
+      "total_return": -11.77,
+      "sharpe_ratio": -92.073,
+      "sortino_ratio": 0.0,
+      "max_drawdown": 0.0,
+      "open_positions": 0
+    },
+    "coin_performance": {
+      "DOGE": {
+        "trades": 2,
+        "total_pnl": -1.820373996940238,
+        "wins": 1,
+        "losses": 1,
+        "profitability_index": 0.9747162228439138,
+        "avg_pnl": -0.910186998470119
+      },
+      "ETH": {
+        "trades": 1,
+        "total_pnl": -0.142587249246435,
+        "wins": 0,
+        "losses": 1,
+        "profitability_index": 0.0,
+        "avg_pnl": -0.142587249246435
+      },
+      "SOL": {
+        "trades": 1,
+        "total_pnl": -0.23191221121073885,
+        "wins": 0,
+        "losses": 1,
+        "profitability_index": 0.0,
+        "avg_pnl": -0.23191221121073885
+      },
+      "TRX": {
+        "trades": 1,
+        "total_pnl": -1.618851321998599,
+        "wins": 0,
+        "losses": 1,
+        "profitability_index": 0.0,
+        "avg_pnl": -1.618851321998599
+      },
+      "XRP": {
+        "trades": 1,
+        "total_pnl": -2.462844790793787,
+        "wins": 0,
+        "losses": 1,
+        "profitability_index": 0.0,
+        "avg_pnl": -2.462844790793787
+      },
+      "ASTER": {
+        "trades": 1,
+        "total_pnl": -3.075544390138559,
+        "wins": 0,
+        "losses": 1,
+        "profitability_index": 0.0,
+        "avg_pnl": -3.075544390138559
+      }
+    },
+    "recommendations": [
+      "[INFO] Recorded return -11.77% within analysis window; below growth target",
+      "[INFO] Coins with cumulative negative PnL: DOGE, ETH, SOL, TRX, XRP, ASTER"
+    ]
+  },
+  {
+    "analysis_period": "Last 10 cycles (Total: 24)",
+    "timestamp": "2026-03-09T04:08:14.596618",
+    "trading_activity": {
+      "total_decisions": 41,
+      "entry_signals": 6,
+      "hold_signals": 33,
+      "close_signals": 2,
+      "decision_rate": 14.634146341463413
+    },
+    "trade_performance": {
+      "total_trades": 7,
+      "winning_trades": 1,
+      "losing_trades": 6,
+      "break_even_trades": 0,
+      "profitability_index": 0.19,
+      "total_pnl": -9.35,
+      "average_pnl": -1.34,
+      "profit_factor": 0.0,
+      "largest_win": 0.02,
+      "largest_loss": -3.08
+    },
+    "portfolio_performance": {
+      "initial_balance": 200.0,
+      "current_balance": 176.46539136943164,
+      "total_value": 176.46539136943164,
+      "total_return": -11.77,
+      "sharpe_ratio": -79.102,
+      "sortino_ratio": 0.0,
+      "max_drawdown": 0.0,
+      "open_positions": 0
+    },
+    "coin_performance": {
+      "DOGE": {
+        "trades": 2,
+        "total_pnl": -1.820373996940238,
+        "wins": 1,
+        "losses": 1,
+        "profitability_index": 0.9747162228439138,
+        "avg_pnl": -0.910186998470119
+      },
+      "ETH": {
+        "trades": 1,
+        "total_pnl": -0.142587249246435,
+        "wins": 0,
+        "losses": 1,
+        "profitability_index": 0.0,
+        "avg_pnl": -0.142587249246435
+      },
+      "SOL": {
+        "trades": 1,
+        "total_pnl": -0.23191221121073885,
+        "wins": 0,
+        "losses": 1,
+        "profitability_index": 0.0,
+        "avg_pnl": -0.23191221121073885
+      },
+      "TRX": {
+        "trades": 1,
+        "total_pnl": -1.618851321998599,
+        "wins": 0,
+        "losses": 1,
+        "profitability_index": 0.0,
+        "avg_pnl": -1.618851321998599
+      },
+      "XRP": {
+        "trades": 1,
+        "total_pnl": -2.462844790793787,
+        "wins": 0,
+        "losses": 1,
+        "profitability_index": 0.0,
+        "avg_pnl": -2.462844790793787
+      },
+      "ASTER": {
+        "trades": 1,
+        "total_pnl": -3.075544390138559,
+        "wins": 0,
+        "losses": 1,
+        "profitability_index": 0.0,
+        "avg_pnl": -3.075544390138559
+      }
+    },
+    "recommendations": [
+      "[INFO] Recorded return -11.77% within analysis window; below growth target",
+      "[INFO] Coins with cumulative negative PnL: DOGE, ETH, SOL, TRX, XRP, ASTER"
+    ]
+  },
+  {
+    "analysis_period": "Last 10 cycles (Total: 25)",
+    "timestamp": "2026-03-09T04:12:14.597758",
+    "trading_activity": {
+      "total_decisions": 38,
+      "entry_signals": 2,
+      "hold_signals": 34,
+      "close_signals": 2,
+      "decision_rate": 5.263157894736842
+    },
+    "trade_performance": {
+      "total_trades": 7,
+      "winning_trades": 1,
+      "losing_trades": 6,
+      "break_even_trades": 0,
+      "profitability_index": 0.19,
+      "total_pnl": -9.35,
+      "average_pnl": -1.34,
+      "profit_factor": 0.0,
+      "largest_win": 0.02,
+      "largest_loss": -3.08
+    },
+    "portfolio_performance": {
+      "initial_balance": 200.0,
+      "current_balance": 176.46539136943164,
+      "total_value": 176.46539136943164,
+      "total_return": -11.77,
+      "sharpe_ratio": -70.417,
+      "sortino_ratio": 0.0,
+      "max_drawdown": 0.0,
+      "open_positions": 0
+    },
+    "coin_performance": {
+      "DOGE": {
+        "trades": 2,
+        "total_pnl": -1.820373996940238,
+        "wins": 1,
+        "losses": 1,
+        "profitability_index": 0.9747162228439138,
+        "avg_pnl": -0.910186998470119
+      },
+      "ETH": {
+        "trades": 1,
+        "total_pnl": -0.142587249246435,
+        "wins": 0,
+        "losses": 1,
+        "profitability_index": 0.0,
+        "avg_pnl": -0.142587249246435
+      },
+      "SOL": {
+        "trades": 1,
+        "total_pnl": -0.23191221121073885,
+        "wins": 0,
+        "losses": 1,
+        "profitability_index": 0.0,
+        "avg_pnl": -0.23191221121073885
+      },
+      "TRX": {
+        "trades": 1,
+        "total_pnl": -1.618851321998599,
+        "wins": 0,
+        "losses": 1,
+        "profitability_index": 0.0,
+        "avg_pnl": -1.618851321998599
+      },
+      "XRP": {
+        "trades": 1,
+        "total_pnl": -2.462844790793787,
+        "wins": 0,
+        "losses": 1,
+        "profitability_index": 0.0,
+        "avg_pnl": -2.462844790793787
+      },
+      "ASTER": {
+        "trades": 1,
+        "total_pnl": -3.075544390138559,
+        "wins": 0,
+        "losses": 1,
+        "profitability_index": 0.0,
+        "avg_pnl": -3.075544390138559
+      }
+    },
+    "recommendations": [
+      "[INFO] Recorded return -11.77% within analysis window; below growth target",
+      "[INFO] Coins with cumulative negative PnL: DOGE, ETH, SOL, TRX, XRP, ASTER"
+    ]
+  },
+  {
+    "analysis_period": "Last 10 cycles (Total: 26)",
+    "timestamp": "2026-03-09T04:16:14.597925",
+    "trading_activity": {
+      "total_decisions": 36,
+      "entry_signals": 2,
+      "hold_signals": 32,
+      "close_signals": 2,
+      "decision_rate": 5.555555555555555
+    },
+    "trade_performance": {
+      "total_trades": 7,
+      "winning_trades": 1,
+      "losing_trades": 6,
+      "break_even_trades": 0,
+      "profitability_index": 0.19,
+      "total_pnl": -9.35,
+      "average_pnl": -1.34,
+      "profit_factor": 0.0,
+      "largest_win": 0.02,
+      "largest_loss": -3.08
+    },
+    "portfolio_performance": {
+      "initial_balance": 200.0,
+      "current_balance": 176.46539136943164,
+      "total_value": 176.46539136943164,
+      "total_return": -11.77,
+      "sharpe_ratio": -64.08,
+      "sortino_ratio": 0.0,
+      "max_drawdown": 0.0,
+      "open_positions": 0
+    },
+    "coin_performance": {
+      "DOGE": {
+        "trades": 2,
+        "total_pnl": -1.820373996940238,
+        "wins": 1,
+        "losses": 1,
+        "profitability_index": 0.9747162228439138,
+        "avg_pnl": -0.910186998470119
+      },
+      "ETH": {
+        "trades": 1,
+        "total_pnl": -0.142587249246435,
+        "wins": 0,
+        "losses": 1,
+        "profitability_index": 0.0,
+        "avg_pnl": -0.142587249246435
+      },
+      "SOL": {
+        "trades": 1,
+        "total_pnl": -0.23191221121073885,
+        "wins": 0,
+        "losses": 1,
+        "profitability_index": 0.0,
+        "avg_pnl": -0.23191221121073885
+      },
+      "TRX": {
+        "trades": 1,
+        "total_pnl": -1.618851321998599,
+        "wins": 0,
+        "losses": 1,
+        "profitability_index": 0.0,
+        "avg_pnl": -1.618851321998599
+      },
+      "XRP": {
+        "trades": 1,
+        "total_pnl": -2.462844790793787,
+        "wins": 0,
+        "losses": 1,
+        "profitability_index": 0.0,
+        "avg_pnl": -2.462844790793787
+      },
+      "ASTER": {
+        "trades": 1,
+        "total_pnl": -3.075544390138559,
+        "wins": 0,
+        "losses": 1,
+        "profitability_index": 0.0,
+        "avg_pnl": -3.075544390138559
+      }
+    },
+    "recommendations": [
+      "[INFO] Recorded return -11.77% within analysis window; below growth target",
+      "[INFO] Coins with cumulative negative PnL: DOGE, ETH, SOL, TRX, XRP, ASTER"
+    ]
+  },
+  {
+    "analysis_period": "Last 10 cycles (Total: 27)",
+    "timestamp": "2026-03-09T04:20:14.735844",
+    "trading_activity": {
+      "total_decisions": 30,
+      "entry_signals": 0,
+      "hold_signals": 29,
+      "close_signals": 1,
+      "decision_rate": 0.0
+    },
+    "trade_performance": {
+      "total_trades": 7,
+      "winning_trades": 1,
+      "losing_trades": 6,
+      "break_even_trades": 0,
+      "profitability_index": 0.19,
+      "total_pnl": -9.35,
+      "average_pnl": -1.34,
+      "profit_factor": 0.0,
+      "largest_win": 0.02,
+      "largest_loss": -3.08
+    },
+    "portfolio_performance": {
+      "initial_balance": 200.0,
+      "current_balance": 176.46539136943164,
+      "total_value": 176.46539136943164,
+      "total_return": -11.77,
+      "sharpe_ratio": -59.195,
+      "sortino_ratio": 0.0,
+      "max_drawdown": 0.0,
+      "open_positions": 0
+    },
+    "coin_performance": {
+      "DOGE": {
+        "trades": 2,
+        "total_pnl": -1.820373996940238,
+        "wins": 1,
+        "losses": 1,
+        "profitability_index": 0.9747162228439138,
+        "avg_pnl": -0.910186998470119
+      },
+      "ETH": {
+        "trades": 1,
+        "total_pnl": -0.142587249246435,
+        "wins": 0,
+        "losses": 1,
+        "profitability_index": 0.0,
+        "avg_pnl": -0.142587249246435
+      },
+      "SOL": {
+        "trades": 1,
+        "total_pnl": -0.23191221121073885,
+        "wins": 0,
+        "losses": 1,
+        "profitability_index": 0.0,
+        "avg_pnl": -0.23191221121073885
+      },
+      "TRX": {
+        "trades": 1,
+        "total_pnl": -1.618851321998599,
+        "wins": 0,
+        "losses": 1,
+        "profitability_index": 0.0,
+        "avg_pnl": -1.618851321998599
+      },
+      "XRP": {
+        "trades": 1,
+        "total_pnl": -2.462844790793787,
+        "wins": 0,
+        "losses": 1,
+        "profitability_index": 0.0,
+        "avg_pnl": -2.462844790793787
+      },
+      "ASTER": {
+        "trades": 1,
+        "total_pnl": -3.075544390138559,
+        "wins": 0,
+        "losses": 1,
+        "profitability_index": 0.0,
+        "avg_pnl": -3.075544390138559
+      }
+    },
+    "recommendations": [
+      "[INFO] Recorded return -11.77% within analysis window; below growth target",
+      "[INFO] Coins with cumulative negative PnL: DOGE, ETH, SOL, TRX, XRP, ASTER"
+    ]
+  },
+  {
+    "analysis_period": "Last 10 cycles (Total: 28)",
+    "timestamp": "2026-03-09T04:24:14.590257",
+    "trading_activity": {
+      "total_decisions": 30,
+      "entry_signals": 0,
+      "hold_signals": 30,
+      "close_signals": 0,
+      "decision_rate": 0.0
+    },
+    "trade_performance": {
+      "total_trades": 7,
+      "winning_trades": 1,
+      "losing_trades": 6,
+      "break_even_trades": 0,
+      "profitability_index": 0.19,
+      "total_pnl": -9.35,
+      "average_pnl": -1.34,
+      "profit_factor": 0.0,
+      "largest_win": 0.02,
+      "largest_loss": -3.08
+    },
+    "portfolio_performance": {
+      "initial_balance": 200.0,
+      "current_balance": 176.46539136943164,
+      "total_value": 176.46539136943164,
+      "total_return": -11.77,
+      "sharpe_ratio": -54.961,
+      "sortino_ratio": 0.0,
+      "max_drawdown": 0.0,
+      "open_positions": 0
+    },
+    "coin_performance": {
+      "DOGE": {
+        "trades": 2,
+        "total_pnl": -1.820373996940238,
+        "wins": 1,
+        "losses": 1,
+        "profitability_index": 0.9747162228439138,
+        "avg_pnl": -0.910186998470119
+      },
+      "ETH": {
+        "trades": 1,
+        "total_pnl": -0.142587249246435,
+        "wins": 0,
+        "losses": 1,
+        "profitability_index": 0.0,
+        "avg_pnl": -0.142587249246435
+      },
+      "SOL": {
+        "trades": 1,
+        "total_pnl": -0.23191221121073885,
+        "wins": 0,
+        "losses": 1,
+        "profitability_index": 0.0,
+        "avg_pnl": -0.23191221121073885
+      },
+      "TRX": {
+        "trades": 1,
+        "total_pnl": -1.618851321998599,
+        "wins": 0,
+        "losses": 1,
+        "profitability_index": 0.0,
+        "avg_pnl": -1.618851321998599
+      },
+      "XRP": {
+        "trades": 1,
+        "total_pnl": -2.462844790793787,
+        "wins": 0,
+        "losses": 1,
+        "profitability_index": 0.0,
+        "avg_pnl": -2.462844790793787
+      },
+      "ASTER": {
+        "trades": 1,
+        "total_pnl": -3.075544390138559,
+        "wins": 0,
+        "losses": 1,
+        "profitability_index": 0.0,
+        "avg_pnl": -3.075544390138559
+      }
+    },
+    "recommendations": [
+      "[INFO] Recorded return -11.77% within analysis window; below growth target",
+      "[INFO] Coins with cumulative negative PnL: DOGE, ETH, SOL, TRX, XRP, ASTER"
+    ]
+  },
+  {
+    "analysis_period": "Last 10 cycles (Total: 29)",
+    "timestamp": "2026-03-09T04:28:14.736129",
+    "trading_activity": {
+      "total_decisions": 33,
+      "entry_signals": 0,
+      "hold_signals": 33,
+      "close_signals": 0,
+      "decision_rate": 0.0
+    },
+    "trade_performance": {
+      "total_trades": 7,
+      "winning_trades": 1,
+      "losing_trades": 6,
+      "break_even_trades": 0,
+      "profitability_index": 0.19,
+      "total_pnl": -9.35,
+      "average_pnl": -1.34,
+      "profit_factor": 0.0,
+      "largest_win": 0.02,
+      "largest_loss": -3.08
+    },
+    "portfolio_performance": {
+      "initial_balance": 200.0,
+      "current_balance": 176.46539136943164,
+      "total_value": 176.46539136943164,
+      "total_return": -11.77,
+      "sharpe_ratio": -52.051,
+      "sortino_ratio": 0.0,
+      "max_drawdown": 0.0,
+      "open_positions": 0
+    },
+    "coin_performance": {
+      "DOGE": {
+        "trades": 2,
+        "total_pnl": -1.820373996940238,
+        "wins": 1,
+        "losses": 1,
+        "profitability_index": 0.9747162228439138,
+        "avg_pnl": -0.910186998470119
+      },
+      "ETH": {
+        "trades": 1,
+        "total_pnl": -0.142587249246435,
+        "wins": 0,
+        "losses": 1,
+        "profitability_index": 0.0,
+        "avg_pnl": -0.142587249246435
+      },
+      "SOL": {
+        "trades": 1,
+        "total_pnl": -0.23191221121073885,
+        "wins": 0,
+        "losses": 1,
+        "profitability_index": 0.0,
+        "avg_pnl": -0.23191221121073885
+      },
+      "TRX": {
+        "trades": 1,
+        "total_pnl": -1.618851321998599,
+        "wins": 0,
+        "losses": 1,
+        "profitability_index": 0.0,
+        "avg_pnl": -1.618851321998599
+      },
+      "XRP": {
+        "trades": 1,
+        "total_pnl": -2.462844790793787,
+        "wins": 0,
+        "losses": 1,
+        "profitability_index": 0.0,
+        "avg_pnl": -2.462844790793787
+      },
+      "ASTER": {
+        "trades": 1,
+        "total_pnl": -3.075544390138559,
+        "wins": 0,
+        "losses": 1,
+        "profitability_index": 0.0,
+        "avg_pnl": -3.075544390138559
+      }
+    },
+    "recommendations": [
+      "[INFO] Recorded return -11.77% within analysis window; below growth target",
+      "[INFO] Coins with cumulative negative PnL: DOGE, ETH, SOL, TRX, XRP, ASTER"
+    ]
+  },
+  {
+    "analysis_period": "Last 10 cycles (Total: 30)",
+    "timestamp": "2026-03-09T04:32:14.592543",
+    "trading_activity": {
+      "total_decisions": 36,
+      "entry_signals": 0,
+      "hold_signals": 36,
+      "close_signals": 0,
+      "decision_rate": 0.0
+    },
+    "trade_performance": {
+      "total_trades": 7,
+      "winning_trades": 1,
+      "losing_trades": 6,
+      "break_even_trades": 0,
+      "profitability_index": 0.19,
+      "total_pnl": -9.35,
+      "average_pnl": -1.34,
+      "profit_factor": 0.0,
+      "largest_win": 0.02,
+      "largest_loss": -3.08
+    },
+    "portfolio_performance": {
+      "initial_balance": 200.0,
+      "current_balance": 176.46539136943164,
+      "total_value": 176.46539136943164,
+      "total_return": -11.77,
+      "sharpe_ratio": -49.329,
+      "sortino_ratio": 0.0,
+      "max_drawdown": 0.0,
+      "open_positions": 0
+    },
+    "coin_performance": {
+      "DOGE": {
+        "trades": 2,
+        "total_pnl": -1.820373996940238,
+        "wins": 1,
+        "losses": 1,
+        "profitability_index": 0.9747162228439138,
+        "avg_pnl": -0.910186998470119
+      },
+      "ETH": {
+        "trades": 1,
+        "total_pnl": -0.142587249246435,
+        "wins": 0,
+        "losses": 1,
+        "profitability_index": 0.0,
+        "avg_pnl": -0.142587249246435
+      },
+      "SOL": {
+        "trades": 1,
+        "total_pnl": -0.23191221121073885,
+        "wins": 0,
+        "losses": 1,
+        "profitability_index": 0.0,
+        "avg_pnl": -0.23191221121073885
+      },
+      "TRX": {
+        "trades": 1,
+        "total_pnl": -1.618851321998599,
+        "wins": 0,
+        "losses": 1,
+        "profitability_index": 0.0,
+        "avg_pnl": -1.618851321998599
+      },
+      "XRP": {
+        "trades": 1,
+        "total_pnl": -2.462844790793787,
+        "wins": 0,
+        "losses": 1,
+        "profitability_index": 0.0,
+        "avg_pnl": -2.462844790793787
+      },
+      "ASTER": {
+        "trades": 1,
+        "total_pnl": -3.075544390138559,
+        "wins": 0,
+        "losses": 1,
+        "profitability_index": 0.0,
+        "avg_pnl": -3.075544390138559
+      }
+    },
+    "recommendations": [
+      "[INFO] Recorded return -11.77% within analysis window; below growth target",
+      "[INFO] Coins with cumulative negative PnL: DOGE, ETH, SOL, TRX, XRP, ASTER"
+    ]
+  },
+  {
+    "analysis_period": "Last 10 cycles (Total: 31)",
+    "timestamp": "2026-03-09T04:36:14.600150",
+    "trading_activity": {
+      "total_decisions": 39,
+      "entry_signals": 0,
+      "hold_signals": 39,
+      "close_signals": 0,
+      "decision_rate": 0.0
+    },
+    "trade_performance": {
+      "total_trades": 7,
+      "winning_trades": 1,
+      "losing_trades": 6,
+      "break_even_trades": 0,
+      "profitability_index": 0.19,
+      "total_pnl": -9.35,
+      "average_pnl": -1.34,
+      "profit_factor": 0.0,
+      "largest_win": 0.02,
+      "largest_loss": -3.08
+    },
+    "portfolio_performance": {
+      "initial_balance": 200.0,
+      "current_balance": 176.46539136943164,
+      "total_value": 176.46539136943164,
+      "total_return": -11.77,
+      "sharpe_ratio": -46.994,
+      "sortino_ratio": 0.0,
+      "max_drawdown": 0.0,
+      "open_positions": 0
+    },
+    "coin_performance": {
+      "DOGE": {
+        "trades": 2,
+        "total_pnl": -1.820373996940238,
+        "wins": 1,
+        "losses": 1,
+        "profitability_index": 0.9747162228439138,
+        "avg_pnl": -0.910186998470119
+      },
+      "ETH": {
+        "trades": 1,
+        "total_pnl": -0.142587249246435,
+        "wins": 0,
+        "losses": 1,
+        "profitability_index": 0.0,
+        "avg_pnl": -0.142587249246435
+      },
+      "SOL": {
+        "trades": 1,
+        "total_pnl": -0.23191221121073885,
+        "wins": 0,
+        "losses": 1,
+        "profitability_index": 0.0,
+        "avg_pnl": -0.23191221121073885
+      },
+      "TRX": {
+        "trades": 1,
+        "total_pnl": -1.618851321998599,
+        "wins": 0,
+        "losses": 1,
+        "profitability_index": 0.0,
+        "avg_pnl": -1.618851321998599
+      },
+      "XRP": {
+        "trades": 1,
+        "total_pnl": -2.462844790793787,
+        "wins": 0,
+        "losses": 1,
+        "profitability_index": 0.0,
+        "avg_pnl": -2.462844790793787
+      },
+      "ASTER": {
+        "trades": 1,
+        "total_pnl": -3.075544390138559,
+        "wins": 0,
+        "losses": 1,
+        "profitability_index": 0.0,
+        "avg_pnl": -3.075544390138559
+      }
+    },
+    "recommendations": [
+      "[INFO] Recorded return -11.77% within analysis window; below growth target",
+      "[INFO] Coins with cumulative negative PnL: DOGE, ETH, SOL, TRX, XRP, ASTER"
+    ]
+  },
+  {
+    "analysis_period": "Last 10 cycles (Total: 32)",
+    "timestamp": "2026-03-09T04:40:14.600442",
+    "trading_activity": {
+      "total_decisions": 33,
+      "entry_signals": 0,
+      "hold_signals": 33,
+      "close_signals": 0,
+      "decision_rate": 0.0
+    },
+    "trade_performance": {
+      "total_trades": 7,
+      "winning_trades": 1,
+      "losing_trades": 6,
+      "break_even_trades": 0,
+      "profitability_index": 0.19,
+      "total_pnl": -9.35,
+      "average_pnl": -1.34,
+      "profit_factor": 0.0,
+      "largest_win": 0.02,
+      "largest_loss": -3.08
+    },
+    "portfolio_performance": {
+      "initial_balance": 200.0,
+      "current_balance": 176.46539136943164,
+      "total_value": 176.46539136943164,
+      "total_return": -11.77,
+      "sharpe_ratio": -45.135,
+      "sortino_ratio": 0.0,
+      "max_drawdown": 0.0,
+      "open_positions": 0
+    },
+    "coin_performance": {
+      "DOGE": {
+        "trades": 2,
+        "total_pnl": -1.820373996940238,
+        "wins": 1,
+        "losses": 1,
+        "profitability_index": 0.9747162228439138,
+        "avg_pnl": -0.910186998470119
+      },
+      "ETH": {
+        "trades": 1,
+        "total_pnl": -0.142587249246435,
+        "wins": 0,
+        "losses": 1,
+        "profitability_index": 0.0,
+        "avg_pnl": -0.142587249246435
+      },
+      "SOL": {
+        "trades": 1,
+        "total_pnl": -0.23191221121073885,
+        "wins": 0,
+        "losses": 1,
+        "profitability_index": 0.0,
+        "avg_pnl": -0.23191221121073885
+      },
+      "TRX": {
+        "trades": 1,
+        "total_pnl": -1.618851321998599,
+        "wins": 0,
+        "losses": 1,
+        "profitability_index": 0.0,
+        "avg_pnl": -1.618851321998599
+      },
+      "XRP": {
+        "trades": 1,
+        "total_pnl": -2.462844790793787,
+        "wins": 0,
+        "losses": 1,
+        "profitability_index": 0.0,
+        "avg_pnl": -2.462844790793787
+      },
+      "ASTER": {
+        "trades": 1,
+        "total_pnl": -3.075544390138559,
+        "wins": 0,
+        "losses": 1,
+        "profitability_index": 0.0,
+        "avg_pnl": -3.075544390138559
+      }
+    },
+    "recommendations": [
+      "[INFO] Recorded return -11.77% within analysis window; below growth target",
+      "[INFO] Coins with cumulative negative PnL: DOGE, ETH, SOL, TRX, XRP, ASTER"
+    ]
+  },
+  {
+    "analysis_period": "Last 10 cycles (Total: 33)",
+    "timestamp": "2026-03-09T04:44:14.600191",
+    "trading_activity": {
+      "total_decisions": 30,
+      "entry_signals": 0,
+      "hold_signals": 30,
+      "close_signals": 0,
+      "decision_rate": 0.0
+    },
+    "trade_performance": {
+      "total_trades": 7,
+      "winning_trades": 1,
+      "losing_trades": 6,
+      "break_even_trades": 0,
+      "profitability_index": 0.19,
+      "total_pnl": -9.35,
+      "average_pnl": -1.34,
+      "profit_factor": 0.0,
+      "largest_win": 0.02,
+      "largest_loss": -3.08
+    },
+    "portfolio_performance": {
+      "initial_balance": 200.0,
+      "current_balance": 176.46539136943164,
+      "total_value": 176.46539136943164,
+      "total_return": -11.77,
+      "sharpe_ratio": -43.482,
+      "sortino_ratio": 0.0,
+      "max_drawdown": 0.0,
+      "open_positions": 0
+    },
+    "coin_performance": {
+      "DOGE": {
+        "trades": 2,
+        "total_pnl": -1.820373996940238,
+        "wins": 1,
+        "losses": 1,
+        "profitability_index": 0.9747162228439138,
+        "avg_pnl": -0.910186998470119
+      },
+      "ETH": {
+        "trades": 1,
+        "total_pnl": -0.142587249246435,
+        "wins": 0,
+        "losses": 1,
+        "profitability_index": 0.0,
+        "avg_pnl": -0.142587249246435
+      },
+      "SOL": {
+        "trades": 1,
+        "total_pnl": -0.23191221121073885,
+        "wins": 0,
+        "losses": 1,
+        "profitability_index": 0.0,
+        "avg_pnl": -0.23191221121073885
+      },
+      "TRX": {
+        "trades": 1,
+        "total_pnl": -1.618851321998599,
+        "wins": 0,
+        "losses": 1,
+        "profitability_index": 0.0,
+        "avg_pnl": -1.618851321998599
+      },
+      "XRP": {
+        "trades": 1,
+        "total_pnl": -2.462844790793787,
+        "wins": 0,
+        "losses": 1,
+        "profitability_index": 0.0,
+        "avg_pnl": -2.462844790793787
+      },
+      "ASTER": {
+        "trades": 1,
+        "total_pnl": -3.075544390138559,
+        "wins": 0,
+        "losses": 1,
+        "profitability_index": 0.0,
+        "avg_pnl": -3.075544390138559
+      }
+    },
+    "recommendations": [
+      "[INFO] Recorded return -11.77% within analysis window; below growth target",
+      "[INFO] Coins with cumulative negative PnL: DOGE, ETH, SOL, TRX, XRP, ASTER"
+    ]
+  },
+  {
+    "analysis_period": "Last 10 cycles (Total: 34)",
+    "timestamp": "2026-03-09T04:48:14.600268",
+    "trading_activity": {
+      "total_decisions": 27,
+      "entry_signals": 0,
+      "hold_signals": 27,
+      "close_signals": 0,
+      "decision_rate": 0.0
+    },
+    "trade_performance": {
+      "total_trades": 7,
+      "winning_trades": 1,
+      "losing_trades": 6,
+      "break_even_trades": 0,
+      "profitability_index": 0.19,
+      "total_pnl": -9.35,
+      "average_pnl": -1.34,
+      "profit_factor": 0.0,
+      "largest_win": 0.02,
+      "largest_loss": -3.08
+    },
+    "portfolio_performance": {
+      "initial_balance": 200.0,
+      "current_balance": 176.46539136943164,
+      "total_value": 176.46539136943164,
+      "total_return": -11.77,
+      "sharpe_ratio": -41.997,
+      "sortino_ratio": 0.0,
+      "max_drawdown": 0.0,
+      "open_positions": 0
+    },
+    "coin_performance": {
+      "DOGE": {
+        "trades": 2,
+        "total_pnl": -1.820373996940238,
+        "wins": 1,
+        "losses": 1,
+        "profitability_index": 0.9747162228439138,
+        "avg_pnl": -0.910186998470119
+      },
+      "ETH": {
+        "trades": 1,
+        "total_pnl": -0.142587249246435,
+        "wins": 0,
+        "losses": 1,
+        "profitability_index": 0.0,
+        "avg_pnl": -0.142587249246435
+      },
+      "SOL": {
+        "trades": 1,
+        "total_pnl": -0.23191221121073885,
+        "wins": 0,
+        "losses": 1,
+        "profitability_index": 0.0,
+        "avg_pnl": -0.23191221121073885
+      },
+      "TRX": {
+        "trades": 1,
+        "total_pnl": -1.618851321998599,
+        "wins": 0,
+        "losses": 1,
+        "profitability_index": 0.0,
+        "avg_pnl": -1.618851321998599
+      },
+      "XRP": {
+        "trades": 1,
+        "total_pnl": -2.462844790793787,
+        "wins": 0,
+        "losses": 1,
+        "profitability_index": 0.0,
+        "avg_pnl": -2.462844790793787
+      },
+      "ASTER": {
+        "trades": 1,
+        "total_pnl": -3.075544390138559,
+        "wins": 0,
+        "losses": 1,
+        "profitability_index": 0.0,
+        "avg_pnl": -3.075544390138559
+      }
+    },
+    "recommendations": [
+      "[INFO] Recorded return -11.77% within analysis window; below growth target",
+      "[INFO] Coins with cumulative negative PnL: DOGE, ETH, SOL, TRX, XRP, ASTER"
+    ]
+  }
+]

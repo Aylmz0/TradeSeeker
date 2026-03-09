@@ -376,7 +376,8 @@ REMEMBER: These are suggestions only. You make the final trading decisions based
                 try:
                     entry_dt = datetime.fromisoformat(entry_time_str)
                     minutes_in_trade = max(0, int((now_ts - entry_dt).total_seconds() // 60))
-                except Exception:
+                except (ValueError, TypeError) as e:
+                    # FIX: Specific exception handling for datetime parsing
                     minutes_in_trade = None
             positions_by_direction[direction].append(
                 {
@@ -539,7 +540,8 @@ REMEMBER: These are suggestions only. You make the final trading decisions based
                             int((datetime.now() - entry_dt).total_seconds() // 60),
                         )
                         position_duration_hours = position_duration_minutes / 60.0
-                    except Exception:
+                    except (ValueError, TypeError, AttributeError) as e:
+                        # FIX: Specific exception handling for datetime calculation
                         pass
 
                 if position_duration_minutes is not None:

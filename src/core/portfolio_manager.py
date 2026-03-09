@@ -873,7 +873,8 @@ class PortfolioManager:
                         + prompt[:200]
                         + "..."
                     )
-                except:
+                except Exception as e:
+                    # FIX: Replace bare except with specific exception handling
                     prompt_summary = prompt[:300] + "..." if len(prompt) > 300 else prompt
             else:
                 # Text format prompt - use original truncation
@@ -1103,7 +1104,8 @@ class PortfolioManager:
                         self.total_value = float(overview["totalWalletBalance"])
                     else:
                         self.total_value = self.current_balance
-                except:
+                except Exception as e:
+                    # FIX: Replace bare except with specific exception handling
                     self.total_value = self.current_balance
             else:
                 self.total_value = self.current_balance
@@ -1301,7 +1303,8 @@ class PortfolioManager:
                 volume_multiplier = 1.1
             else:
                 volume_multiplier = 0.8  # Penalize low volume
-        except:
+        except Exception as e:
+            # FIX: Replace bare except with specific exception handling
             volume_multiplier = 1.0
 
         # Dynamic risk calculation

@@ -1,0 +1,93 @@
+[
+  {
+    "symbol": "DOGE",
+    "direction": "long",
+    "entry_price": 0.08926,
+    "exit_price": 0.08936,
+    "quantity": 1692.820854039338,
+    "notional_usd": 151.10118943155132,
+    "pnl": 0.01809625492966188,
+    "entry_time": "2026-03-08T17:11:05.065441",
+    "exit_time": "2026-03-08T17:31:17.178324",
+    "leverage": 10,
+    "close_reason": "AI close_position signal"
+  },
+  {
+    "symbol": "ETH",
+    "direction": "short",
+    "entry_price": 1953.37,
+    "exit_price": 1953.36,
+    "quantity": 0.07337131688922789,
+    "notional_usd": 143.32132927191108,
+    "pnl": -0.142587249246435,
+    "entry_time": "2026-03-08T17:35:38.851941",
+    "exit_time": "2026-03-08T17:51:19.138840",
+    "leverage": 10,
+    "close_reason": "AI close_position signal"
+  },
+  {
+    "symbol": "SOL",
+    "direction": "short",
+    "entry_price": 82.07,
+    "exit_price": 82.16,
+    "quantity": 1.3474259141314484,
+    "notional_usd": 110.58324477276796,
+    "pnl": -0.23191221121073885,
+    "entry_time": "2026-03-08T17:35:38.854513",
+    "exit_time": "2026-03-08T17:51:19.148659",
+    "leverage": 10,
+    "close_reason": "AI close_position signal"
+  },
+  {
+    "symbol": "DOGE",
+    "direction": "long",
+    "entry_price": 0.08941,
+    "exit_price": 0.08837,
+    "quantity": 1628.564565077112,
+    "notional_usd": 145.6099577635446,
+    "pnl": -1.8384702518698999,
+    "entry_time": "2026-03-08T17:51:19.159957",
+    "exit_time": "2026-03-08T18:03:44.904856",
+    "leverage": 10,
+    "close_reason": "Stop Loss (0.08851590000000001) hit"
+  },
+  {
+    "symbol": "TRX",
+    "direction": "long",
+    "entry_price": 0.2905,
+    "exit_price": 0.2895,
+    "quantity": 1254.9235054252697,
+    "notional_usd": 364.5552783260408,
+    "pnl": -1.618851321998599,
+    "entry_time": "2026-03-08T16:46:57.415065",
+    "exit_time": "2026-03-08T18:23:23.244613",
+    "leverage": 10,
+    "close_reason": "AI close_position signal"
+  },
+  {
+    "symbol": "XRP",
+    "direction": "short",
+    "entry_price": 1.3347,
+    "exit_price": 1.353,
+    "quantity": 125.37485222060793,
+    "notional_usd": 167.3378152588454,
+    "pnl": -2.462844790793787,
+    "entry_time": "2026-03-08T18:11:11.147474",
+    "exit_time": "2026-03-09T03:45:06.433157",
+    "leverage": 10,
+    "close_reason": "Stop Loss (1.348047) hit"
+  },
+  {
+    "symbol": "ASTER",
+    "direction": "short",
+    "entry_price": 0.679,
+    "exit_price": 0.694,
+    "quantity": 196.0631364637477,
+    "notional_usd": 133.1268696588847,
+    "pnl": -3.075544390138559,
+    "entry_time": "2026-03-08T18:11:11.151686",
+    "exit_time": "2026-03-09T03:45:06.438392",
+    "leverage": 10,
+    "close_reason": "Stop Loss (0.68579) hit"
+  }
+]
