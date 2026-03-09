@@ -1457,7 +1457,8 @@ class PortfolioManager:
             return proposed_percent, False, None
         # Adjust sale to leave exactly max_limit margin
         adjusted_sale_amount = current_margin - max_limit
-        adjusted_percent = adjusted_sale_amount / current_margin
+        # FIX: Division by zero protection
+        adjusted_percent = adjusted_sale_amount / current_margin if current_margin > 0 else 0.0
 
         print(
             f"[INFO]  Adjusted partial sale: {proposed_percent * 100:.0f}% → {adjusted_percent * 100:.0f}% to maintain ${max_limit:.2f} maximum limit",
@@ -1497,7 +1498,8 @@ class PortfolioManager:
             return proposed_percent
         # Adjust sale to leave exactly min_remaining margin
         adjusted_sale_amount = current_margin - min_remaining
-        adjusted_percent = adjusted_sale_amount / current_margin
+        # FIX: Division by zero protection
+        adjusted_percent = adjusted_sale_amount / current_margin if current_margin > 0 else 0.0
 
         print(
             f"[INFO]  Adjusted partial sale: {proposed_percent * 100:.0f}% → {adjusted_percent * 100:.0f}% to maintain ${min_remaining:.2f} minimum limit",

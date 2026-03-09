@@ -151,7 +151,15 @@ class MLService:
             engine = DataEngine()
 
             with open(self.prediction_log_path) as f:
-                lines = [json.loads(line) for line in f if line.strip()]
+                lines = []
+                for line in f:
+                    line = line.strip()
+                    if line:
+                        try:
+                            lines.append(json.loads(line))
+                        except json.JSONDecodeError as e:
+                            print(f"[WARN]  Invalid JSON in ML prediction log: {e}")
+                            continue
 
             if len(lines) < 10:
                 return {"status": "insufficient_data", "count": len(lines)}
@@ -163,7 +171,9 @@ class MLService:
             from collections import defaultdict
             by_coin = defaultdict(list)
             for p in lines[-200:]: # Audit last 200 predictions
-                by_coin[p["coin"]].append(p)
+                coin = p.get("coin")
+                if coin:
+                    by_coin[coin].append(p)
 
             for coin, preds in by_coin.items():
                 # Get labeled data for these timestamps

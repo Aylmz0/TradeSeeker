@@ -473,15 +473,23 @@ def get_ml_drift():
                 lines = [l.strip() for l in f if l.strip()]
             result["total_predictions"] = len(lines)
             if lines:
-                preds = [json.loads(l) for l in lines]
+                # FIX: JSON parse with individual line error handling
+                preds = []
+                for l in lines:
+                    try:
+                        preds.append(json.loads(l))
+                    except json.JSONDecodeError as e:
+                        print(f"[WARN]  Invalid JSON in ML predictions line: {e}")
+                        continue
                 dist = {}
                 total_conf = 0
                 for p in preds:
                     sig = p.get("dominant", "UNKNOWN")
                     dist[sig] = dist.get(sig, 0) + 1
                     total_conf += p.get("confidence", 0)
-                result["prediction_distribution"] = dist
-                result["avg_confidence"] = round(total_conf / len(preds), 2)
+                if preds:
+                    result["prediction_distribution"] = dist
+                    result["avg_confidence"] = round(total_conf / len(preds), 2)
 
         db_path = get_file_path("data/market_data.db")
         if os.path.exists(db_path):
