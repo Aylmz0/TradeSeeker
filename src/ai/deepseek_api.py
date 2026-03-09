@@ -140,7 +140,8 @@ class DeepSeekAPI:
                         "rule": f"If you have {Config.SAME_DIRECTION_LIMIT} LONGs, you CANNOT open another LONG. Same for SHORTs.",
                     },
                     "min_confidence": Config.MIN_CONFIDENCE,
-                    "discipline": "SNIPER MODE: Only trade high-probability setups. Holding cash is valid when no clear edge exists.",
+                    "discipline": "TACTICAL SCOUT: Identify opportunistic setups in neutral regimes while maintaining high precision. Be more active than Sniper Mode, but only with quantified technical edges.",
+                    "commission_guard": f"Only enter if expected profit vs commission ratio exceeds {getattr(Config, 'COMMISSION_GUARD_RATIO', 5.0)}. High frequency does not mean low quality.",
                 },
                 "risk_management": {
                     "risk_reward_ratio": "Maintain a positive risk/reward ratio.",

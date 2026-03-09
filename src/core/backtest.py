@@ -553,19 +553,105 @@ def sample_strategy(symbol: str, data: pd.DataFrame, portfolio_state: dict) -> d
     return None
 
 
-if __name__ == "__main__":
-    # Example usage
-    logging.basicConfig(level=logging.INFO)
 
-    # Run backtest
-    engine = BacktestEngine(initial_balance=1000.0)
-    result = engine.run_backtest(
-        strategy_func=sample_strategy,
-        symbols=["BTC", "ETH"],
-        start_date="2024-01-01",
-        end_date="2024-12-31",
-        interval="1d",
-    )
+class MockOrderExecutor:
+    """Mock version of BinanceOrderExecutor for deterministic replays."""
 
-    print("Backtest Results:")
-    print(json.dumps(result["metrics"], indent=2))
+    def __init__(self, initial_balance: float = 1000.0):
+        self.wallet_balance = initial_balance
+        self.positions = {}
+        self.order_history = []
+        self._order_id_counter = 1000
+
+    def is_live(self) -> bool:
+        return False
+
+    def get_account_overview(self) -> dict[str, float]:
+        total_pnl = sum(p.get("unrealized_pnl", 0) for p in self.positions.values())
+        return {
+            "availableBalance": self.wallet_balance,
+            "walletBalance": self.wallet_balance,
+            "totalWalletBalance": self.wallet_balance + total_pnl
+        }
+
+    def get_positions_snapshot(self) -> dict[str, dict[str, Any]]:
+        # Map internal positions to the format expected by PortfolioManager
+        snapshot = {}
+        for coin, pos in self.positions.items():
+            snapshot[coin] = {
+                "symbol": coin,
+                "direction": pos["direction"],
+                "quantity": pos["quantity"],
+                "entry_price": pos["entry_price"],
+                "current_price": pos["current_price"],
+                "unrealized_pnl": pos["unrealized_pnl"],
+                "notional_usd": pos["notional_usd"],
+                "margin_usd": pos["margin_usd"],
+                "leverage": pos["leverage"],
+                "entry_time": pos["entry_time"],
+                "liquidation_price": 0.0,
+                "confidence": pos.get("confidence", 0.0),
+                "exit_plan": pos.get("exit_plan", {}),
+            }
+        return snapshot
+
+    def place_market_order(self, coin: str, direction: str, quantity: float, leverage: int, price_reference: float, reduce_only: bool = False) -> dict[str, Any]:
+        if reduce_only:
+            return self.close_position(coin, direction, quantity, price_reference)
+
+        notional = quantity * price_reference
+        margin = notional / leverage
+        
+        if margin > self.wallet_balance:
+            return {"success": False, "error": "Insufficient balance"}
+
+        self.wallet_balance -= margin
+        self.positions[coin] = {
+            "direction": direction,
+            "quantity": quantity,
+            "entry_price": price_reference,
+            "current_price": price_reference,
+            "unrealized_pnl": 0.0,
+            "notional_usd": notional,
+            "margin_usd": margin,
+            "leverage": leverage,
+            "entry_time": datetime.now().isoformat()
+        }
+        
+        self._order_id_counter += 1
+        return {"success": True, "orderId": self._order_id_counter, "executedQty": quantity, "avgPrice": price_reference}
+
+    def place_smart_limit_order(self, *args, **kwargs) -> dict[str, Any]:
+        # Simplify to market order for replay
+        return self.place_market_order(*args, **kwargs)
+
+    def close_position(self, coin: str, direction: str, quantity: float, price_reference: float) -> dict[str, Any]:
+        if coin not in self.positions:
+            return {"success": False, "error": "No position to close"}
+            
+        pos = self.positions[coin]
+        if direction == "long":
+            pnl = (price_reference - pos["entry_price"]) * quantity
+        else:
+            pnl = (pos["entry_price"] - price_reference) * quantity
+            
+        self.wallet_balance += pos["margin_usd"] + pnl
+        del self.positions[coin]
+        
+        self._order_id_counter += 1
+        return {"success": True, "orderId": self._order_id_counter, "pnl": pnl, "executedQty": quantity, "avgPrice": price_reference}
+
+    def place_take_profit_order(self, *args, **kwargs): return {"success": True}
+    def place_stop_loss_order(self, *args, **kwargs): return {"success": True}
+
+    def update_mock_prices(self, price_map: dict[str, float]):
+        """Update unrealized PnL based on incoming prices."""
+        for coin, price in price_map.items():
+            if coin in self.positions:
+                pos = self.positions[coin]
+                pos["current_price"] = price
+                if pos["direction"] == "long":
+                    pos["unrealized_pnl"] = (price - pos["entry_price"]) * pos["quantity"]
+                else:
+                    pos["unrealized_pnl"] = (pos["entry_price"] - price) * pos["quantity"]
+                pos["notional_usd"] = pos["quantity"] * price

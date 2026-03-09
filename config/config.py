@@ -331,6 +331,23 @@ class Config:
         os.getenv("EROSION_MIN_PROFIT_USD", "0.15"),
     )  # Minimum $0.15 to trigger erosion tracking
 
+    # TACTICAL SCOUT (v1.2) - Protocol Constants
+    SCOUT_MODE_ENABLED: bool = os.getenv("SCOUT_MODE_ENABLED", "false").lower() == "true"
+    MAX_ALIGNMENT_DELTA_S: int = int(os.getenv("MAX_ALIGNMENT_DELTA_S", "5"))
+    WEIGHT_RECALL_TARGET: float = float(os.getenv("WEIGHT_RECALL_TARGET", "0.60"))
+    WEIGHT_PRECISION_LIMIT: float = float(os.getenv("WEIGHT_PRECISION_LIMIT", "0.30"))
+    SHAP_STABILITY_THRESHOLD: float = float(os.getenv("SHAP_STABILITY_THRESHOLD", "0.85"))
+    ADX_TREND_LEVEL: int = int(os.getenv("ADX_TREND_LEVEL", "25"))
+    VOLATILITY_LIMIT_PCT: float = float(os.getenv("VOLATILITY_LIMIT_PCT", "0.02"))
+    COMMISSION_GUARD_RATIO: float = float(os.getenv("COMMISSION_GUARD_RATIO", "5.0"))
+    SCOUT_LEVERAGE_MULT: float = float(os.getenv("SCOUT_LEVERAGE_MULT", "0.5"))
+    CANARY_RATIO: float = float(os.getenv("CANARY_RATIO", "0.10"))
+    CANARY_FAIL_DELTA: float = float(os.getenv("CANARY_FAIL_DELTA", "0.05"))
+    REPLAY_SEED: int = int(os.getenv("REPLAY_SEED", "42"))
+    REPLAY_CHECKPOINT_CYCLES: int = int(os.getenv("REPLAY_CHECKPOINT_CYCLES", "50"))
+    HOLD_THRESHOLD_DEFAULT: float = float(os.getenv("HOLD_THRESHOLD_DEFAULT", "0.90"))
+    HOLD_THRESHOLD_NEUTRAL: float = float(os.getenv("HOLD_THRESHOLD_NEUTRAL", "0.80")) # Slightly more aggressive than Sniper
+
     @classmethod
     def validate_config(cls) -> bool:
         """Validate that all required configuration is present."""

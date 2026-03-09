@@ -11,6 +11,7 @@ import numpy as np
 from config.config import Config
 from src.core.backtest import AdvancedRiskManager
 from src.core.market_data import RealMarketData
+from src.core.regime_detector import RegimeDetector
 from src.utils import format_num, safe_file_read, safe_file_read_cached, safe_file_write
 
 
@@ -1581,6 +1582,7 @@ class PortfolioManager:
         entry_price: float = None,
         stop_loss: float = None,
         leverage: int = 10,
+        market_regime: str = "NEUTRAL",  # Passed from cycle to avoid re-calculation
     ) -> float:
         """
         Calculate margin based on Volatility Sizing (Fixed Risk) + Confidence.
@@ -1614,17 +1616,20 @@ class PortfolioManager:
         # Cap margin at 40% of available cash (Safety ceiling)
         max_margin_cash = available_cash * 0.40
         if target_margin > max_margin_cash:
-            print(
+            _log_debug(
+                "sizing",
                 f"[WARN]  Volatility sizing capped by cash limit: ${target_margin:.2f} -> ${max_margin_cash:.2f}",
+                {"coin": self.market_data.available_coins[0] if hasattr(self, 'market_data') else "unknown", "target_margin": target_margin, "max_margin": max_margin_cash}
             )
             target_margin = max_margin_cash
+
+        # Note: Scout Sizing multipliers are now handled centrally in the main loop 
+        # via Config.MARKET_REGIME_MULTIPLIERS to avoid double multiplication.
 
         # Apply minimum margin ($10)
         target_margin = max(target_margin, Config.MIN_POSITION_MARGIN_USD)
 
-        print(
-            f"[INFO]  Volatility Sizing: Risk ${risk_amount} | Stop {dist_pct * 100:.2f}% | Base Notional ${base_notional:.1f} | Conf {confidence:.2f} -> Margin ${target_margin:.2f}",
-        )
+        _log_debug("sizing", f"[INFO]  Volatility Sizing: Risk ${risk_amount} | Stop {dist_pct * 100:.2f}% | Base Notional ${base_notional:.1f} | Conf {confidence:.2f} -> Margin ${target_margin:.2f}")
         return target_margin
 
     def get_graduated_loss_multiplier(self, margin_usd: float) -> float:
@@ -1680,71 +1685,6 @@ class PortfolioManager:
             print(f"[WARN]  Volume quality score calculation error for {coin}: {e}")
             return 0.0
 
-    def detect_market_regime_overall(self) -> str:
-        """Detect overall market regime across all coins (BULLISH, BEARISH, NEUTRAL, CHOPPY)"""
-        try:
-            # Use existing market_data instance
-            bullish_count = 0
-            bearish_count = 0
-            neutral_count = 0
-            choppy_count = 0
-            total_valid = 0
-
-            for coin in self.market_data.available_coins:
-                indicators_htf = self.market_data.get_technical_indicators(coin, HTF_INTERVAL)
-                indicators_3m = self.market_data.get_technical_indicators(coin, "3m")
-
-                if "error" in indicators_htf:
-                    continue
-
-                # Check Efficiency Ratio for Choppy Detection
-                er = indicators_3m.get("efficiency_ratio", 0.5)
-                if er < Config.CHOPPY_ER_THRESHOLD:
-                    choppy_count += 1
-
-                price = indicators_htf.get("current_price")
-                ema20 = indicators_htf.get("ema_20")
-
-                if (
-                    not isinstance(price, (int, float))
-                    or not isinstance(ema20, (int, float))
-                    or ema20 == 0
-                ):
-                    continue
-
-                total_valid += 1
-                delta = (price - ema20) / ema20
-                if abs(delta) <= Config.EMA_NEUTRAL_BAND_PCT:
-                    neutral_count += 1
-                elif price > ema20:
-                    bullish_count += 1
-                else:
-                    bearish_count += 1
-
-            # Priority 1: Choppy Regime (if 3 or more coins are choppy)
-            if choppy_count >= 3:
-                print(
-                    f"[ALERT] Market Regime: CHOPPY (ER < {Config.CHOPPY_ER_THRESHOLD} in {choppy_count}/{total_valid} coins)",
-                )
-                return "CHOPPY"
-
-            if bullish_count >= 4:
-                return "BULLISH"
-            if bearish_count >= 4:
-                return "BEARISH"
-            if neutral_count >= 4:
-                return "NEUTRAL"
-
-            if bullish_count > bearish_count:
-                return "BULLISH" if bullish_count >= 3 else "NEUTRAL"
-            if bearish_count > bullish_count:
-                return "BEARISH" if bearish_count >= 3 else "NEUTRAL"
-
-            return "NEUTRAL"
-
-        except Exception as e:
-            print(f"[WARN]  Market regime detection error: {e}")
-            return "NEUTRAL"
 
     def check_flash_exit_conditions(self, coin: str, position: dict) -> bool:
         """
@@ -1804,50 +1744,17 @@ class PortfolioManager:
             print(f"[WARN]  Flash exit check error for {coin}: {e}")
             return False
 
-    def get_market_regime_strength(self) -> float:
-        """Calculate market regime strength (0.0 to 1.0) based on coin alignment"""
-        try:
-            bullish_count = 0
-            bearish_count = 0
-            total_valid = 0
-
-            for coin in self.market_data.available_coins:
-                indicators_htf = self.market_data.get_technical_indicators(coin, HTF_INTERVAL)
-                if "error" in indicators_htf:
-                    continue
-
-                price = indicators_htf.get("current_price")
-                ema20 = indicators_htf.get("ema_20")
-
-                if (
-                    isinstance(price, (int, float))
-                    and isinstance(ema20, (int, float))
-                    and ema20 > 0
-                ):
-                    total_valid += 1
-                    if price > ema20:
-                        bullish_count += 1
-                    else:
-                        bearish_count += 1
-
-            if total_valid == 0:
-                return 0.0
-
-            # Strength = max(bullish, bearish) / total
-            return max(bullish_count, bearish_count) / total_valid
-
-        except Exception as e:
-            print(f"[WARN]  Market regime strength error: {e}")
-            return 0.0
-
     def get_effective_same_direction_limit(self) -> int:
         """
         Calculate the effective same direction limit based on market regime strength.
+        Backwards compatibility for AIService.
         """
-        regime_strength = self.get_market_regime_strength()
-        if regime_strength > 0.7:
-            return Config.DYNAMIC_DIRECTION_LIMIT
-        return Config.SAME_DIRECTION_LIMIT
+        try:
+            return Config.SAME_DIRECTION_LIMIT
+        except Exception:
+            return 2
+
+
 
     def validate_exit_signal(self, coin: str, position: dict, indicators_3m: dict) -> bool:
         """
@@ -1944,9 +1851,19 @@ class PortfolioManager:
             "debug_logs": [],  # Stores critical console logs (flip guard, confidence adjustments etc.)
             "timestamp": datetime.now().isoformat(),
         }
-        live_trading = getattr(self, "is_live_trading", False)
-        if live_trading:
+        if self.is_live_trading:
             self.sync_live_account()
+
+        # Phase 7: Centralized Regime Detection (Single Source of Truth)
+        coin_indicators = {}
+        for coin in self.market_data.available_coins:
+            indicators_htf = self.market_data.get_technical_indicators(coin, HTF_INTERVAL)
+            if "error" not in indicators_htf:
+                coin_indicators[coin] = indicators_htf
+
+        market_regime = RegimeDetector.detect_overall_regime(coin_indicators)
+        regime_strength = RegimeDetector.calculate_regime_strength(coin_indicators)
+        print(f"[CYCLE] Market Regime: {market_regime} | Strength: {regime_strength:.2f}")
 
         # Helper: Log to both console and execution_report
         def _log_debug(category: str, message: str, details: dict = None):
@@ -2074,9 +1991,35 @@ class PortfolioManager:
                     confidence = 0.5  # Clamp confidence to 0.0-1.0
 
                 # 2. Market Regime Position Sizing & Strategy Adjustment
-                market_regime = self.detect_market_regime_overall()
                 market_regime_multiplier = Config.MARKET_REGIME_MULTIPLIERS.get(market_regime, 1.0)
                 partial_margin_factor = 1.0
+
+                # 2.1 Commission Guard (v1.2)
+                if signal in ["buy_to_enter", "sell_to_enter"]:
+                    try:
+                        atr_val = indicators_htf.get("atr_14", 0)
+                        if atr_val > 0:
+                            # Expected profit estimate: ATR * Multiplier (e.g. 3.0)
+                            tp_mult = getattr(Config, "ATR_PROFIT_MULTIPLIER", 3.0)
+                            expected_profit_usd_per_coin = atr_val * tp_mult
+                            expected_profit_pct = expected_profit_usd_per_coin / current_price
+                            
+                            # Commission cost estimate: Round-trip (entry + exit)
+                            comm_rate = getattr(Config, "SIMULATION_COMMISSION_RATE", 0.001)
+                            round_trip_comm_pct = comm_rate * 2
+                            
+                            profit_comm_ratio = expected_profit_pct / round_trip_comm_pct
+                            guard_ratio = getattr(Config, "COMMISSION_GUARD_RATIO", 5.0)
+                            
+                            if profit_comm_ratio < guard_ratio:
+                                _log_debug("trade", f"[BLOCK] COMMISSION GUARD: {coin} Ratio {profit_comm_ratio:.2f} < {guard_ratio:.2f}. Trade not economically viable.", {"coin": coin, "ratio": profit_comm_ratio})
+                                execution_report["blocked"].append({"coin": coin, "reason": "commission_guard", "ratio": profit_comm_ratio})
+                                trade["runtime_decision"] = "blocked_commission_guard"
+                                continue
+                            else:
+                                _log_debug("trade", f"[OK]    COMMISSION GUARD: {coin} Ratio {profit_comm_ratio:.2f} passed threshold {guard_ratio}.")
+                    except Exception as e:
+                        _log_debug("trade", f"[WARN]  Commission guard check failed for {coin}: {e}")
 
                 # 3. Momentum and Price Location Confidence Adjustments
                 # Reduce confidence when trend conviction is weak or price is in extreme zones
@@ -2296,8 +2239,7 @@ class PortfolioManager:
                 directional_counts = self.count_positions_by_direction()
                 current_same_direction = directional_counts.get(direction, 0)
 
-                # DYNAMIC SLOT LIMIT LOGIC
-                regime_strength = self.get_market_regime_strength()
+                # DYNAMIC SLOT LIMIT LOGIC (v1.2: Centralized regime_strength)
                 effective_limit = Config.SAME_DIRECTION_LIMIT
                 if regime_strength > 0.7:
                     effective_limit = Config.DYNAMIC_DIRECTION_LIMIT
@@ -2955,10 +2897,15 @@ class PortfolioManager:
                     entry_price=current_price,
                     stop_loss=atr_stop_loss,  # Use ATR-based SL instead of AI's (None)
                     leverage=leverage,
+                    market_regime=market_regime,
                 )
 
-                # Apply market regime multiplier
-                calculated_margin *= market_regime_multiplier
+                # Apply market regime multiplier (v1.2: Scout leverage mult incorporated here if enabled)
+                current_multiplier = market_regime_multiplier
+                if Config.SCOUT_MODE_ENABLED and market_regime == "NEUTRAL":
+                    current_multiplier *= getattr(Config, "SCOUT_LEVERAGE_MULT", 0.5)
+                
+                calculated_margin *= current_multiplier
                 if partial_margin_factor < 1.0:
                     standard_margin = calculated_margin
                     reduced_margin = standard_margin * partial_margin_factor
@@ -3047,7 +2994,7 @@ class PortfolioManager:
 
                 quantity_coin = notional_usd / current_price
 
-                if live_trading:
+                if self.is_live_trading:
                     live_result = self.execute_live_entry(
                         coin=coin,
                         direction=direction,
@@ -3211,7 +3158,7 @@ class PortfolioManager:
                         trade["runtime_decision"] = "blocked_exit_desensitization"
                         continue
 
-                if live_trading:
+                if self.is_live_trading:
                     live_result = self.execute_live_close(
                         coin=coin,
                         position=position,
@@ -3255,7 +3202,7 @@ class PortfolioManager:
                     if direction == "long"
                     else (entry_price - current_price) * sell_quantity
                 )
-                if not live_trading:
+                if not self.is_live_trading:
                     self.current_balance += margin_used + profit
 
                 print(

@@ -4,6 +4,7 @@ import threading
 import time
 import traceback
 from typing import Any
+from typing import Any, List
 
 import numpy as np
 import pandas as pd
@@ -25,7 +26,8 @@ from src.core.indicators import (
     generate_smart_sparkline,
     generate_tags,
 )
-from src.utils import RetryManager
+from src.core.schemas.alignment import AlignmentResult, AlignmentError
+from src.utils import RetryManager, safe_file_read_cached, safe_file_write
 
 
 # add this ass a cycle counter analysez
@@ -53,6 +55,11 @@ class RealMarketData:
         self._circuit_breaker_timeout = 60  # Stay open for 60 seconds
         self._circuit_breaker_until = 0  # Timestamp when breaker resets
         self._circuit_breaker_lock = threading.Lock()  # Thread safety for circuit breaker state
+
+        # FIX: Short-lived cache for bulk price fetches to prevent duplicate logs/calls during cycle start
+        self._last_price_fetch_time = 0.0
+        self._last_price_cache: dict[str, float] = {}
+        self._price_cache_lock = threading.Lock()
 
     def clear_preloaded_indicators(self):
         """Clear any preloaded indicator snapshots (typically once per cycle)."""
@@ -478,75 +485,90 @@ class RealMarketData:
             return {"current_price": current_price, "error": str(e)}
 
     def get_all_real_prices(self) -> dict[str, float]:
-        """Get real prices for all coins from Spot with enhanced error handling"""
-        prices: dict[str, float] = {}
-        symbols = [f"{coin}USDT" for coin in self.available_coins]
+        """Get real prices for all coins from Spot with enhanced error handling and short-lived caching"""
+        with self._price_cache_lock:
+            # FIX: Check cache first (2-second TTL) to prevent duplicate logs/calls during concurrent cycle start
+            current_time = time.time()
+            if current_time - self._last_price_fetch_time < 2.0 and self._last_price_cache:
+                return copy.deepcopy(self._last_price_cache)
 
-        def _assign_price(symbol: str, raw_price: Any):
-            coin = symbol.replace("USDT", "")
-            try:
-                price_val = round(float(raw_price), 8)
-                if price_val <= 0 or np.isnan(price_val) or np.isinf(price_val):
-                    raise ValueError(f"Invalid price value {price_val}")
-                prices[coin] = price_val
-            except Exception as e:
-                print(f"[WARN] Invalid bulk price for {coin}: {raw_price} ({e}). Using fallback.")
-                prices[coin] = self._get_fallback_price(coin)
+            prices: dict[str, float] = {}
+            symbols = [f"{coin}USDT" for coin in self.available_coins]
 
-        # First try batched endpoint (single request, lower latency)
-        try:
-            response = self.session.get(
-                f"{self.spot_url}/ticker/price",
-                params={"symbols": json.dumps(symbols, separators=(",", ":"))},
-                timeout=3,
-            )
-            response.raise_for_status()
-            data = response.json()
-            if isinstance(data, list):
-                for entry in data:
-                    symbol = entry.get("symbol")
-                    price_raw = entry.get("price")
-                    if symbol and price_raw is not None:
-                        _assign_price(symbol, price_raw)
-                # Ensure we filled everything; fall back only for missing
-                missing = [coin for coin in self.available_coins if coin not in prices]
-                if not missing:
-                    prices_str = " | ".join([f"{coin}: ${val:.4f}" for coin, val in prices.items()])
-                    print(f"[OK]    Prices: {prices_str}")
-                    return prices
-                print(
-                    f"[WARN] Bulk price missing for: {', '.join(missing)}. Falling back to individual requests.",
-                )
-            else:
-                print(
-                    "[WARN] Unexpected bulk ticker response format. Falling back to individual requests.",
-                )
-        except Exception as e:
-            print(f"[WARN] Bulk price fetch failed: {e}. Falling back to individual requests.")
+            def _assign_price(symbol: str, raw_price: Any):
+                coin = symbol.replace("USDT", "")
+                try:
+                    price_val = round(float(raw_price), 8)
+                    if price_val <= 0 or np.isnan(price_val) or np.isinf(price_val):
+                        raise ValueError(f"Invalid price value {price_val}")
+                    prices[coin] = price_val
+                except Exception as e:
+                    print(f"[WARN] Invalid bulk price for {coin}: {raw_price} ({e}). Using fallback.")
+                    prices[coin] = self._get_fallback_price(coin)
 
-        # Fallback to individual calls (still using session, without artificial delay)
-        for coin in self.available_coins:
+            # First try batched endpoint (single request, lower latency)
             try:
                 response = self.session.get(
                     f"{self.spot_url}/ticker/price",
-                    params={"symbol": f"{coin}USDT"},
+                    params={"symbols": json.dumps(symbols, separators=(",", ":"))},
                     timeout=3,
                 )
                 response.raise_for_status()
                 data = response.json()
-                price_val = round(float(data.get("price", 0)), 8)
-                if price_val <= 0 or np.isnan(price_val) or np.isinf(price_val):
-                    raise ValueError(f"Invalid price value {price_val}")
-                prices[coin] = price_val
+                if isinstance(data, list):
+                    for entry in data:
+                        symbol = entry.get("symbol")
+                        price_raw = entry.get("price")
+                        if symbol and price_raw is not None:
+                            _assign_price(symbol, price_raw)
+                    # Ensure we filled everything; fall back only for missing
+                    missing = [coin for coin in self.available_coins if coin not in prices]
+                    if not missing:
+                        prices_str = " | ".join([f"{coin}: ${val:.4f}" for coin, val in prices.items()])
+                        print(f"[OK]    Prices: {prices_str}")
+                        
+                        # Update cache
+                        self._last_price_fetch_time = time.time()
+                        self._last_price_cache = copy.deepcopy(prices)
+                            
+                        return prices
+                    print(
+                        f"[WARN] Bulk price missing for: {', '.join(missing)}. Falling back to individual requests.",
+                    )
+                else:
+                    print(
+                        "[WARN] Unexpected bulk ticker response format. Falling back to individual requests.",
+                    )
             except Exception as e:
-                print(f"[ERR]   {coin} price error: {e}. Using fallback...")
-                prices[coin] = self._get_fallback_price(coin)
+                print(f"[WARN] Bulk price fetch failed: {e}. Falling back to individual requests.")
 
-        if len(prices) > 0:
-            prices_str = " | ".join([f"{c}: ${p:.4f}" for c, p in prices.items()])
-            print(f"[OK]    Prices: {prices_str}")
+            # Fallback to individual calls (still using session, without artificial delay)
+            for coin in self.available_coins:
+                try:
+                    response = self.session.get(
+                        f"{self.spot_url}/ticker/price",
+                        params={"symbol": f"{coin}USDT"},
+                        timeout=3,
+                    )
+                    response.raise_for_status()
+                    data = response.json()
+                    price_val = round(float(data.get("price", 0)), 8)
+                    if price_val <= 0 or np.isnan(price_val) or np.isinf(price_val):
+                        raise ValueError(f"Invalid price value {price_val}")
+                    prices[coin] = price_val
+                except Exception as e:
+                    print(f"[ERR]   {coin} price error: {e}. Using fallback...")
+                    prices[coin] = self._get_fallback_price(coin)
 
-        return prices
+            if len(prices) > 0:
+                prices_str = " | ".join([f"{c}: ${p:.4f}" for c, p in prices.items()])
+                print(f"[OK]    Prices: {prices_str}")
+                
+                # Update cache (fallback case)
+                self._last_price_fetch_time = time.time()
+                self._last_price_cache = copy.deepcopy(prices)
+
+            return prices
 
     def _get_fallback_price(self, coin: str) -> float:
         """Get fallback price using multiple methods"""
@@ -590,6 +612,70 @@ class RealMarketData:
         # Final fallback: return 0 with warning
         print(f"   [WARNING] All fallbacks failed for {coin}. Price set to 0.")
         return 0.0
+
+    def verify_sync_alignment(self, coin: str, intervals: List[str] = ["3m", "15m", "1h"]) -> AlignmentResult:
+        """
+        Verifies that the latest kline timestamps for multiple intervals are within 
+        Config.MAX_ALIGNMENT_DELTA_S.
+        """
+        timestamps = {}
+        errors = []
+        
+        try:
+            for interval in intervals:
+                # Use internal cache to avoid redundant API hits
+                # In a real cycle, indices should already be preloaded or fetched
+                klines = self.get_real_time_data(coin, interval=interval, limit=1)
+                
+                if klines is None or klines.empty:
+                    return AlignmentResult(
+                        aligned=False, 
+                        error_type=AlignmentError.INSUFFICIENT_DATA,
+                        error_message=f"No kline data for {coin} @ {interval}"
+                    )
+                
+                # Use the latest closed candle timestamp
+                # The 'timestamp' column is the open time of the candle.
+                # The 'close_time' column is the close time of the candle.
+                # For alignment, we care about the latest *completed* candle.
+                # Binance klines 'timestamp' is the open time, 'close_time' is the close time.
+                # We want the close time of the last *closed* candle.
+                # If limit=1, df.iloc[-1] is the latest candle, which might be incomplete.
+                # However, for alignment, we usually compare the *start* of the latest candle.
+                # Let's assume 'timestamp' (open time) is what we need for alignment check.
+                latest_ts = int(klines.iloc[-1]['timestamp'].timestamp() * 1000) # Convert datetime to ms timestamp
+                timestamps[interval] = latest_ts
+                
+            if not timestamps:
+                return AlignmentResult(aligned=False, error_type=AlignmentError.INSUFFICIENT_DATA)
+
+            # Check deltas between all pairs
+            ts_values = list(timestamps.values())
+            max_ts = max(ts_values)
+            min_ts = min(ts_values)
+            delta_ms = max_ts - min_ts
+            delta_s = delta_ms / 1000.0
+            
+            is_aligned = delta_s <= Config.MAX_ALIGNMENT_DELTA_S
+            
+            mismatches = []
+            if not is_aligned:
+                for interval, ts in timestamps.items():
+                    mismatches.append({"interval": interval, "timestamp": ts, "delta_from_max": (max_ts - ts)/1000.0})
+
+            return AlignmentResult(
+                aligned=is_aligned,
+                max_delta_seconds=delta_s,
+                mismatches=mismatches if not is_aligned else [],
+                error_type=AlignmentError.NONE if is_aligned else AlignmentError.EXCESSIVE_MISMATCH
+            )
+
+        except Exception as e:
+            return AlignmentResult(
+                aligned=False,
+                error_type=AlignmentError.API_FAILURE,
+                error_message=str(e)
+            )
 
     def get_market_sentiment(self, coin: str) -> dict[str, Any]:
         """Get Open Interest and Funding Rate (Nof1ai format)"""

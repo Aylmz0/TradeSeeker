@@ -1028,3 +1028,70 @@ Each coin below contains a State Vector with:
             else:
                 cleaned_decisions[coin] = trade
         return cleaned_decisions
+
+    # --- Formatting Methods (v1.2 Restoration) ---
+    def format_list(self, items: list, precision: int = 5) -> str:
+        """Formats a list of numbers into a readable string."""
+        if not items: return "[]"
+        formatted = []
+        for x in items:
+            if isinstance(x, (int, float)):
+                formatted.append(f"{x:.{precision}f}")
+            else:
+                formatted.append(str(x))
+        return "[" + ", ".join(formatted) + "]"
+
+    def format_volume_ratio(self, current: float, avg: float) -> str:
+        """Calculates and formats volume ratio."""
+        try:
+            if not avg or avg == 0: return "1.00x"
+            return f"{(current / avg):.2f}x"
+        except: return "1.00x"
+
+    def format_trend_reversal_analysis(self, analysis: dict) -> str:
+        """Formats trend reversal analysis for AI prompt."""
+        if not analysis: return "No active reversal threats identified."
+        lines = []
+        for coin, data in analysis.items():
+            strength = data.get("strength_score", 0)
+            if strength > 0.5:
+                lines.append(f"  - {coin}: REVERSAL THREAT (strength={strength:.2f}). Reason: {data.get('reason_summary', 'Unknown')}")
+        return "\n".join(lines) if lines else "No significant reversal threats identified."
+
+    def format_position_context(self, context: dict) -> str:
+        """Formats enhanced position context."""
+        if not context: return "No enhanced position data available."
+        lines = []
+        for coin, data in context.items():
+            lines.append(f"  - {coin}: PnL ${data.get('unrealized_pnl', 0):.2f}, Progress {data.get('profit_target_progress', 0):.1f}% to target, TiT {data.get('time_in_trade_minutes', 0):.1f}m")
+        return "\n".join(lines)
+
+    def format_market_regime_context(self, context: dict) -> str:
+        """Formats market regime context."""
+        if not context: return "Market regime data unavailable."
+        return f"  Overall Regime: {context.get('current_regime', 'unknown').upper()} (Strength: {context.get('regime_strength', 0):.2f})"
+
+    def format_performance_insights(self, context: dict) -> str:
+        """Formats performance insights."""
+        insights = context.get("insights", [])
+        if not insights: return "No specific performance insights for this cycle."
+        return "\n".join(f"  - {i}" for i in insights)
+
+    def format_directional_feedback(self, context: dict) -> str:
+        """Formats directional bias feedback."""
+        if not context: return "No directional bias feedback available."
+        lines = []
+        for side in ["long", "short"]:
+            data = context.get(side, {})
+            lines.append(f"  - {side.upper()}: PI={data.get('profitability_index', 0)}% (Trades: {data.get('trades', 0)})")
+        return "\n".join(lines)
+
+    def format_risk_context(self, context: dict) -> str:
+        """Formats risk management context."""
+        if not context: return "Risk context unavailable."
+        return f"  Total Risk: ${context.get('total_risk_usd', 0):.2f} across {context.get('position_count', 0)} positions. Div-score: {context.get('diversification_score', 0):.1f}"
+
+    def format_suggestions(self, suggestions: list) -> str:
+        """Formats suggestions list."""
+        if not suggestions: return "Continue executing core logic."
+        return "\n".join(f"  - {s}" for s in suggestions)

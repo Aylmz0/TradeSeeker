@@ -7,6 +7,7 @@ import sys
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 import joblib
+import numpy as np
 import pandas as pd
 import xgboost as xgb
 from sklearn.metrics import accuracy_score, classification_report, confusion_matrix, log_loss
@@ -98,7 +99,7 @@ def train_global_model(interval: str):
     X_test_scaled = scaler.transform(X_test)
 
     # Model Factory (XGBoost)
-    print("\n[INFO] Training Global XGBoost classifier...")
+    print("\n[INFO] Training Global XGBoost classifier with Tactical Scout weighting (v1.2)...")
     model = xgb.XGBClassifier(
         objective="multi:softprob",
         num_class=3,
@@ -108,12 +109,17 @@ def train_global_model(interval: str):
         max_depth=5,
         subsample=0.8,
         colsample_bytree=0.8,
-        random_state=42,
+        random_state=Config.REPLAY_SEED,
     )
+
+    # Class Weighting: Focus on BUY (2) and SELL (0)
+    # We use sample_weight to compensate for class imbalance (HOLD dominance)
+    train_weights = np.where(y_train != 1, 10.0, 1.0)
 
     model.fit(
         X_train_scaled,
         y_train,
+        sample_weight=train_weights,
         eval_set=[(X_train_scaled, y_train), (X_test_scaled, y_test)],
         verbose=10,
     )
