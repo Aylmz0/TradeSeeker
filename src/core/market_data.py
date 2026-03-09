@@ -54,12 +54,12 @@ class RealMarketData:
         self._circuit_breaker_threshold = 5  # Trip after 5 consecutive failures
         self._circuit_breaker_timeout = 60  # Stay open for 60 seconds
         self._circuit_breaker_until = 0  # Timestamp when breaker resets
-        self._circuit_breaker_lock = threading.Lock()  # Thread safety for circuit breaker state
+        self._circuit_breaker_lock = threading.RLock()  # RLock for re-entrant safety
 
         # FIX: Short-lived cache for bulk price fetches to prevent duplicate logs/calls during cycle start
         self._last_price_fetch_time = 0.0
         self._last_price_cache: dict[str, float] = {}
-        self._price_cache_lock = threading.Lock()
+        self._price_cache_lock = threading.RLock()  # RLock for re-entrant safety
 
     def clear_preloaded_indicators(self):
         """Clear any preloaded indicator snapshots (typically once per cycle)."""

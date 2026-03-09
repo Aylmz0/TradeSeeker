@@ -991,8 +991,12 @@ Each coin below contains a State Vector with:
             decisions = parsed_json.get("DECISIONS", {})
             decisions = self._clean_ai_decisions(decisions)
             return {"chain_of_thoughts": thoughts, "decisions": decisions}
+        except json.JSONDecodeError as e:
+            print(f"[ERR]   JSON decode error: {e}")
+            return {"chain_of_thoughts": f"Error: JSON decode failed: {e}", "decisions": {}}
         except Exception as e:
             print(f"[ERR]   General parse error: {e}")
+            return {"chain_of_thoughts": f"Error: {e}", "decisions": {}}
 
     def _clean_ai_decisions(self, decisions: dict) -> dict:
         """Clean up AI decisions - preserve position data for hold signals"""

@@ -92,7 +92,8 @@ class BacktestEngine:
                 return trade_result
 
             notional_usd = quantity * price
-            margin_usd = notional_usd / leverage
+            # FIX: Division by zero protection
+            margin_usd = notional_usd / max(leverage, 1)
 
             if margin_usd > self.current_balance:
                 logging.warning(f"Insufficient balance for {symbol} trade")
@@ -207,7 +208,8 @@ class BacktestEngine:
         max_drawdown = 0
         for value in self.portfolio_values:
             peak = max(peak, value)
-            drawdown = (peak - value) / peak
+            # FIX: Division by zero protection
+            drawdown = (peak - value) / peak if peak > 0 else 0.0
             max_drawdown = max(max_drawdown, drawdown)
 
         # Trade statistics
@@ -600,7 +602,8 @@ class MockOrderExecutor:
             return self.close_position(coin, direction, quantity, price_reference)
 
         notional = quantity * price_reference
-        margin = notional / leverage
+        # FIX: Division by zero protection
+        margin = notional / max(leverage, 1)
         
         if margin > self.wallet_balance:
             return {"success": False, "error": "Insufficient balance"}

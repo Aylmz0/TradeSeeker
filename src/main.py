@@ -874,9 +874,13 @@ class AlphaArenaDeepSeek:
                     self.portfolio.update_prices(valid_prices, increment_loss_counters=False)
 
                     # Flash Exit Check (V-Reversal) - now runs every 20 seconds
-                    if Config.FLASH_EXIT_ENABLED and self.portfolio.positions:
+                    # FIX: Thread-safe access to positions with lock
+                    if Config.FLASH_EXIT_ENABLED:
+                        with self.portfolio._lock:
+                            positions_snapshot = list(self.portfolio.positions.items())
+
                         flash_exits_triggered = False
-                        for coin, position in list(self.portfolio.positions.items()):
+                        for coin, position in positions_snapshot:
                             if self.portfolio.check_flash_exit_conditions(coin, position):
                                 current_price = valid_prices.get(coin)
                                 if current_price:
@@ -891,7 +895,9 @@ class AlphaArenaDeepSeek:
                                             history_entry = live_result.get("history_entry")
                                             if history_entry:
                                                 self.portfolio.add_to_history(history_entry)
-                                            del self.portfolio.positions[coin]
+                                            with self.portfolio._lock:
+                                                if coin in self.portfolio.positions:
+                                                    del self.portfolio.positions[coin]
                                             flash_exits_triggered = True
                                     else:
                                         # Paper trading close

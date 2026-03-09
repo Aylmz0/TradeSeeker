@@ -53,7 +53,7 @@ class PortfolioManager:
 
         self.current_balance = self.initial_balance
         self.positions = {}
-        self._lock = threading.Lock()
+        self._lock = threading.RLock()  # RLock for re-entrant safety
         self.directional_bias = self._init_directional_bias()
         self.trend_state: dict[str, dict[str, Any]] = {}
         self.trend_flip_cooldown = 2

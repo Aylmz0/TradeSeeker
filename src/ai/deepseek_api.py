@@ -551,8 +551,8 @@ class DeepSeekAPI:
                                         obj = json.loads(decisions_str)
                                         print(f"[OK]    JSON repaired successfully by extracting DECISIONS block only.")
                                         return json.dumps(obj, indent=2)
-                                    except:
-                                        pass
+                                    except Exception as e:
+                                        print(f"[WARN]  DECISIONS block extraction failed: {e}")
 
                 else:
                     if reasoning_content:
@@ -703,9 +703,9 @@ class DeepSeekAPI:
             # Strict final parse to guarantee we return JSON
             try:
                 json.loads(content)
-            except:
+            except Exception as e:
                 print(
-                    "[ERR]   JSON parse failed completely for Groq, returning safe HOLD decisions"
+                    f"[ERR]   JSON parse failed completely for Groq: {e}, returning safe HOLD decisions"
                 )
                 return self.get_safe_hold_decisions()
 

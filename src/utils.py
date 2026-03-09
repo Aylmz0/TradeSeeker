@@ -19,7 +19,7 @@ logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(
 logger = logging.getLogger(__name__)
 
 _FILE_CACHE = {}
-_file_lock = threading.Lock()
+_file_lock = threading.RLock()  # RLock for re-entrant safety
 
 
 def safe_file_read_cached(file_path: str, default_data=None):
