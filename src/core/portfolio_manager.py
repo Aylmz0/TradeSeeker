@@ -1944,6 +1944,11 @@ class PortfolioManager:
             current_price = current_prices[coin]
             position = self.positions.get(coin)
 
+            # --- SURGICAL FIX: Initialize indicator variables for new context ---
+            indicators_htf = indicator_cache.get_indicators(coin, HTF_INTERVAL, self.market_data) if indicator_cache else {}
+            indicators_3m = indicator_cache.get_indicators(coin, "3m", self.market_data) if indicator_cache else {}
+            # --------------------------------------------------------------------
+
             if signal == "buy_to_enter" or signal == "sell_to_enter":
                 if position:
                     print(f"[WARN]  {signal.upper()} {coin}: Position already open.")
