@@ -1590,6 +1590,7 @@ class PortfolioManager:
         stop_loss: float = None,
         leverage: int = 10,
         market_regime: str = "NEUTRAL",  # Passed from cycle to avoid re-calculation
+        log_func: Any = None,
     ) -> float:
         """
         Calculate margin based on Volatility Sizing (Fixed Risk) + Confidence.
@@ -1623,11 +1624,14 @@ class PortfolioManager:
         # Cap margin at 40% of available cash (Safety ceiling)
         max_margin_cash = available_cash * 0.40
         if target_margin > max_margin_cash:
-            _log_debug(
-                "sizing",
-                f"[WARN]  Volatility sizing capped by cash limit: ${target_margin:.2f} -> ${max_margin_cash:.2f}",
-                {"coin": self.market_data.available_coins[0] if hasattr(self, 'market_data') else "unknown", "target_margin": target_margin, "max_margin": max_margin_cash}
-            )
+            if log_func:
+                log_func(
+                    "sizing",
+                    f"[WARN]  Volatility sizing capped by cash limit: ${target_margin:.2f} -> ${max_margin_cash:.2f}",
+                    {"coin": self.market_data.available_coins[0] if hasattr(self, 'market_data') else "unknown", "target_margin": target_margin, "max_margin": max_margin_cash}
+                )
+            else:
+                print(f"[WARN]  Volatility sizing capped by cash limit: ${target_margin:.2f} -> ${max_margin_cash:.2f}")
             target_margin = max_margin_cash
 
         # Note: Scout Sizing multipliers are now handled centrally in the main loop 
@@ -1636,7 +1640,11 @@ class PortfolioManager:
         # Apply minimum margin ($10)
         target_margin = max(target_margin, Config.MIN_POSITION_MARGIN_USD)
 
-        _log_debug("sizing", f"[INFO]  Volatility Sizing: Risk ${risk_amount} | Stop {dist_pct * 100:.2f}% | Base Notional ${base_notional:.1f} | Conf {confidence:.2f} -> Margin ${target_margin:.2f}")
+        msg = f"[INFO]  Volatility Sizing: Risk ${risk_amount} | Stop {dist_pct * 100:.2f}% | Base Notional ${base_notional:.1f} | Conf {confidence:.2f} -> Margin ${target_margin:.2f}"
+        if log_func:
+            log_func("sizing", msg)
+        else:
+            print(msg)
         return target_margin
 
     def get_graduated_loss_multiplier(self, margin_usd: float) -> float:
@@ -2905,6 +2913,7 @@ class PortfolioManager:
                     stop_loss=atr_stop_loss,  # Use ATR-based SL instead of AI's (None)
                     leverage=leverage,
                     market_regime=market_regime,
+                    log_func=_log_debug,
                 )
 
                 # Apply market regime multiplier (v1.2: Scout leverage mult incorporated here if enabled)
