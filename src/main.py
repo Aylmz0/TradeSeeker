@@ -812,10 +812,18 @@ class AlphaArenaDeepSeek:
                     break
                 if control.get("status") == "paused":
                     print("[PAUSED] TP/SL monitoring: Bot is PAUSED. Waiting for resume...")
-                    # Wait in smaller intervals to check for resume
-                    while True:
+                    # Wait in smaller intervals to check for resume with safety timeout
+                    pause_timeout = 300  # 5 minutes max in paused state
+                    pause_iterations = 0
+                    while pause_iterations < pause_timeout // 10:
                         time.sleep(10)
-                        control = self._read_bot_control()
+                        pause_iterations += 1
+                        try:
+                            control = self._read_bot_control()
+                        except Exception:
+                            # FIX: Handle corrupted control file gracefully
+                            print("[WARN]  Failed to read control file, retrying...")
+                            continue
                         if control.get("status") == "running":
                             print("[INFO] TP/SL monitoring: Bot RESUMED. Continuing monitoring...")
                             break
@@ -825,6 +833,9 @@ class AlphaArenaDeepSeek:
                             )
                             self.is_running = False
                             break
+                    else:
+                        # Timeout reached - auto-resume to prevent hanging
+                        print("[WARN]  Pause timeout reached, auto-resuming...")
                     if control.get("status") == "stopped":
                         break
                     continue
@@ -981,16 +992,27 @@ class AlphaArenaDeepSeek:
                     print(
                         "[PAUSED] Bot is PAUSED. Waiting for resume command... (checking every 10 seconds)",
                     )
-                    # Wait in smaller intervals to check for resume
-                    while True:
+                    # Wait in smaller intervals to check for resume with safety timeout
+                    pause_timeout = 300  # 5 minutes max in paused state
+                    pause_iterations = 0
+                    while pause_iterations < pause_timeout // 10:
                         time.sleep(10)
-                        control = self._read_bot_control()
+                        pause_iterations += 1
+                        try:
+                            control = self._read_bot_control()
+                        except Exception:
+                            # FIX: Handle corrupted control file gracefully
+                            print("[WARN]  Failed to read control file, retrying...")
+                            continue
                         if control.get("status") == "running":
                             print("[RESUMED] Bot RESUMED. Continuing trading cycles...")
                             break
                         if control.get("status") == "stopped":
                             print("[STOPPED] Bot STOP command received. Stopping gracefully...")
                             break
+                    else:
+                        # Timeout reached - auto-resume to prevent hanging
+                        print("[WARN]  Pause timeout reached, auto-resuming...")
                     if control.get("status") == "stopped":
                         break
                     continue
@@ -1030,16 +1052,27 @@ class AlphaArenaDeepSeek:
                     print(
                         "[PAUSED] Bot is PAUSED. Waiting for resume command... (checking every 10 seconds)",
                     )
-                    # Wait in smaller intervals to check for resume
-                    while True:
+                    # Wait in smaller intervals to check for resume with safety timeout
+                    pause_timeout = 300  # 5 minutes max in paused state
+                    pause_iterations = 0
+                    while pause_iterations < pause_timeout // 10:
                         time.sleep(10)
-                        control = self._read_bot_control()
+                        pause_iterations += 1
+                        try:
+                            control = self._read_bot_control()
+                        except Exception:
+                            # FIX: Handle corrupted control file gracefully
+                            print("[WARN]  Failed to read control file, retrying...")
+                            continue
                         if control.get("status") == "running":
                             print("[RESUMED] Bot RESUMED. Continuing trading cycles...")
                             break
                         if control.get("status") == "stopped":
                             print("[STOPPED] Bot STOP command received. Stopping gracefully...")
                             break
+                    else:
+                        # Timeout reached - auto-resume to prevent hanging
+                        print("[WARN]  Pause timeout reached, auto-resuming...")
                     if control.get("status") == "stopped":
                         break
                     continue
