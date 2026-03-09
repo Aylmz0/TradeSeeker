@@ -247,14 +247,16 @@ class PortfolioManager:
 
     def reset_historical_data(self, cycle_number: int):
         """Clear historical logs to prevent long-term bias while keeping live positions."""
+        # FIX: Keep lock for entire state modification to prevent race conditions
         with self._lock:
             self._backup_historical_files(cycle_number)
             print(f"[CLEANUP] HISTORY RESET: Clearing logs at cycle {cycle_number}")
-        self.trade_history = []
-        self.trade_count = 0
-        self.directional_bias = self._init_directional_bias()
-        self.trend_state = {}
-        self.cycle_history = []
+            self.trade_history = []
+            self.trade_count = 0
+            self.directional_bias = self._init_directional_bias()
+            self.trend_state = {}
+            self.cycle_history = []
+        # File writes outside lock - they're thread-safe themselves
         safe_file_write(self.history_file, [])
         safe_file_write(self.cycle_history_file, [])
         safe_file_write("data/performance_history.json", [])
@@ -324,9 +326,10 @@ class PortfolioManager:
         print(f"[OK]    Saved {len(history_to_save)} trades.")
 
     def add_to_history(self, trade: dict):
+        # FIX: Keep lock for state modifications to prevent race conditions
         with self._lock:
             self.trade_history.append(trade)
-        self.trade_count = len(self.trade_history)
+            self.trade_count = len(self.trade_history)
         self.save_trade_history()
 
         # Also append to full history with robustness check
@@ -997,90 +1000,91 @@ class PortfolioManager:
 
     def update_prices(self, new_prices: dict[str, float], increment_loss_counters: bool = True):
         """Updates prices and recalculates total value."""
+        # FIX: Keep lock for entire position modification to prevent race conditions
         with self._lock:
             total_unrealized_pnl = 0.0
-        for coin, price in new_prices.items():
-            if coin in self.positions and isinstance(price, (int, float)) and price > 0:
-                pos = self.positions[coin]
+            for coin, price in new_prices.items():
+                if coin in self.positions and isinstance(price, (int, float)) and price > 0:
+                    pos = self.positions[coin]
 
-                # Update current_price (use Spot price, but in live mode markPrice from Binance is preferred)
-                # For live mode, current_price should already be set from sync_live_account() (markPrice)
-                # We update it with Spot price only if it's significantly different (fallback)
-                if self.is_live_trading:
-                    # In live mode, prefer keeping Binance markPrice if available
-                    existing_price = pos.get("current_price", 0)
-                    if existing_price > 0:
-                        # Keep Binance markPrice, but update if Spot price is significantly different (>0.1%)
-                        price_diff_pct = (
-                            abs(price - existing_price) / existing_price
-                            if existing_price > 0
-                            else 1.0
-                        )
-                        if price_diff_pct > 0.001:  # More than 0.1% difference
-                            # Use Spot price as fallback if markPrice seems stale
+                    # Update current_price (use Spot price, but in live mode markPrice from Binance is preferred)
+                    # For live mode, current_price should already be set from sync_live_account() (markPrice)
+                    # We update it with Spot price only if it's significantly different (fallback)
+                    if self.is_live_trading:
+                        # In live mode, prefer keeping Binance markPrice if available
+                        existing_price = pos.get("current_price", 0)
+                        if existing_price > 0:
+                            # Keep Binance markPrice, but update if Spot price is significantly different (>0.1%)
+                            price_diff_pct = (
+                                abs(price - existing_price) / existing_price
+                                if existing_price > 0
+                                else 1.0
+                            )
+                            if price_diff_pct > 0.001:  # More than 0.1% difference
+                                # Use Spot price as fallback if markPrice seems stale
+                                pos["current_price"] = price
+                            # else: keep existing markPrice
+                        else:
+                            # No existing price, use Spot price
                             pos["current_price"] = price
-                        # else: keep existing markPrice
                     else:
-                        # No existing price, use Spot price
+                        # Simulation mode: always use Spot price
                         pos["current_price"] = price
-                else:
-                    # Simulation mode: always use Spot price
-                    pos["current_price"] = price
 
-                # CRITICAL FIX: In live mode, preserve Binance unrealized_pnl (includes funding fees)
-                # In simulation mode, calculate manually
-                if self.is_live_trading:
-                    # Live mode: Keep Binance unrealized_pnl if available (includes funding fees, commissions, etc.)
-                    existing_pnl = pos.get("unrealized_pnl", 0.0)
-                    if isinstance(existing_pnl, (int, float)) and existing_pnl != 0.0:
-                        # Use Binance value (more accurate, includes funding fees)
-                        pnl = existing_pnl
-                        pos["unrealized_pnl"] = pnl
+                    # CRITICAL FIX: In live mode, preserve Binance unrealized_pnl (includes funding fees)
+                    # In simulation mode, calculate manually
+                    if self.is_live_trading:
+                        # Live mode: Keep Binance unrealized_pnl if available (includes funding fees, commissions, etc.)
+                        existing_pnl = pos.get("unrealized_pnl", 0.0)
+                        if isinstance(existing_pnl, (int, float)) and existing_pnl != 0.0:
+                            # Use Binance value (more accurate, includes funding fees)
+                            pnl = existing_pnl
+                            pos["unrealized_pnl"] = pnl
+                        else:
+                            # Fallback: calculate manually if Binance value not available
+                            entry = pos["entry_price"]
+                            qty = pos["quantity"]
+                            direction = pos.get("direction", "long")
+                            pnl = (
+                                (price - entry) * qty if direction == "long" else (entry - price) * qty
+                            )
+                            pos["unrealized_pnl"] = pnl
                     else:
-                        # Fallback: calculate manually if Binance value not available
+                        # Simulation mode: calculate manually
                         entry = pos["entry_price"]
                         qty = pos["quantity"]
                         direction = pos.get("direction", "long")
-                        pnl = (
-                            (price - entry) * qty if direction == "long" else (entry - price) * qty
-                        )
+                        pnl = (price - entry) * qty if direction == "long" else (entry - price) * qty
                         pos["unrealized_pnl"] = pnl
-                else:
-                    # Simulation mode: calculate manually
-                    entry = pos["entry_price"]
-                    qty = pos["quantity"]
-                    direction = pos.get("direction", "long")
-                    pnl = (price - entry) * qty if direction == "long" else (entry - price) * qty
-                    pos["unrealized_pnl"] = pnl
 
-                total_unrealized_pnl += pos.get("unrealized_pnl", 0.0)
+                    total_unrealized_pnl += pos.get("unrealized_pnl", 0.0)
 
-                # Track peak PnL and calculate erosion
-                self._update_peak_pnl_tracking(coin, pos)
+                    # Track peak PnL and calculate erosion
+                    self._update_peak_pnl_tracking(coin, pos)
 
-                if increment_loss_counters:
-                    direction = pos.get("direction", "unknown")
-                    pnl_for_counter = pos.get("unrealized_pnl", 0.0)
-                    if pnl_for_counter <= 0:
-                        pos["loss_cycle_count"] = pos.get("loss_cycle_count", 0) + 1
-                        pos["profit_cycle_count"] = 0  # Reset profit counter when negative
-                        new_count = pos["loss_cycle_count"]
-                        if new_count in (5, 8, 10):
-                            print(
-                                f"[WATCH] LOSS CYCLE WATCH: {coin} {direction} negative for {new_count} cycles (PnL ${pnl_for_counter:.2f}).",
-                            )
-                    else:
-                        pos["loss_cycle_count"] = 0
-                        pos["profit_cycle_count"] = (
-                            pos.get("profit_cycle_count", 0) + 1
-                        )  # Increment profit counter
-                        new_profit_count = pos["profit_cycle_count"]
-                        if new_profit_count in (5, 8, 10, 12):
-                            print(
-                                f"[WATCH] PROFIT CYCLE WATCH: {coin} {direction} profitable for {new_profit_count} cycles (PnL ${pnl_for_counter:.2f}).",
-                            )
-            elif coin in self.positions:
-                print(f"[WARN]  Invalid price for {coin}: {price}. PnL skip.")
+                    if increment_loss_counters:
+                        direction = pos.get("direction", "unknown")
+                        pnl_for_counter = pos.get("unrealized_pnl", 0.0)
+                        if pnl_for_counter <= 0:
+                            pos["loss_cycle_count"] = pos.get("loss_cycle_count", 0) + 1
+                            pos["profit_cycle_count"] = 0  # Reset profit counter when negative
+                            new_count = pos["loss_cycle_count"]
+                            if new_count in (5, 8, 10):
+                                print(
+                                    f"[WATCH] LOSS CYCLE WATCH: {coin} {direction} negative for {new_count} cycles (PnL ${pnl_for_counter:.2f}).",
+                                )
+                        else:
+                            pos["loss_cycle_count"] = 0
+                            pos["profit_cycle_count"] = (
+                                pos.get("profit_cycle_count", 0) + 1
+                            )  # Increment profit counter
+                            new_profit_count = pos["profit_cycle_count"]
+                            if new_profit_count in (5, 8, 10, 12):
+                                print(
+                                    f"[WATCH] PROFIT CYCLE WATCH: {coin} {direction} profitable for {new_profit_count} cycles (PnL ${pnl_for_counter:.2f}).",
+                                )
+                elif coin in self.positions:
+                    print(f"[WARN]  Invalid price for {coin}: {price}. PnL skip.")
 
         # Calculate total value correctly
         # In live mode, prefer syncing from Binance (done in sync_live_account)

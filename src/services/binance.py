@@ -390,8 +390,9 @@ class BinanceOrderExecutor:
                         if balance and overview["walletBalance"] == 0.0:
                             overview["walletBalance"] = float(balance)
                         break
-            except Exception:
-                pass
+            except Exception as e:
+                # FIX: Log the error instead of silently swallowing
+                print(f"[WARN]  Failed to get wallet balance: {e}")
 
         return overview
 
@@ -604,8 +605,9 @@ class BinanceOrderExecutor:
             try:
                 self.client.cancel_order(symbol, order_id)
                 logger.info("Cancelled unfilled LIMIT order %s for %s", order_id, coin)
-            except Exception:
-                pass  # May already be filled/cancelled
+            except Exception as e:
+                # FIX: Log the error instead of silently swallowing
+                print(f"[WARN]  Failed to cancel order {order_id}: {e}")
 
             # Check if partially filled
             try:
@@ -640,8 +642,9 @@ class BinanceOrderExecutor:
                     final_status["avgPriceComputed"] = avg_p
                     final_status["orderType"] = "LIMIT_FILLED_ON_CANCEL"
                     return final_status
-            except Exception:
-                pass
+            except Exception as e:
+                # FIX: Log the error instead of silently swallowing
+                print(f"[WARN]  Failed to get final order status: {e}")
 
             # Pure fallback: full market order
             logger.info("LIMIT order timeout for %s, executing full MARKET fallback", coin)

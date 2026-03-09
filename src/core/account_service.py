@@ -485,8 +485,9 @@ class AccountService:
                     ml_probability=0.0,  # Populated by caller if available
                     entry_price=avg_price,
                 )
-            except Exception:
-                pass  # Never crash the trade flow for logging
+            except Exception as e:
+                # FIX: Log the error instead of silently swallowing
+                print(f"[WARN]  Failed to log decision open: {e}")
 
             return {
                 "success": True,
@@ -559,8 +560,9 @@ class AccountService:
                     exit_price=avg_price,
                     pnl_result=pnl,
                 )
-            except Exception:
-                pass  # Never crash the trade flow for logging
+            except Exception as e:
+                # FIX: Log the error instead of silently swallowing
+                print(f"[WARN]  Failed to log decision close: {e}")
 
             return {
                 "success": True,
@@ -1427,8 +1429,9 @@ class AccountService:
                 if zone_early in ["LOWER_10", "UPPER_10"]:
                     effective_progress_trigger = Config.TRAILING_PROGRESS_TRIGGER_EXTREME
                     extreme_zone_active = True
-        except Exception:
-            pass  # Use default trigger
+        except Exception as e:
+            # FIX: Log the error instead of silently swallowing
+            print(f"[WARN]  Trailing stop progress calculation failed: {e}")
 
         progress_triggered = progress_score >= effective_progress_trigger
         time_triggered = (
@@ -1506,8 +1509,9 @@ class AccountService:
                     print(
                         f"[WARN]  OVERBOUGHT PROTECT: {symbol} zone={zone} RSI={rsi_htf:.1f} -> Buffer halved",
                     )
-        except Exception:
-            pass  # Silently continue without overbought protection
+        except Exception as e:
+            # FIX: Log the error instead of silently swallowing
+            print(f"[WARN]  Overbought protection calculation failed: {e}")
 
         reason_tokens: list[str] = []
         if progress_triggered:
