@@ -668,10 +668,12 @@ class AccountService:
         Returns:
             Dict with success status and PnL
         """
-        if coin not in self.pm.positions:
-            return {"success": False, "error": "no_position"}
+        # FIX: Thread-safe position access with lock
+        with self.pm._lock:
+            if coin not in self.pm.positions:
+                return {"success": False, "error": "no_position"}
 
-        position = self.pm.positions[coin]
+            position = self.pm.positions[coin].copy()  # Copy to avoid holding lock during calculations
         direction = position.get("direction", "long")
         entry_price = position.get("entry_price", 0)
         quantity = position.get("quantity", 0)
@@ -711,8 +713,10 @@ class AccountService:
 
         self.pm.add_to_history(history_entry)
 
-        # Remove from active positions
-        del self.pm.positions[coin]
+        # Remove from active positions (thread-safe)
+        with self.pm._lock:
+            if coin in self.pm.positions:
+                del self.pm.positions[coin]
 
         print(
             f"[OK]    PAPER CLOSE: {direction} {coin} @ ${format_num(current_price, 4)} (PnL: ${format_num(profit, 2)}, Commission: ${format_num(commission, 3)})",
@@ -743,9 +747,14 @@ class AccountService:
         updated_stops = []  # Track positions with updated trailing stops
         state_changed = False
 
-        for coin, position in list(
-            self.pm.positions.items()
-        ):  # Iterate over a copy for safe deletion
+        # FIX: Thread-safe position iteration with lock
+        with self.pm._lock:
+            positions_snapshot = list(self.pm.positions.items())
+
+        for coin, position in positions_snapshot:
+            # Check if position still exists (might have been closed by another thread)
+            if coin not in self.pm.positions:
+                continue
             if (
                 coin not in current_prices
                 or not isinstance(current_prices[coin], (int, float))

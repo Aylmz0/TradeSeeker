@@ -961,8 +961,9 @@ class PortfolioManager:
                     sparkline = indicators_htf.get("smart_sparkline", {})
                     price_location = sparkline.get("price_location", {})
                     zone = price_location.get("zone", "MIDDLE")
-        except Exception:
-            zone = "MIDDLE"  # Default to MIDDLE on any error
+            except (KeyError, AttributeError, TypeError) as e:
+                # FIX: Specific exception handling for zone extraction
+                zone = "MIDDLE"
 
         # Set erosion rate based on zone - USE CONFIG VALUES
         if zone in ["LOWER_10", "UPPER_10"]:
@@ -1766,10 +1767,8 @@ class PortfolioManager:
         Calculate the effective same direction limit based on market regime strength.
         Backwards compatibility for AIService.
         """
-        try:
-            return Config.SAME_DIRECTION_LIMIT
-        except Exception:
-            return 2
+        # FIX: Use getattr for safe config access
+        return getattr(Config, "SAME_DIRECTION_LIMIT", 2)
 
 
 
@@ -2200,7 +2199,8 @@ class PortfolioManager:
                                 "final_confidence": confidence,
                             },
                         )
-                except Exception:
+                except (KeyError, AttributeError, ValueError) as e:
+                    # FIX: Specific exception handling for confidence adjustment logging
                     pass  # Continue without adjustments
 
                 # NOTE: TP/SL calculation removed - now handled exclusively by execute_live_entry
