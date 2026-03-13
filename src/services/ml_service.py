@@ -1,7 +1,7 @@
 import json
 import logging
 import os
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import Any
 
 import joblib
@@ -234,7 +234,7 @@ class MLService:
         try:
             os.makedirs(os.path.dirname(self.prediction_log_path), exist_ok=True)
             log_entry = {
-                "ts": datetime.now().isoformat(timespec="seconds"),
+                "ts": datetime.now(timezone.utc).isoformat(timespec="seconds"),
                 "coin": coin,
                 "interval": interval,
                 "dominant": result["dominant_signal"],

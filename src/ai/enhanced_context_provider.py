@@ -1,6 +1,6 @@
 import json
 import os
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Any
 
 from config.config import Config
@@ -76,7 +76,9 @@ class EnhancedContextProvider:
             if entry_time_str:
                 try:
                     entry_time = datetime.fromisoformat(entry_time_str.replace("Z", "+00:00"))
-                    time_in_trade = (datetime.now() - entry_time).total_seconds() / 60  # minutes
+                    time_in_trade = (
+                        datetime.now(timezone.utc) - entry_time
+                    ).total_seconds() / 60  # minutes
                 except Exception:
                     time_in_trade = 0
             else:
@@ -357,7 +359,7 @@ class EnhancedContextProvider:
             market_regime = self.get_market_regime_context()
 
             return {
-                "timestamp": datetime.now().isoformat(),
+                "timestamp": datetime.now(timezone.utc).isoformat(),
                 "position_context": self.get_enhanced_position_context(portfolio_state),
                 "market_regime": market_regime,
                 "performance_insights": self.get_performance_insights(

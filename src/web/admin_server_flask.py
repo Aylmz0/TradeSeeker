@@ -7,7 +7,7 @@ import json
 import logging
 import os
 import sys
-from datetime import datetime
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
@@ -212,7 +212,7 @@ def force_close_position():
         logger.info(f"[INFO] MANUAL CLOSE REQUEST RECEIVED for: {coin_to_close}")
 
         override_command = {
-            "timestamp": datetime.now().isoformat(),
+            "timestamp": datetime.now(timezone.utc).isoformat(),
             "decisions": {
                 coin_to_close: {
                     "signal": "close_position",
@@ -246,7 +246,7 @@ def set_bot_control():
 
         control_data = {
             "status": status_map[action],
-            "last_updated": datetime.now().isoformat(),
+            "last_updated": datetime.now(timezone.utc).isoformat(),
             "action": action,
         }
 

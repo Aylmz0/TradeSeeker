@@ -3,7 +3,7 @@ import os
 import threading
 import time
 from collections import deque
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Any
 
 import numpy as np
@@ -88,7 +88,7 @@ class PortfolioManager:
         # Initialize total_value before _initialize_live_trading (which calls sync_live_account)
         self.total_value = self.current_balance
         self.total_return = 0.0
-        self.start_time = datetime.now()
+        self.start_time = datetime.now(timezone.utc)
         self.portfolio_values_history = [
             self.initial_balance,
         ]  # Track portfolio values for Sharpe ratio
@@ -186,7 +186,7 @@ class PortfolioManager:
                 "total_return": self.total_return,
                 "initial_balance": self.initial_balance,
                 "trade_count": self.trade_count,
-                "last_updated": datetime.now().isoformat(),
+                "last_updated": datetime.now(timezone.utc).isoformat(),
                 "sharpe_ratio": self.sharpe_ratio,
                 "directional_bias": self._serialize_directional_bias(),
                 "last_history_reset_cycle": self.last_history_reset_cycle,
@@ -203,7 +203,7 @@ class PortfolioManager:
     # --- Live trading helpers -------------------------------------------------
     def _backup_historical_files(self, cycle_number: int) -> str | None:
         """Create a timestamped backup for historical JSON files before wiping them."""
-        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        timestamp = datetime.now(timezone.utc).strftime("%Y%m%d_%H%M%S")
         backup_dir = os.path.join("history_backups", f"{timestamp}_cycle_{cycle_number}")
         files_to_backup = [
             (self.history_file, []),
@@ -236,7 +236,7 @@ class PortfolioManager:
 
             metadata = {
                 "cycle_number": cycle_number,
-                "backed_up_at": datetime.now().isoformat(),
+                "backed_up_at": datetime.now(timezone.utc).isoformat(),
                 "files": backed_up,
             }
             safe_file_write(os.path.join(backup_dir, "metadata.json"), metadata)
@@ -273,7 +273,7 @@ class PortfolioManager:
         reset_marker = {
             "reset_reason": "periodic_bias_control",
             "reset_at_cycle": cycle_number,
-            "timestamp": datetime.now().isoformat(),
+            "timestamp": datetime.now(timezone.utc).isoformat(),
         }
         existing_reports.append(reset_marker)
 
@@ -906,7 +906,7 @@ class PortfolioManager:
 
         cycle_data = {
             "cycle": cycle_number,
-            "timestamp": datetime.now().isoformat(),
+            "timestamp": datetime.now(timezone.utc).isoformat(),
             "user_prompt_summary": prompt_summary,
             "chain_of_thoughts": thoughts,
             "decisions": decisions,
@@ -1926,7 +1926,7 @@ class PortfolioManager:
             "holds": [],
             "notes": [],
             "debug_logs": [],  # Stores critical console logs (flip guard, confidence adjustments etc.)
-            "timestamp": datetime.now().isoformat(),
+            "timestamp": datetime.now(timezone.utc).isoformat(),
         }
         if self.is_live_trading:
             self.sync_live_account()
@@ -1954,7 +1954,7 @@ class PortfolioManager:
                     "category": category,
                     "message": message,
                     "details": details or {},
-                    "timestamp": datetime.now().isoformat(),
+                    "timestamp": datetime.now(timezone.utc).isoformat(),
                 },
             )
 
@@ -3169,7 +3169,7 @@ class PortfolioManager:
                     "direction": direction,
                     "quantity": quantity_coin,
                     "entry_price": current_price,
-                    "entry_time": datetime.now().isoformat(),
+                    "entry_time": datetime.now(timezone.utc).isoformat(),
                     "current_price": current_price,
                     "unrealized_pnl": 0.0,
                     "notional_usd": notional_usd,
@@ -3327,7 +3327,7 @@ class PortfolioManager:
                     "notional_usd": position.get("notional_usd", "N/A"),
                     "pnl": profit,
                     "entry_time": position["entry_time"],
-                    "exit_time": datetime.now().isoformat(),
+                    "exit_time": datetime.now(timezone.utc).isoformat(),
                     "leverage": position.get("leverage", "N/A"),
                     "close_reason": f"AI Decision: {trade.get('justification', 'N/A')}",
                 }

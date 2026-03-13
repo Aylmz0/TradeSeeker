@@ -61,7 +61,6 @@ ignore = [
     # --- Magic Numbers (Phase 11) ---
 
     # --- Temporal/Timezone (Phase 12) ---
-    "DTZ",     # Datetime/timezone issues
 
     # --- Documentation & Style (Phase 14) ---
     "D",       # Missing/bad docstrings

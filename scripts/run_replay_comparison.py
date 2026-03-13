@@ -16,10 +16,10 @@ except ImportError:
     genai = None
     types = None
 
+import json
 import os
 import sqlite3
-import sys
-from datetime import datetime
+from datetime import datetime, timezone
 
 import pandas as pd
 
@@ -72,7 +72,7 @@ def run_replay(db_path: str, coins: list[str], initial_balance: float = 1000.0):
         # For simplicity in this replay, we'll simulate the AI decisions or just run the alignment/sizing checks
 
         print(
-            f"\n[Cycle {datetime.fromtimestamp(ts / 1000)}] Equity: ${mock_executor.get_account_overview()['totalWalletBalance']:.2f}"
+            f"\n[Cycle {datetime.fromtimestamp(ts / 1000, tz=timezone.utc)}] Equity: ${mock_executor.get_account_overview()['totalWalletBalance']:.2f}"
         )
 
         # Log active positions

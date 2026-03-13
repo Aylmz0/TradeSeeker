@@ -8,7 +8,7 @@ import logging
 import time
 from collections.abc import Callable
 from dataclasses import dataclass
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from enum import Enum
 from typing import Any
 
@@ -46,7 +46,7 @@ class Alert:
 
     def __post_init__(self):
         if self.timestamp is None:
-            self.timestamp = datetime.now()
+            self.timestamp = datetime.now(timezone.utc)
 
     def to_dict(self) -> dict[str, Any]:
         """Convert alert to dictionary for JSON serialization."""
@@ -302,7 +302,7 @@ class AlertManager:
 
     def clear_old_alerts(self, hours: int = 24) -> int:
         """Clear alerts older than specified hours."""
-        cutoff_time = datetime.now() - timedelta(hours=hours)
+        cutoff_time = datetime.now(timezone.utc) - timedelta(hours=hours)
         initial_count = len(self.alerts)
 
         self.alerts = [alert for alert in self.alerts if alert.timestamp > cutoff_time]

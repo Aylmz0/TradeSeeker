@@ -5,7 +5,7 @@ import sys
 import threading
 import time
 import traceback
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import Any
 
 
@@ -148,7 +148,7 @@ class AlphaArenaDeepSeek:
         try:
             metrics = {
                 "cycle": cycle_number,
-                "timestamp": datetime.now().isoformat(),
+                "timestamp": datetime.now(timezone.utc).isoformat(),
                 "total_value": self.portfolio.total_value,
                 "total_return": self.portfolio.total_return,
                 "sharpe_ratio": self.portfolio.sharpe_ratio,
@@ -184,7 +184,7 @@ class AlphaArenaDeepSeek:
     def run_trading_cycle(self, cycle_number: int):
         """Run a single trading cycle with auto TP/SL and enhanced features"""
         print(
-            f"\n==== CYCLE {cycle_number} | {datetime.now().strftime('%Y-%m-%d %H:%M:%S')} {'=' * 50}",
+            f"\n==== CYCLE {cycle_number} | {datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M:%S')} {'=' * 50}",
         )
 
         # Check bot control at cycle start
@@ -507,7 +507,7 @@ class AlphaArenaDeepSeek:
                     "skipped": [],
                     "holds": [],
                     "notes": [],
-                    "timestamp": datetime.now().isoformat(),
+                    "timestamp": datetime.now(timezone.utc).isoformat(),
                 }
 
                 if has_close_position_signal:
@@ -593,7 +593,7 @@ class AlphaArenaDeepSeek:
                                     "notional_usd": position.get("notional_usd", "N/A"),
                                     "pnl": profit,
                                     "entry_time": position["entry_time"],
-                                    "exit_time": datetime.now().isoformat(),
+                                    "exit_time": datetime.now(timezone.utc).isoformat(),
                                     "leverage": position.get("leverage", "N/A"),
                                     "close_reason": "AI close_position signal",
                                 }
@@ -976,7 +976,7 @@ class AlphaArenaDeepSeek:
         # Start TP/SL monitoring
         self.start_tp_sl_monitoring()
 
-        end_time = datetime.now() + timedelta(hours=total_duration_hours)
+        end_time = datetime.now(timezone.utc) + timedelta(hours=total_duration_hours)
         # Calculate correct cycle number: reset_cycle + cycles_since_reset
         last_reset = getattr(self.portfolio, "last_history_reset_cycle", 0) or 0
         cycles_since_reset = len(self.portfolio.cycle_history)
@@ -988,10 +988,12 @@ class AlphaArenaDeepSeek:
         current_cycle_number = start_cycle - 1
 
         # Initialize bot control file
-        self._write_bot_control({"status": "running", "last_updated": datetime.now().isoformat()})
+        self._write_bot_control(
+            {"status": "running", "last_updated": datetime.now(timezone.utc).isoformat()}
+        )
 
         try:
-            while datetime.now() < end_time:
+            while datetime.now(timezone.utc) < end_time:
                 # Check bot control file for pause/stop command BEFORE starting cycle
                 control = self._read_bot_control()
                 if control.get("status") == "paused":
@@ -1043,7 +1045,7 @@ class AlphaArenaDeepSeek:
                 )
 
                 self.run_trading_cycle(current_cycle_number)
-                if datetime.now() >= end_time:
+                if datetime.now(timezone.utc) >= end_time:
                     break
                 elapsed_time = time.time() - cycle_start_time
                 sleep_time = max(0, dynamic_cycle_interval - elapsed_time)
@@ -1147,12 +1149,12 @@ class AlphaArenaDeepSeek:
         try:
             return safe_file_read_cached(
                 "data/bot_control.json",
-                {"status": "running", "last_updated": datetime.now().isoformat()},
+                {"status": "running", "last_updated": datetime.now(timezone.utc).isoformat()},
             )
         except Exception as e:
             print(f"[WARN]  Failed to read bot_control.json: {e}")
             # Return default running state if file read fails (fail-safe)
-            return {"status": "running", "last_updated": datetime.now().isoformat()}
+            return {"status": "running", "last_updated": datetime.now(timezone.utc).isoformat()}
 
     def _write_bot_control(self, data: dict[str, Any]):
         """Write bot control file."""

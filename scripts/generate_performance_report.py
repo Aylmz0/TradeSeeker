@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 import os
 import sys
-from datetime import datetime
+from datetime import datetime, timezone
 
 
 # Add project root to sys.path
@@ -13,7 +13,7 @@ from src.core.performance_monitor import PerformanceMonitor
 
 
 def run_analysis():
-    print(f"[{datetime.now()}] Starting performance analysis...")
+    print(f"[{datetime.now(timezone.utc)}] Starting performance analysis...")
     try:
         monitor = PerformanceMonitor()
         report = monitor.analyze_performance(last_n_cycles=15)

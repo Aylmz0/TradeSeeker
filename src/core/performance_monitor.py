@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Any
 
 import pandas as pd
@@ -160,7 +160,7 @@ class PerformanceMonitor:
             # Compile performance report
             performance_report = {
                 "analysis_period": f"Last {recent_cycle_count} cycles (Total: {total_cycles})",
-                "timestamp": datetime.now().isoformat(),
+                "timestamp": datetime.now(timezone.utc).isoformat(),
                 # Trading Activity
                 "trading_activity": {
                     "total_decisions": total_decisions,
@@ -589,7 +589,7 @@ class PerformanceMonitor:
                 "loss_risk_percentage": (coins_with_risk / total_coins * 100)
                 if total_coins > 0
                 else 0,
-                "timestamp": datetime.now().isoformat(),
+                "timestamp": datetime.now(timezone.utc).isoformat(),
             }
 
             # Generate recommendations based on loss risk patterns

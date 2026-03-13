@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Any
 
 from config.config import Config
@@ -550,7 +550,7 @@ class AccountService:
                 "notional_usd": executed_qty * avg_price,
                 "pnl": pnl,
                 "entry_time": position.get("entry_time"),
-                "exit_time": datetime.now().isoformat(),
+                "exit_time": datetime.now(timezone.utc).isoformat(),
                 "leverage": position.get("leverage"),
                 "close_reason": reason or "live_close",
                 "exchange_order_id": order.get("orderId"),
@@ -632,7 +632,7 @@ class AccountService:
                 "notional_usd": executed_qty * avg_price,
                 "pnl": pnl,
                 "entry_time": position.get("entry_time"),
-                "exit_time": datetime.now().isoformat(),
+                "exit_time": datetime.now(timezone.utc).isoformat(),
                 "leverage": position.get("leverage"),
                 "close_reason": reason or "live_partial_close",
                 "exchange_order_id": order.get("orderId"),
@@ -709,8 +709,8 @@ class AccountService:
             "quantity": quantity,
             "notional_usd": position.get("notional_usd", 0),
             "pnl": profit,
-            "entry_time": position.get("entry_time", datetime.now().isoformat()),
-            "exit_time": datetime.now().isoformat(),
+            "entry_time": position.get("entry_time", datetime.now(timezone.utc).isoformat()),
+            "exit_time": datetime.now(timezone.utc).isoformat(),
             "leverage": position.get("leverage", 10),
             "close_reason": reason,
         }
@@ -906,7 +906,7 @@ class AccountService:
                     "notional_usd": position.get("notional_usd", "N/A") * close_percent,
                     "pnl": profit,
                     "entry_time": position["entry_time"],
-                    "exit_time": datetime.now().isoformat(),
+                    "exit_time": datetime.now(timezone.utc).isoformat(),
                     "leverage": position.get("leverage", "N/A"),
                     "close_reason": exit_decision["reason"],
                 }
@@ -1035,7 +1035,7 @@ class AccountService:
                     "notional_usd": position.get("notional_usd", "N/A"),
                     "pnl": profit,
                     "entry_time": position["entry_time"],
-                    "exit_time": datetime.now().isoformat(),
+                    "exit_time": datetime.now(timezone.utc).isoformat(),
                     "leverage": position.get("leverage", "N/A"),
                     "close_reason": close_reason,  # Add reason
                 }
@@ -1414,7 +1414,9 @@ class AccountService:
         if entry_time_str:
             try:
                 entry_time = datetime.fromisoformat(entry_time_str.replace("Z", "+00:00"))
-                time_in_trade = max(0.0, (datetime.now() - entry_time).total_seconds() / 60.0)
+                time_in_trade = max(
+                    0.0, (datetime.now(timezone.utc) - entry_time).total_seconds() / 60.0
+                )
             except Exception:
                 time_in_trade = 0.0
 

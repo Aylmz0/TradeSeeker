@@ -4,7 +4,7 @@ Allows testing trading strategies on historical data.
 """
 
 import logging
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Any
 
 import numpy as np
@@ -72,7 +72,7 @@ class BacktestEngine:
     ) -> dict[str, Any]:
         """Execute a trade in the backtest environment."""
         if timestamp is None:
-            timestamp = datetime.now()
+            timestamp = datetime.now(timezone.utc)
 
         trade_result = {
             "symbol": symbol,
@@ -627,7 +627,7 @@ class MockOrderExecutor:
             "notional_usd": notional,
             "margin_usd": margin,
             "leverage": leverage,
-            "entry_time": datetime.now().isoformat(),
+            "entry_time": datetime.now(timezone.utc).isoformat(),
         }
 
         self._order_id_counter += 1

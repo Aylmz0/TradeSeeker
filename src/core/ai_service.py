@@ -1,7 +1,7 @@
 import copy
 import json
 import warnings
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Any
 
 import pandas as pd
@@ -211,7 +211,7 @@ class AIService:
             DeprecationWarning,
             stacklevel=2,
         )
-        current_time = datetime.now()
+        current_time = datetime.now(timezone.utc)
         minutes_running = int((current_time - self.portfolio.start_time).total_seconds() / 60)
         # Use internal invocation counter, don't increment here, do it in run_cycle
         # self.invocation_count += 1
@@ -371,7 +371,7 @@ REMEMBER: These are suggestions only. You make the final trading decisions based
 
         directional_counts = self.portfolio.count_positions_by_direction()
         positions_by_direction: dict[str, list[dict[str, Any]]] = {"long": [], "short": []}
-        now_ts = datetime.now()
+        now_ts = datetime.now(timezone.utc)
         for coin, position in self.portfolio.positions.items():
             direction = position.get("direction", "long")
             if direction not in positions_by_direction:
@@ -589,7 +589,7 @@ REMEMBER: These are suggestions only. You make the final trading decisions based
                         entry_dt = datetime.fromisoformat(entry_time_str)
                         position_duration_minutes = max(
                             0,
-                            int((datetime.now() - entry_dt).total_seconds() // 60),
+                            int((datetime.now(timezone.utc) - entry_dt).total_seconds() // 60),
                         )
                         position_duration_hours = position_duration_minutes / 60.0
                     except (ValueError, TypeError, AttributeError):
@@ -837,7 +837,7 @@ Current live positions & performance:"""
             create_json_section,
         )
 
-        current_time = datetime.now()
+        current_time = datetime.now(timezone.utc)
         minutes_running = int((current_time - self.portfolio.start_time).total_seconds() / 60)
 
         # Boot ML Inference Service
