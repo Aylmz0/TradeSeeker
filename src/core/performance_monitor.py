@@ -51,7 +51,7 @@ class PerformanceMonitor:
                 decisions = cycle.get("decisions", {})
                 if isinstance(decisions, dict):
                     total_decisions += len(decisions)
-                    for coin, trade in decisions.items():
+                    for _coin, trade in decisions.items():
                         if isinstance(trade, dict):
                             signal = trade.get("signal", "")
                             if signal == "buy_to_enter" or signal == "sell_to_enter":
@@ -188,7 +188,6 @@ class PerformanceMonitor:
                     "initial_balance": initial_balance,
                     "current_balance": current_balance,
                     "total_value": total_value,
-                    "total_return": round(total_return, 2),
                     "total_return": round(total_return, 2),
                     "sharpe_ratio": round(sharpe_ratio, 3),
                     "sortino_ratio": round(sortino_ratio, 3),
@@ -634,7 +633,7 @@ class PerformanceMonitor:
 
         strong_count = len(summary.get("high_loss_risk_coins", []))
         moderate_count = len(summary.get("medium_loss_risk_coins", []))
-        weak_count = len(summary.get("low_loss_risk_coins", []))
+        len(summary.get("low_loss_risk_coins", []))
         reversal_percentage = summary.get("loss_risk_percentage", 0)
 
         # Market-wide reversal signals

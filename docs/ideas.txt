@@ -1,14 +1,14 @@
 # Improvement Ideas
- 
+
 ## IDEA: 15m vs 1h Momentum Confusion
- 
+
 Description:
 AI confused 1h momentum with 15m momentum while applying the zone_weakening_combined_rule.
- 
+
 Example (Cycle 9 - DOGE):
 Actual: 15m momentum STRENGTHENING, 1h momentum WEAKENING
 AI thought: 1h STRENGTHENING
- 
+
 Possible Solutions:
 1. Clarify the prompt:
    - Add explicit "15m" prefix to every condition
@@ -17,40 +17,40 @@ Possible Solutions:
    - Prevent confusion
 3. Simplify the rule:
    - Use numerical values like RSI > 60 / RSI < 40 instead of qualitative momentum
- 
+
 PENDING - To be tested
- 
+
 ## IDEA: Extreme RSI + Zone Rule (Counter-Trend Opportunity)
- 
+
 Description:
 AI identified a counter-trend opportunity but couldn't execute because counter_trade_analysis was empty.
- 
+
 Example:
 - Entry: $0.2811, 10 cycles later: $0.281
 - Change: -0.04% (break-even)
 - RSI 19.4 -> 21.9 (slight recovery started)
- 
+
 Proposal: Symmetrical Extreme RSI Rule
- 
+
 For LONG:
 - RSI < 25 (Extreme oversold)
 - Near support zone
 - Momentum weakening
 -> Evaluate counter-trend LONG opportunity
- 
+
 For SHORT:
 - RSI > 75 (Extreme overbought)
 - Near resistance zone
 - Momentum weakening
 -> Evaluate counter-trend SHORT opportunity
- 
+
 Steps:
 1. Update RealMarketData to detect extreme RSI
 2. Update PortfolioManager to allow counter-trend entries without medium-term alignment if RSI is extreme
 3. Update prompt_json_builders.py to include extreme RSI condition in counter_trade_analysis
- 
+
 Requirement changes:
 - Do NOT require 15m alignment (Extreme RSI is already a strong signal)
 - Use low confidence (0.40-0.55) for risk reduction
- 
+
 COMPLETED - Zone+Weakening risk modifier added (prompt_json_builders.py)

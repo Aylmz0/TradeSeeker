@@ -91,7 +91,7 @@ def safe_file_write(file_path: str, data):
         with _file_lock:
             # CRITICAL FIX: Ensure absolute path to prevent [Errno 2] Issues
             abs_file_path = os.path.abspath(file_path)
-            
+
             # Ensure directory exists with full hierarchy
             directory = os.path.dirname(abs_file_path)
             if directory and not os.path.exists(directory):
@@ -100,7 +100,7 @@ def safe_file_write(file_path: str, data):
             # Write to a UNIQUE temporary file to prevent thread collisions
             # Using PID + ThreadID for perfect isolation
             temp_file_path = f"{abs_file_path}.{os.getpid()}.{threading.get_ident()}.tmp"
-            
+
             with open(temp_file_path, "w", encoding="utf-8") as f:
                 json.dump(data, f, indent=2, ensure_ascii=False)
                 f.flush()
@@ -112,7 +112,7 @@ def safe_file_write(file_path: str, data):
             except OSError:
                 # Fallback for cross-device or permission quirks
                 shutil.move(temp_file_path, abs_file_path)
-                
+
             return True
     except Exception as e:
         # Get CWD for debugging
@@ -122,7 +122,7 @@ def safe_file_write(file_path: str, data):
         if temp_file_path and os.path.exists(temp_file_path):
             try:
                 os.remove(temp_file_path)
-            except:
+            except Exception:
                 pass
         return False
 

@@ -29,6 +29,7 @@ if str(PROJECT_ROOT) not in sys.path:
 
 from src.services.ml_service import MLService
 
+
 # Configure logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -69,6 +70,7 @@ def handle_exception(e):
     """Global error handler to ensure all errors return JSON instead of HTML."""
     logger.error(f"Global Error Hook: {e}", exc_info=True)
     return jsonify({"status": "error", "message": str(e)}), 500
+
 
 # --- Utility Functions ---
 
@@ -188,7 +190,9 @@ def refresh_performance():
             start_new_session=True,  # Fully detached
         )
 
-        return jsonify({"status": "success", "message": "Performance refresh started in background."})
+        return jsonify(
+            {"status": "success", "message": "Performance refresh started in background."}
+        )
     except Exception as e:
         logger.error(f"Error starting performance refresh: {e}")
         return jsonify({"status": "error", "message": str(e)}), 500
@@ -275,15 +279,6 @@ def get_bot_control():
     except Exception as e:
         logger.error(f"Error reading bot control: {e}")
         return jsonify({"status": "error", "message": str(e)}), 500
-
-
-        if filename.endswith(".json"):
-            response.headers["Cache-Control"] = "no-cache, no-store, must-revalidate"
-            response.headers["Pragma"] = "no-cache"
-            response.headers["Expires"] = "0"
-        return response
-    except Exception:
-        return jsonify({"status": "error", "message": "File not found"}), 404
 
 
 import subprocess
@@ -410,24 +405,26 @@ def get_ml_predictions():
 
                     # Legacy Normalization: If values are > 1 (e.g. 51.2), they are in 0-100 scale.
                     # Standardize everything to 0-1 for the Frontend.
-                    if sell > 1.0: sell /= 100.0
-                    if hold > 1.0: hold /= 100.0
-                    if buy > 1.0: buy /= 100.0
+                    if sell > 1.0:
+                        sell /= 100.0
+                    if hold > 1.0:
+                        hold /= 100.0
+                    if buy > 1.0:
+                        buy /= 100.0
 
                     confidence = raw_pred.get("confidence", 0)
-                    if confidence > 1.0: confidence /= 100.0
+                    if confidence > 1.0:
+                        confidence /= 100.0
 
-                    predictions.append({
-                        "ts": raw_pred.get("ts"),
-                        "coin": raw_pred.get("coin"),
-                        "dominant": raw_pred.get("dominant"),
-                        "confidence": confidence,
-                        "probabilities": {
-                            "SELL": sell,
-                            "HOLD": hold,
-                            "BUY": buy
+                    predictions.append(
+                        {
+                            "ts": raw_pred.get("ts"),
+                            "coin": raw_pred.get("coin"),
+                            "dominant": raw_pred.get("dominant"),
+                            "confidence": confidence,
+                            "probabilities": {"SELL": sell, "HOLD": hold, "BUY": buy},
                         }
-                    })
+                    )
     except Exception as e:
         logger.error(f"Error reading ML predictions: {e}")
     return jsonify(predictions)
@@ -439,14 +436,15 @@ def get_ml_drift():
     import sqlite3
 
     # Load real training metrics if they exist
-    training_accuracy = 0.431 # Default fallback
+    training_accuracy = 0.431  # Default fallback
     metrics_path = get_file_path("models/model_metrics.json")
     if os.path.exists(metrics_path):
         try:
             with open(metrics_path) as f:
                 m = json.load(f)
                 training_accuracy = m.get("accuracy", 0.431)
-        except: pass
+        except Exception:
+            pass
 
     # Get live health from engine
     health = ml_service.get_model_health()

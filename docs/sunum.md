@@ -1,5 +1,5 @@
 # TradeSeeker: Hibrit Yapay Zeka Destekli Sistematik Alım-Satım Sistemi
-**Teknik Detaylı Proje Sunum Dokümanı**  
+**Teknik Detaylı Proje Sunum Dokümanı**
 **Versiyon:** V9 - Auto TP/SL, Dynamic Size, Prompt Eng
 
 ---

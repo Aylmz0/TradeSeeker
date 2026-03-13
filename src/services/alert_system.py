@@ -12,6 +12,8 @@ from datetime import datetime, timedelta
 from enum import Enum
 from typing import Any
 
+from config.config import Config
+
 
 class AlertLevel(Enum):
     INFO = "INFO"

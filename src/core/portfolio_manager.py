@@ -1,9 +1,9 @@
 import copy
 import os
+import threading
 import time
 from collections import deque
 from datetime import datetime
-import threading
 from typing import Any
 
 import numpy as np
@@ -674,7 +674,9 @@ class PortfolioManager:
             rolling_list = list(stats["rolling"])
             rolling_sum = sum(rolling_list)
             # FIX: Zero division protection
-            rolling_avg = (rolling_sum / len(rolling_list)) if rolling_list and len(rolling_list) > 0 else 0.0
+            rolling_avg = (
+                (rolling_sum / len(rolling_list)) if rolling_list and len(rolling_list) > 0 else 0.0
+            )
 
             # Calculate profitability index based on profit/loss amounts (not trade counts)
             # Profitability Index = Total Profit / (|Total Profit| + |Total Loss|) * 100
@@ -873,7 +875,7 @@ class PortfolioManager:
                         + prompt[:200]
                         + "..."
                     )
-                except Exception as e:
+                except Exception:
                     # FIX: Replace bare except with specific exception handling
                     prompt_summary = prompt[:300] + "..." if len(prompt) > 300 else prompt
             else:
@@ -961,7 +963,7 @@ class PortfolioManager:
                     sparkline = indicators_htf.get("smart_sparkline", {})
                     price_location = sparkline.get("price_location", {})
                     zone = price_location.get("zone", "MIDDLE")
-        except (KeyError, AttributeError, TypeError) as e:
+        except (KeyError, AttributeError, TypeError):
             # FIX: Specific exception handling for zone extraction
             zone = "MIDDLE"
 
@@ -1048,7 +1050,9 @@ class PortfolioManager:
                             qty = pos["quantity"]
                             direction = pos.get("direction", "long")
                             pnl = (
-                                (price - entry) * qty if direction == "long" else (entry - price) * qty
+                                (price - entry) * qty
+                                if direction == "long"
+                                else (entry - price) * qty
                             )
                             pos["unrealized_pnl"] = pnl
                     else:
@@ -1056,7 +1060,9 @@ class PortfolioManager:
                         entry = pos["entry_price"]
                         qty = pos["quantity"]
                         direction = pos.get("direction", "long")
-                        pnl = (price - entry) * qty if direction == "long" else (entry - price) * qty
+                        pnl = (
+                            (price - entry) * qty if direction == "long" else (entry - price) * qty
+                        )
                         pos["unrealized_pnl"] = pnl
 
                     total_unrealized_pnl += pos.get("unrealized_pnl", 0.0)
@@ -1105,7 +1111,7 @@ class PortfolioManager:
                         self.total_value = float(overview["totalWalletBalance"])
                     else:
                         self.total_value = self.current_balance
-                except Exception as e:
+                except Exception:
                     # FIX: Replace bare except with specific exception handling
                     self.total_value = self.current_balance
             else:
@@ -1304,7 +1310,7 @@ class PortfolioManager:
                 volume_multiplier = 1.1
             else:
                 volume_multiplier = 0.8  # Penalize low volume
-        except Exception as e:
+        except Exception:
             # FIX: Replace bare except with specific exception handling
             volume_multiplier = 1.0
 
@@ -1631,13 +1637,21 @@ class PortfolioManager:
                 log_func(
                     "sizing",
                     f"[WARN]  Volatility sizing capped by cash limit: ${target_margin:.2f} -> ${max_margin_cash:.2f}",
-                    {"coin": self.market_data.available_coins[0] if hasattr(self, 'market_data') else "unknown", "target_margin": target_margin, "max_margin": max_margin_cash}
+                    {
+                        "coin": self.market_data.available_coins[0]
+                        if hasattr(self, "market_data")
+                        else "unknown",
+                        "target_margin": target_margin,
+                        "max_margin": max_margin_cash,
+                    },
                 )
             else:
-                print(f"[WARN]  Volatility sizing capped by cash limit: ${target_margin:.2f} -> ${max_margin_cash:.2f}")
+                print(
+                    f"[WARN]  Volatility sizing capped by cash limit: ${target_margin:.2f} -> ${max_margin_cash:.2f}"
+                )
             target_margin = max_margin_cash
 
-        # Note: Scout Sizing multipliers are now handled centrally in the main loop 
+        # Note: Scout Sizing multipliers are now handled centrally in the main loop
         # via Config.MARKET_REGIME_MULTIPLIERS to avoid double multiplication.
 
         # Apply minimum margin ($10)
@@ -1702,7 +1716,6 @@ class PortfolioManager:
         except Exception as e:
             print(f"[WARN]  Volume quality score calculation error for {coin}: {e}")
             return 0.0
-
 
     def check_flash_exit_conditions(self, coin: str, position: dict) -> bool:
         """
@@ -1769,8 +1782,6 @@ class PortfolioManager:
         """
         # FIX: Use getattr for safe config access
         return getattr(Config, "SAME_DIRECTION_LIMIT", 2)
-
-
 
     def validate_exit_signal(self, coin: str, position: dict, indicators_3m: dict) -> bool:
         """
@@ -1849,11 +1860,11 @@ class PortfolioManager:
         try:
             indicators_3m = self.market_data.get_technical_indicators(coin, "3m")
             if "error" in indicators_3m:
-                return True # Fail-safe: allow exit if data is missing
+                return True  # Fail-safe: allow exit if data is missing
 
             price_3m = indicators_3m.get("current_price")
             ema20_3m = indicators_3m.get("ema_20")
-            
+
             if not price_3m or not ema20_3m:
                 return True
 
@@ -1864,7 +1875,7 @@ class PortfolioManager:
             else:
                 # Short is still valid if price is not significantly above EMA20
                 is_invalid = price_3m > (ema20_3m * 1.001)
-            
+
             return is_invalid
         except Exception as e:
             print(f"[WARN] Error in _verify_technical_reversal: {e}")
@@ -1973,8 +1984,16 @@ class PortfolioManager:
             position = self.positions.get(coin)
 
             # --- SURGICAL FIX: Initialize indicator variables for new context ---
-            indicators_htf = indicator_cache.get_indicators(coin, HTF_INTERVAL, self.market_data) if indicator_cache else {}
-            indicators_3m = indicator_cache.get_indicators(coin, "3m", self.market_data) if indicator_cache else {}
+            indicators_htf = (
+                indicator_cache.get_indicators(coin, HTF_INTERVAL, self.market_data)
+                if indicator_cache
+                else {}
+            )
+            indicators_3m = (
+                indicator_cache.get_indicators(coin, "3m", self.market_data)
+                if indicator_cache
+                else {}
+            )
             # --------------------------------------------------------------------
 
             if signal == "buy_to_enter" or signal == "sell_to_enter":
@@ -2052,23 +2071,38 @@ class PortfolioManager:
                             tp_mult = getattr(Config, "ATR_PROFIT_MULTIPLIER", 3.0)
                             expected_profit_usd_per_coin = atr_val * tp_mult
                             expected_profit_pct = expected_profit_usd_per_coin / current_price
-                            
+
                             # Commission cost estimate: Round-trip (entry + exit)
                             comm_rate = getattr(Config, "SIMULATION_COMMISSION_RATE", 0.001)
                             round_trip_comm_pct = comm_rate * 2
-                            
+
                             profit_comm_ratio = expected_profit_pct / round_trip_comm_pct
                             guard_ratio = getattr(Config, "COMMISSION_GUARD_RATIO", 5.0)
-                            
+
                             if profit_comm_ratio < guard_ratio:
-                                _log_debug("trade", f"[BLOCK] COMMISSION GUARD: {coin} Ratio {profit_comm_ratio:.2f} < {guard_ratio:.2f}. Trade not economically viable.", {"coin": coin, "ratio": profit_comm_ratio})
-                                execution_report["blocked"].append({"coin": coin, "reason": "commission_guard", "ratio": profit_comm_ratio})
+                                _log_debug(
+                                    "trade",
+                                    f"[BLOCK] COMMISSION GUARD: {coin} Ratio {profit_comm_ratio:.2f} < {guard_ratio:.2f}. Trade not economically viable.",
+                                    {"coin": coin, "ratio": profit_comm_ratio},
+                                )
+                                execution_report["blocked"].append(
+                                    {
+                                        "coin": coin,
+                                        "reason": "commission_guard",
+                                        "ratio": profit_comm_ratio,
+                                    }
+                                )
                                 trade["runtime_decision"] = "blocked_commission_guard"
                                 continue
                             else:
-                                _log_debug("trade", f"[OK]    COMMISSION GUARD: {coin} Ratio {profit_comm_ratio:.2f} passed threshold {guard_ratio}.")
+                                _log_debug(
+                                    "trade",
+                                    f"[OK]    COMMISSION GUARD: {coin} Ratio {profit_comm_ratio:.2f} passed threshold {guard_ratio}.",
+                                )
                     except Exception as e:
-                        _log_debug("trade", f"[WARN]  Commission guard check failed for {coin}: {e}")
+                        _log_debug(
+                            "trade", f"[WARN]  Commission guard check failed for {coin}: {e}"
+                        )
 
                 # 3. Momentum and Price Location Confidence Adjustments
                 # Reduce confidence when trend conviction is weak or price is in extreme zones
@@ -2232,7 +2266,7 @@ class PortfolioManager:
                                 "final_confidence": confidence,
                             },
                         )
-                except (KeyError, AttributeError, ValueError) as e:
+                except (KeyError, AttributeError, ValueError):
                     # FIX: Specific exception handling for confidence adjustment logging
                     pass  # Continue without adjustments
 
@@ -2240,11 +2274,10 @@ class PortfolioManager:
                 # using 1h ATR with Config.ATR_SL_MULTIPLIER and Config.ATR_TP_MULTIPLIER
 
                 direction = "long" if signal == "buy_to_enter" else "short"
-                dominant_direction = None
                 if market_regime == "BULLISH":
-                    dominant_direction = "long"
+                    pass
                 elif market_regime == "BEARISH":
-                    dominant_direction = "short"
+                    pass
 
                 # Coin bazlı cooldown kontrolü (öncelikli - zararlı trade'den sonra aynı coin'i engelle)
                 coin_cooldowns = self.coin_cooldowns
@@ -2513,7 +2546,6 @@ class PortfolioManager:
 
                     # Trend inconsistency check: EMA-based vs runtime trend
                     # If AI/EMA says counter-trend but runtime says different, use min margin
-                    signal_direction = "bullish" if signal == "buy_to_enter" else "bearish"
                     runtime_counter_trend = (
                         signal == "buy_to_enter" and current_trend == "bearish"
                     ) or (signal == "sell_to_enter" and current_trend == "bullish")
@@ -2535,9 +2567,9 @@ class PortfolioManager:
                         print(
                             f"[WARN]  TREND MISMATCH: {coin} - Using MIN_MARGIN ($25) due to AI/Runtime trend conflict",
                         )
-                        trade["forced_min_margin"] = (
-                            True  # Will be used later to cap margin at MIN_POSITION_MARGIN_USD
-                        )
+                        trade[
+                            "forced_min_margin"
+                        ] = True  # Will be used later to cap margin at MIN_POSITION_MARGIN_USD
                         execution_report["notes"].append(
                             {
                                 "coin": coin,
@@ -2955,7 +2987,7 @@ class PortfolioManager:
                 current_multiplier = market_regime_multiplier
                 if Config.SCOUT_MODE_ENABLED and market_regime == "NEUTRAL":
                     current_multiplier *= getattr(Config, "SCOUT_LEVERAGE_MULT", 0.5)
-                
+
                 calculated_margin *= current_multiplier
                 if partial_margin_factor < 1.0:
                     standard_margin = calculated_margin
@@ -3160,10 +3192,16 @@ class PortfolioManager:
                     trade["runtime_decision"] = "skipped_no_position"
                     continue
 
+                justification = trade.get("justification", "")
                 if "reversal" in justification or "invalidation" in justification:
+                    # Treat Take Profit, Stop Loss or PnL justifications as hard exits
+                    is_pnl_exit = any(
+                        word in justification.lower()
+                        for word in ["take profit", "stop loss", "pnl"]
+                    )
+
                     if not is_pnl_exit:
                         # 5.1 Surgical Invalidation Check
-                        # If AI claims invalidation but price is still on the 'safe' side of EMA, block it.
                         direction = position.get("direction", "long")
                         strong_reversal = self._verify_technical_reversal(coin, direction)
 

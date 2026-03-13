@@ -345,7 +345,9 @@ class Config:
     REPLAY_SEED: int = int(os.getenv("REPLAY_SEED", "42"))
     REPLAY_CHECKPOINT_CYCLES: int = int(os.getenv("REPLAY_CHECKPOINT_CYCLES", "50"))
     HOLD_THRESHOLD_DEFAULT: float = float(os.getenv("HOLD_THRESHOLD_DEFAULT", "0.82"))
-    HOLD_THRESHOLD_NEUTRAL: float = float(os.getenv("HOLD_THRESHOLD_NEUTRAL", "0.75")) # Slightly more aggressive than Sniper
+    HOLD_THRESHOLD_NEUTRAL: float = float(
+        os.getenv("HOLD_THRESHOLD_NEUTRAL", "0.75")
+    )  # Slightly more aggressive than Sniper
 
     @classmethod
     def validate_config(cls) -> bool:

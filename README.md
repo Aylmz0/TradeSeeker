@@ -5,7 +5,7 @@
 ![AI](https://img.shields.io/badge/AI-OpenRouter%20%2F%20DeepSeek-black?style=for-the-badge&logo=openai)
 ![Status](https://img.shields.io/badge/Optimization-V9_Hybrid_ML-success?style=for-the-badge)
 
-**TradeSeeker**, Büyük Dil Modellerinin (LLM - DeepSeek/Trinity vb.) muhakeme gücünü, **XGBoost** tabanlı saf istatistiksel makine öğrenmesi ve **$O(1)$ karmaşıklıkta** optimize edilmiş vektörel indikatör motoru ile birleştiren, yüksek performanslı bir algoritmik ticaret maestrosudur. 
+**TradeSeeker**, Büyük Dil Modellerinin (LLM - DeepSeek/Trinity vb.) muhakeme gücünü, **XGBoost** tabanlı saf istatistiksel makine öğrenmesi ve **$O(1)$ karmaşıklıkta** optimize edilmiş vektörel indikatör motoru ile birleştiren, yüksek performanslı bir algoritmik ticaret maestrosudur.
 
 ---
 
@@ -23,7 +23,7 @@ TradeSeeker, kararları tek bir beyne bırakmaz. Kantitatif Matematik (XGBoost) 
 * **Graceful Degradation (Kusursuz Düşüş):** Eğer ML (XGBoost) verisi/modeli yoksa bot çökmez. Kendini anında izole ederek klasik "AI-Only" moduna geçer ve sadece teknik analize dayanarak sorunsuz çalışmaya devam eder.
 * **Hardcore Vektörizasyon:** Tüm teknik indikatörler saf NumPy kullanılarak C hızında hesaplanır. Python `for` döngüleri kullanılmaz.
 * **Unified Data Engine (SQLite):** Her karar, "Confidence Skoru", "ML Probability" ve gerçekleşen "Reel PnL (Kâr/Zarar)" ile birlikte SQLite veritabanına loglanır. Bu altyapı gelecekteki **Kendi Kendine Öğrenme (Reinforcement Learning)** aşamasının omurgasıdır.
-* **Console Cleansing:** Tamamen stabilize edilmiş ve Emoji/Unicode gürültüsünden arındırılmış, profesyonel terminal logları. 
+* **Console Cleansing:** Tamamen stabilize edilmiş ve Emoji/Unicode gürültüsünden arındırılmış, profesyonel terminal logları.
 
 ---
 

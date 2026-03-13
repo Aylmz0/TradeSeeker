@@ -1,8 +1,8 @@
+import json
 import logging
 import os
 import sqlite3
 import time
-import json
 from typing import Any
 
 import numpy as np
@@ -48,7 +48,8 @@ class DataEngine:
             cursor = conn.cursor()
 
             # 1. Market Data Table: Stores raw OHLCV from Binance (3m, 15m, 1h)
-            cursor.execute("""
+            cursor.execute(
+                """
                 CREATE TABLE IF NOT EXISTS market_data (
                     timestamp INTEGER,
                     coin TEXT,
@@ -60,10 +61,12 @@ class DataEngine:
                     volume REAL,
                     PRIMARY KEY (timestamp, coin, interval)
                 )
-            """)
+            """
+            )
 
             # 2. Decisions Table: The Feedback Loop (Self-Learning memory)
-            cursor.execute("""
+            cursor.execute(
+                """
                 CREATE TABLE IF NOT EXISTS decisions (
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
                     timestamp INTEGER,
@@ -76,12 +79,14 @@ class DataEngine:
                     pnl_result REAL,      -- The actual realized PnL
                     status TEXT           -- OPEN, CLOSED
                 )
-            """)
+            """
+            )
 
             # 3. Features Table: Normalized indicator values ready for XGBoost DMatrix
             # We use a JSON text field for feature_data to allow adding/removing indicators
             # without requiring complex schema migrations (Schema Evolution flexibility).
-            cursor.execute("""
+            cursor.execute(
+                """
                 CREATE TABLE IF NOT EXISTS features (
                     timestamp INTEGER,
                     coin TEXT,
@@ -89,7 +94,8 @@ class DataEngine:
                     feature_json TEXT,
                     PRIMARY KEY (timestamp, coin, interval)
                 )
-            """)
+            """
+            )
 
             # Create indexes for query performance (O(log N) lookups)
             cursor.execute(
@@ -132,17 +138,12 @@ class DataEngine:
                     feature_data[k] = v.tolist()[-1] if len(v) > 0 else None
                 elif isinstance(v, list):
                     feature_data[k] = v[-1] if v else None
-            
+
             cursor = conn.cursor()
             cursor.execute(
                 """INSERT OR REPLACE INTO features (timestamp, coin, interval, feature_json)
                    VALUES (?, ?, ?, ?)""",
-                (
-                    int(time.time() * 1000),
-                    coin,
-                    interval,
-                    json.dumps(feature_data)
-                )
+                (int(time.time() * 1000), coin, interval, json.dumps(feature_data)),
             )
             conn.commit()
         except Exception as e:
@@ -186,7 +187,7 @@ class DataEngine:
             # INSERT OR IGNORE protects against duplicate timestamp overlapping
             cursor.executemany(
                 """
-                INSERT OR IGNORE INTO market_data 
+                INSERT OR IGNORE INTO market_data
                 (timestamp, coin, interval, open, high, low, close, volume)
                 VALUES (?, ?, ?, ?, ?, ?, ?, ?)
             """,
@@ -217,8 +218,8 @@ class DataEngine:
                 # or just use a subquery. Subquery is cleaner.
                 query = """
                     SELECT * FROM (
-                        SELECT * FROM market_data 
-                        WHERE coin = ? AND interval = ? 
+                        SELECT * FROM market_data
+                        WHERE coin = ? AND interval = ?
                         ORDER BY timestamp DESC LIMIT ?
                     ) ORDER BY timestamp ASC
                 """
@@ -339,7 +340,7 @@ class DataEngine:
         try:
             cursor = conn.cursor()
             cursor.execute(
-                """INSERT INTO decisions 
+                """INSERT INTO decisions
                    (timestamp, coin, action, ai_confidence, ml_probability, entry_price, status)
                    VALUES (?, ?, ?, ?, ?, ?, 'OPEN')""",
                 (
@@ -375,7 +376,7 @@ class DataEngine:
         try:
             cursor = conn.cursor()
             cursor.execute(
-                """UPDATE decisions 
+                """UPDATE decisions
                    SET exit_price = ?, pnl_result = ?, status = 'CLOSED'
                    WHERE coin = ? AND status = 'OPEN'
                    ORDER BY timestamp DESC LIMIT 1""",

@@ -315,8 +315,8 @@ class EnhancedContextProvider:
     def get_risk_context(self, portfolio_state: dict) -> dict[str, Any]:
         """Enhanced risk management context"""
         positions = portfolio_state.get("positions", {})
-        current_balance = portfolio_state.get("current_balance", 0)
-        total_value = portfolio_state.get("total_value", 0)
+        portfolio_state.get("current_balance", 0)
+        portfolio_state.get("total_value", 0)
 
         # Calculate risk metrics
         total_risk = sum(pos.get("risk_usd", 0) for pos in positions.values())

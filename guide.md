@@ -9,7 +9,7 @@ Bu dosya, TradeSeeker projesinin teknik mimarisini, dosya yapısını ve veri ak
 TradeSeeker, **"Decoupled Architecture"** (Ayrıştırılmış Mimari) prensibiyle tasarlanmıştır. Her servis kendi sorumluluk alanına sahiptir ve birbirleriyle `main.py` (Orchestrator) üzerinden haberleşir.
 
 ### Veri Akış Modeli: Unified Data Pipeline (UDP)
-Sistemde veri "bir kez çekilir, bir kez işlenir, her yerde kullanılır." 
+Sistemde veri "bir kez çekilir, bir kez işlenir, her yerde kullanılır."
 1. `RealMarketData` (veya `DataEngine`) 1h, 15m, ve 3m verilerini çeker, SQLite ambarına yazar ve cache'ler.
 2. `MLService` ve `AIService` aynı bellek snapshot'ını kullanarak analiz yapar.
 3. Bu sayede API gecikmesi ve hesaplama tutarsızlıkları önlenir.

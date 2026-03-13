@@ -367,12 +367,10 @@ class AccountService:
             max_attempts = 10
             timeout_seconds = 30
             start_time = _time_module.time()
-            position_found = False
 
             for attempt in range(max_attempts):
                 self.sync_live_account()
                 if coin in self.pm.positions:
-                    position_found = True
                     break
 
                 elapsed = _time_module.time() - start_time
@@ -673,7 +671,9 @@ class AccountService:
             if coin not in self.pm.positions:
                 return {"success": False, "error": "no_position"}
 
-            position = self.pm.positions[coin].copy()  # Copy to avoid holding lock during calculations
+            position = self.pm.positions[
+                coin
+            ].copy()  # Copy to avoid holding lock during calculations
         direction = position.get("direction", "long")
         entry_price = position.get("entry_price", 0)
         quantity = position.get("quantity", 0)
@@ -1133,13 +1133,13 @@ class AccountService:
             position["entry_price"] = entry_price
         direction = position.get("direction", "long")
         exit_plan = self._ensure_exit_plan(position, position.get("exit_plan"))
-        stop_loss = exit_plan.get("stop_loss")
+        exit_plan.get("stop_loss")
         profit_target = exit_plan.get("profit_target")
         notional_usd = position.get("notional_usd", 0)
 
         exit_decision = {"action": "hold", "reason": "No exit trigger"}
 
-        current_margin = position.get("margin_usd", 0)
+        position.get("margin_usd", 0)
         margin_used = position.get(
             "margin_usd",
             position.get("notional_usd", 0) / max(position.get("leverage", 1), 1),

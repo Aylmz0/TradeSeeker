@@ -10,6 +10,32 @@ from typing import Any
 JSON_PROMPT_VERSION = "1.0"
 
 
+def get_cooldown_status_schema() -> dict[str, Any]:
+    """Schema for cooldown status per coin."""
+    return {
+        "type": "object",
+        "additionalProperties": {
+            "type": "object",
+            "properties": {
+                "is_cooldown": {"type": "boolean"},
+                "remaining_minutes": {"type": ["number", "null"]},
+            },
+        },
+    }
+
+
+def get_position_slot_schema() -> dict[str, Any]:
+    """Schema for position slot occupancy."""
+    return {
+        "type": "object",
+        "properties": {
+            "max_slots": {"type": "integer"},
+            "used_slots": {"type": "integer"},
+            "available_slots": {"type": "integer"},
+        },
+    }
+
+
 def get_counter_trade_schema() -> dict[str, Any]:
     """Schema for counter-trade risk (compact dict per coin)."""
     return {

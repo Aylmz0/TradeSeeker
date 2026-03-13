@@ -1,7 +1,10 @@
+import copy
 import json
 import warnings
 from datetime import datetime
 from typing import Any
+
+import pandas as pd
 
 from config.config import Config
 from src.ai.enhanced_context_provider import EnhancedContextProvider
@@ -113,7 +116,7 @@ class AIService:
         recent_decisions = []
         for cycle in recent_cycles:
             decisions = cycle.get("decisions", {})
-            for coin, trade in decisions.items():
+            for _coin, trade in decisions.items():
                 if isinstance(trade, dict) and trade.get("signal") in [
                     "buy_to_enter",
                     "sell_to_enter",
@@ -376,7 +379,7 @@ REMEMBER: These are suggestions only. You make the final trading decisions based
                 try:
                     entry_dt = datetime.fromisoformat(entry_time_str)
                     minutes_in_trade = max(0, int((now_ts - entry_dt).total_seconds() // 60))
-                except (ValueError, TypeError) as e:
+                except (ValueError, TypeError):
                     # FIX: Specific exception handling for datetime parsing
                     minutes_in_trade = None
             positions_by_direction[direction].append(
@@ -540,7 +543,7 @@ REMEMBER: These are suggestions only. You make the final trading decisions based
                             int((datetime.now() - entry_dt).total_seconds() // 60),
                         )
                         position_duration_hours = position_duration_minutes / 60.0
-                    except (ValueError, TypeError, AttributeError) as e:
+                    except (ValueError, TypeError, AttributeError):
                         # FIX: Specific exception handling for datetime calculation
                         pass
 
@@ -703,7 +706,6 @@ REMEMBER: These are suggestions only. You make the final trading decisions based
             pos.get("margin_usd", 0) for pos in self.portfolio.positions.values()
         )
         current_positions_count = len(self.portfolio.positions)
-        max_positions = 5
 
         prompt += f"""
 {"=" * 20} HISTORICAL CONTEXT (Last {trading_context["total_cycles_analyzed"]} Cycles) {"=" * 20}
@@ -800,8 +802,8 @@ Current live positions & performance:"""
         bias_metrics = getattr(self, "latest_bias_metrics", self.get_directional_bias_metrics())
 
         # Get trend flip summary
-        recent_flips = self.portfolio.get_recent_trend_flip_summary()
-        flip_history_window = getattr(
+        self.portfolio.get_recent_trend_flip_summary()
+        getattr(
             self.portfolio,
             "trend_flip_history_window",
             self.portfolio.trend_flip_cooldown,
@@ -833,7 +835,7 @@ Current live positions & performance:"""
             )
 
         # Metadata
-        metadata_json = build_metadata_json(minutes_running, current_time, self.invocation_count)
+        build_metadata_json(minutes_running, current_time, self.invocation_count)
 
         # Counter-trade risk analysis (compact dict: {coin: {risk_level, alignment_strength, conditions_met}})
         counter_trade_risks = build_counter_trade_json(
@@ -907,7 +909,7 @@ Current live positions & performance:"""
                 ml_prob_buy = ml_consensus.get("buy_prob", 0)
                 ml_prob_sell = ml_consensus.get("sell_prob", 0)
                 htf_direction = indicators_htf.get("trend_direction", "neutral")
-                
+
                 # Flag deviation if ML is strong opposite to HTF trend
                 if ml_prob_sell > 0.60 and htf_direction == "bullish":
                     ml_bias_label = "Trend-Averse (Bearish ML vs Bullish HTF)"
@@ -924,7 +926,7 @@ Current live positions & performance:"""
                 indicators_htf,
                 position,
                 ml_consensus=ml_consensus,
-                ml_bias_label=ml_bias_label, # Injecting the mitigation label
+                ml_bias_label=ml_bias_label,  # Injecting the mitigation label
                 counter_trade_result=counter_trade_risks.get(coin),
                 reversal_result=reversal_threats.get(coin),
             )
@@ -1058,7 +1060,8 @@ Each coin below contains a State Vector with:
     # --- Formatting Methods (v1.2 Restoration) ---
     def format_list(self, items: list, precision: int = 5) -> str:
         """Formats a list of numbers into a readable string."""
-        if not items: return "[]"
+        if not items:
+            return "[]"
         formatted = []
         for x in items:
             if isinstance(x, (int, float)):
@@ -1070,54 +1073,69 @@ Each coin below contains a State Vector with:
     def format_volume_ratio(self, current: float, avg: float) -> str:
         """Calculates and formats volume ratio."""
         try:
-            if not avg or avg == 0: return "1.00x"
+            if not avg or avg == 0:
+                return "1.00x"
             return f"{(current / avg):.2f}x"
-        except: return "1.00x"
+        except:
+            return "1.00x"
 
     def format_trend_reversal_analysis(self, analysis: dict) -> str:
         """Formats trend reversal analysis for AI prompt."""
-        if not analysis: return "No active reversal threats identified."
+        if not analysis:
+            return "No active reversal threats identified."
         lines = []
         for coin, data in analysis.items():
             strength = data.get("strength_score", 0)
             if strength > 0.5:
-                lines.append(f"  - {coin}: REVERSAL THREAT (strength={strength:.2f}). Reason: {data.get('reason_summary', 'Unknown')}")
+                lines.append(
+                    f"  - {coin}: REVERSAL THREAT (strength={strength:.2f}). Reason: {data.get('reason_summary', 'Unknown')}"
+                )
         return "\n".join(lines) if lines else "No significant reversal threats identified."
 
     def format_position_context(self, context: dict) -> str:
         """Formats enhanced position context."""
-        if not context: return "No enhanced position data available."
+        if not context:
+            return "No enhanced position data available."
         lines = []
         for coin, data in context.items():
-            lines.append(f"  - {coin}: PnL ${data.get('unrealized_pnl', 0):.2f}, Progress {data.get('profit_target_progress', 0):.1f}% to target, TiT {data.get('time_in_trade_minutes', 0):.1f}m")
+            lines.append(
+                f"  - {coin}: PnL ${data.get('unrealized_pnl', 0):.2f}, Progress {data.get('profit_target_progress', 0):.1f}% to target, TiT {data.get('time_in_trade_minutes', 0):.1f}m"
+            )
         return "\n".join(lines)
 
     def format_market_regime_context(self, context: dict) -> str:
         """Formats market regime context."""
-        if not context: return "Market regime data unavailable."
+        if not context:
+            return "Market regime data unavailable."
         return f"  Overall Regime: {context.get('current_regime', 'unknown').upper()} (Strength: {context.get('regime_strength', 0):.2f})"
 
     def format_performance_insights(self, context: dict) -> str:
         """Formats performance insights."""
         insights = context.get("insights", [])
-        if not insights: return "No specific performance insights for this cycle."
+        if not insights:
+            return "No specific performance insights for this cycle."
         return "\n".join(f"  - {i}" for i in insights)
 
     def format_directional_feedback(self, context: dict) -> str:
         """Formats directional bias feedback."""
-        if not context: return "No directional bias feedback available."
+        if not context:
+            return "No directional bias feedback available."
         lines = []
         for side in ["long", "short"]:
             data = context.get(side, {})
-            lines.append(f"  - {side.upper()}: PI={data.get('profitability_index', 0)}% (Trades: {data.get('trades', 0)})")
+            lines.append(
+                f"  - {side.upper()}: PI={data.get('profitability_index', 0)}% (Trades: {data.get('trades', 0)})"
+            )
         return "\n".join(lines)
 
     def format_risk_context(self, context: dict) -> str:
         """Formats risk management context."""
-        if not context: return "Risk context unavailable."
+        if not context:
+            return "Risk context unavailable."
         return f"  Total Risk: ${context.get('total_risk_usd', 0):.2f} across {context.get('position_count', 0)} positions. Div-score: {context.get('diversification_score', 0):.1f}"
 
     def format_suggestions(self, suggestions: list) -> str:
         """Formats suggestions list."""
-        if not suggestions: return "Continue executing core logic."
+        if not suggestions:
+            return "Continue executing core logic."
         return "\n".join(f"  - {s}" for s in suggestions)

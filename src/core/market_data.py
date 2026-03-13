@@ -4,7 +4,6 @@ import threading
 import time
 import traceback
 from typing import Any
-from typing import Any, List
 
 import numpy as np
 import pandas as pd
@@ -26,8 +25,8 @@ from src.core.indicators import (
     generate_smart_sparkline,
     generate_tags,
 )
-from src.core.schemas.alignment import AlignmentResult, AlignmentError
-from src.utils import RetryManager, safe_file_read_cached, safe_file_write
+from src.core.schemas.alignment import AlignmentError, AlignmentResult
+from src.utils import RetryManager
 
 
 # add this ass a cycle counter analysez
@@ -175,7 +174,9 @@ class RealMarketData:
                 with self._circuit_breaker_lock:
                     self._circuit_breaker_failures += 1
                     if self._circuit_breaker_failures >= self._circuit_breaker_threshold:
-                        self._circuit_breaker_until = _time_module.time() + self._circuit_breaker_timeout
+                        self._circuit_breaker_until = (
+                            _time_module.time() + self._circuit_breaker_timeout
+                        )
                         print(
                             f"[CIRCUIT] TRIPPED for {symbol} {interval} - open for {self._circuit_breaker_timeout}s (failures: {self._circuit_breaker_failures})"
                         )
@@ -193,7 +194,9 @@ class RealMarketData:
                 with self._circuit_breaker_lock:
                     self._circuit_breaker_failures += 1
                     if self._circuit_breaker_failures >= self._circuit_breaker_threshold:
-                        self._circuit_breaker_until = _time_module.time() + self._circuit_breaker_timeout
+                        self._circuit_breaker_until = (
+                            _time_module.time() + self._circuit_breaker_timeout
+                        )
                         print(
                             f"[CIRCUIT] TRIPPED for {symbol} {interval} - open for {self._circuit_breaker_timeout}s (failures: {self._circuit_breaker_failures})"
                         )
@@ -210,7 +213,9 @@ class RealMarketData:
                 with self._circuit_breaker_lock:
                     self._circuit_breaker_failures += 1
                     if self._circuit_breaker_failures >= self._circuit_breaker_threshold:
-                        self._circuit_breaker_until = _time_module.time() + self._circuit_breaker_timeout
+                        self._circuit_breaker_until = (
+                            _time_module.time() + self._circuit_breaker_timeout
+                        )
                         print(
                             f"[CIRCUIT] TRIPPED for {symbol} {interval} - open for {self._circuit_breaker_timeout}s (failures: {self._circuit_breaker_failures})"
                         )
@@ -503,7 +508,9 @@ class RealMarketData:
                         raise ValueError(f"Invalid price value {price_val}")
                     prices[coin] = price_val
                 except Exception as e:
-                    print(f"[WARN] Invalid bulk price for {coin}: {raw_price} ({e}). Using fallback.")
+                    print(
+                        f"[WARN] Invalid bulk price for {coin}: {raw_price} ({e}). Using fallback."
+                    )
                     prices[coin] = self._get_fallback_price(coin)
 
             # First try batched endpoint (single request, lower latency)
@@ -524,13 +531,15 @@ class RealMarketData:
                     # Ensure we filled everything; fall back only for missing
                     missing = [coin for coin in self.available_coins if coin not in prices]
                     if not missing:
-                        prices_str = " | ".join([f"{coin}: ${val:.4f}" for coin, val in prices.items()])
+                        prices_str = " | ".join(
+                            [f"{coin}: ${val:.4f}" for coin, val in prices.items()]
+                        )
                         print(f"[OK]    Prices: {prices_str}")
-                        
+
                         # Update cache
                         self._last_price_fetch_time = time.time()
                         self._last_price_cache = copy.deepcopy(prices)
-                            
+
                         return prices
                     print(
                         f"[WARN] Bulk price missing for: {', '.join(missing)}. Falling back to individual requests.",
@@ -563,7 +572,7 @@ class RealMarketData:
             if len(prices) > 0:
                 prices_str = " | ".join([f"{c}: ${p:.4f}" for c, p in prices.items()])
                 print(f"[OK]    Prices: {prices_str}")
-                
+
                 # Update cache (fallback case)
                 self._last_price_fetch_time = time.time()
                 self._last_price_cache = copy.deepcopy(prices)
@@ -613,27 +622,28 @@ class RealMarketData:
         print(f"   [WARNING] All fallbacks failed for {coin}. Price set to 0.")
         return 0.0
 
-    def verify_sync_alignment(self, coin: str, intervals: List[str] = ["3m", "15m", "1h"]) -> AlignmentResult:
+    def verify_sync_alignment(self, coin: str, intervals: list[str] = None) -> AlignmentResult:
         """
-        Verifies that the latest kline timestamps for multiple intervals are within 
+        Verifies that the latest kline timestamps for multiple intervals are within
         Config.MAX_ALIGNMENT_DELTA_S.
         """
+        if intervals is None:
+            intervals = ["3m", "15m", "1h"]
         timestamps = {}
-        errors = []
-        
+
         try:
             for interval in intervals:
                 # Use internal cache to avoid redundant API hits
                 # In a real cycle, indices should already be preloaded or fetched
                 klines = self.get_real_time_data(coin, interval=interval, limit=1)
-                
+
                 if klines is None or klines.empty:
                     return AlignmentResult(
-                        aligned=False, 
+                        aligned=False,
                         error_type=AlignmentError.INSUFFICIENT_DATA,
-                        error_message=f"No kline data for {coin} @ {interval}"
+                        error_message=f"No kline data for {coin} @ {interval}",
                     )
-                
+
                 # Use the latest closed candle timestamp
                 # The 'timestamp' column is the open time of the candle.
                 # The 'close_time' column is the close time of the candle.
@@ -643,9 +653,11 @@ class RealMarketData:
                 # If limit=1, df.iloc[-1] is the latest candle, which might be incomplete.
                 # However, for alignment, we usually compare the *start* of the latest candle.
                 # Let's assume 'timestamp' (open time) is what we need for alignment check.
-                latest_ts = int(klines.iloc[-1]['timestamp'].timestamp() * 1000) # Convert datetime to ms timestamp
+                latest_ts = int(
+                    klines.iloc[-1]["timestamp"].timestamp() * 1000
+                )  # Convert datetime to ms timestamp
                 timestamps[interval] = latest_ts
-                
+
             if not timestamps:
                 return AlignmentResult(aligned=False, error_type=AlignmentError.INSUFFICIENT_DATA)
 
@@ -655,26 +667,30 @@ class RealMarketData:
             min_ts = min(ts_values)
             delta_ms = max_ts - min_ts
             delta_s = delta_ms / 1000.0
-            
+
             is_aligned = delta_s <= Config.MAX_ALIGNMENT_DELTA_S
-            
+
             mismatches = []
             if not is_aligned:
                 for interval, ts in timestamps.items():
-                    mismatches.append({"interval": interval, "timestamp": ts, "delta_from_max": (max_ts - ts)/1000.0})
+                    mismatches.append(
+                        {
+                            "interval": interval,
+                            "timestamp": ts,
+                            "delta_from_max": (max_ts - ts) / 1000.0,
+                        }
+                    )
 
             return AlignmentResult(
                 aligned=is_aligned,
                 max_delta_seconds=delta_s,
                 mismatches=mismatches if not is_aligned else [],
-                error_type=AlignmentError.NONE if is_aligned else AlignmentError.EXCESSIVE_MISMATCH
+                error_type=AlignmentError.NONE if is_aligned else AlignmentError.EXCESSIVE_MISMATCH,
             )
 
         except Exception as e:
             return AlignmentResult(
-                aligned=False,
-                error_type=AlignmentError.API_FAILURE,
-                error_message=str(e)
+                aligned=False, error_type=AlignmentError.API_FAILURE, error_message=str(e)
             )
 
     def get_market_sentiment(self, coin: str) -> dict[str, Any]:

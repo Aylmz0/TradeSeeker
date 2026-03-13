@@ -155,13 +155,16 @@ def train_global_model(interval: str):
     metrics = {
         "accuracy": round(float(accuracy_score(y_test, y_pred)), 4),
         "logloss": round(float(log_loss(y_test, y_prob)), 4),
-        "last_train_ts": pd.Timestamp.now().isoformat()
+        "last_train_ts": pd.Timestamp.now().isoformat(),
     }
     with open("models/model_metrics.json", "w") as f:
         import json
+
         json.dump(metrics, f)
 
-    print("\n[OK] Global Training Pipeline completed. Artifacts and metrics saved in 'models/' folder.")
+    print(
+        "\n[OK] Global Training Pipeline completed. Artifacts and metrics saved in 'models/' folder."
+    )
 
 
 if __name__ == "__main__":

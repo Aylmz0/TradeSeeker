@@ -433,18 +433,20 @@ class DeepSeekAPI:
             print("[WAIT] Receiving stream...", end="", flush=True)
             collected_content = []
             collected_reasoning = []
-            
+
             for chunk in stream:
                 # Safe access - check if choices exists and has content
                 if hasattr(chunk, "choices") and chunk.choices and len(chunk.choices) > 0:
                     delta = chunk.choices[0].delta
-                    
+
                     # OpenRouter specific: check for reasoning_details or reasoning
                     # Some models send reasoning in 'reasoning' or 'thought' or 'reasoning_details'
-                    reasoning = getattr(delta, "reasoning", None) or getattr(delta, "reasoning_details", None)
+                    reasoning = getattr(delta, "reasoning", None) or getattr(
+                        delta, "reasoning_details", None
+                    )
                     if reasoning:
                         collected_reasoning.append(str(reasoning))
-                    
+
                     if hasattr(delta, "content") and delta.content:
                         content_chunk = delta.content
                         collected_content.append(content_chunk)
@@ -470,38 +472,40 @@ class DeepSeekAPI:
                     try:
                         decoder = json.JSONDecoder()
                         obj, end_index = decoder.raw_decode(json_candidate)
-                        
+
                         if reasoning_content and "CHAIN_OF_THOUGHTS" not in obj:
-                             obj["CHAIN_OF_THOUGHTS"] = reasoning_content
-                             
+                            obj["CHAIN_OF_THOUGHTS"] = reasoning_content
+
                         return json.dumps(obj, indent=2)
                     except Exception as e:
-                        print(f"[WARN]  Strict JSON parse failed ({e}), attempting aggressive repair...")
+                        print(
+                            f"[WARN]  Strict JSON parse failed ({e}), attempting aggressive repair..."
+                        )
                         import re
-                        
+
                         # Aggressive Repair 1: Strip markdown and clean text
-                        cleaned = re.sub(r'```json\s*', '', json_candidate)
-                        cleaned = re.sub(r'```\s*', '', cleaned)
-                        
+                        cleaned = re.sub(r"```json\s*", "", json_candidate)
+                        cleaned = re.sub(r"```\s*", "", cleaned)
+
                         # Aggressive Repair 2: Fix missing commas between properties (common AI error)
-                        cleaned = re.sub(r'(?<=[}\]])\s*(?=[{"\w])', ',', cleaned)
-                        
+                        cleaned = re.sub(r'(?<=[}\]])\s*(?=[{"\w])', ",", cleaned)
+
                         # Aggressive Repair 3: Fix trailing commas
-                        cleaned = re.sub(r',\s*([}\]])', r'\1', cleaned)
-                        
+                        cleaned = re.sub(r",\s*([}\]])", r"\1", cleaned)
+
                         try:
                             # Try loading the cleaned string directly
                             obj = json.loads(cleaned)
                             if reasoning_content and "CHAIN_OF_THOUGHTS" not in obj:
-                                 obj["CHAIN_OF_THOUGHTS"] = reasoning_content
-                            print(f"[OK]    JSON repaired successfully via regex filtering.")
+                                obj["CHAIN_OF_THOUGHTS"] = reasoning_content
+                            print("[OK]    JSON repaired successfully via regex filtering.")
                             return json.dumps(obj, indent=2)
                         except Exception as inner_e:
                             print(f"[WARN]  Regex repair failed: {inner_e}")
-                            
+
                             # Aggressive Repair 4: Count braces and close strings (Hard Truncation Fix)
                             try:
-                                print(f"[INFO]  Attempting Brace-Count String Repair...")
+                                print("[INFO]  Attempting Brace-Count String Repair...")
                                 repaired = cleaned
                                 brace_count = 0
                                 last_valid_pos = 0
@@ -534,29 +538,33 @@ class DeepSeekAPI:
                                         repaired += '"'
                                     if brace_count > 0:
                                         repaired += "}" * brace_count
-                                        
+
                                 obj = json.loads(repaired)
                                 if reasoning_content and "CHAIN_OF_THOUGHTS" not in obj:
                                     obj["CHAIN_OF_THOUGHTS"] = reasoning_content
-                                print(f"[OK]    JSON repaired via Brace-Count & Truncation Closure.")
+                                print("[OK]    JSON repaired via Brace-Count & Truncation Closure.")
                                 return json.dumps(obj, indent=2)
                             except Exception as truncate_e:
                                 print(f"[WARN]  Truncation repair failed: {truncate_e}")
-                                
+
                                 # Aggressive Repair 5: Try to extract just the DECISIONS block if everything else is corrupted
                                 match = re.search(r'"DECISIONS"\s*:\s*({[^}]+(}[^{}]*)*})', cleaned)
                                 if match:
                                     try:
                                         decisions_str = "{" + match.group(0) + "}"
                                         obj = json.loads(decisions_str)
-                                        print(f"[OK]    JSON repaired successfully by extracting DECISIONS block only.")
+                                        print(
+                                            "[OK]    JSON repaired successfully by extracting DECISIONS block only."
+                                        )
                                         return json.dumps(obj, indent=2)
                                     except Exception as e:
                                         print(f"[WARN]  DECISIONS block extraction failed: {e}")
 
                 else:
                     if reasoning_content:
-                         print(f"[WARN] No JSON found, but reasoning exists: {reasoning_content[:100]}...")
+                        print(
+                            f"[WARN] No JSON found, but reasoning exists: {reasoning_content[:100]}..."
+                        )
                     print("[WARN]  No JSON object found in response")
                     return self.get_safe_hold_decisions()
 

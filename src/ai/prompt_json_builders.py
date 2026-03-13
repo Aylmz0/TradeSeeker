@@ -239,7 +239,7 @@ def build_coin_state_vector(
         "coin": coin,
         # ML Consensus — untouchable statistical tie-breaker
         "ml_consensus": ml_consensus,
-        "ml_bias_label": ml_bias_label, # Inject professional mitigation score
+        "ml_bias_label": ml_bias_label,  # Inject professional mitigation score
         # Market Context — regime + environment labels
         "market_context": {
             "regime": market_regime,
@@ -261,7 +261,9 @@ def build_coin_state_vector(
             "ema20_htf": _sv_fmt(indicators_htf.get("ema_20") if indicators_htf else None),
             "rsi_15m": _sv_fmt(indicators_15m.get("rsi_14") if indicators_15m else None),
             "atr_htf": _sv_fmt(indicators_htf.get("atr_14") if indicators_htf else None),
-            "rsi_3m": _sv_fmt(indicators_3m.get("rsi_7", indicators_3m.get("rsi_14")) if indicators_3m else None),
+            "rsi_3m": _sv_fmt(
+                indicators_3m.get("rsi_7", indicators_3m.get("rsi_14")) if indicators_3m else None
+            ),
             "ema20_3m": _sv_fmt(indicators_3m.get("ema_20") if indicators_3m else None),
         },
         # Risk Profile — pre-computed risk labels
@@ -564,8 +566,8 @@ def build_cooldown_status_json(
 ) -> dict[str, Any]:
     """Build cooldown status JSON."""
     return {
-        "directional_cooldowns": {k: v for k, v in directional_cooldowns.items()},
-        "coin_cooldowns": {k: v for k, v in coin_cooldowns.items()},
+        "directional_cooldowns": dict(directional_cooldowns.items()),
+        "coin_cooldowns": dict(coin_cooldowns.items()),
         "counter_trend_cooldown": counter_trend_cooldown,
         "relaxed_countertrend_cycles": relaxed_countertrend_cycles,
     }

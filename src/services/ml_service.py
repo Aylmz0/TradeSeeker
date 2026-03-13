@@ -71,7 +71,9 @@ class MLService:
 
             self.last_model_mtime = os.path.getmtime(self.model_path)
             self.is_ready = True
-            logger.info(f"[MLService] XGBoost Inference Engine loaded and READY. (mtime: {self.last_model_mtime})")
+            logger.info(
+                f"[MLService] XGBoost Inference Engine loaded and READY. (mtime: {self.last_model_mtime})"
+            )
         except Exception as e:
             logger.error(f"[MLService] Failed to load ML artifacts: {e}")
             self.is_ready = False
@@ -148,6 +150,7 @@ class MLService:
                 return {"status": "no_logs"}
 
             from src.core.data_engine import DataEngine
+
             engine = DataEngine()
 
             with open(self.prediction_log_path) as f:
@@ -169,8 +172,9 @@ class MLService:
 
             # Group by coin to minimize DB calls
             from collections import defaultdict
+
             by_coin = defaultdict(list)
-            for p in lines[-200:]: # Audit last 200 predictions
+            for p in lines[-200:]:  # Audit last 200 predictions
                 coin = p.get("coin")
                 if coin:
                     by_coin[coin].append(p)
@@ -178,7 +182,8 @@ class MLService:
             for coin, preds in by_coin.items():
                 # Get labeled data for these timestamps
                 df_truth = engine.get_labeled_data(coin, "15m", lookahead_periods=5)
-                if df_truth.empty: continue
+                if df_truth.empty:
+                    continue
 
                 # Map true labels to SELL(0), HOLD(1), BUY(2)
                 df_truth["label_idx"] = df_truth["target_label"].map({-1: 0, 0: 1, 1: 2})
@@ -186,13 +191,16 @@ class MLService:
 
                 for p in preds:
                     ts_str = p.get("ts")
-                    if not ts_str: continue
+                    if not ts_str:
+                        continue
 
                     try:
                         # Floor prediction timestamp to the nearest 15m to match candle alignment
                         dt = datetime.fromisoformat(ts_str)
                         # Floor to 15m: 6:23 -> 6:15
-                        floored_dt = dt - timedelta(minutes=dt.minute % 15, seconds=dt.second, microseconds=dt.microsecond)
+                        floored_dt = dt - timedelta(
+                            minutes=dt.minute % 15, seconds=dt.second, microseconds=dt.microsecond
+                        )
                         floored_ts = floored_dt.isoformat()
 
                         if floored_ts in truth_map:
@@ -203,7 +211,8 @@ class MLService:
                                 if pred_idx == truth:
                                     correct += 1
                                 evaluated += 1
-                    except: continue
+                    except Exception:
+                        continue
 
             if evaluated == 0:
                 return {"status": "waiting_for_labels", "count": len(lines)}
@@ -213,7 +222,7 @@ class MLService:
                 "status": "success",
                 "live_accuracy": live_acc,
                 "evaluated_count": evaluated,
-                "total_logged": len(lines)
+                "total_logged": len(lines),
             }
         except Exception as e:
             logger.error(f"[MLService] Health audit failed: {e}")
@@ -232,8 +241,8 @@ class MLService:
                 "probabilities": {
                     "SELL": result["SELL"],
                     "HOLD": result["HOLD"],
-                    "BUY": result["BUY"]
-                }
+                    "BUY": result["BUY"],
+                },
             }
             with open(self.prediction_log_path, "a") as f:
                 f.write(json.dumps(log_entry) + "\n")

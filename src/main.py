@@ -1,19 +1,18 @@
 # alpha_arena_deepseek.py
 import json
 import os
-
-# Import new utility modules
 import sys
 import threading
 import time
-import traceback  # For detailed error logging
+import traceback
 from datetime import datetime, timedelta
 from typing import Any
 
 
-# Add project root to sys.path to ensure imports work correctly
+# Add project root to sys.path
 PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-sys.path.append(PROJECT_ROOT)
+if PROJECT_ROOT not in sys.path:
+    sys.path.append(PROJECT_ROOT)
 
 from config.config import Config
 from src.ai.deepseek_api import DeepSeekAPI
@@ -236,14 +235,18 @@ class AlphaArenaDeepSeek:
                 print("\n[AUTO-ML] Triggering 3-hour automated model retraining...")
                 try:
                     import subprocess
+
                     # Run train_model.py in the background
                     venv_py = os.path.join(PROJECT_ROOT, ".venv", "bin", "python")
-                    if not os.path.exists(venv_py): venv_py = "python3"
+                    if not os.path.exists(venv_py):
+                        venv_py = "python3"
 
                     cmd = [venv_py, os.path.join(PROJECT_ROOT, "scripts", "train_model.py")]
                     subprocess.Popen(cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-                    print("[AUTO-ML] Training started in background. Hot-reload will trigger on completion.")
-                    self.auto_train_cycle_count = 0 # Reset counter
+                    print(
+                        "[AUTO-ML] Training started in background. Hot-reload will trigger on completion."
+                    )
+                    self.auto_train_cycle_count = 0  # Reset counter
                 except Exception as aml_err:
                     print(f"[WARN]   Failed to trigger automated training: {aml_err}")
 
@@ -395,7 +398,9 @@ class AlphaArenaDeepSeek:
 
                         # 2. Log Indicator Snapshots (Features Table)
                         if coin in latest_indicators and "15m" in latest_indicators[coin]:
-                            self.data_engine.log_cycle_features(coin, "15m", latest_indicators[coin]["15m"])
+                            self.data_engine.log_cycle_features(
+                                coin, "15m", latest_indicators[coin]["15m"]
+                            )
                 except Exception as log_err:
                     print(f"[WARN]  Database logging failed: {log_err}")
 
@@ -981,7 +986,6 @@ class AlphaArenaDeepSeek:
         current_cycle_number = start_cycle - 1
 
         # Initialize bot control file
-        bot_control_file = "data/bot_control.json"
         self._write_bot_control({"status": "running", "last_updated": datetime.now().isoformat()})
 
         try:

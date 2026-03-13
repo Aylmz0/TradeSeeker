@@ -16,28 +16,28 @@ TradeSeeker, **Kantitatif Matematik (ML)** ile **Stratejik Muhakeme (LLM)** aras
 
 ### A. Data Layer (Veri Katmanı) - *Foundation*
 *   **Current**: REST API (Polling), `JSON` state files.
-*   **North Star**: 
+*   **North Star**:
     - **Websocket Stream**: Anlık fiyat ve emir defteri (orderbook) verisi.
     - **Persistence DB (SQLite/PostgreSQL)**: İşlem geçmişi ve KLine verilerinin SQL tabanlı saklanması (İstendiği an eğitim verisine dönüşebilen yapı).
     - **Dirty-Cache v2**: Disk I/O'yu sıfıra indiren ve sadece event-driven tetiklenen bellek yönetimi.
 
 ### B. Logic Layer (Hesaplama Katmanı) - *The Muscle*
 *   **Vector Engine**: NumPy tabanlı $O(1)$ indikatör motoru.
-*   **ML Predictor (XGBoost)**: 
+*   **ML Predictor (XGBoost)**:
     - **Feature Engineering**: İndikatörleri ham veri olarak değil, normalize edilmiş (StandardScaled) girdi olarak kullanır.
     - **Probability Inference**: Her coin için "Bias" olasılığı üretir. (Örn: %85 Long).
 *   **Feedback Loop (Self-Learning)**:
     - **Decision Tagging**: AI'ın verdiği kararlar ve ML'in tahminleri veritabanına işlenir.
-    - **Outcome Mapping**: Pozisyon kapandığında elde edilen gerçek PnL, geçmiş tahminlerle eşleştirilir. 
+    - **Outcome Mapping**: Pozisyon kapandığında elde edilen gerçek PnL, geçmiş tahminlerle eşleştirilir.
     - **Retraining**: Model, sadece piyasayı değil, kendi "isabet oranını" da öğrenerek hatalarını minimize eder.
 
 ### C. Intelligence Layer (Zeka Katmanı) - *The Brain*
-*   **Contextual AI (DeepSeek-V3)**: 
+*   **Contextual AI (DeepSeek-V3)**:
     - AI artık ham mumları görmez. ML'in ürettiği olasılıkları, volatility metriklerini ve piyasa rejimini (Bull/Bear) yorumlayan bir "Fon Yöneticisi" gibi davranır.
     - **Token Stewardship**: Promptlar yapılandırılmış JSON özetlerine (Summary) dayandırılarak maliyet minimize edilir.
 
 ### D. Execution Layer (Uygulama Katmanı) - *The Hand*
-*   **Order Executor**: 
+*   **Order Executor**:
     - **API Consistency Buffer**: Ghost Position engelleme sisteminin standartlaşması.
     - **North Star Transition**: Piyasa emrinden (Market Order), fiyat kaymasını (Slippage) engelleyen akıllı Limit Order yapılarına geçiş.
 *   **ATR-Authority**: Risk yönetimi AI'nın inisiyatifinde değildir; sistemin matematiksel "Katı Kuralıdır".

@@ -5,16 +5,19 @@ Uses ADX, ATR, and EMA to classify market states.
 """
 
 import logging
-from typing import Dict, Any
+from typing import Any
+
 from config.config import Config
+
 
 logger = logging.getLogger(__name__)
 
+
 class RegimeDetector:
     """Classifies market regimes based on technical indicators."""
-    
+
     @staticmethod
-    def classify_coin_regime(indicators: Dict[str, Any]) -> str:
+    def classify_coin_regime(indicators: dict[str, Any]) -> str:
         """
         Classifies the regime for a single coin.
         Returns: BULLISH, BEARISH, NEUTRAL, VOLATILE, CHOPPY
@@ -25,41 +28,41 @@ class RegimeDetector:
             price = indicators.get("current_price", 0)
             ema20 = indicators.get("ema_20", 0)
             er = indicators.get("efficiency_ratio", 1.0)
-            
+
             # 1. Volatility Check
             if price > 0 and (atr / price) > getattr(Config, "VOLATILITY_LIMIT_PCT", 0.02):
                 return "VOLATILE"
-                
+
             # 2. Choppy Check (Efficiency Ratio)
             if er < getattr(Config, "CHOPPY_ER_THRESHOLD", 0.3):
                 return "CHOPPY"
-                
+
             # 3. Trending vs Neutral (ADX)
             if adx < getattr(Config, "ADX_TREND_LEVEL", 25):
                 return "NEUTRAL"
-                
+
             # 4. Trend Direction
             if price > ema20:
                 return "BULLISH"
             else:
                 return "BEARISH"
-                
+
         except Exception as e:
             logger.warning(f"Regime classification error: {e}")
             return "NEUTRAL"
 
     @classmethod
-    def detect_overall_regime(cls, coin_indicators: Dict[str, Dict[str, Any]]) -> str:
+    def detect_overall_regime(cls, coin_indicators: dict[str, dict[str, Any]]) -> str:
         """
         Detects the global market regime by aggregating coin-level regimes.
         """
         regimes = [cls.classify_coin_regime(ind) for ind in coin_indicators.values()]
         if not regimes:
             return "NEUTRAL"
-            
+
         # Count occurrences
         counts = {r: regimes.count(r) for r in set(regimes)}
-        
+
         # Priority logic
         if counts.get("VOLATILE", 0) >= 2:
             return "VOLATILE"
@@ -69,11 +72,11 @@ class RegimeDetector:
             return "BULLISH"
         if counts.get("BEARISH", 0) >= 4:
             return "BEARISH"
-            
+
         return "NEUTRAL"
 
     @classmethod
-    def calculate_regime_strength(cls, coin_indicators: Dict[str, Dict[str, Any]]) -> float:
+    def calculate_regime_strength(cls, coin_indicators: dict[str, dict[str, Any]]) -> float:
         """
         Calculates market regime strength (0.0 to 1.0) based on coin alignment.
         Replaces the legacy get_market_regime_strength in PortfolioManager.

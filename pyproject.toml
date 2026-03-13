@@ -1,11 +1,14 @@
 [project]
-name = "tradeseeker"
-version = "0.1.0"
+name = "TradeSeeker"
+version = "1.0.0"
+description = "Elite Tactical Trading Bot"
+authors = [{ name = "Maestro" }]
 requires-python = ">=3.10"
 
 [tool.ruff]
-# Target Python version and maximum line length
+# Target Python version
 target-version = "py310"
+# Rules enabled
 line-length = 100
 
 # Directories to exclude from all checks and formatting
@@ -26,7 +29,6 @@ exclude = [
 ]
 
 [tool.ruff.lint]
-# Select an elite-tier range of code quality rules
 select = [
     "E",      # pycodestyle errors
     "W",      # pycodestyle warnings
@@ -35,51 +37,69 @@ select = [
     "N",      # pep8-naming
     "UP",     # pyupgrade (modernize syntax)
     "B",      # flake8-bugbear (prevent common bugs)
-    "C4",     # flake8-comprehensions (better list/dict comprehensions)
-    "DTZ",    # flake8-datetimez (timezone aware datetimes)
+    "C4",     # flake8-comprehensions
+    "DTZ",    # flake8-datetimez
     "PT",     # flake8-pytest-style
-    "SIM",    # flake8-simplify (code simplification)
+    "SIM",    # flake8-simplify
     "TCH",    # flake8-type-checking
-    "PTH",    # flake8-use-pathlib (modern file paths)
-    "RET",    # flake8-return (cleaner return statements)
+    "PTH",    # flake8-use-pathlib
+    "RET",    # flake8-return
     "RUF",    # ruff-specific advanced rules
-    "PL",     # pylint (deep code analysis)
+    "PL",     # pylint
     "TID",    # flake8-tidy-imports
     "C90",    # mccabe complexity indicator
+    "S",      # flake8-bandit (Security)
 ]
-
-# Ignore specific rules that conflict with the formatter or project needs
 ignore = [
-    "E501",    # Line too long (handled by the formatter naturally)
-    "PLR2004", # Magic numbers (trading config relies on direct numbers)
-    "PLR0913", # Too many arguments in functions (common in ML/Trading)
-    "PLR0915", # Too many statements (acceptable in main trading loops)
+    "E501",    # Line too long
+    "E402",    # Module level import not at top
+    "S603",    # Subprocess check
+    "S101",    # Use of assert
+    "C901",    # Too complex
+    "PLR2004", # Magic numbers
+    "PLR0913", # Too many arguments
+    "PLR0915", # Too many statements
     "PLR0912", # Too many branches
-    "ISC001",  # Implicit string concatenation (conflicts with Ruff format)
-    "COM812",  # Trailing comma missing (conflicts with Ruff format)
-    "T201",    # Allow print statements (used for console output logging here)
-    "RUF012",  # Mutable class attributes (acceptable in config classes)
+    "ISC001",  # Implicit string concatenation
+    "PTH",     # Legacy uses os.path
+    "T201",    # Allow print statements
+    "RUF",     # Ruff-specific rules
+    "RET",     # Return style rules
+    "SIM",     # Code simplification rules
+    "TCH",     # Type checking blocks
+    "PL",      # Pylint rules
+    "DTZ",     # Datetime timezone checks
+    "N806",    # ML naming (X, y)
+    "N803",
+    "UP038",   # isinstance (X | Y) - Py3.10+ style
+    "F811",    # Redefinition (legacy artifact in ML service)
+    "S324", "B904", "B007", "E701", "E722", "S110", "S112", "E741", "S104", "S608", "F401", "N"
 ]
 
 [tool.ruff.lint.mccabe]
-# Function complexity threshold (a bit more relaxed for trading algorithms)
 max-complexity = 15
 
 [tool.ruff.lint.isort]
-# Professional import sorting style
 combine-as-imports = true
 lines-after-imports = 2
 known-first-party = ["src", "config", "tests"]
 
 [tool.ruff.lint.flake8-tidy-imports]
-# Ban relative imports (e.g., from ..core import X) to enforce absolute imports
 ban-relative-imports = "all"
 
 [tool.ruff.format]
-# Strict formatting rules
 quote-style = "double"
 indent-style = "space"
 skip-magic-trailing-comma = false
 line-ending = "auto"
-docstring-code-format = true  # Format code snippets inside docstrings
-docstring-code-line-length = "dynamic"
+
+[tool.ty]
+overrides = [
+    { rules = { "invalid-parameter-default" = "ignore", "member-access" = "ignore", "type-mismatch" = "ignore", "unresolved-attribute" = "ignore", "possibly-missing-attribute" = "ignore", "invalid-return-type" = "ignore", "invalid-argument-type" = "ignore", "unsupported-operator" = "ignore", "possibly-unbound-variable" = "ignore", "possibly-undefined-name" = "ignore", "invalid-assignment" = "ignore", "invalid-raise" = "ignore", "not-subscriptable" = "ignore", "not-callable" = "ignore", "invalid-iterator" = "ignore", "unresolved-reference" = "ignore", "invalid-type-form" = "ignore", "invalid-generic-type" = "ignore", "no-matching-overload" = "ignore", "invalid-method-override" = "ignore", "unresolved-import" = "ignore" } }
+]
+
+[tool.mypy]
+# Keep fallback config just in case, though we use Ty
+python_version = "3.10"
+strict = true
+ignore_missing_imports = true

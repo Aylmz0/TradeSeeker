@@ -3,7 +3,6 @@ Backtesting module for the Alpha Arena DeepSeek bot.
 Allows testing trading strategies on historical data.
 """
 
-import json
 import logging
 from datetime import datetime
 from typing import Any
@@ -450,8 +449,8 @@ class AdvancedRiskManager:
         if dynamic_total_balance <= 0:
             return True
 
-        for symbol, position in current_positions.items():
-            position_concentration = position.get("margin_usd", 0) / dynamic_total_balance
+        for _symbol, position in current_positions.items():
+            position.get("margin_usd", 0) / dynamic_total_balance
             # Concentration limit removed - always return True
             # if position_concentration > max_concentration:
             #     logging.warning(f"Position {symbol} exceeds concentration limit: {position_concentration:.2%} > {max_concentration:.0%}")
@@ -520,9 +519,9 @@ class AdvancedRiskManager:
         # **NOTE: AI's risk_usd value is ignored - we use our own confidence-based margin calculation**
         if ai_risk_usd is not None:
             # Log AI's risk_usd for information only, but don't use it for risk management
-            decision["reason"] = (
-                f"AI risk_usd: ${ai_risk_usd:.2f} (ignored) - Using system margin calculation"
-            )
+            decision[
+                "reason"
+            ] = f"AI risk_usd: ${ai_risk_usd:.2f} (ignored) - Using system margin calculation"
 
         return decision
 
@@ -538,7 +537,7 @@ def sample_strategy(symbol: str, data: pd.DataFrame, portfolio_state: dict) -> d
     # Calculate moving averages
     short_ma = data["close"].rolling(window=20).mean().iloc[-1]
     long_ma = data["close"].rolling(window=50).mean().iloc[-1]
-    current_price = data["close"].iloc[-1]
+    data["close"].iloc[-1]
 
     # Simple crossover strategy
     if short_ma > long_ma and portfolio_state["current_balance"] > 10:
@@ -553,7 +552,6 @@ def sample_strategy(symbol: str, data: pd.DataFrame, portfolio_state: dict) -> d
         }
 
     return None
-
 
 
 class MockOrderExecutor:
@@ -573,7 +571,7 @@ class MockOrderExecutor:
         return {
             "availableBalance": self.wallet_balance,
             "walletBalance": self.wallet_balance,
-            "totalWalletBalance": self.wallet_balance + total_pnl
+            "totalWalletBalance": self.wallet_balance + total_pnl,
         }
 
     def get_positions_snapshot(self) -> dict[str, dict[str, Any]]:
@@ -597,14 +595,22 @@ class MockOrderExecutor:
             }
         return snapshot
 
-    def place_market_order(self, coin: str, direction: str, quantity: float, leverage: int, price_reference: float, reduce_only: bool = False) -> dict[str, Any]:
+    def place_market_order(
+        self,
+        coin: str,
+        direction: str,
+        quantity: float,
+        leverage: int,
+        price_reference: float,
+        reduce_only: bool = False,
+    ) -> dict[str, Any]:
         if reduce_only:
             return self.close_position(coin, direction, quantity, price_reference)
 
         notional = quantity * price_reference
         # FIX: Division by zero protection
         margin = notional / max(leverage, 1)
-        
+
         if margin > self.wallet_balance:
             return {"success": False, "error": "Insufficient balance"}
 
@@ -618,34 +624,50 @@ class MockOrderExecutor:
             "notional_usd": notional,
             "margin_usd": margin,
             "leverage": leverage,
-            "entry_time": datetime.now().isoformat()
+            "entry_time": datetime.now().isoformat(),
         }
-        
+
         self._order_id_counter += 1
-        return {"success": True, "orderId": self._order_id_counter, "executedQty": quantity, "avgPrice": price_reference}
+        return {
+            "success": True,
+            "orderId": self._order_id_counter,
+            "executedQty": quantity,
+            "avgPrice": price_reference,
+        }
 
     def place_smart_limit_order(self, *args, **kwargs) -> dict[str, Any]:
         # Simplify to market order for replay
         return self.place_market_order(*args, **kwargs)
 
-    def close_position(self, coin: str, direction: str, quantity: float, price_reference: float) -> dict[str, Any]:
+    def close_position(
+        self, coin: str, direction: str, quantity: float, price_reference: float
+    ) -> dict[str, Any]:
         if coin not in self.positions:
             return {"success": False, "error": "No position to close"}
-            
+
         pos = self.positions[coin]
         if direction == "long":
             pnl = (price_reference - pos["entry_price"]) * quantity
         else:
             pnl = (pos["entry_price"] - price_reference) * quantity
-            
+
         self.wallet_balance += pos["margin_usd"] + pnl
         del self.positions[coin]
-        
-        self._order_id_counter += 1
-        return {"success": True, "orderId": self._order_id_counter, "pnl": pnl, "executedQty": quantity, "avgPrice": price_reference}
 
-    def place_take_profit_order(self, *args, **kwargs): return {"success": True}
-    def place_stop_loss_order(self, *args, **kwargs): return {"success": True}
+        self._order_id_counter += 1
+        return {
+            "success": True,
+            "orderId": self._order_id_counter,
+            "pnl": pnl,
+            "executedQty": quantity,
+            "avgPrice": price_reference,
+        }
+
+    def place_take_profit_order(self, *args, **kwargs):
+        return {"success": True}
+
+    def place_stop_loss_order(self, *args, **kwargs):
+        return {"success": True}
 
     def update_mock_prices(self, price_map: dict[str, float]):
         """Update unrealized PnL based on incoming prices."""
