@@ -44,8 +44,7 @@ class RegimeDetector:
             # 4. Trend Direction
             if price > ema20:
                 return "BULLISH"
-            else:
-                return "BEARISH"
+            return "BEARISH"
 
         except Exception as e:
             logger.warning(f"Regime classification error: {e}")

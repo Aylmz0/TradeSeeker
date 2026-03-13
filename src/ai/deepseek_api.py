@@ -31,7 +31,7 @@ HTF_LABEL = HTF_INTERVAL
 class DeepSeekAPI:
     """AI API integration with MiMo/Z.AI/DeepSeek support"""
 
-    def __init__(self, api_key: str = None):
+    def __init__(self, api_key: str | None = None):
         primary_provider = getattr(Config, "PRIMARY_AI_PROVIDER", "openrouter")
         mimo_key = getattr(Config, "MIMO_API_KEY", None)
         zai_key = getattr(Config, "ZAI_API_KEY", None)
@@ -471,7 +471,7 @@ class DeepSeekAPI:
                     json_candidate = content[start_index:]
                     try:
                         decoder = json.JSONDecoder()
-                        obj, end_index = decoder.raw_decode(json_candidate)
+                        obj, _end_index = decoder.raw_decode(json_candidate)
 
                         if reasoning_content and "CHAIN_OF_THOUGHTS" not in obj:
                             obj["CHAIN_OF_THOUGHTS"] = reasoning_content

@@ -54,7 +54,7 @@ class PerformanceMonitor:
                     for _coin, trade in decisions.items():
                         if isinstance(trade, dict):
                             signal = trade.get("signal", "")
-                            if signal == "buy_to_enter" or signal == "sell_to_enter":
+                            if signal in {"buy_to_enter", "sell_to_enter"}:
                                 total_entries += 1
                             elif signal == "hold":
                                 total_holds += 1
@@ -518,7 +518,7 @@ class PerformanceMonitor:
     def detect_trend_reversal_for_all_coins(
         self,
         coins: list[str],
-        indicators_cache: dict[str, dict[str, dict[str, Any]]] = None,
+        indicators_cache: dict[str, dict[str, dict[str, Any]]] | None = None,
     ) -> dict[str, Any]:
         """Detect trend break signals for all specified coins (Loss Risk Information Only)"""
         try:

@@ -788,10 +788,7 @@ class AccountService:
                     notional = entry_price * quantity
                     leverage = position.get("leverage", 10)
                     # FIX: Leverage zero protection
-                    if leverage and leverage > 0:
-                        margin_used = notional / leverage
-                    else:
-                        margin_used = 0
+                    margin_used = notional / leverage if leverage and leverage > 0 else 0
                 else:
                     margin_used = 0
 
@@ -1489,8 +1486,7 @@ class AccountService:
                     volume_drop_triggered = True
 
         min_improvement_abs = max(
-            current_price * Config.TRAILING_MIN_IMPROVEMENT_PCT,
-            max(Config.MIN_EXIT_PLAN_OFFSET, 1e-7),
+            current_price * Config.TRAILING_MIN_IMPROVEMENT_PCT, Config.MIN_EXIT_PLAN_OFFSET, 1e-07
         )
         atr_buffer = max(atr_value * Config.TRAILING_ATR_MULTIPLIER, min_improvement_abs)
 

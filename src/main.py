@@ -39,7 +39,7 @@ HTF_LABEL = HTF_INTERVAL
 class AlphaArenaDeepSeek:
     """Alpha Arena-like DeepSeek integration with auto TP/SL, dynamic sizing, and advanced risk management."""
 
-    def __init__(self, api_key: str = None):
+    def __init__(self, api_key: str | None = None):
         self.market_data = RealMarketData()
         self.strategy_analyzer = StrategyAnalyzer(self.market_data)
         self.portfolio = PortfolioManager()
@@ -178,10 +178,7 @@ class AlphaArenaDeepSeek:
             return True
 
         # When too many positions are open
-        if len(self.portfolio.positions) >= 4:
-            return True
-
-        return False
+        return len(self.portfolio.positions) >= 4
 
     def run_trading_cycle(self, cycle_number: int):
         """Run a single trading cycle with auto TP/SL and enhanced features"""

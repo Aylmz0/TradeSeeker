@@ -51,29 +51,39 @@ select = [
     "S",      # flake8-bandit (Security)
 ]
 ignore = [
-    "E501",    # Line too long
-    "E402",    # Module level import not at top
-    "S603",    # Subprocess check
-    "S101",    # Use of assert
+    # --- Structural & Complexity (Phase 13) ---
     "C901",    # Too complex
-    "PLR2004", # Magic numbers
+    "PLR0911", # Too many return statements
+    "PLR0912", # Too many branches
     "PLR0913", # Too many arguments
     "PLR0915", # Too many statements
-    "PLR0912", # Too many branches
-    "ISC001",  # Implicit string concatenation
-    "PTH",     # Legacy uses os.path
-    "T201",    # Allow print statements
-    "RUF",     # Ruff-specific rules
-    "RET",     # Return style rules
-    "SIM",     # Code simplification rules
-    "TCH",     # Type checking blocks
-    "PL",      # Pylint rules
-    "DTZ",     # Datetime timezone checks
-    "N806",    # ML naming (X, y)
-    "N803",
+
+    # --- Magic Numbers (Phase 11) ---
+    "PLR2004", # Magic value comparison
+
+    # --- Temporal/Timezone (Phase 12) ---
+    "DTZ",     # Datetime/timezone issues
+
+    # --- Documentation & Style (Phase 14) ---
+    "D",       # Missing/bad docstrings
+    "ANN",     # Missing type annotations
+    "RET",     # Superfluous return styles
+    "SIM",     # Code simplification
+    "PTH",     # Pathlib usage
+    "RUF",     # Ruff-specific stylistic noise
+
+    # --- Global/Environment ---
+    "T201",    # Allow print (trading logs)
+    "S603",    # Subprocess check
+    "E501",    # Line too long
+    "E402",    # Import positioning
+    "PLW",     # Legacy Pylint warnings
+    "E741",    # Ambiguous naming
+    "S101",    # Use of assert
+    "F811",    # Redefinition
+    "N",       # PEP8 naming
     "UP038",   # isinstance (X | Y) - Py3.10+ style
-    "F811",    # Redefinition (legacy artifact in ML service)
-    "S324", "B904", "B007", "E701", "E722", "S110", "S112", "E741", "S104", "S608", "F401", "N"
+    "B904", "E722", "S110", "S112", "S608", "S324", "S104", "F401"
 ]
 
 [tool.ruff.lint.mccabe]
@@ -95,7 +105,7 @@ line-ending = "auto"
 
 [tool.ty]
 overrides = [
-    { rules = { "invalid-parameter-default" = "ignore", "member-access" = "ignore", "type-mismatch" = "ignore", "unresolved-attribute" = "ignore", "possibly-missing-attribute" = "ignore", "invalid-return-type" = "ignore", "invalid-argument-type" = "ignore", "unsupported-operator" = "ignore", "possibly-unbound-variable" = "ignore", "possibly-undefined-name" = "ignore", "invalid-assignment" = "ignore", "invalid-raise" = "ignore", "not-subscriptable" = "ignore", "not-callable" = "ignore", "invalid-iterator" = "ignore", "unresolved-reference" = "ignore", "invalid-type-form" = "ignore", "invalid-generic-type" = "ignore", "no-matching-overload" = "ignore", "invalid-method-override" = "ignore", "unresolved-import" = "ignore" } }
+    { rules = { "invalid-parameter-default" = "ignore", "member-access" = "ignore", "type-mismatch" = "ignore", "unresolved-attribute" = "ignore", "possibly-missing-attribute" = "ignore", "invalid-return-type" = "ignore", "invalid-argument-type" = "ignore", "unsupported-operator" = "ignore", "invalid-assignment" = "ignore", "invalid-raise" = "ignore", "not-subscriptable" = "ignore", "unresolved-reference" = "ignore", "invalid-type-form" = "ignore", "no-matching-overload" = "ignore", "invalid-method-override" = "ignore", "unresolved-import" = "ignore" } }
 ]
 
 [tool.mypy]

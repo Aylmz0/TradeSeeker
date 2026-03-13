@@ -63,7 +63,7 @@ def run_replay(db_path: str, coins: list[str], initial_balance: float = 1000.0):
         # Update mock executor with "current" prices for this timestamp
         placeholders = ",".join(["?"] * len(coins))
         price_query = f"SELECT coin, close FROM market_data WHERE timestamp = ? AND interval = '1h' AND coin IN ({placeholders})"
-        prices_df = pd.read_sql_query(price_query, conn, params=[ts] + coins)
+        prices_df = pd.read_sql_query(price_query, conn, params=[ts, *coins])
         price_map = dict(zip(prices_df["coin"], prices_df["close"], strict=False))
 
         mock_executor.update_mock_prices(price_map)

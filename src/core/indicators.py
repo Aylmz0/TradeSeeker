@@ -49,8 +49,7 @@ def calculate_atr_series(
     tr1 = abs(df_high - df_close.shift())
     tr2 = abs(df_low - df_close.shift())
     tr = pd.concat([tr0, tr1, tr2], axis=1).max(axis=1)
-    atr = tr.ewm(com=period - 1, adjust=False).mean()
-    return atr
+    return tr.ewm(com=period - 1, adjust=False).mean()
 
 
 def calculate_adx(
@@ -453,7 +452,7 @@ def get_features_for_ml(df: pd.DataFrame) -> pd.DataFrame:
     features["rsi_14"] = calculate_rsi_series(df["close"], 14)
     features["rsi_7"] = calculate_rsi_series(df["close"], 7)
 
-    macd_line, macd_signal, macd_hist = calculate_macd_series(df["close"])
+    macd_line, _macd_signal, macd_hist = calculate_macd_series(df["close"])
     features["macd_hist"] = macd_hist
     features["macd_line"] = macd_line
 

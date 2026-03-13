@@ -8,6 +8,7 @@ snapshots.
 
 from __future__ import annotations
 
+import contextlib
 import hashlib
 import hmac
 import json
@@ -81,12 +82,11 @@ class BinanceFuturesClient:
 
     def _sign(self, payload: dict[str, Any]) -> str:
         query_string = urllib.parse.urlencode(payload, doseq=True)
-        signature = hmac.new(
+        return hmac.new(
             self.secret_key.encode("utf-8"),
             query_string.encode("utf-8"),
             hashlib.sha256,
         ).hexdigest()
-        return signature
 
     def _request(
         self,
@@ -354,26 +354,20 @@ class BinanceOrderExecutor:
             )
 
             if total_wallet_balance is not None:
-                try:
+                with contextlib.suppress(ValueError, TypeError):
                     overview["totalWalletBalance"] = float(total_wallet_balance)
-                except (ValueError, TypeError):
-                    pass
 
             # Also get availableBalance and walletBalance from account info
             available = account_info.get("availableBalance")
             wallet_bal = account_info.get("walletBalance")
 
             if available is not None:
-                try:
+                with contextlib.suppress(ValueError, TypeError):
                     overview["availableBalance"] = float(available)
-                except (ValueError, TypeError):
-                    pass
 
             if wallet_bal is not None:
-                try:
+                with contextlib.suppress(ValueError, TypeError):
                     overview["walletBalance"] = float(wallet_bal)
-                except (ValueError, TypeError):
-                    pass
 
         # Fallback: Also get available balance from balance endpoint
         # This is needed if account_info doesn't have availableBalance

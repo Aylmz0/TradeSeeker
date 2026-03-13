@@ -30,11 +30,9 @@ class StrategyAnalyzer:
             ema20_3m = indicators_3m.get("ema_20")
 
             # Trend alignment: All three timeframes in same direction (strongest signal)
-            trend_aligned = (
-                price_htf > ema20_htf and price_15m > ema20_15m and price_3m > ema20_3m
-            ) or (price_htf < ema20_htf and price_15m < ema20_15m and price_3m < ema20_3m)
-
-            return trend_aligned
+            return (price_htf > ema20_htf and price_15m > ema20_15m and price_3m > ema20_3m) or (
+                price_htf < ema20_htf and price_15m < ema20_15m and price_3m < ema20_3m
+            )
 
         except Exception as e:
             print(f"[WARN]  Trend alignment error for {coin}: {e}")
@@ -58,7 +56,7 @@ class StrategyAnalyzer:
             macd_htf = indicators_htf.get("macd", 0)
 
             # Momentum alignment: All three timeframes showing same momentum direction (strongest signal)
-            momentum_aligned = (
+            return (
                 rsi_3m > 50
                 and rsi_15m > 50
                 and rsi_htf > 50
@@ -73,8 +71,6 @@ class StrategyAnalyzer:
                 and macd_15m < 0
                 and macd_htf < 0
             )
-
-            return momentum_aligned
 
         except Exception as e:
             print(f"[WARN]  Momentum alignment error for {coin}: {e}")

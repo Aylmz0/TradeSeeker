@@ -31,7 +31,7 @@ except Exception as e:
 class PortfolioManager:
     """Manages the portfolio state, positions, and history."""
 
-    def __init__(self, initial_balance: float = None):
+    def __init__(self, initial_balance: float | None = None):
         # Dynamic initial balance - if not provided, take from actual balance or use $200
         if initial_balance is None:
             # First try from saved state, otherwise take from Config
@@ -264,10 +264,7 @@ class PortfolioManager:
         existing_reports = safe_file_read("data/performance_report.json", [])
         if isinstance(existing_reports, dict):
             # Old format - convert to array
-            if "reset_reason" not in existing_reports:
-                existing_reports = [existing_reports]
-            else:
-                existing_reports = []
+            existing_reports = [existing_reports] if "reset_reason" not in existing_reports else []
         elif not isinstance(existing_reports, list):
             existing_reports = []
 
@@ -664,9 +661,7 @@ class PortfolioManager:
 
         # Minimum confidence floor: Orijinal değerin %90'ı altına düşmesin
         min_floor = original_confidence * 0.90
-        adjusted_confidence = max(adjusted_confidence, min_floor, Config.MIN_CONFIDENCE)
-
-        return adjusted_confidence
+        return max(adjusted_confidence, min_floor, Config.MIN_CONFIDENCE)
 
     def get_directional_bias_metrics(self) -> dict[str, dict[str, Any]]:
         metrics = {}
@@ -794,7 +789,6 @@ class PortfolioManager:
         }
 
     def get_recent_trend_flip_summary(self) -> list[str]:
-        summaries = []
         guard_window = self.trend_flip_cooldown
         history_window = max(guard_window, getattr(self, "trend_flip_history_window", guard_window))
         entries: list[tuple[int, str]] = []
@@ -806,10 +800,7 @@ class PortfolioManager:
             if cycles_ago < 0 or cycles_ago > history_window:
                 continue
             trend_label = record.get("trend", "unknown").upper()
-            if cycles_ago <= guard_window:
-                status = "GUARD"
-            else:
-                status = "RECENT"
+            status = "GUARD" if cycles_ago <= guard_window else "RECENT"
             if cycles_ago == 0:
                 cycles_text = "current cycle"
             elif cycles_ago == 1:
@@ -824,8 +815,7 @@ class PortfolioManager:
                 ),
             )
         entries.sort(key=lambda x: x[0])
-        summaries = [text for _, text in entries]
-        return summaries
+        return [text for _, text in entries]
 
     def load_cycle_history(self) -> list[dict]:
         history = safe_file_read(self.cycle_history_file, default_data=[])
@@ -1595,8 +1585,8 @@ class PortfolioManager:
         self,
         confidence: float,
         available_cash: float,
-        entry_price: float = None,
-        stop_loss: float = None,
+        entry_price: float | None = None,
+        stop_loss: float | None = None,
         leverage: int = 10,
         market_regime: str = "NEUTRAL",  # Passed from cycle to avoid re-calculation
         log_func: Any = None,
@@ -1921,7 +1911,7 @@ class PortfolioManager:
         print(f"[CYCLE] Market Regime: {market_regime} | Strength: {regime_strength:.2f}")
 
         # Helper: Log to both console and execution_report
-        def _log_debug(category: str, message: str, details: dict = None):
+        def _log_debug(category: str, message: str, details: dict | None = None):
             """
             Log critical information both to console and JSON.
             Categories: 'confidence', 'flip_guard', 'volume', 'sizing', 'trend', 'block', 'info'
@@ -1939,7 +1929,7 @@ class PortfolioManager:
         # Slot Priority by Confidence: Sort entry signals by confidence (highest first)
         # This ensures when slots are limited, we pick the best signals
         def get_signal_priority(item):
-            coin, trade = item
+            _coin, trade = item
             if not isinstance(trade, dict):
                 return (2, 0)  # Invalid trades last
             signal = trade.get("signal", "")
@@ -1996,7 +1986,7 @@ class PortfolioManager:
             )
             # --------------------------------------------------------------------
 
-            if signal == "buy_to_enter" or signal == "sell_to_enter":
+            if signal in {"buy_to_enter", "sell_to_enter"}:
                 if position:
                     print(f"[WARN]  {signal.upper()} {coin}: Position already open.")
                     execution_report["skipped"].append(
@@ -2094,11 +2084,10 @@ class PortfolioManager:
                                 )
                                 trade["runtime_decision"] = "blocked_commission_guard"
                                 continue
-                            else:
-                                _log_debug(
-                                    "trade",
-                                    f"[OK]    COMMISSION GUARD: {coin} Ratio {profit_comm_ratio:.2f} passed threshold {guard_ratio}.",
-                                )
+                            _log_debug(
+                                "trade",
+                                f"[OK]    COMMISSION GUARD: {coin} Ratio {profit_comm_ratio:.2f} passed threshold {guard_ratio}.",
+                            )
                     except Exception as e:
                         _log_debug(
                             "trade", f"[WARN]  Commission guard check failed for {coin}: {e}"
@@ -2274,9 +2263,7 @@ class PortfolioManager:
                 # using 1h ATR with Config.ATR_SL_MULTIPLIER and Config.ATR_TP_MULTIPLIER
 
                 direction = "long" if signal == "buy_to_enter" else "short"
-                if market_regime == "BULLISH":
-                    pass
-                elif market_regime == "BEARISH":
+                if market_regime in {"BULLISH", "BEARISH"}:
                     pass
 
                 # Coin bazlı cooldown kontrolü (öncelikli - zararlı trade'den sonra aynı coin'i engelle)
@@ -2868,17 +2855,19 @@ class PortfolioManager:
                                 and isinstance(ema20_htf_follow, (int, float))
                                 and isinstance(price_3m, (int, float))
                                 and isinstance(ema20_3m, (int, float))
-                            ):
-                                if (
+                            ) and (
+                                (
                                     signal == "buy_to_enter"
                                     and price_htf_follow >= ema20_htf_follow
                                     and price_3m >= ema20_3m
-                                ) or (
+                                )
+                                or (
                                     signal == "sell_to_enter"
                                     and price_htf_follow <= ema20_htf_follow
                                     and price_3m <= ema20_3m
-                                ):
-                                    trend_aligned = True
+                                )
+                            ):
+                                trend_aligned = True
 
                             # Logging - with strength level and 15m info
                             ratio_str = f"{volume_ratio:.2f}" if volume_ratio is not None else "n/a"
@@ -2912,17 +2901,19 @@ class PortfolioManager:
                                 and isinstance(ema20_htf_follow, (int, float))
                                 and isinstance(price_3m, (int, float))
                                 and isinstance(ema20_3m, (int, float))
-                            ):
-                                if (
+                            ) and (
+                                (
                                     signal == "buy_to_enter"
                                     and price_htf_follow >= ema20_htf_follow
                                     and price_3m >= ema20_3m
-                                ) or (
+                                )
+                                or (
                                     signal == "sell_to_enter"
                                     and price_htf_follow <= ema20_htf_follow
                                     and price_3m <= ema20_3m
-                                ):
-                                    trend_aligned = True
+                                )
+                            ):
+                                trend_aligned = True
                             if trend_aligned:
                                 # Volume 0.5-0.8 arasinda normal devam et (0.5 carpani kaldirildi)
                                 ratio_str = (

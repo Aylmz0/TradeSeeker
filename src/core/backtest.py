@@ -49,7 +49,7 @@ class BacktestEngine:
         returns = np.random.normal(0.001, 0.02, len(dates))
         prices = base_price * (1 + returns).cumprod()
 
-        df = pd.DataFrame(
+        return pd.DataFrame(
             {
                 "timestamp": dates,
                 "open": prices * 0.99,
@@ -60,8 +60,6 @@ class BacktestEngine:
             },
         )
 
-        return df
-
     def execute_trade(
         self,
         symbol: str,
@@ -69,7 +67,7 @@ class BacktestEngine:
         price: float,
         quantity: float,
         leverage: int = 1,
-        timestamp: datetime = None,
+        timestamp: datetime | None = None,
     ) -> dict[str, Any]:
         """Execute a trade in the backtest environment."""
         if timestamp is None:
@@ -85,7 +83,7 @@ class BacktestEngine:
             "success": False,
         }
 
-        if signal == "buy_to_enter" or signal == "sell_to_enter":
+        if signal in {"buy_to_enter", "sell_to_enter"}:
             if symbol in self.positions:
                 logging.warning(f"Position already exists for {symbol}")
                 return trade_result
@@ -227,7 +225,7 @@ class BacktestEngine:
         avg_win = np.mean([t["pnl"] for t in winning_trades]) if winning_trades else 0
         avg_loss = np.mean([t["pnl"] for t in losing_trades]) if losing_trades else 0
 
-        metrics = {
+        return {
             "initial_balance": initial_value,
             "final_balance": final_value,
             "total_return_percent": total_return,
@@ -242,8 +240,6 @@ class BacktestEngine:
             "avg_loss_usd": avg_loss,
             "profit_factor": abs(avg_win / avg_loss) if avg_loss != 0 else float("inf"),
         }
-
-        return metrics
 
     def run_backtest(
         self,
@@ -328,7 +324,9 @@ class BacktestEngine:
 class AdvancedRiskManager:
     """Advanced risk management with portfolio diversification and position sizing."""
 
-    def __init__(self, max_portfolio_risk: float = None, max_position_risk: float = None):
+    def __init__(
+        self, max_portfolio_risk: float | None = None, max_position_risk: float | None = None
+    ):
         # Set risk parameters based on configuration
         from config.config import Config
 
@@ -415,7 +413,7 @@ class AdvancedRiskManager:
         self,
         current_positions: dict,
         new_symbol: str,
-        max_concentration: float = None,
+        max_concentration: float | None = None,
     ) -> bool:
         """Check if adding new position maintains portfolio diversification."""
         if not current_positions:
@@ -432,7 +430,7 @@ class AdvancedRiskManager:
 
             risk_level = Config.RISK_LEVEL.lower()
 
-            if risk_level == "low" or risk_level == "high":
+            if risk_level in {"low", "high"}:
                 max_concentration = 1.0  # 100% per position - concentration limit removed
             else:  # medium
                 max_concentration = 1.0  # 100% per position - concentration limit removed
@@ -501,7 +499,7 @@ class AdvancedRiskManager:
         confidence: float,
         proposed_notional: float,
         current_balance: float = Config.INITIAL_BALANCE,
-        ai_risk_usd: float = None,
+        ai_risk_usd: float | None = None,
     ) -> dict[str, Any]:
         """Determine if a trade should be entered based on position limits only."""
         decision = {

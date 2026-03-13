@@ -88,8 +88,7 @@ def safe_file_read(filename: str, default_data: Any = None) -> Any:
             return default_data
 
         with open(file_path, encoding="utf-8") as f:
-            data = json.load(f)
-            return data
+            return json.load(f)
     except Exception as e:
         logger.error(f"Error reading file {file_path}: {e}")
         return default_data
@@ -299,9 +298,8 @@ def trigger_ml_training():
     global ml_training_process, ml_training_status, ml_training_error
 
     # Check if a process is already running
-    if ml_training_process is not None:
-        if ml_training_process.poll() is None:
-            return jsonify({"status": "error", "message": "Training is already in progress."}), 400
+    if ml_training_process is not None and ml_training_process.poll() is None:
+        return jsonify({"status": "error", "message": "Training is already in progress."}), 400
 
     try:
         # Resolve path to the training script

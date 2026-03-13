@@ -65,15 +65,13 @@ def safe_json_dumps(
             separators = (",", ": ") if indent else (",", ":")
 
         # Serialize with custom encoder
-        json_str = json.dumps(
+        return json.dumps(
             obj,
             cls=SafeJSONEncoder,
             indent=indent,
             separators=separators,
             ensure_ascii=False,
         )
-
-        return json_str
 
     except (TypeError, ValueError, OverflowError):
         if fallback_on_error:

@@ -427,7 +427,7 @@ class RealMarketData:
                 indicators["price_vs_vwap"] = "UNKNOWN"
 
             # 3. Bollinger Bands
-            bb_upper, bb_middle, bb_lower, bb_bandwidth, bb_percent_b = calculate_bollinger_bands(
+            bb_upper, _bb_middle, bb_lower, bb_bandwidth, _bb_percent_b = calculate_bollinger_bands(
                 close_prices
             )
             indicators["bb_upper"] = bb_upper
@@ -443,7 +443,7 @@ class RealMarketData:
                 indicators["bb_signal"] = "NORMAL"
 
             # 4. OBV - On Balance Volume
-            obv, obv_trend, obv_divergence = calculate_obv(close_prices, df["volume"])
+            _obv, obv_trend, obv_divergence = calculate_obv(close_prices, df["volume"])
             indicators["obv_trend"] = obv_trend
             indicators["obv_divergence"] = obv_divergence
 
@@ -622,7 +622,9 @@ class RealMarketData:
         print(f"   [WARNING] All fallbacks failed for {coin}. Price set to 0.")
         return 0.0
 
-    def verify_sync_alignment(self, coin: str, intervals: list[str] = None) -> AlignmentResult:
+    def verify_sync_alignment(
+        self, coin: str, intervals: list[str] | None = None
+    ) -> AlignmentResult:
         """
         Verifies that the latest kline timestamps for multiple intervals are within
         Config.MAX_ALIGNMENT_DELTA_S.
@@ -711,8 +713,8 @@ class RealMarketData:
         coin: str,
         indicators_3m: dict[str, Any],
         indicators_htf: dict[str, Any],
-        indicators_15m: dict[str, Any] = None,
-        position_direction: str = None,
+        indicators_15m: dict[str, Any] | None = None,
+        position_direction: str | None = None,
     ) -> dict[str, Any]:
         """
         Detect potential trend reversal signals with weighted scoring.

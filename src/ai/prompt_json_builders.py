@@ -235,7 +235,7 @@ def build_coin_state_vector(
     ct = counter_trade_result or {"risk_level": "HIGH_RISK", "alignment_strength": "NONE"}
     rv = reversal_result or {"strength": "NONE"}
 
-    state = {
+    return {
         "coin": coin,
         # ML Consensus — untouchable statistical tie-breaker
         "ml_consensus": ml_consensus,
@@ -280,8 +280,6 @@ def build_coin_state_vector(
         # Position — compact position data (or null)
         "position": _sv_build_position(position) if position else None,
     }
-
-    return state
 
 
 def build_metadata_json(
@@ -576,7 +574,7 @@ def build_cooldown_status_json(
 def build_position_slot_json(
     portfolio_positions: dict[str, Any],
     max_positions: int,
-    same_direction_limit: int = None,
+    same_direction_limit: int | None = None,
 ) -> dict[str, Any]:
     """Build position slot status JSON."""
     from config.config import Config

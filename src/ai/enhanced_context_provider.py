@@ -352,7 +352,7 @@ class EnhancedContextProvider:
             trade_history = self.safe_file_read(self.trade_history_file, [])
             market_regime = self.get_market_regime_context()
 
-            enhanced_context = {
+            return {
                 "timestamp": datetime.now().isoformat(),
                 "position_context": self.get_enhanced_position_context(portfolio_state),
                 "market_regime": market_regime,
@@ -364,8 +364,6 @@ class EnhancedContextProvider:
                 "risk_context": self.get_risk_context(portfolio_state),
                 "suggestions": self.generate_suggestions(portfolio_state, market_regime),
             }
-
-            return enhanced_context
 
         except Exception as e:
             print(f"[ERR]   Enhanced context generation error: {e}")

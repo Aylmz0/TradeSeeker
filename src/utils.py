@@ -1,3 +1,4 @@
+import contextlib
 import copy
 import json
 import logging
@@ -120,10 +121,8 @@ def safe_file_write(file_path: str, data):
         logger.error(f"[ERR]   Error writing {file_path} (CWD: {cwd}): {e}")
         # Clean up temp file if it exists
         if temp_file_path and os.path.exists(temp_file_path):
-            try:
+            with contextlib.suppress(Exception):
                 os.remove(temp_file_path)
-            except Exception:
-                pass
         return False
 
 
@@ -191,7 +190,7 @@ class DataValidator:
     """Validates market data"""
 
     @staticmethod
-    def validate_dataframe(df: pd.DataFrame, required_columns: list[str] = None) -> bool:
+    def validate_dataframe(df: pd.DataFrame, required_columns: list[str] | None = None) -> bool:
         if df is None or df.empty:
             return False
 
