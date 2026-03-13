@@ -176,13 +176,12 @@ class Config:
         os.getenv("CHOPPY_HIGH_ER_EXCEPTION", "0.45"),
     )  # ER > 0.45 bypasses global choppy
 
-    # Dynamic Volatility Scaling (ATR) Settings
     ATR_TP_MULTIPLIER: float = float(
         os.getenv("ATR_TP_MULTIPLIER", "2.0"),
     )  # Target = Entry +/- (ATR * 2.0)
     ATR_SL_MULTIPLIER: float = float(
-        os.getenv("ATR_SL_MULTIPLIER", "1.5"),
-    )  # Stop = Entry +/- (ATR * 1.5)
+        os.getenv("ATR_SL_MULTIPLIER", "1.8"),
+    )  # Stop = Entry +/- (ATR * 1.8) - Optimized for 10x leverage noise
 
     # Flash Exit Settings (V-Reversal Protection)
     FLASH_EXIT_ENABLED: bool = os.getenv("FLASH_EXIT_ENABLED", "true").lower() == "true"
@@ -345,8 +344,8 @@ class Config:
     CANARY_FAIL_DELTA: float = float(os.getenv("CANARY_FAIL_DELTA", "0.05"))
     REPLAY_SEED: int = int(os.getenv("REPLAY_SEED", "42"))
     REPLAY_CHECKPOINT_CYCLES: int = int(os.getenv("REPLAY_CHECKPOINT_CYCLES", "50"))
-    HOLD_THRESHOLD_DEFAULT: float = float(os.getenv("HOLD_THRESHOLD_DEFAULT", "0.90"))
-    HOLD_THRESHOLD_NEUTRAL: float = float(os.getenv("HOLD_THRESHOLD_NEUTRAL", "0.80")) # Slightly more aggressive than Sniper
+    HOLD_THRESHOLD_DEFAULT: float = float(os.getenv("HOLD_THRESHOLD_DEFAULT", "0.82"))
+    HOLD_THRESHOLD_NEUTRAL: float = float(os.getenv("HOLD_THRESHOLD_NEUTRAL", "0.75")) # Slightly more aggressive than Sniper
 
     @classmethod
     def validate_config(cls) -> bool:

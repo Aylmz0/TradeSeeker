@@ -1837,10 +1837,38 @@ class PortfolioManager:
                 f"[BLOCK] Exit blocked: Weak 3m reversal without confirmation (PnL: {pnl_pct:.2f}%)"
             )
             return False
-
         except Exception as e:
             print(f"[WARN]  Exit validation error: {e}")
             return True  # Fail safe: allow exit
+
+    def _verify_technical_reversal(self, coin: str, direction: str) -> bool:
+        """
+        Verify if technical indicators actually support a reversal/invalidation claim.
+        Used to harden exit logic against 'fear-based' AI closures.
+        """
+        try:
+            indicators_3m = self.market_data.get_technical_indicators(coin, "3m")
+            if "error" in indicators_3m:
+                return True # Fail-safe: allow exit if data is missing
+
+            price_3m = indicators_3m.get("current_price")
+            ema20_3m = indicators_3m.get("ema_20")
+            
+            if not price_3m or not ema20_3m:
+                return True
+
+            # Threshold for strict validation (0.1% buffer)
+            if direction == "long":
+                # Long is still valid if price is not significantly below EMA20
+                is_invalid = price_3m < (ema20_3m * 0.999)
+            else:
+                # Short is still valid if price is not significantly above EMA20
+                is_invalid = price_3m > (ema20_3m * 1.001)
+            
+            return is_invalid
+        except Exception as e:
+            print(f"[WARN] Error in _verify_technical_reversal: {e}")
+            return True
 
     def execute_decision(
         self,
@@ -3132,54 +3160,26 @@ class PortfolioManager:
                     trade["runtime_decision"] = "skipped_no_position"
                     continue
 
-                # 5. Exit Strategy Desensitization
-                justification = trade.get("justification", "").lower()
+                if "reversal" in justification or "invalidation" in justification:
+                    if not is_pnl_exit:
+                        # 5.1 Surgical Invalidation Check
+                        # If AI claims invalidation but price is still on the 'safe' side of EMA, block it.
+                        direction = position.get("direction", "long")
+                        strong_reversal = self._verify_technical_reversal(coin, direction)
 
-                # Bypass desensitization if it's a Profit Target, Stop Loss, or Invalidation
-                is_pnl_exit = any(
-                    k in justification for k in ["profit", "target", "stop", "loss", "invalidation"]
-                )
-
-                if "reversal" in justification and not is_pnl_exit:
-                    # Require stronger confirmation for reversal exits ONLY if it's not a PnL exit
-                    indicators_15m = self.market_data.get_technical_indicators(coin, "15m") or {}
-                    indicators_3m = self.market_data.get_technical_indicators(coin, "3m") or {}
-
-                    # Check if 15m trend is still supporting the position
-                    direction = position.get("direction", "long")
-                    trend_15m = (
-                        "bullish"
-                        if indicators_15m.get("current_price", 0) > indicators_15m.get("ema_20", 0)
-                        else "bearish"
-                    )
-
-                    strong_reversal = False
-                    if direction == "long":
-                        # Strong reversal for long: 15m turns bearish OR 3m shows strong breakdown (Price << EMA)
-                        price_3m = indicators_3m.get("current_price", 0)
-                        ema_3m = indicators_3m.get("ema_20", 0)
-                        if trend_15m == "bearish" or price_3m < ema_3m * 0.998:
-                            strong_reversal = True
-                    else:  # short
-                        # Strong reversal for short: 15m turns bullish OR 3m shows strong breakout (Price >> EMA)
-                        price_3m = indicators_3m.get("current_price", 0)
-                        ema_3m = indicators_3m.get("ema_20", 0)
-                        if trend_15m == "bullish" or price_3m > ema_3m * 1.002:
-                            strong_reversal = True
-
-                    if not strong_reversal:
-                        print(
-                            f"[WARN]  Exit Desensitization: Blocking {coin} exit. Weak reversal signal.",
-                        )
-                        execution_report["holds"].append(
-                            {
-                                "coin": coin,
-                                "reason": "exit_desensitization",
-                                "justification": justification,
-                            },
-                        )
-                        trade["runtime_decision"] = "blocked_exit_desensitization"
-                        continue
+                        if not strong_reversal:
+                            print(
+                                f"[BLOCK] Exit Desensitization: {coin} close blocked. Technicals still support {direction.upper()}."
+                            )
+                            execution_report["holds"].append(
+                                {
+                                    "coin": coin,
+                                    "reason": "exit_desensitization_blocked",
+                                    "justification": justification,
+                                },
+                            )
+                            trade["runtime_decision"] = "blocked_exit_desensitization"
+                            continue
 
                 if self.is_live_trading:
                     live_result = self.execute_live_close(

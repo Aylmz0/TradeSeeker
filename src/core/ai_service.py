@@ -901,6 +901,19 @@ Current live positions & performance:"""
                     if not df_raw_15m.empty:
                         ml_consensus = ml_service.predict(df_raw_15m, coin)
 
+            # Calculate Bias Deviation Score (BDS) - Professional Mitigation Layer
+            ml_bias_label = "Neutral"
+            if ml_consensus:
+                ml_prob_buy = ml_consensus.get("buy_prob", 0)
+                ml_prob_sell = ml_consensus.get("sell_prob", 0)
+                htf_direction = indicators_htf.get("trend_direction", "neutral")
+                
+                # Flag deviation if ML is strong opposite to HTF trend
+                if ml_prob_sell > 0.60 and htf_direction == "bullish":
+                    ml_bias_label = "Trend-Averse (Bearish ML vs Bullish HTF)"
+                elif ml_prob_buy > 0.60 and htf_direction == "bearish":
+                    ml_bias_label = "Trend-Averse (Bullish ML vs Bearish HTF)"
+
             # Build State Vector (labels + numerical anchors)
             coin_state = build_coin_state_vector(
                 coin,
@@ -911,6 +924,7 @@ Current live positions & performance:"""
                 indicators_htf,
                 position,
                 ml_consensus=ml_consensus,
+                ml_bias_label=ml_bias_label, # Injecting the mitigation label
                 counter_trade_result=counter_trade_risks.get(coin),
                 reversal_result=reversal_threats.get(coin),
             )
@@ -953,6 +967,7 @@ DIRECTIONAL PERFORMANCE SNAPSHOT (Last 20 trades max):
 
 Each coin below contains a State Vector with:
 - ml_consensus: XGBoost probability (>45% BUY/SELL = strong signal). Combine with your own analysis.
+- ml_bias_label: Indicates if ML is currently deviating from the HTF trend (Trend-Averse status).
 - market_context: Regime, volatility state, price location labels.
 - technical_summary: Trend alignment, momentum, volume, structure labels.
 - key_levels: price, ema20_htf, rsi_15m, atr_htf for your independent reasoning.
@@ -973,6 +988,11 @@ Each coin below contains a State Vector with:
 {"=" * 20} HERE IS YOUR ACCOUNT INFORMATION & PERFORMANCE {"=" * 20}
 
 {create_json_section("PORTFOLIO", portfolio_json, compact=compact)}
+
+[DIRECTIVE] STRATEGIC PRIORITY:
+1. Technical Confluence (HTF Trend + 15m Momentum + Volume) is your PRIMARY source of truth.
+2. ML Consensus is a statistical probability tool. If it shows "Trend-Averse" bias, DE-PRIORITIZE it and stick to the clear technical trend.
+3. Only perform counter-trend trades if Counter-Trade Risk is LOW and price is at extreme exhaustion (RSI/BB).
 """
 
         # Validate JSON if enabled

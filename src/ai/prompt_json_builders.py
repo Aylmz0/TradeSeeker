@@ -187,6 +187,7 @@ def build_coin_state_vector(
     indicators_htf: dict[str, Any],
     position: dict[str, Any] | None = None,
     ml_consensus: dict[str, Any] | None = None,
+    ml_bias_label: str = "Neutral",
     counter_trade_result: dict[str, Any] | None = None,
     reversal_result: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
@@ -230,14 +231,15 @@ def build_coin_state_vector(
             if avg_vol and avg_vol > 0:
                 vol_ratio = _sv_fmt((vol or 0) / avg_vol)
 
-    # Defaults for risk inputs
-    ct = counter_trade_result or {"risk_level": "VERY_HIGH_RISK", "alignment_strength": "NONE"}
+    # Defaults for risk inputs - Refined for professional caution (HIGH_RISK instead of VERY_HIGH)
+    ct = counter_trade_result or {"risk_level": "HIGH_RISK", "alignment_strength": "NONE"}
     rv = reversal_result or {"strength": "NONE"}
 
     state = {
         "coin": coin,
-        # ML Consensus — untouched, AI's statistical tie-breaker
+        # ML Consensus — untouchable statistical tie-breaker
         "ml_consensus": ml_consensus,
+        "ml_bias_label": ml_bias_label, # Inject professional mitigation score
         # Market Context — regime + environment labels
         "market_context": {
             "regime": market_regime,
@@ -497,7 +499,7 @@ def build_counter_trade_json(
             elif alignment_strength == "NONE" and total_met >= 7:
                 risk_level = "MEDIUM_RISK"  # NONE + 7 conditions
             else:
-                risk_level = "VERY_HIGH_RISK"  # No alignment and < 7 conditions
+                risk_level = "HIGH_RISK"  # Refined for tactical scout
 
             # NOTE: Zone + Weakening is now Condition 6 (calculated above)
             # No longer modifies risk level - it's counted as a condition instead
@@ -512,6 +514,15 @@ def build_counter_trade_json(
         except Exception:
             # Skip coins with errors
             continue
+
+    # NEW: Safety loop to ensure all available coins have a risk status
+    for coin in available_coins:
+        if coin not in analysis_list:
+            analysis_list[coin] = {
+                "risk_level": "HIGH_RISK",
+                "alignment_strength": "NONE",
+                "conditions_met": ["DATA_MISSING"],
+            }
 
     return analysis_list
 
