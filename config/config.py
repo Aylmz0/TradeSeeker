@@ -8,6 +8,8 @@ import os
 
 from dotenv import load_dotenv
 
+from src.core import constants
+
 
 # Load environment variables
 load_dotenv()
@@ -368,8 +370,10 @@ class Config:
                 errors.append("BINANCE_DEFAULT_LEVERAGE must be >= 1")
             if cls.BINANCE_MARGIN_TYPE not in ("ISOLATED", "CROSSED"):
                 errors.append("BINANCE_MARGIN_TYPE must be either 'ISOLATED' or 'CROSSED'")
-            if cls.BINANCE_RECV_WINDOW < 1000:
-                errors.append("BINANCE_RECV_WINDOW must be at least 1000 ms")
+            if cls.BINANCE_RECV_WINDOW < constants.MIN_BINANCE_RECV_WINDOW:
+                errors.append(
+                    f"BINANCE_RECV_WINDOW must be at least {constants.MIN_BINANCE_RECV_WINDOW} ms"
+                )
             if cls.BINANCE_DEFAULT_LEVERAGE > cls.MAX_LEVERAGE:
                 errors.append("BINANCE_DEFAULT_LEVERAGE cannot exceed MAX_LEVERAGE")
 
@@ -387,8 +391,10 @@ class Config:
             errors.append("HTF_INTERVAL must be one of ['30m', '1h', '2h', '4h']")
 
         # Validate JSON prompt settings
-        if cls.JSON_SERIES_MAX_LENGTH < 10:
-            errors.append("JSON_SERIES_MAX_LENGTH must be at least 10")
+        if cls.JSON_SERIES_MAX_LENGTH < constants.MIN_JSON_SERIES_LENGTH:
+            errors.append(
+                f"JSON_SERIES_MAX_LENGTH must be at least {constants.MIN_JSON_SERIES_LENGTH}"
+            )
 
         if errors:
             logging.error("Configuration validation failed:")
@@ -403,7 +409,7 @@ class Config:
         """Return a masked version of the API key for logging."""
         if not api_key:
             return "Not set"
-        if len(api_key) <= 8:
+        if len(api_key) <= constants.API_KEY_MIN_LENGTH:
             return "***"
         return f"{api_key[:4]}...{api_key[-4:]}"
 

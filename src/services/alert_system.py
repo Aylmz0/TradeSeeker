@@ -13,6 +13,8 @@ from enum import Enum
 from typing import Any
 
 from config.config import Config
+from src.core import constants
+from src.utils import format_num
 
 
 class AlertLevel(Enum):
@@ -131,7 +133,11 @@ class AlertManager:
         price_change_percent = abs((current_price - previous_price) / previous_price) * 100
 
         if price_change_percent >= threshold_percent:
-            level = AlertLevel.CRITICAL if price_change_percent >= 5.0 else AlertLevel.WARNING
+            level = (
+                AlertLevel.CRITICAL
+                if price_change_percent >= constants.CRITICAL_PRICE_CHANGE_PCT
+                else AlertLevel.WARNING
+            )
 
             direction = "up" if current_price > previous_price else "down"
             self.create_alert(
@@ -190,7 +196,7 @@ class AlertManager:
         current_drawdown = portfolio_data.get("current_drawdown", 0)
 
         # Large PnL movements
-        if abs(total_return) >= 5.0:  # 5% move
+        if abs(total_return) >= constants.CRITICAL_PRICE_CHANGE_PCT:  # 5% move
             direction = "profit" if total_return > 0 else "loss"
             alert = self.create_alert(
                 alert_type=AlertType.PERFORMANCE,
@@ -223,7 +229,11 @@ class AlertManager:
         pnl = trade_data.get("pnl", 0)
         direction = trade_data.get("direction", "unknown")
 
-        level = AlertLevel.CRITICAL if abs(pnl) >= 50 else AlertLevel.INFO
+        level = (
+            AlertLevel.CRITICAL
+            if abs(pnl) >= constants.SIGNIFICANT_PNL_USD_THRESHOLD
+            else AlertLevel.INFO
+        )
 
         return self.create_alert(
             alert_type=AlertType.TRADE_EXECUTION,

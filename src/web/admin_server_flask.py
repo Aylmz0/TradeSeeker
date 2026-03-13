@@ -403,15 +403,15 @@ def get_ml_predictions():
 
                     # Legacy Normalization: If values are > 1 (e.g. 51.2), they are in 0-100 scale.
                     # Standardize everything to 0-1 for the Frontend.
-                    if sell > 1.0:
+                    if sell > 1:
                         sell /= 100.0
-                    if hold > 1.0:
+                    if hold > 1:
                         hold /= 100.0
-                    if buy > 1.0:
+                    if buy > 1:
                         buy /= 100.0
 
                     confidence = raw_pred.get("confidence", 0)
-                    if confidence > 1.0:
+                    if confidence > 1:
                         confidence /= 100.0
 
                     predictions.append(
@@ -499,9 +499,15 @@ def get_ml_drift():
                 )
                 wins = cursor.fetchone()[0]
                 live_acc = wins / closed
+                from src.core import constants
+
                 result["live_accuracy"] = round(live_acc * 100, 1)
                 result["drift_pct"] = round((training_accuracy - live_acc) * 100, 1)
-                result["status"] = "alert" if (training_accuracy - live_acc) > 0.10 else "ok"
+                result["status"] = (
+                    "alert"
+                    if (training_accuracy - live_acc) > constants.ACCURACY_DRIFT_THRESHOLD
+                    else "ok"
+                )
             conn.close()
     except Exception as e:
         logger.error(f"Error computing drift: {e}")

@@ -8,6 +8,7 @@ import pandas as pd
 
 from config.config import Config
 from src.ai.enhanced_context_provider import EnhancedContextProvider
+from src.core import constants
 from src.core.cache_manager import fetch_all_indicators_parallel, fetch_all_indicators_with_cache
 from src.core.performance_monitor import PerformanceMonitor
 from src.services.ml_service import MLService
@@ -58,7 +59,7 @@ class AIService:
     def get_trading_context(self) -> dict[str, Any]:
         """Get historical context from recent cycles - Enhanced with 5 cycle analysis"""
         try:
-            if len(self.portfolio.cycle_history) < 2:
+            if len(self.portfolio.cycle_history) < constants.MIN_HISTORY_FOR_ANALYSIS:
                 return {
                     "recent_decisions": [],
                     "market_behavior": "Initial cycles - observing",
@@ -149,7 +150,7 @@ class AIService:
 
     def _analyze_performance_trend(self, recent_cycles: list[dict]) -> str:
         """Analyze performance trend based on recent cycles"""
-        if len(recent_cycles) < 3:
+        if len(recent_cycles) < constants.REVERSAL_SCORE_MODERATE:
             return "Insufficient data for trend analysis"
 
         # Analyze decision patterns
@@ -176,9 +177,12 @@ class AIService:
         entry_rate = entry_signals / total_signals
         close_rate = close_signals / total_signals
 
-        if entry_rate > 0.4 and close_rate < 0.2:
+        if (
+            entry_rate > constants.ENTRY_RATE_AGGRESSIVE
+            and close_rate < constants.CLOSE_RATE_AGGRESSIVE
+        ):
             return "Aggressive accumulation phase"
-        if close_rate > 0.3:
+        if close_rate > constants.CLOSE_RATE_PROFIT_TAKING:
             return "Profit-taking phase"
         if hold_signals > entry_signals + close_signals:
             return "Consolidation phase"
@@ -253,9 +257,9 @@ class AIService:
                 consecutive_losses = stats.get("consecutive_losses", 0)
                 loss_streak_usd = stats.get("loss_streak_loss_usd", 0.0)
                 reason = []
-                if consecutive_losses >= 3:
+                if consecutive_losses >= constants.REVERSAL_SCORE_MODERATE:
                     reason.append(f"{consecutive_losses} consecutive losses")
-                if loss_streak_usd >= 5.0:
+                if loss_streak_usd >= constants.REGIME_PERFORMANCE_THRESHOLD:
                     reason.append(f"${loss_streak_usd:.2f} total loss")
                 reason_str = " + ".join(reason) if reason else "unknown"
                 cooldown_lines.append(
@@ -311,7 +315,7 @@ class AIService:
 
         prompt = f"""
 USER_PROMPT:
-It has been {minutes_running} minutes since you started trading. The current time is {current_time} and you've been invoked {self.invocation_count} times. Below, we are providing you with a variety of state data, price data, and predictive signals so you can discover alpha. Below that is your current account information, value, performance, positions, etc.
+It has been {minutes_running} minutes since you started trading. The current time is {current_time} and you've been invoked {self.invocation_count} times. Below, we are providing you with a variety of state data, price data, and predictive signals so you can discover alpha. Below that is your current account information, value, performance, etc.
 
 {slot_instruction}
 
@@ -459,6 +463,34 @@ REMEMBER: These are suggestions only. You make the final trading decisions based
                 HTF_INTERVAL: copy.deepcopy(indicators_htf),
             }
 
+            # Key level detection
+            current_price = indicators_htf.get("current_price")
+            nearest_support = indicators_htf.get("nearest_support")
+            nearest_resistance = indicators_htf.get("nearest_resistance")
+            key_level = None
+
+            # Check support
+            if nearest_support:
+                distance_pct = (current_price - nearest_support) / current_price * 100
+                if distance_pct < constants.LEVEL_PROXIMITY_THRESHOLD:
+                    key_level = {
+                        "type": "support",
+                        "price": nearest_support,
+                        "distance_pct": round(distance_pct, 2),
+                    }
+
+            # Check resistance
+            if nearest_resistance:
+                distance_pct = (nearest_resistance - current_price) / current_price * 100
+
+                if distance_pct < constants.LEVEL_PROXIMITY_THRESHOLD:
+                    key_level = {
+                        "type": "resistance",
+                        "price": nearest_resistance,
+                        "distance_pct": round(distance_pct, 2),
+                    }
+                    prompt += f"[LEVEL] Nearest Resistance: ${format_num(nearest_resistance)} ({key_level['distance_pct']}% distance)\n"
+
             # Add market regime detection
             market_regime = self.strategy_analyzer.detect_market_regime(
                 coin,
@@ -485,7 +517,24 @@ REMEMBER: These are suggestions only. You make the final trading decisions based
                     )
                     return f"{prefix}Error fetching indicator data: {error_msg}\n"
                 # Format numbers using global helper
-                output = f"{prefix}current_price = {format_num(indicators.get('current_price', 'N/A'))}\n"
+                current_price = indicators.get("current_price")
+                period_low = indicators.get("low_series", [current_price])[-1]
+                period_high = indicators.get("high_series", [current_price])[-1]
+                price_range = period_high - period_low
+
+                # Zone detection
+                percentile = (
+                    ((current_price - period_low) / price_range) * 100 if price_range > 0 else 50
+                )
+                zone = (
+                    "LOWER_10"
+                    if percentile <= constants.EXTREME_PERCENTILE_LOW
+                    else (
+                        "UPPER_10" if percentile >= constants.EXTREME_PERCENTILE_HIGH else "MIDDLE"
+                    )
+                )
+
+                output = f"{prefix}current_price = {format_num(indicators.get('current_price', 'N/A'))} (Zone: {zone})\n"
                 output += f"{prefix}Mid prices (last {len(indicators.get('price_series', []))}): {self.format_list(indicators.get('price_series', []))}\n"
                 output += f"{prefix}EMA indicators (20-period): {self.format_list(indicators.get('ema_20_series', []))}\n"
                 if "rsi_7_series" in indicators:
@@ -568,6 +617,24 @@ REMEMBER: These are suggestions only. You make the final trading decisions based
                     and isinstance(ema20_3m, (int, float))
                     and ema20_3m > 0
                 ):
+                    # Trend structure detection
+                    slope_pct = indicators_3m.get("slope_pct", 0)
+                    peaks = indicators_3m.get("peaks", [])
+                    valleys = indicators_3m.get("valleys", [])
+                    structure = "SIDEWAYS"
+                    if slope_pct > constants.TREND_SLOPE_THRESHOLD:
+                        structure = "UPTREND"
+                        if len(peaks) >= constants.MIN_PEAKS_VALLEYS and peaks[-1] < peaks[-2]:
+                            structure = "UPTREND_LOSING_MOMENTUM"
+                    elif slope_pct < -constants.TREND_SLOPE_THRESHOLD:
+                        structure = "DOWNTREND"
+                        if (
+                            len(valleys) >= constants.MIN_PEAKS_VALLEYS
+                            and valleys[-1] > valleys[-2]
+                        ):
+                            structure = "DOWNTREND_LOSING_MOMENTUM"
+
+                    prompt += f"  3m Price Structure: {structure}\n"
                     if price_3m > ema20_3m:
                         momentum_3m = "bullish"
                     elif price_3m < ema20_3m:
@@ -669,7 +736,10 @@ REMEMBER: These are suggestions only. You make the final trading decisions based
                             trend_reversal_warning += "Short-term momentum shows bearish signs - this is informational context. Continue monitoring but prioritize {HTF_LABEL} trend confirmation before making exit decisions."
 
                 # Extended position duration warning
-                if position_duration_hours is not None and position_duration_hours >= 4:
+                if (
+                    position_duration_hours is not None
+                    and position_duration_hours >= constants.PNL_TREND_LOOKBACK
+                ):
                     if trend_reversal_warning:
                         trend_reversal_warning += f"\n  [INFO] POSITION DURATION: This {trend_direction.upper()} position has been open for {position_duration_hours:.1f} hours. Review your exit plan and ensure it's still aligned with current market conditions."
                     else:
@@ -911,9 +981,9 @@ Current live positions & performance:"""
                 htf_direction = indicators_htf.get("trend_direction", "neutral")
 
                 # Flag deviation if ML is strong opposite to HTF trend
-                if ml_prob_sell > 0.60 and htf_direction == "bullish":
+                if ml_prob_sell > Config.ML_CONFIDENCE_THRESHOLD and htf_direction == "bullish":
                     ml_bias_label = "Trend-Averse (Bearish ML vs Bullish HTF)"
-                elif ml_prob_buy > 0.60 and htf_direction == "bearish":
+                elif ml_prob_buy > Config.ML_CONFIDENCE_THRESHOLD and htf_direction == "bearish":
                     ml_bias_label = "Trend-Averse (Bullish ML vs Bearish HTF)"
 
             # Build State Vector (labels + numerical anchors)
@@ -1086,7 +1156,7 @@ Each coin below contains a State Vector with:
         lines = []
         for coin, data in analysis.items():
             strength = data.get("strength_score", 0)
-            if strength > 0.5:
+            if strength > constants.REVERSAL_STRENGTH_MODERATE:
                 lines.append(
                     f"  - {coin}: REVERSAL THREAT (strength={strength:.2f}). Reason: {data.get('reason_summary', 'Unknown')}"
                 )

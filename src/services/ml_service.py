@@ -8,6 +8,7 @@ import joblib
 import pandas as pd
 import xgboost as xgb
 
+from src.core import constants
 from src.core.indicators import get_features_for_ml
 
 
@@ -91,7 +92,7 @@ class MLService:
                 logger.info("[MLService] NEW MODEL DETECTED on disk. Triggering hot-reload...")
                 self._load_artifacts()
 
-        if not self.is_ready or df_raw.empty or len(df_raw) < 50:
+        if not self.is_ready or df_raw.empty or len(df_raw) < constants.ML_MIN_DATA_POINTS_READY:
             return None
 
         try:
@@ -164,7 +165,7 @@ class MLService:
                             print(f"[WARN]  Invalid JSON in ML prediction log: {e}")
                             continue
 
-            if len(lines) < 10:
+            if len(lines) < constants.MIN_ML_LOG_LINES:
                 return {"status": "insufficient_data", "count": len(lines)}
 
             correct = 0

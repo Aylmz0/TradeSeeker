@@ -8,6 +8,7 @@ import logging
 from typing import Any
 
 from config.config import Config
+from src.core import constants
 
 
 logger = logging.getLogger(__name__)
@@ -63,13 +64,13 @@ class RegimeDetector:
         counts = {r: regimes.count(r) for r in set(regimes)}
 
         # Priority logic
-        if counts.get("VOLATILE", 0) >= 2:
+        if counts.get("VOLATILE", 0) >= constants.VOLATILE_THRESHOLD_COUNT:
             return "VOLATILE"
-        if counts.get("CHOPPY", 0) >= 3:
+        if counts.get("CHOPPY", 0) >= constants.CHOPPY_THRESHOLD_COUNT:
             return "CHOPPY"
-        if counts.get("BULLISH", 0) >= 4:
+        if counts.get("BULLISH", 0) >= constants.TRENDING_THRESHOLD_COUNT:
             return "BULLISH"
-        if counts.get("BEARISH", 0) >= 4:
+        if counts.get("BEARISH", 0) >= constants.TRENDING_THRESHOLD_COUNT:
             return "BEARISH"
 
         return "NEUTRAL"

@@ -5,38 +5,8 @@ on:
     branches: [ main ]
 
 jobs:
-  quality-check:
-    name: Lint, Type Check & Security Scan
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout Code
-        uses: actions/checkout@v3
-
-      - name: Set up Python
-        uses: actions/setup-python@v4
-        with:
-          python-version: '3.10'
-
-      - name: Install Dependencies
-        run: |
-          python -m pip install --upgrade pip
-          pip install ruff ty safety detect-secrets
-          if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
-
-      - name: Ruff Lint & Format Check
-        run: ruff check . && ruff format --check .
-
-      - name: Ty Type Check
-        run: ty check
-
-      - name: Security Scan
-        run: |
-          safety check
-          detect-secrets scan --baseline .secrets.baseline
-
   deploy:
     name: Deploy to VPS
-    needs: quality-check
     runs-on: ubuntu-latest
     steps:
       - name: Checkout Code

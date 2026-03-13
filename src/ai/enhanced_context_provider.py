@@ -4,6 +4,8 @@ from datetime import datetime
 from typing import Any
 
 from config.config import Config
+from src.core import constants
+from src.utils import safe_file_read
 
 
 HTF_INTERVAL = getattr(Config, "HTF_INTERVAL", "1h") or "1h"
@@ -188,7 +190,7 @@ class EnhancedContextProvider:
         else:
             dominant = max(overall_bull, overall_bear)
             strength = round(dominant / coin_count, 2)
-            neutral_majority = neutral_count >= 4
+            neutral_majority = neutral_count >= constants.NEUTRAL_MAJORITY_THRESHOLD
             if strength < Config.GLOBAL_NEUTRAL_STRENGTH_THRESHOLD or neutral_majority:
                 current_regime = "neutral"
             elif overall_bull > overall_bear:
@@ -243,18 +245,20 @@ class EnhancedContextProvider:
 
         # Worst performing coins
         unprofitable_coins = [
-            coin for coin, stats in coin_performance.items() if stats["total_pnl"] < -1.0
+            coin
+            for coin, stats in coin_performance.items()
+            if stats["total_pnl"] < constants.UNPROFITABLE_COIN_THRESHOLD
         ]
         if unprofitable_coins:
             insights.append(f"Historically challenging coins: {', '.join(unprofitable_coins)}")
 
         # Current portfolio performance
         total_return = portfolio_state.get("total_return", 0)
-        if total_return < -5:
+        if total_return < constants.REGIME_DRAWDOWN_THRESHOLD:
             insights.append(
                 "Portfolio experiencing significant drawdown - consider defensive positioning",
             )
-        elif total_return > 5:
+        elif total_return > constants.REGIME_PERFORMANCE_THRESHOLD:
             insights.append("Portfolio performing well - current strategy effective")
 
         return {"insights": insights, "coin_performance": coin_performance}
@@ -381,7 +385,7 @@ class EnhancedContextProvider:
             else "unknown"
         )
 
-        if current_regime == "bearish" and len(positions) >= 3:
+        if current_regime == "bearish" and len(positions) >= constants.BEARISH_MAX_POSITIONS:
             suggestions.append("[INFO] Bearish regime detected with >=3 open positions")
         elif current_regime == "bullish" and len(positions) == 0:
             suggestions.append("[INFO] Bullish regime detected with zero current exposure")

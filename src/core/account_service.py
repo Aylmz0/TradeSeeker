@@ -2,6 +2,7 @@ from datetime import datetime
 from typing import Any
 
 from config.config import Config
+from src.core import constants
 from src.core.data_engine import DataEngine
 from src.utils import format_num
 
@@ -196,7 +197,8 @@ class AccountService:
                     old_balance = self.pm.current_balance
                     self.pm.current_balance = float(available)
                     if (
-                        abs(old_balance - self.pm.current_balance) > 0.01
+                        abs(old_balance - self.pm.current_balance)
+                        > constants.BALANCE_UPDATE_THRESHOLD
                     ):  # Only log if significant change
                         print(
                             f"[INFO] Balance updated: ${old_balance:.2f} → ${self.pm.current_balance:.2f}",
@@ -260,7 +262,7 @@ class AccountService:
                     self.pm.current_balance + total_margin_used + total_unrealized_pnl
                 )
 
-                if abs(old_total - self.pm.total_value) > 0.01:
+                if abs(old_total - self.pm.total_value) > constants.BALANCE_UPDATE_THRESHOLD:
                     print(
                         f"[INFO]  Total value updated: ${old_total:.2f} → ${self.pm.total_value:.2f}"
                     )
@@ -280,7 +282,9 @@ class AccountService:
                             )
                             # Validate our calculation against Binance
                             diff = abs(self.pm.total_value - total_wb)
-                            if diff > 0.10:  # More than 10 cents difference
+                            if (
+                                diff > constants.VALUE_SYNC_THRESHOLD
+                            ):  # More than 10 cents difference
                                 print(
                                     f"   [WARN]  Warning: Calculated total_value differs from Binance totalWalletBalance by ${diff:.2f}",
                                 )
@@ -1052,7 +1056,7 @@ class AccountService:
 
     def get_profit_levels_by_notional(self, notional_usd: float) -> dict[str, float]:
         """Get dynamic profit levels based on notional size"""
-        if notional_usd < 100:
+        if notional_usd < constants.NOTIONAL_TIER_1:
             # Small positions: aggressive profit taking
             return {
                 "level1": 0.008,  # %0.7
@@ -1062,54 +1066,54 @@ class AccountService:
                 "take2": 0.50,  # 50% profit take
                 "take3": 0.75,  # 75% profit take
             }
-        if notional_usd < 200:
+        if notional_usd < constants.NOTIONAL_TIER_2:
             # Medium positions: balanced profit taking
             return {
                 "level1": 0.007,  # %0.7
                 "level2": 0.008,  # %0.9
                 "level3": 0.009,  # %1.1
-                "take1": 0.25,  # 25% profit take
-                "take2": 0.50,  # 50% profit take
+                "take1": 0.20,
+                "take2": 0.45,
                 "take3": 0.75,  # 75% profit take
             }
-        if notional_usd < 300:
+        if notional_usd < constants.NOTIONAL_TIER_3:
             # Medium positions: balanced profit taking
             return {
                 "level1": 0.006,  # %0.7
                 "level2": 0.007,  # %0.9
                 "level3": 0.008,  # %1.1
-                "take1": 0.25,  # 25% profit take
-                "take2": 0.50,  # 50% profit take
+                "take1": 0.18,
+                "take2": 0.42,
                 "take3": 0.75,  # 75% profit take
             }
-        if notional_usd < 400:
+        if notional_usd < constants.NOTIONAL_TIER_4:
             # Large positions: conservative profit taking
             return {
                 "level1": 0.005,  # %0.6
                 "level2": 0.006,  # %0.8
                 "level3": 0.007,  # %1.0
-                "take1": 0.25,  # 25% profit take
-                "take2": 0.50,  # 50% profit take
+                "take1": 0.15,
+                "take2": 0.40,
                 "take3": 0.75,  # 75% profit take
             }
-        if notional_usd < 500:
+        if notional_usd < constants.NOTIONAL_TIER_5:
             # xLarge positions: conservative profit taking
             return {
                 "level1": 0.004,  # %0.5
                 "level2": 0.005,  # %0.7
                 "level3": 0.006,  # %0.9
-                "take1": 0.25,  # 25% profit take
-                "take2": 0.50,  # 50% profit take
+                "take1": 0.12,
+                "take2": 0.35,
                 "take3": 0.75,  # 75% profit take
             }
-        if notional_usd < 600:
+        if notional_usd < constants.NOTIONAL_TIER_6:
             # xxLarge positions: conservative profit taking
             return {
                 "level1": 0.003,  # %0.
                 "level2": 0.004,  # %0.6
                 "level3": 0.005,  # %0.8
-                "take1": 0.25,  # 25% profit take
-                "take2": 0.50,  # 50% profit take
+                "take1": 0.10,
+                "take2": 0.30,
                 "take3": 0.75,  # 75% profit take
             }
         # Very large positions: very conservative profit taking
@@ -1508,7 +1512,11 @@ class AccountService:
                 zone = price_loc.get("zone", "MIDDLE")
 
                 # Halve buffer in UPPER_10 + RSI > 70 condition
-                if zone == "UPPER_10" and isinstance(rsi_htf, (int, float)) and rsi_htf > 70:
+                if (
+                    zone == "UPPER_10"
+                    and isinstance(rsi_htf, (int, float))
+                    and rsi_htf > constants.RSI_HTF_OVERBOUGHT
+                ):
                     atr_buffer = atr_buffer * 0.5
                     overbought_protect_active = True
                     print(

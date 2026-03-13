@@ -3,6 +3,8 @@ from typing import Any
 import numpy as np
 import pandas as pd
 
+from src.core import constants
+
 
 def calculate_ema_series(prices: pd.Series, period: int) -> pd.Series:
     return prices.ewm(span=period, adjust=False).mean()
@@ -139,7 +141,7 @@ def calculate_obv(close: pd.Series, volume: pd.Series) -> tuple[float, str, str]
     Calculate On Balance Volume and its trend using vectorized operations.
     Returns: (obv, obv_trend, obv_divergence)
     """
-    if len(close) < 10:
+    if len(close) < constants.INDICATOR_HISTORY_DEFAULT:
         return 0.0, "FLAT", "NONE"
 
     # Vectorized direction calculation: 1 if up, -1 if down, 0 if flat
@@ -153,11 +155,11 @@ def calculate_obv(close: pd.Series, volume: pd.Series) -> tuple[float, str, str]
     current_obv = float(obv_series.iloc[-1])
 
     # Trend calculation
-    obv_change = obv_series.iloc[-1] - obv_series.iloc[-10]
+    obv_change = obv_series.iloc[-1] - obv_series.iloc[-constants.INDICATOR_HISTORY_DEFAULT]
     obv_trend = "RISING" if obv_change > 0 else ("FALLING" if obv_change < 0 else "FLAT")
 
     # Divergence calculation
-    price_change = close.iloc[-1] - close.iloc[-10]
+    price_change = close.iloc[-1] - close.iloc[-constants.INDICATOR_HISTORY_DEFAULT]
     divergence = "NONE"
     if price_change > 0 and obv_change < 0:
         divergence = "BEARISH"
@@ -260,21 +262,21 @@ def extract_semantic_features(prices: pd.Series, period: int = 24) -> dict[str, 
     volatility_ratio = std_dev / mean_price
 
     volatility_state = "STABLE"
-    if volatility_ratio > 0.02:
+    if volatility_ratio > constants.VOLATILITY_THRESHOLD:
         volatility_state = "HIGH_VOLATILITY"
-    elif volatility_ratio > 0.01:
+    elif volatility_ratio > constants.VOLATILITY_THRESHOLD / 2:
         volatility_state = "EXPANDING"
-    elif volatility_ratio < 0.005:
+    elif volatility_ratio < constants.VOLATILITY_THRESHOLD / 4:
         volatility_state = "COMPRESSED"
 
     structure = "SIDEWAYS"
-    if slope_pct > 0.05:
+    if slope_pct > constants.TREND_SLOPE_THRESHOLD:
         structure = "UPTREND"
-        if len(peaks) >= 2 and peaks[-1] < peaks[-2]:
+        if len(peaks) >= constants.MIN_PEAKS_VALLEYS and peaks[-1] < peaks[-2]:
             structure = "UPTREND_LOSING_MOMENTUM"
-    elif slope_pct < -0.05:
+    elif slope_pct < -constants.TREND_SLOPE_THRESHOLD:
         structure = "DOWNTREND"
-        if len(valleys) >= 2 and valleys[-1] > valleys[-2]:
+        if len(valleys) >= constants.MIN_PEAKS_VALLEYS and valleys[-1] > valleys[-2]:
             structure = "DOWNTREND_LOSING_MOMENTUM"
 
     return {
@@ -294,7 +296,7 @@ def generate_smart_sparkline(prices: pd.Series, period: int = 24) -> dict[str, A
 
     subset = prices.iloc[-period:].values
     current_price = float(subset[-1])
-    tolerance_pct = 0.005
+    tolerance_pct = constants.SPARKLINE_TOLERANCE
 
     # Peak/Valley detection via SciPy concepts (numpy rolling comparisons)
     # Finding local maxima/minima with a window of 5 (2 before, 2 after)
@@ -324,7 +326,7 @@ def generate_smart_sparkline(prices: pd.Series, period: int = 24) -> dict[str, A
         )
         distance_pct = (current_price - nearest_support) / current_price * 100
 
-        if distance_pct < 2.0:
+        if distance_pct < constants.LEVEL_PROXIMITY_THRESHOLD:
             key_level = {
                 "type": "support",
                 "level": round(nearest_support, 6),
@@ -341,7 +343,7 @@ def generate_smart_sparkline(prices: pd.Series, period: int = 24) -> dict[str, A
             )
             distance_pct = (nearest_resistance - current_price) / current_price * 100
 
-            if distance_pct < 2.0:
+            if distance_pct < constants.LEVEL_PROXIMITY_THRESHOLD:
                 key_level = {
                     "type": "resistance",
                     "level": round(nearest_resistance, 6),
@@ -350,9 +352,9 @@ def generate_smart_sparkline(prices: pd.Series, period: int = 24) -> dict[str, A
                 }
 
     structure = "RANGE"
-    if len(peaks) >= 2 and len(valleys) >= 2:
-        last_peaks = peaks[-2:]
-        last_valleys = valleys[-2:]
+    if len(peaks) >= constants.MIN_PEAKS_VALLEYS and len(valleys) >= constants.MIN_PEAKS_VALLEYS:
+        last_peaks = peaks[-constants.MIN_PEAKS_VALLEYS :]
+        last_valleys = valleys[-constants.MIN_PEAKS_VALLEYS :]
 
         if last_peaks[1] > last_peaks[0] and last_valleys[1] > last_valleys[0]:
             structure = "HH_HL"
@@ -360,16 +362,22 @@ def generate_smart_sparkline(prices: pd.Series, period: int = 24) -> dict[str, A
             structure = "LH_LL"
         else:
             price_range_val = np.ptp(subset)  # Peak-to-peak (max - min)
-            if price_range_val / current_price < 0.015:
+            if price_range_val / current_price < constants.RANGE_STRICT_THRESHOLD:
                 structure = "RANGE"
 
     mid = len(subset) // 2
     first_half_change = abs(subset[mid] - subset[0]) / subset[0] if subset[0] != 0 else 0
     second_half_change = abs(subset[-1] - subset[mid]) / subset[mid] if subset[mid] != 0 else 0
 
-    if first_half_change > 0 and second_half_change > first_half_change * 1.3:
+    if (
+        first_half_change > 0
+        and second_half_change > first_half_change * constants.MOMENTUM_ACCELERATION_THRESHOLD
+    ):
         momentum = "STRENGTHENING"
-    elif first_half_change > 0 and second_half_change < first_half_change * 0.7:
+    elif (
+        first_half_change > 0
+        and second_half_change < first_half_change * constants.MOMENTUM_DECELERATION_THRESHOLD
+    ):
         momentum = "WEAKENING"
     else:
         momentum = "STABLE"
@@ -379,7 +387,11 @@ def generate_smart_sparkline(prices: pd.Series, period: int = 24) -> dict[str, A
     price_range = period_high - period_low
 
     percentile = ((current_price - period_low) / price_range) * 100 if price_range > 0 else 50
-    zone = "LOWER_10" if percentile <= 10 else ("UPPER_10" if percentile >= 90 else "MIDDLE")
+    zone = (
+        "LOWER_10"
+        if percentile <= constants.EXTREME_PERCENTILE_LOW
+        else ("UPPER_10" if percentile >= constants.EXTREME_PERCENTILE_HIGH else "MIDDLE")
+    )
 
     return {
         "key_level": key_level,
@@ -401,9 +413,9 @@ def generate_tags(indicators: dict[str, Any]) -> list[str]:
     """Generate analytical tags based on indicators"""
     tags = []
 
-    if indicators.get("volume_ratio", 0) > 1.5:
+    if indicators.get("volume_ratio", 0) > constants.VOLUME_RATIO_HIGH:
         tags.append("Vol_High")
-    elif indicators.get("volume_ratio", 0) < 0.5:
+    elif indicators.get("volume_ratio", 0) < constants.VOLUME_RATIO_LOW:
         tags.append("Vol_Low")
 
     price = indicators.get("current_price", 0)
@@ -420,13 +432,13 @@ def generate_tags(indicators: dict[str, Any]) -> list[str]:
         tags.append("Trend_Correction_Bear")
 
     rsi = indicators.get("rsi_14", 50)
-    if rsi > 70:
+    if rsi > constants.RSI_OVERBOUGHT:
         tags.append("RSI_Overbought")
-    elif rsi < 30:
+    elif rsi < constants.RSI_OVERSOLD:
         tags.append("RSI_Oversold")
 
     atr = indicators.get("atr_14", 0)
-    if price > 0 and atr / price > 0.02:
+    if price > 0 and atr / price > constants.VOLATILITY_THRESHOLD:
         tags.append("High_Volatility")
 
     return tags
@@ -438,7 +450,7 @@ def get_features_for_ml(df: pd.DataFrame) -> pd.DataFrame:
     Calculates technical indicators, applies stationarity (pct_change),
     and adds lag features to capture temporal dependencies (t-1, t-2).
     """
-    if len(df) < 50:
+    if len(df) < constants.MIN_KLINE_DATA_POINTS:
         return pd.DataFrame()
 
     features = pd.DataFrame(index=df.index)
@@ -449,18 +461,20 @@ def get_features_for_ml(df: pd.DataFrame) -> pd.DataFrame:
     features["return_vol"] = df["volume"].pct_change()
 
     # 2. Technical Indicators (Vectorized across the entire DataFrame)
-    features["rsi_14"] = calculate_rsi_series(df["close"], 14)
-    features["rsi_7"] = calculate_rsi_series(df["close"], 7)
+    features["rsi_14"] = calculate_rsi_series(df["close"], constants.ATR_PERIOD_DEFAULT)
+    features["rsi_7"] = calculate_rsi_series(df["close"], constants.FIB_8)
 
     macd_line, _macd_signal, macd_hist = calculate_macd_series(df["close"])
     features["macd_hist"] = macd_hist
     features["macd_line"] = macd_line
 
-    features["atr_14"] = calculate_atr_series(df["high"], df["low"], df["close"], 14)
+    features["atr_14"] = calculate_atr_series(
+        df["high"], df["low"], df["close"], constants.ATR_PERIOD_DEFAULT
+    )
     features["atr_ratio"] = features["atr_14"] / df["close"]  # Normalize ATR by price
 
-    features["ema_20"] = calculate_ema_series(df["close"], 20)
-    features["ema_50"] = calculate_ema_series(df["close"], 50)
+    features["ema_20"] = calculate_ema_series(df["close"], constants.EMA_FAST)
+    features["ema_50"] = calculate_ema_series(df["close"], constants.EMA_MEDIUM)
     features["ema_20_dist"] = (df["close"] - features["ema_20"]) / features["ema_20"]
 
     # ADX and DI
@@ -484,20 +498,20 @@ def get_features_for_ml(df: pd.DataFrame) -> pd.DataFrame:
     di_diff_safe = abs(plus_di - minus_di)
     dx = 100 * (di_diff_safe / di_sum.replace(0, np.nan))
 
-    features["adx_14"] = dx.ewm(span=14, adjust=False).mean().fillna(0)
+    features["adx_14"] = dx.ewm(span=constants.ATR_PERIOD_DEFAULT, adjust=False).mean().fillna(0)
     features["plus_di"] = plus_di.fillna(0)
     features["minus_di"] = minus_di.fillna(0)
 
     # Volatility / Bollinger Bandwidth
-    middle = df["close"].rolling(window=20).mean()
-    std = df["close"].rolling(window=20).std()
-    upper = middle + (2.0 * std)
-    lower = middle - (2.0 * std)
+    middle = df["close"].rolling(window=constants.EMA_FAST).mean()
+    std = df["close"].rolling(window=constants.EMA_FAST).std()
+    upper = middle + (constants.BB_STD_DEV_NORMAL * std)
+    lower = middle - (constants.BB_STD_DEV_NORMAL * std)
     features["bb_bandwidth"] = (upper - lower) / middle
     features["bb_percent_b"] = (df["close"] - lower) / (upper - lower)
 
     # Momentum (Price Rate of Change)
-    features["roc_10"] = df["close"].pct_change(periods=10)
+    features["roc_10"] = df["close"].pct_change(periods=constants.INDICATOR_HISTORY_DEFAULT)
 
     # 3. Lag Features (Temporal History t-1, t-2)
     # XGBoost only sees one row at a time. It needs lag features to understand velocity.

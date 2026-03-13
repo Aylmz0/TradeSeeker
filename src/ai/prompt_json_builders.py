@@ -6,8 +6,11 @@ Converts data structures to JSON format for hybrid prompt.
 from datetime import datetime
 from typing import Any
 
+import pandas as pd
+
 from config.config import Config
-from src.ai.prompt_json_utils import format_number_for_json
+from src.core import constants
+from src.utils import format_number_for_json
 
 
 # ============================================================================
@@ -118,7 +121,7 @@ def _sv_volatility_state(indicators_htf: dict[str, Any]) -> str:
     bb_middle = indicators_htf.get("bb_middle")
     if bb_upper and bb_lower and bb_middle and bb_middle > 0:
         width_pct = ((bb_upper - bb_lower) / bb_middle) * 100
-        if width_pct > 4.0:
+        if width_pct > constants.BB_EXPANDING_THRESHOLD:
             return "EXPANDING"
     return "NORMAL"
 
@@ -141,13 +144,13 @@ def _sv_volume_label(indicators_3m: dict[str, Any]) -> str:
     else:
         ratio = (vol or 0) / (avg_vol or 1)
 
-    if ratio >= 2.5:
+    if ratio >= constants.VOL_RATIO_EXCELLENT:
         return "EXCELLENT"
-    if ratio >= 1.8:
+    if ratio >= constants.VOL_RATIO_GOOD:
         return "GOOD"
-    if ratio >= 1.2:
+    if ratio >= constants.VOL_RATIO_FAIR:
         return "FAIR"
-    if ratio >= 0.20:
+    if ratio >= constants.VOL_RATIO_POOR:
         return "POOR"
     return "LOW"
 
@@ -390,15 +393,21 @@ def build_counter_trade_json(
                     if funding_rate is not None:
                         # BEARISH trend + negative funding = LONG counter-trend favored
                         # BULLISH trend + positive funding = SHORT counter-trend favored
-                        if (trend_htf == "BEARISH" and funding_rate < -0.0003) or (
-                            trend_htf == "BULLISH" and funding_rate > 0.0003
+                        if (
+                            trend_htf == "BEARISH"
+                            and funding_rate < -constants.FUNDING_RATE_THRESHOLD
+                        ) or (
+                            trend_htf == "BULLISH"
+                            and funding_rate > constants.FUNDING_RATE_THRESHOLD
                         ):  # -0.03%
                             condition_1 = True
                 except Exception:
                     pass
 
             condition_2 = (
-                (volume_3m or 0) / (avg_volume_3m or 1) > 1.5 if avg_volume_3m else False
+                (volume_3m or 0) / (avg_volume_3m or 1) > constants.COUNTER_TREND_VOL_THRESHOLD
+                if avg_volume_3m
+                else False
             )  # 1.5x volume threshold for counter-trend
             # Condition 3: Extreme RSI (Counter-trend)
             # If Bullish trend, we want to Short -> Need Overbought (>70)
@@ -441,9 +450,9 @@ def build_counter_trade_json(
                 price = indicators_15m.get("current_price")
                 if vwap and price and vwap > 0:
                     vwap_dist = ((price - vwap) / vwap) * 100
-                    if trend_htf == "BULLISH" and vwap_dist > 2.0:
+                    if trend_htf == "BULLISH" and vwap_dist > constants.VWAP_DISTANCE_THRESHOLD:
                         condition_7 = True  # Price expensive -> SHORT favorable
-                    elif trend_htf == "BEARISH" and vwap_dist < -2.0:
+                    elif trend_htf == "BEARISH" and vwap_dist < -constants.VWAP_DISTANCE_THRESHOLD:
                         condition_7 = True  # Price cheap -> LONG favorable
 
             # Condition 8: BB Extreme (Price at band extremes)
@@ -484,19 +493,19 @@ def build_counter_trade_json(
 
             # Determine risk level (Updated Logic - User Request)
             # Counter-trade risk assessment based on alignment and conditions met
-            if alignment_strength == "STRONG" and total_met >= 4:
+            if alignment_strength == "STRONG" and total_met >= constants.ALIGNMENT_STRENGTH_L4:
                 risk_level = "LOW_RISK"  # STRONG + 4 or more conditions
-            elif alignment_strength == "STRONG" and total_met >= 3:
+            elif alignment_strength == "STRONG" and total_met >= constants.ALIGNMENT_STRENGTH_L3:
                 risk_level = "MEDIUM_RISK"  # STRONG + 3 conditions
-            elif alignment_strength == "MEDIUM" and total_met >= 5:
+            elif alignment_strength == "MEDIUM" and total_met >= constants.ALIGNMENT_STRENGTH_L5:
                 risk_level = "LOW_RISK"  # MEDIUM + 5 or more conditions
-            elif alignment_strength == "MEDIUM" and total_met >= 4:
+            elif alignment_strength == "MEDIUM" and total_met >= constants.ALIGNMENT_STRENGTH_L4:
                 risk_level = "MEDIUM_RISK"  # MEDIUM + 4 conditions
             elif alignment_strength == "MEDIUM":
                 risk_level = "HIGH_RISK"  # MEDIUM + less than 4 conditions
-            elif alignment_strength == "NONE" and total_met >= 8:
+            elif alignment_strength == "NONE" and total_met >= constants.ALIGNMENT_STRENGTH_L8:
                 risk_level = "LOW_RISK"  # NONE + 8 conditions (All)
-            elif alignment_strength == "NONE" and total_met >= 7:
+            elif alignment_strength == "NONE" and total_met >= constants.ALIGNMENT_STRENGTH_L7:
                 risk_level = "MEDIUM_RISK"  # NONE + 7 conditions
             else:
                 risk_level = "HIGH_RISK"  # Refined for tactical scout

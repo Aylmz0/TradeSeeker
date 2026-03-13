@@ -1,6 +1,7 @@
 from typing import Any
 
 from config.config import Config
+from src.core import constants
 from src.utils import format_num
 
 
@@ -57,19 +58,19 @@ class StrategyAnalyzer:
 
             # Momentum alignment: All three timeframes showing same momentum direction (strongest signal)
             return (
-                rsi_3m > 50
-                and rsi_15m > 50
-                and rsi_htf > 50
-                and macd_3m > 0
-                and macd_15m > 0
-                and macd_htf > 0
+                rsi_3m > constants.RSI_NEUTRAL_MARK
+                and rsi_15m > constants.RSI_NEUTRAL_MARK
+                and rsi_htf > constants.RSI_NEUTRAL_MARK
+                and macd_3m > constants.MACD_NEUTRAL_MARK
+                and macd_15m > constants.MACD_NEUTRAL_MARK
+                and macd_htf > constants.MACD_NEUTRAL_MARK
             ) or (
-                rsi_3m < 50
-                and rsi_15m < 50
-                and rsi_htf < 50
-                and macd_3m < 0
-                and macd_15m < 0
-                and macd_htf < 0
+                rsi_3m < constants.RSI_NEUTRAL_MARK
+                and rsi_15m < constants.RSI_NEUTRAL_MARK
+                and rsi_htf < constants.RSI_NEUTRAL_MARK
+                and macd_3m < constants.MACD_NEUTRAL_MARK
+                and macd_15m < constants.MACD_NEUTRAL_MARK
+                and macd_htf < constants.MACD_NEUTRAL_MARK
             )
 
         except Exception as e:
@@ -141,9 +142,9 @@ class StrategyAnalyzer:
             ):
                 alignment_count = 2
 
-            if alignment_count >= 3:
+            if alignment_count >= constants.ALIGNMENT_STRENGTH_ALL:
                 trend_strength += 2  # Strong multi-timeframe alignment (all 3 timeframes)
-            elif alignment_count == 2:
+            elif alignment_count == constants.ALIGNMENT_STRENGTH_MANY:
                 trend_strength += 1  # Medium multi-timeframe alignment (2 of 3 timeframes)
 
             # Volume Confirmation
@@ -237,29 +238,29 @@ class StrategyAnalyzer:
 
     def analyze_rsi_strength(self, rsi: float) -> float:
         """Analyze RSI strength (0-1 scale)"""
-        if rsi > 70:
+        if rsi > constants.RSI_HTF_OVERBOUGHT:
             return 0.9  # Overbought - strong trend continuation
-        if rsi > 60:
+        if rsi > constants.RSI_THRESHOLD_OB_MODERATE:
             return 0.7  # Bullish momentum
-        if rsi > 50:
+        if rsi > constants.RSI_NEUTRAL_MARK:
             return 0.5  # Neutral bullish
-        if rsi > 40:
+        if rsi > constants.RSI_THRESHOLD_OS_MODERATE:
             return 0.3  # Neutral bearish
-        if rsi > 30:
+        if rsi > constants.RSI_THRESHOLD_OS_STRONG:
             return 0.1  # Bearish momentum
         return 0.0  # Oversold - weak trend
 
     def analyze_macd_strength(self, macd: float) -> float:
         """Analyze MACD strength (0-1 scale)"""
-        if macd > 0.01:
+        if macd > constants.MACD_STRENGTH_HIGH:
             return 1.0  # Strong bullish
-        if macd > 0.005:
+        if macd > constants.MACD_STRENGTH_MED:
             return 0.8  # Moderate bullish
-        if macd > 0:
+        if macd > constants.MACD_NEUTRAL_MARK:
             return 0.6  # Weak bullish
-        if macd > -0.005:
+        if macd > -constants.MACD_STRENGTH_MED:
             return 0.4  # Weak bearish
-        if macd > -0.01:
+        if macd > -constants.MACD_STRENGTH_HIGH:
             return 0.2  # Moderate bearish
         return 0.0  # Strong bearish
 
@@ -270,15 +271,15 @@ class StrategyAnalyzer:
 
         volume_ratio = volume / avg_volume
 
-        if volume_ratio >= 1.8:  # High volume: >1.8x average
+        if volume_ratio >= constants.VOLUME_QUALITY_EXCELLENT:  # High volume
             return 1.0
-        if volume_ratio >= 1.3:  # Medium-high volume: >1.3x average
+        if volume_ratio >= constants.VOLUME_QUALITY_GOOD:  # Medium-high volume
             return 0.8
-        if volume_ratio >= 0.8:  # Normal volume: >0.8x average
+        if volume_ratio >= constants.VOLUME_QUALITY_FAIR:  # Normal volume
             return 0.6
-        if volume_ratio >= 0.5:  # Low volume: >0.5x average
+        if volume_ratio >= constants.VOLUME_QUALITY_POOR:  # Low volume
             return 0.3
-        # Very low volume: <0.5x average
+        # Very low volume
         return 0.1
 
     def analyze_bollinger_bands_strength(self, indicators: dict) -> float:
@@ -294,11 +295,11 @@ class StrategyAnalyzer:
             # Calculate distance from EMA as percentage of ATR
             distance = abs(price - ema20) / atr_14
 
-            if distance > 2.0:
+            if distance > constants.BB_DISTANCE_EXTREME:
                 return 1.0  # Strong trend (price far from EMA)
-            if distance > 1.0:
+            if distance > constants.BB_DISTANCE_MODERATE:
                 return 0.7  # Moderate trend
-            if distance > 0.5:
+            if distance > constants.BB_DISTANCE_WEAK:
                 return 0.4  # Weak trend
             return 0.2  # No trend (consolidation)
 
@@ -349,7 +350,7 @@ class StrategyAnalyzer:
             bearish_signals += 1
 
         # RSI direction
-        if rsi > 50:
+        if rsi > constants.RSI_NEUTRAL_MARK:
             bullish_signals += 1
         else:
             bearish_signals += 1
@@ -360,9 +361,9 @@ class StrategyAnalyzer:
         else:
             bearish_signals += 1
 
-        if bullish_signals >= 3:
+        if bullish_signals >= constants.ALIGNMENT_STRENGTH_ALL:
             return "STRONG_BULLISH"
-        if bearish_signals >= 3:
+        if bearish_signals >= constants.ALIGNMENT_STRENGTH_ALL:
             return "STRONG_BEARISH"
         if bullish_signals > bearish_signals:
             return "WEAK_BULLISH"
@@ -372,13 +373,13 @@ class StrategyAnalyzer:
 
     def get_confidence_level(self, strength_score: float) -> str:
         """Get confidence level based on trend strength score"""
-        if strength_score > 0.75:
+        if strength_score > constants.STRENGTH_VERY_HIGH:
             return "VERY_HIGH"
-        if strength_score > 0.60:
+        if strength_score > constants.STRENGTH_HIGH:
             return "HIGH"
-        if strength_score > 0.45:
+        if strength_score > constants.STRENGTH_MED:
             return "MEDIUM"
-        if strength_score > 0.30:
+        if strength_score > constants.STRENGTH_LOW:
             return "LOW"
         return "VERY_LOW"
 
@@ -399,15 +400,15 @@ class StrategyAnalyzer:
             volume_ratio = current_volume / avg_volume
 
             # Volume confidence scoring
-            if volume_ratio >= 1.8:  # High volume: >1.8x average
+            if volume_ratio >= constants.VOLUME_QUALITY_EXCELLENT:
                 return 1.0
-            if volume_ratio >= 1.3:  # Medium-high volume: >1.3x average
+            if volume_ratio >= constants.VOLUME_QUALITY_GOOD:
                 return 0.8
-            if volume_ratio >= 0.8:  # Normal volume: >0.8x average
+            if volume_ratio >= constants.VOLUME_QUALITY_FAIR:
                 return 0.6
-            if volume_ratio >= 0.5:  # Low volume: >0.5x average
+            if volume_ratio >= constants.VOLUME_QUALITY_POOR:
                 return 0.3
-            # Very low volume: <0.5x average
+            # Very low volume
             return 0.1
 
         except Exception as e:
@@ -469,7 +470,11 @@ class StrategyAnalyzer:
             trend_bearish = price_htf < ema20_htf
 
             # All conditions must be met
-            return rsi_3m > 70 and volume_ratio > 1.5 and trend_bearish
+            return (
+                rsi_3m > constants.RSI_OVERBOUGHT
+                and volume_ratio > constants.VOL_CONF_CRITICAL
+                and trend_bearish
+            )
 
         except Exception as e:
             print(f"[WARN]  Enhanced short sizing check error for {coin}: {e}")
@@ -497,24 +502,16 @@ class StrategyAnalyzer:
 
             # Only generate invalidation conditions - TP/SL handled by execute_live_entry
             if direction == "long":
-                if rsi_14 > 70:
-                    invalidation_condition = (
-                        f"If {htf_upper} RSI breaks back below 60, signaling momentum failure"
-                    )
-                elif rsi_14 < 40:
-                    invalidation_condition = (
-                        f"If {htf_upper} RSI breaks above 50, signaling momentum recovery"
-                    )
+                if rsi_14 > constants.RSI_HTF_OVERBOUGHT:
+                    invalidation_condition = f"If {htf_upper} RSI breaks back below {constants.RSI_THRESHOLD_OB_MODERATE}, signaling momentum failure"
+                elif rsi_14 < constants.RSI_THRESHOLD_OS_MODERATE:
+                    invalidation_condition = f"If {htf_upper} RSI breaks above {constants.RSI_NEUTRAL_MARK}, signaling momentum recovery"
                 else:
                     invalidation_condition = f"If {htf_upper} price closes below {htf_upper} EMA20, signaling trend reversal"
-            elif rsi_14 < 30:
-                invalidation_condition = (
-                    f"If {htf_upper} RSI breaks back above 40, signaling momentum failure"
-                )
-            elif rsi_14 > 60:
-                invalidation_condition = (
-                    f"If {htf_upper} RSI breaks below 50, signaling momentum recovery"
-                )
+            elif rsi_14 < constants.RSI_THRESHOLD_OS_STRONG:
+                invalidation_condition = f"If {htf_upper} RSI breaks back above {constants.RSI_THRESHOLD_OS_MODERATE}, signaling momentum failure"
+            elif rsi_14 > constants.RSI_THRESHOLD_OB_MODERATE:
+                invalidation_condition = f"If {htf_upper} RSI breaks below {constants.RSI_NEUTRAL_MARK}, signaling momentum recovery"
             else:
                 invalidation_condition = (
                     f"If {htf_upper} price closes above {htf_upper} EMA20, signaling trend reversal"

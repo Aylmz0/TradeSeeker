@@ -9,6 +9,7 @@ from typing import Any
 import numpy as np
 
 from config.config import Config
+from src.core import constants
 from src.core.backtest import AdvancedRiskManager
 from src.core.market_data import RealMarketData
 from src.core.regime_detector import RegimeDetector
@@ -43,21 +44,21 @@ class PortfolioManager:
         else:
             self.initial_balance = initial_balance
 
-        self.state_file = "data/portfolio_state.json"
-        self.history_file = "data/trade_history.json"
-        self.full_history_file = "data/full_trade_history.json"  # New persistent history file
+        self.state_file = constants.PORTFOLIO_STATE_FILE
+        self.history_file = constants.TRADE_HISTORY_FILE
+        self.full_history_file = constants.FULL_TRADE_HISTORY_FILE
         self.override_file = "data/manual_override.json"
         self.cycle_history_file = "data/cycle_history.json"
-        self.max_cycle_history = 50
-        self.maintenance_margin_rate = 0.01
+        self.max_cycle_history = constants.MAX_CYCLE_HISTORY
+        self.maintenance_margin_rate = constants.MAINTENANCE_MARGIN_RATE
 
         self.current_balance = self.initial_balance
         self.positions = {}
         self._lock = threading.RLock()  # RLock for re-entrant safety
         self.directional_bias = self._init_directional_bias()
         self.trend_state: dict[str, dict[str, Any]] = {}
-        self.trend_flip_cooldown = 2
-        self.trend_flip_history_window = 5
+        self.trend_flip_cooldown = constants.TREND_FLIP_COOLDOWN_DEFAULT
+        self.trend_flip_history_window = constants.TREND_FLIP_HISTORY_WINDOW
         # Trend flip cooldown management is kept on the PortfolioManager side.
         self.indicator_cache: dict[str, dict[str, dict[str, Any]]] = {}
         self.last_execution_report: dict[str, Any] = {}
@@ -107,7 +108,7 @@ class PortfolioManager:
     def _init_directional_bias(self) -> dict[str, dict[str, Any]]:
         return {
             "long": {
-                "rolling": deque(maxlen=20),
+                "rolling": deque(maxlen=constants.ROLLING_BIAS_WINDOW),
                 "net_pnl": 0.0,
                 "trades": 0,
                 "wins": 0,
@@ -119,7 +120,7 @@ class PortfolioManager:
                 "loss_streak_loss_usd": 0.0,
             },
             "short": {
-                "rolling": deque(maxlen=20),
+                "rolling": deque(maxlen=constants.ROLLING_BIAS_WINDOW),
                 "net_pnl": 0.0,
                 "trades": 0,
                 "wins": 0,
@@ -276,9 +277,9 @@ class PortfolioManager:
         }
         existing_reports.append(reset_marker)
 
-        # Keep only last 50 entries
-        if len(existing_reports) > 50:
-            existing_reports = existing_reports[-50:]
+        # Keep only last MAX_REPORT_ENTRIES entries
+        if len(existing_reports) > constants.MAX_REPORT_ENTRIES:
+            existing_reports = existing_reports[-constants.MAX_REPORT_ENTRIES :]
 
         safe_file_write("data/performance_report.json", existing_reports)
         self.portfolio_values_history = [self.total_value]
@@ -318,7 +319,7 @@ class PortfolioManager:
         return history
 
     def save_trade_history(self):
-        history_to_save = self.trade_history[-100:]
+        history_to_save = self.trade_history[-constants.MAX_TRADE_HISTORY_DISPLAY :]
         safe_file_write(self.history_file, history_to_save)
         print(f"[OK]    Saved {len(history_to_save)} trades.")
 
@@ -346,7 +347,7 @@ class PortfolioManager:
                 # Better strategy: Try to read again? Or just skip writing to full history this time (data gap is better than data wipe)
                 # But we want to persist.
                 # Let's try to read one more time with a small delay
-                time.sleep(0.1)
+                time.sleep(constants.FILE_RETRY_DELAY)
                 full_history = safe_file_read(self.full_history_file, [])
                 if not full_history and os.path.getsize(self.full_history_file) > 0:
                     print(
@@ -398,7 +399,7 @@ class PortfolioManager:
                 )
             if stats.get("caution_active"):
                 stats["caution_win_progress"] = stats.get("caution_win_progress", 0) + 1
-                if stats["caution_win_progress"] >= 3:
+                if stats["caution_win_progress"] >= constants.CAUTION_WIN_PROGRESS_THRESHOLD:
                     stats["caution_active"] = False
                     stats["caution_win_progress"] = 0
             # Reset counter-trend consecutive losses on win
@@ -412,9 +413,9 @@ class PortfolioManager:
             # Update loss_streak_loss_usd - continue tracking even if cooldown is active
             # New losses may still occur during cooldown and exceed $5 total
             current_loss_streak = stats.get("loss_streak_loss_usd", 0.0)
-            # FIX: Buffer overflow protection - cap at $10,000 to prevent float overflow
+            # FIX: Buffer overflow protection - cap to prevent float overflow
             new_streak = current_loss_streak + abs(pnl)
-            stats["loss_streak_loss_usd"] = min(new_streak, 10000.0)
+            stats["loss_streak_loss_usd"] = min(new_streak, constants.LOSS_STREAK_MAX_CAP_USD)
 
             # Coin-based cooldown: Smart Cooldown
             # Longer cooldown in case of loss (Config.SMART_COOLDOWN_LOSS)
@@ -425,32 +426,35 @@ class PortfolioManager:
                     f"[WARN]  Smart Cooldown (LOSS) ACTIVATED for {coin_symbol}: {Config.SMART_COOLDOWN_LOSS} cycles (loss: ${pnl:.2f})",
                 )
 
-            if stats["consecutive_losses"] >= 3:
+            if stats["consecutive_losses"] >= constants.REVERSAL_SCORE_MODERATE:
                 stats["caution_active"] = True
                 stats["caution_win_progress"] = 0
-            # Cooldown: 3 consecutive losses OR $5 total loss -> 3 cycle cooldown
+            # Cooldown: consecutive losses OR total loss -> default cooldown
             # Re-check and re-activate cooldown if new losses occur even if already active
             loss_streak_usd = stats.get("loss_streak_loss_usd", 0.0)
             consecutive = stats["consecutive_losses"]
-            should_activate = consecutive >= 2 or loss_streak_usd >= 4.0
+            should_activate = (
+                consecutive >= constants.REVERSAL_SCORE_MODERATE
+                or loss_streak_usd >= constants.LOSS_STREAK_USD_THRESHOLD
+            )
 
             print(
                 f"[DEBUG] Cooldown check for {direction.upper()}: consecutive_losses={consecutive}, loss_streak_usd=${loss_streak_usd:.2f}, should_activate={should_activate}",
             )
 
             if should_activate:
-                self._activate_directional_cooldown(direction, 3)
+                self._activate_directional_cooldown(direction, constants.DEFAULT_COOLDOWN_CYCLES)
                 print(
                     f"[WARN]  Directional cooldown ACTIVATED for {direction.upper()}: consecutive_losses={consecutive}, loss_streak_usd=${loss_streak_usd:.2f}",
                 )
                 # Do not reset loss_streak_loss_usd - continue tracking for next loss
                 # Will only be reset when cooldown expires
 
-            # Counter-trend cooldown: 2 consecutive counter-trend losses
+            # Counter-trend cooldown: consecutive counter-trend losses
             if is_counter_trend:
                 self.counter_trend_consecutive_losses += 1
-                if self.counter_trend_consecutive_losses >= 2:
-                    self.counter_trend_cooldown = 3
+                if self.counter_trend_consecutive_losses >= constants.COUNTER_TREND_LOSS_THRESHOLD:
+                    self.counter_trend_cooldown = constants.DEFAULT_COOLDOWN_CYCLES
                     self.counter_trend_consecutive_losses = 0
                     print(
                         "[WARN]  Counter-trend cooldown activated: 2 consecutive counter-trend losses (3 cycles cooldown).",
@@ -478,11 +482,16 @@ class PortfolioManager:
         current = self.directional_cooldowns.get(direction, 0)
         # If there is a longer duration than currently exists, use it
         new_cooldown = max(current, cycles)
-        # FIX: Cooldown overflow protection - cap at 10 cycles
-        self.directional_cooldowns[direction] = min(new_cooldown, 10)
-        self.relaxed_countertrend_cycles = max(self.relaxed_countertrend_cycles, 3)
+        # FIX: Cooldown overflow protection - cap at MAX_DIRECTIONAL_COOLDOWN cycles
+        self.directional_cooldowns[direction] = min(
+            new_cooldown, constants.MAX_DIRECTIONAL_COOLDOWN
+        )
+        self.relaxed_countertrend_cycles = max(
+            self.relaxed_countertrend_cycles,
+            constants.MIN_RELAXED_CYCLES,
+        )
         print(
-            f"[WARN]  Directional cooldown activated for {direction.upper()} trades (3 cycles). Counter-trend restrictions relaxed for 3 cycles.",
+            f"[WARN]  Directional cooldown activated for {direction.upper()} trades ({constants.MIN_RELAXED_CYCLES} cycles). Counter-trend restrictions relaxed for {constants.MIN_RELAXED_CYCLES} cycles.",
         )
 
     def tick_cooldowns(self):
@@ -635,9 +644,12 @@ class PortfolioManager:
         original_confidence = confidence
         adjusted_confidence = confidence
 
-        # Hafifletilmiş caution penalty: 0.8 yerine 0.95
+        # Adjusted caution penalty
         if stats.get("caution_active"):
-            adjusted_confidence = max(adjusted_confidence * 0.90, adjusted_confidence - 0.7)
+            adjusted_confidence = max(
+                adjusted_confidence * constants.CAUTION_PENALTY_MULTIPLIER,
+                adjusted_confidence - constants.CAUTION_ABSOLUTE_REDUCTION,
+            )
 
         trend_lower = current_trend.lower() if isinstance(current_trend, str) else "unknown"
 
@@ -654,13 +666,16 @@ class PortfolioManager:
             elif side == "short":
                 adjusted_confidence *= Config.DIRECTIONAL_BEARISH_SHORT_MULTIPLIER
 
-        # Hafifletilmiş rolling avg penalty: 0.93 yerine 0.97
+        # Adjusted rolling avg penalty
         rolling_avg = stats.get("rolling_avg", 0.0)
         if rolling_avg < 0:
-            adjusted_confidence = max(adjusted_confidence * 0.97, adjusted_confidence - 0.02)
+            adjusted_confidence = max(
+                adjusted_confidence * constants.NEGATIVE_ROLLING_AVG_PENALTY_MULTIPLIER,
+                adjusted_confidence - constants.NEGATIVE_ROLLING_AVG_REDUCTION,
+            )
 
-        # Minimum confidence floor: Orijinal değerin %90'ı altına düşmesin
-        min_floor = original_confidence * 0.90
+        # Minimum confidence floor: Orijinal değerin altına aşırı düşmesin
+        min_floor = original_confidence * constants.CONFIDENCE_FLOOR_MULTIPLIER
         return max(adjusted_confidence, min_floor, Config.MIN_CONFIDENCE)
 
     def get_directional_bias_metrics(self) -> dict[str, dict[str, Any]]:
@@ -775,7 +790,8 @@ class PortfolioManager:
             last_flip_cycle = record.get("last_flip_cycle", self.current_cycle_number)
             if (
                 current_trend != "neutral"
-                and self.current_cycle_number - last_flip_cycle <= self.trend_flip_cooldown
+                and self.current_cycle_number - last_flip_cycle
+                <= constants.TREND_FLIP_COOLDOWN_DEFAULT
             ):
                 recent_flip = True
 
@@ -856,10 +872,10 @@ class PortfolioManager:
                 # JSON format prompt - create a structured summary
                 try:
                     section_count = len(found_sections)
-                    if section_count <= 3:
+                    if section_count <= constants.PROMPT_SUMMARY_MAX_SECTIONS:
                         summary_text = ", ".join(found_sections)
                     else:
-                        summary_text = f"{', '.join(found_sections[:3])} + {section_count - 3} more"
+                        summary_text = f"{', '.join(found_sections[: constants.PROMPT_SUMMARY_MAX_SECTIONS])} + {section_count - constants.PROMPT_SUMMARY_MAX_SECTIONS} more"
                     prompt_summary = (
                         f"JSON Format ({section_count} sections): {summary_text} | "
                         + prompt[:200]
@@ -867,10 +883,18 @@ class PortfolioManager:
                     )
                 except Exception:
                     # FIX: Replace bare except with specific exception handling
-                    prompt_summary = prompt[:300] + "..." if len(prompt) > 300 else prompt
+                    prompt_summary = (
+                        prompt[: constants.PROMPT_SUMMARY_MAX_SECTIONS] + "..."
+                        if len(prompt) > constants.PROMPT_SUMMARY_TRUNCATE
+                        else prompt
+                    )
             else:
                 # Text format prompt - use original truncation
-                prompt_summary = prompt[:300] + "..." if len(prompt) > 300 else prompt
+                prompt_summary = (
+                    prompt[: constants.PROMPT_SUMMARY_TRUNCATE] + "..."
+                    if len(prompt) > constants.PROMPT_SUMMARY_TRUNCATE
+                    else prompt
+                )
 
         # Add cooldown information to cycle data
         cooldown_info = {
@@ -892,7 +916,7 @@ class PortfolioManager:
         if metadata:
             cycle_data["metadata"] = metadata
         self.cycle_history.append(cycle_data)
-        self.cycle_history = self.cycle_history[-self.max_cycle_history :]
+        self.cycle_history = self.cycle_history[-constants.MAX_CYCLE_HISTORY :]
         safe_file_write(self.cycle_history_file, self.cycle_history)
         print(f"[OK]    Saved cycle {cycle_number} (Total: {len(self.cycle_history)})")
 
@@ -983,11 +1007,11 @@ class PortfolioManager:
             pos["erosion_status"] = "NONE"  # Never had profit
         elif peak_pnl < min_meaningful_profit:
             pos["erosion_status"] = "NONE"  # Profit too small to matter
-        elif erosion_pct < 20:
+        elif erosion_pct < constants.EROSION_THRESHOLD_MINOR:
             pos["erosion_status"] = "NONE"
-        elif erosion_pct < 50:
+        elif erosion_pct < constants.EROSION_THRESHOLD_SIGNIFICANT:
             pos["erosion_status"] = "MINOR"
-        elif erosion_pct < 100:
+        elif erosion_pct < constants.EROSION_THRESHOLD_CRITICAL:
             pos["erosion_status"] = "SIGNIFICANT"
         else:
             pos["erosion_status"] = "CRITICAL"  # Profit fully eroded or now losing
@@ -1014,7 +1038,9 @@ class PortfolioManager:
                                 if existing_price > 0
                                 else 1.0
                             )
-                            if price_diff_pct > 0.001:  # More than 0.1% difference
+                            if (
+                                price_diff_pct > constants.EMA_BAND_SENSITIVITY
+                            ):  # More than 0.1% difference
                                 # Use Spot price as fallback if markPrice seems stale
                                 pos["current_price"] = price
                             # else: keep existing markPrice
@@ -1030,7 +1056,7 @@ class PortfolioManager:
                     if self.is_live_trading:
                         # Live mode: Keep Binance unrealized_pnl if available (includes funding fees, commissions, etc.)
                         existing_pnl = pos.get("unrealized_pnl", 0.0)
-                        if isinstance(existing_pnl, (int, float)) and existing_pnl != 0.0:
+                        if isinstance(existing_pnl, (int, float)) and existing_pnl != 0:
                             # Use Binance value (more accurate, includes funding fees)
                             pnl = existing_pnl
                             pos["unrealized_pnl"] = pnl
@@ -1067,7 +1093,7 @@ class PortfolioManager:
                             pos["loss_cycle_count"] = pos.get("loss_cycle_count", 0) + 1
                             pos["profit_cycle_count"] = 0  # Reset profit counter when negative
                             new_count = pos["loss_cycle_count"]
-                            if new_count in (5, 8, 10):
+                            if new_count in constants.WATCH_CYCLES_LIST:
                                 print(
                                     f"[WATCH] LOSS CYCLE WATCH: {coin} {direction} negative for {new_count} cycles (PnL ${pnl_for_counter:.2f}).",
                                 )
@@ -1077,7 +1103,7 @@ class PortfolioManager:
                                 pos.get("profit_cycle_count", 0) + 1
                             )  # Increment profit counter
                             new_profit_count = pos["profit_cycle_count"]
-                            if new_profit_count in (5, 8, 10, 12):
+                            if new_profit_count in constants.PROFIT_WATCH_CYCLES_LIST:
                                 print(
                                     f"[WATCH] PROFIT CYCLE WATCH: {coin} {direction} profitable for {new_profit_count} cycles (PnL ${pnl_for_counter:.2f}).",
                                 )
@@ -1168,8 +1194,12 @@ class PortfolioManager:
 
         # Update portfolio history for Sharpe ratio calculation
         self.portfolio_values_history.append(self.total_value)
-        if len(self.portfolio_values_history) > 5000:  # Keep last 5000 values (approx 1 week)
-            self.portfolio_values_history = self.portfolio_values_history[-5000:]
+        if (
+            len(self.portfolio_values_history) > constants.PORTFOLIO_HISTORY_MAX_ENTRIES
+        ):  # Keep last 5000 values (approx 1 week)
+            self.portfolio_values_history = self.portfolio_values_history[
+                -constants.PORTFOLIO_HISTORY_MAX_ENTRIES :
+            ]
 
         # Calculate Sharpe ratio
         self.sharpe_ratio = self.calculate_sharpe_ratio()
@@ -1179,7 +1209,7 @@ class PortfolioManager:
 
     def calculate_sharpe_ratio(self) -> float:
         """Calculate Sharpe ratio based on portfolio value history (Nof1ai blog style)."""
-        if len(self.portfolio_values_history) < 2:
+        if len(self.portfolio_values_history) < constants.MIN_HISTORY_FOR_ANALYSIS:
             return 0.0
 
         try:
@@ -1192,7 +1222,7 @@ class PortfolioManager:
                     ) / self.portfolio_values_history[i - 1]
                     returns.append(ret)
 
-            if len(returns) < 2:
+            if len(returns) < constants.MIN_HISTORY_FOR_ANALYSIS:
                 return 0.0
 
             # Nof1ai style: Simple Sharpe ratio with 0% risk-free rate
@@ -1322,13 +1352,13 @@ class PortfolioManager:
 
         max_allowed = Config.MAX_POSITIONS
 
-        if cycle_number == 1:
+        if cycle_number == constants.ALIGNMENT_STRENGTH_L1:
             return min(1, max_allowed)  # Cycle 1: max 1 position (or MAX_POSITIONS)
-        if cycle_number == 2:
+        if cycle_number == constants.ALIGNMENT_STRENGTH_L2:
             return min(2, max_allowed)  # Cycle 2: max 2 positions (or MAX_POSITIONS)
-        if cycle_number == 3:
+        if cycle_number == constants.ALIGNMENT_STRENGTH_L3:
             return min(3, max_allowed)  # Cycle 3: max 3 positions (or MAX_POSITIONS)
-        if cycle_number == 4:
+        if cycle_number == constants.ALIGNMENT_STRENGTH_L4:
             return min(4, max_allowed)  # Cycle 4: max 4 positions (or MAX_POSITIONS)
         return max_allowed  # Cycle 5+: use MAX_POSITIONS value
 
@@ -1659,15 +1689,15 @@ class PortfolioManager:
         Calculate the loss multiplier based on margin size.
         Relaxed for Volatility Sizing: Acts as "Disaster Stop" only.
         """
-        if margin_usd < 20:
-            return 0.50  # %50 for margin < 20 (Allows wide stops)
-        if margin_usd < 30:
-            return 0.45  # %45 for margin 20-30
-        if margin_usd < 40:
-            return 0.40  # %40 for margin 30-40
-        if margin_usd < 50:
-            return 0.35  # %35 for margin 40-50
-        return 0.30  # %30 for margin >= 50
+        if margin_usd < constants.MARGIN_TIER_20:
+            return constants.LOSS_MULT_L1  # %50 for margin < 20 (Allows wide stops)
+        if margin_usd < constants.MARGIN_TIER_30:
+            return constants.LOSS_MULT_L2  # %45 for margin 20-30
+        if margin_usd < constants.MARGIN_TIER_40:
+            return constants.LOSS_MULT_L3  # %40 for margin 30-40
+        if margin_usd < constants.MARGIN_TIER_50:
+            return constants.LOSS_MULT_L4  # %35 for margin 40-50
+        return constants.LOSS_MULT_BASE  # %30 for margin >= 50
 
     def calculate_volume_quality_score(
         self,
@@ -1735,10 +1765,12 @@ class PortfolioManager:
             # 2. RSI Spike Check
             rsi_current = indicators_3m.get("rsi_14", 50)
             rsi_series = indicators_3m.get("rsi_14_series", [])
-            if len(rsi_series) < 4:
+            if len(rsi_series) < constants.MAX_POSITIONS_DIVERSITY:
                 return False
 
-            rsi_prev = rsi_series[-4]  # 3 candles ago
+            rsi_prev = rsi_series[
+                -constants.MAX_POSITIONS_DIVERSITY
+            ]  # 3 candles ago (offset index)
             rsi_delta = abs(rsi_current - rsi_prev)
 
             # Spike threshold from config
@@ -1797,7 +1829,7 @@ class PortfolioManager:
             pnl_pct = (pnl_usd / margin) * 100 if margin > 0 else 0
 
             # Allow exit if PnL is good (>2%) or bad (<-1.5%)
-            if pnl_pct > 2.0 or pnl_pct < -1.5:
+            if pnl_pct > constants.PNL_PCT_EXIT_PROFIT or pnl_pct < constants.PNL_PCT_EXIT_LOSS:
                 print(f"[OK]    Exit validated by PnL: {pnl_pct:.2f}%")
                 return True
 
@@ -1826,8 +1858,8 @@ class PortfolioManager:
                 direction == "short" and price_3m > ema20_3m
             )
 
-            is_rsi_extreme = (direction == "long" and rsi_3m > 70) or (
-                direction == "short" and rsi_3m < 30
+            is_rsi_extreme = (direction == "long" and rsi_3m > constants.RSI_OVERBOUGHT) or (
+                direction == "short" and rsi_3m < constants.RSI_OVERSOLD
             )  # Overbought/sold reversal
 
             if is_price_crossed and is_rsi_extreme:
@@ -2033,19 +2065,19 @@ class PortfolioManager:
                         f"[WARN]  Leverage {leverage}x exceeds maximum limit of {Config.MAX_LEVERAGE}x. Reducing to {Config.MAX_LEVERAGE}x.",
                     )
                     leverage = Config.MAX_LEVERAGE
-                # Clamp leverage into [8, 10] operational band for new entries
+                # Clamp leverage into operational band for new entries
                 if signal in ["buy_to_enter", "sell_to_enter"]:
-                    if leverage < 8:
+                    if leverage < constants.LEVERAGE_MIN_OP:
                         print(
-                            f"[INFO]  Adjusting leverage from {leverage}x to minimum operational level 8x for {coin}.",
+                            f"[INFO]  Adjusting leverage from {leverage}x to minimum operational level {constants.LEVERAGE_MIN_OP}x for {coin}.",
                         )
-                        leverage = 8
-                    elif leverage > 10:
+                        leverage = constants.LEVERAGE_MIN_OP
+                    elif leverage > constants.LEVERAGE_MAX_OP:
                         print(
-                            f"[INFO]  Adjusting leverage from {leverage}x to maximum operational level 10x for {coin}.",
+                            f"[INFO]  Adjusting leverage from {leverage}x to maximum operational level {constants.LEVERAGE_MAX_OP}x for {coin}.",
                         )
-                        leverage = 10
-                if not (0.0 <= confidence <= 1.0):
+                        leverage = constants.LEVERAGE_MAX_OP
+                if not (0 <= confidence <= 1):
                     confidence = 0.5  # Clamp confidence to 0.0-1.0
 
                 # 2. Market Regime Position Sizing & Strategy Adjustment
@@ -2127,10 +2159,18 @@ class PortfolioManager:
                         zone_15m = price_loc_15m.get("zone", "MIDDLE")
                         rsi_15m = indicators_15m.get("rsi_14", 50)
 
-                        if zone_15m == "LOWER_10" and rsi_15m < 30 and direction == "short":
+                        if (
+                            zone_15m == "LOWER_10"
+                            and rsi_15m < constants.RSI_OVERSOLD
+                            and direction == "short"
+                        ):
                             confidence = confidence * 0.90
                             confidence_adjustments.append(f"lower10_rsi{rsi_15m:.0f}(-10%)")
-                        elif zone_15m == "UPPER_10" and rsi_15m > 70 and direction == "long":
+                        elif (
+                            zone_15m == "UPPER_10"
+                            and rsi_15m > constants.RSI_OVERBOUGHT
+                            and direction == "long"
+                        ):
                             confidence = confidence * 0.90
                             confidence_adjustments.append(f"upper10_rsi{rsi_15m:.0f}(-10%)")
 
@@ -2151,12 +2191,12 @@ class PortfolioManager:
                         volume_ratio_3m = (
                             indicators_3m.get("volume_ratio", 1.0) if indicators_3m else 1.0
                         )
-                        if volume_ratio_3m < 0.7:
+                        if volume_ratio_3m < constants.VOL_RATIO_WEAK:
                             confidence = confidence * 0.95
                             confidence_adjustments.append(
                                 f"volume_weak({volume_ratio_3m:.2f})(-5%)",
                             )
-                        elif volume_ratio_3m > 1.5:
+                        elif volume_ratio_3m > constants.VOL_CONF_CRITICAL:
                             confidence = confidence * 1.05
                             confidence_adjustments.append(
                                 f"volume_strong({volume_ratio_3m:.2f})(+5%)",
@@ -2311,7 +2351,7 @@ class PortfolioManager:
 
                 # DYNAMIC SLOT LIMIT LOGIC (v1.2: Centralized regime_strength)
                 effective_limit = Config.SAME_DIRECTION_LIMIT
-                if regime_strength > 0.7:
+                if regime_strength > constants.REGIME_STRENGTH_THRESHOLD:
                     effective_limit = Config.DYNAMIC_DIRECTION_LIMIT
                     print(
                         f"🌊 Dynamic Slot Limit Active: Strength {regime_strength:.2f} > 0.7 -> Limit increased to {effective_limit}",
@@ -2706,10 +2746,16 @@ class PortfolioManager:
                                     )  # Tolerant: was 0.8
                                     _log_debug(
                                         "sizing",
-                                        f"[WATCH] Trend flip guard (counter-trend): {coin} sizing capped at 90% one cycle after flip.",
-                                        {"coin": coin, "sizing_cap": 0.9, "cycles_since_flip": 1},
+                                        f"[WATCH] Trend flip guard (counter-trend): {coin} sizing capped at 90% {constants.ALIGNMENT_STRENGTH_L1} cycle after flip.",
+                                        {
+                                            "coin": coin,
+                                            "sizing_cap": 0.9,
+                                            "cycles_since_flip": constants.ALIGNMENT_STRENGTH_L1,
+                                        },
                                     )
-                                elif guard_cycles_since_flip == 2:
+                                elif (
+                                    guard_cycles_since_flip == constants.TREND_FLIP_COOLDOWN_DEFAULT
+                                ):
                                     min_conf = 0.50  # Tolerant: was 0.55
                                     if confidence < min_conf:
                                         _log_debug(
@@ -2810,28 +2856,30 @@ class PortfolioManager:
                                     partial_margin_factor = min(partial_margin_factor, 0.8)
                                     _log_debug(
                                         "sizing",
-                                        f"[WATCH] Trend flip guard (trend-following): {coin} confidence {original_conf:.2f} → {confidence:.2f} & sizing 70% one cycle after flip.",
+                                        f"[WATCH] Trend flip guard (trend-following): {coin} confidence {original_conf:.2f} → {confidence:.2f} & sizing 70% {constants.ALIGNMENT_STRENGTH_L1} cycle after flip.",
                                         {
                                             "coin": coin,
                                             "original_confidence": original_conf,
                                             "adjusted_confidence": confidence,
                                             "sizing_cap": 0.7,
-                                            "cycles_since_flip": 1,
+                                            "cycles_since_flip": constants.ALIGNMENT_STRENGTH_L1,
                                         },
                                     )
-                                elif guard_cycles_since_flip == 2:
+                                elif (
+                                    guard_cycles_since_flip == constants.TREND_FLIP_COOLDOWN_DEFAULT
+                                ):
                                     # Relaxed: 0.99 instead of 0.98
                                     confidence = max(confidence * 0.99, original_conf * 0.98)
                                     partial_margin_factor = min(partial_margin_factor, 0.90)
                                     _log_debug(
                                         "sizing",
-                                        f"[WATCH] Trend flip guard (trend-following): {coin} confidence {original_conf:.2f} → {confidence:.2f} & sizing 85% two cycles after flip.",
+                                        f"[WATCH] Trend flip guard (trend-following): {coin} confidence {original_conf:.2f} → {confidence:.2f} & sizing 85% {constants.TREND_FLIP_COOLDOWN_DEFAULT} cycles after flip.",
                                         {
                                             "coin": coin,
                                             "original_confidence": original_conf,
                                             "adjusted_confidence": confidence,
                                             "sizing_cap": 0.85,
-                                            "cycles_since_flip": 2,
+                                            "cycles_since_flip": constants.TREND_FLIP_COOLDOWN_DEFAULT,
                                         },
                                     )
                                 trade["confidence"] = confidence
@@ -2980,7 +3028,7 @@ class PortfolioManager:
                     current_multiplier *= getattr(Config, "SCOUT_LEVERAGE_MULT", 0.5)
 
                 calculated_margin *= current_multiplier
-                if partial_margin_factor < 1.0:
+                if partial_margin_factor < 1:
                     standard_margin = calculated_margin
                     reduced_margin = standard_margin * partial_margin_factor
                     print(

@@ -11,6 +11,7 @@ import numpy as np
 import pandas as pd
 
 from config.config import Config
+from src.core import constants
 
 
 class BacktestEngine:
@@ -42,10 +43,10 @@ class BacktestEngine:
 
         # For demonstration, create synthetic data
         dates = pd.date_range(start=start_date, end=end_date, freq=interval)
-        np.random.seed(42)  # For reproducible results
+        np.random.seed(constants.BACKTEST_SEED)  # For reproducible results
 
         # Generate synthetic price data
-        base_price = 100.0
+        base_price = constants.BACKTEST_BASE_PRICE
         returns = np.random.normal(0.001, 0.02, len(dates))
         prices = base_price * (1 + returns).cumprod()
 
@@ -195,7 +196,9 @@ class BacktestEngine:
 
         if returns:
             sharpe_ratio = (
-                np.mean(returns) / np.std(returns) * np.sqrt(252) if np.std(returns) > 0 else 0
+                np.mean(returns) / np.std(returns) * np.sqrt(constants.TRADING_DAYS_PER_YEAR)
+                if np.std(returns) > 0
+                else 0
             )
         else:
             sharpe_ratio = 0
@@ -334,20 +337,20 @@ class AdvancedRiskManager:
 
         if risk_level == "low":
             # Low: Slow and steady gains - conservative
-            self.max_portfolio_risk = 0.015  # 1.5% portfolio risk
-            self.max_position_risk = 0.008  # 0.8% position risk
-            self.max_position_size_usd = 30.0  # $30 maximum per position
+            self.max_portfolio_risk = constants.RISK_LOW_PORTFOLIO
+            self.max_position_risk = constants.RISK_LOW_POSITION
+            self.max_position_size_usd = constants.RISK_LOW_MAX_SIZE_USD
         elif risk_level == "high":
             # High: Very high risk - aggressive
-            self.max_portfolio_risk = 0.15  # 15% portfolio risk
-            self.max_position_risk = 0.10  # 10% position risk
-            self.max_position_size_usd = 80.0  # $80 maximum per position
+            self.max_portfolio_risk = constants.RISK_HIGH_PORTFOLIO
+            self.max_position_risk = constants.RISK_HIGH_POSITION
+            self.max_position_size_usd = constants.RISK_HIGH_MAX_SIZE_USD
         else:  # medium (default)
             # Medium: Logic-based - aggressive but controlled
             # $50 maximum per position with flexible sizing
-            self.max_portfolio_risk = 0.08  # 8% portfolio risk (more conservative)
-            self.max_position_risk = 0.04  # 4% position risk (more conservative)
-            self.max_position_size_usd = 50.0  # $50 maximum per position
+            self.max_portfolio_risk = constants.RISK_MEDIUM_PORTFOLIO
+            self.max_position_risk = constants.RISK_MEDIUM_POSITION
+            self.max_position_size_usd = constants.RISK_MEDIUM_MAX_SIZE_USD
 
         # Override with custom values if provided
         if max_portfolio_risk is not None:
@@ -382,9 +385,9 @@ class AdvancedRiskManager:
         base_position_size = risk_per_trade / risk_per_unit
 
         # Adjust based on confidence - flexible sizing within limits
-        if confidence > 0.7:  # High confidence
+        if confidence > Config.CONFIDENCE_VERY_HIGH:  # High confidence
             confidence_multiplier = 1.3  # More conservative scaling
-        elif confidence > 0.5:  # Medium confidence
+        elif confidence > Config.CONFIDENCE_HIGH:  # Medium confidence
             confidence_multiplier = 1.1
         else:  # Low confidence
             confidence_multiplier = 0.7
@@ -398,13 +401,15 @@ class AdvancedRiskManager:
         if position_value > max_position_value:
             confidence_adjusted_size = max_position_value / entry_price
 
-        # Apply dynamic 25% maximum margin limit
-        max_margin_usd = current_balance * 0.25  # 25% of current balance
-        margin_required = (confidence_adjusted_size * entry_price) / 8  # Assume 8x leverage
+        # Apply dynamic maximum margin limit
+        max_margin_usd = current_balance * constants.MAX_PORTFOLIO_MARGIN_RATIO
+        margin_required = (
+            confidence_adjusted_size * entry_price
+        ) / constants.DEFAULT_LEVERAGE  # Assume default leverage
 
         if margin_required > max_margin_usd:
-            # Scale down to maximum 25% margin
-            max_quantity = (max_margin_usd * 8) / entry_price
+            # Scale down to maximum margin
+            max_quantity = (max_margin_usd * constants.DEFAULT_LEVERAGE) / entry_price
             confidence_adjusted_size = max_quantity
 
         return max(0.0, confidence_adjusted_size)
@@ -455,7 +460,7 @@ class AdvancedRiskManager:
             #     return False
 
         # Allow multiple positions - only block if we're at maximum positions
-        max_positions = 6  # Maximum 6 positions as requested
+        max_positions = constants.MAX_OPEN_POSITIONS
         if len(current_positions) >= max_positions:
             logging.warning(
                 f"Maximum positions limit reached: {len(current_positions)}/{max_positions}",
@@ -529,7 +534,7 @@ def sample_strategy(symbol: str, data: pd.DataFrame, portfolio_state: dict) -> d
     Sample trading strategy for backtesting.
     This is a simple moving average crossover strategy.
     """
-    if len(data) < 50:
+    if len(data) < constants.MIN_KLINE_DATA_POINTS:
         return None
 
     # Calculate moving averages
@@ -538,7 +543,7 @@ def sample_strategy(symbol: str, data: pd.DataFrame, portfolio_state: dict) -> d
     data["close"].iloc[-1]
 
     # Simple crossover strategy
-    if short_ma > long_ma and portfolio_state["current_balance"] > 10:
+    if short_ma > long_ma and portfolio_state["current_balance"] > constants.MIN_BALANCE_FOR_TRADE:
         # Buy signal
         return {"signal": "buy_to_enter", "quantity": 1.0, "leverage": 2, "confidence": 0.7}
     if short_ma < long_ma and symbol in portfolio_state["positions"]:
@@ -555,7 +560,7 @@ def sample_strategy(symbol: str, data: pd.DataFrame, portfolio_state: dict) -> d
 class MockOrderExecutor:
     """Mock version of BinanceOrderExecutor for deterministic replays."""
 
-    def __init__(self, initial_balance: float = 1000.0):
+    def __init__(self, initial_balance: float = constants.MOCK_INITIAL_BALANCE):
         self.wallet_balance = initial_balance
         self.positions = {}
         self.order_history = []

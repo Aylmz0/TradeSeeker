@@ -16,6 +16,7 @@ if PROJECT_ROOT not in sys.path:
 
 from config.config import Config
 from src.ai.deepseek_api import DeepSeekAPI
+from src.core import constants
 from src.core.account_service import AccountService
 from src.core.ai_service import AIService
 from src.core.backtest import AdvancedRiskManager
@@ -140,7 +141,7 @@ class AlphaArenaDeepSeek:
             return Config.CYCLE_INTERVAL_MINUTES * 60  # Convert to seconds
         except Exception as e:
             print(f"[WARN]  Cycle frequency calculation error: {e}")
-            return 180  # Default to 3 minutes fallback
+            return constants.DEFAULT_CYCLE_FREQUENCY_S  # Default fallback
 
     def track_performance_metrics(self, cycle_number: int):
         """Record basic performance metrics for each cycle"""
@@ -161,24 +162,24 @@ class AlphaArenaDeepSeek:
             performance_history.append(metrics)
             safe_file_write(
                 "data/performance_history.json",
-                performance_history[-100:],
-            )  # Last 100 cycles
+                performance_history[-constants.MAX_PERFORMANCE_HISTORY :],
+            )  # Last N cycles
 
         except Exception as e:
             print(f"[WARN]  Performance tracking error: {e}")
 
     def should_run_performance_analysis(self, cycle_number: int) -> bool:
         """Run analysis every 10 cycles or in critical situations"""
-        # Every 10 cycles
-        if cycle_number % 10 == 0:
+        # Every N cycles
+        if cycle_number % constants.PERFORMANCE_ANALYSIS_INTERVAL == 0:
             return True
 
         # During large PnL changes
-        if abs(self.portfolio.total_return) > 10:  # More than 10% change
+        if abs(self.portfolio.total_return) > constants.CRITICAL_RETURN_THRESHOLD:
             return True
 
         # When too many positions are open
-        return len(self.portfolio.positions) >= 4
+        return len(self.portfolio.positions) >= constants.MAX_POSITIONS_ALERT_THRESHOLD
 
     def run_trading_cycle(self, cycle_number: int):
         """Run a single trading cycle with auto TP/SL and enhanced features"""
@@ -226,9 +227,9 @@ class AlphaArenaDeepSeek:
                 report = monitor.analyze_performance(last_n_cycles=10)
                 monitor.print_performance_summary(report)
 
-            # PHASE 27: AUTOMATED ML TRAINING (Every 12 cycles = ~3 hours)
+            # PHASE 27: AUTOMATED ML TRAINING
             self.auto_train_cycle_count += 1
-            if self.auto_train_cycle_count >= 12:
+            if self.auto_train_cycle_count >= constants.AUTO_TRAIN_CYCLE_INTERVAL:
                 print("\n[AUTO-ML] Triggering 3-hour automated model retraining...")
                 try:
                     import subprocess
@@ -570,7 +571,11 @@ class AlphaArenaDeepSeek:
 
                                 # Deduct commission for simulation realism (round-trip: entry + exit)
                                 notional = (entry_price + current_price) / 2 * quantity
-                                commission = notional * Config.SIMULATION_COMMISSION_RATE * 2
+                                commission = (
+                                    notional
+                                    * Config.SIMULATION_COMMISSION_RATE
+                                    * constants.COMMISSION_ROUND_TRIP_MULTIPLIER
+                                )
                                 profit -= commission
 
                                 self.portfolio.current_balance += margin_used + profit

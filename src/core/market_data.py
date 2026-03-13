@@ -10,6 +10,7 @@ import pandas as pd
 import requests
 
 from config.config import Config
+from src.core import constants
 from src.core.indicators import (
     calculate_adx,
     calculate_atr_series,
@@ -48,10 +49,9 @@ class RealMarketData:
         self._raw_dataframes: dict[str, dict[str, pd.DataFrame]] = {}
 
         # FIX: Circuit breaker state to prevent hammering Binance during outages
-        # Thread-safe: uses lock to protect state mutations from concurrent access
         self._circuit_breaker_failures = 0
-        self._circuit_breaker_threshold = 5  # Trip after 5 consecutive failures
-        self._circuit_breaker_timeout = 60  # Stay open for 60 seconds
+        self._circuit_breaker_threshold = constants.CIRCUIT_BREAKER_THRESHOLD
+        self._circuit_breaker_timeout = constants.CIRCUIT_BREAKER_TIMEOUT_S
         self._circuit_breaker_until = 0  # Timestamp when breaker resets
         self._circuit_breaker_lock = threading.RLock()  # RLock for re-entrant safety
 
@@ -104,12 +104,16 @@ class RealMarketData:
             )
             return pd.DataFrame()
 
-        max_retries = 3
+        max_retries = constants.MAX_API_RETRIES
         for attempt in range(max_retries):
             try:
-                fetch_limit = limit + self.indicator_history_length + 50
+                fetch_limit = (
+                    limit + self.indicator_history_length + constants.MIN_KLINE_DATA_POINTS
+                )
                 params = {"symbol": f"{symbol}USDT", "interval": interval, "limit": fetch_limit}
-                response = self.session.get(f"{self.spot_url}/klines", params=params, timeout=10)
+                response = self.session.get(
+                    f"{self.spot_url}/klines", params=params, timeout=constants.API_TIMEOUT_SECONDS
+                )
                 response.raise_for_status()
                 data = response.json()
 
@@ -120,7 +124,7 @@ class RealMarketData:
                         self._circuit_breaker_failures = 0
                         self._circuit_breaker_until = 0
 
-                if len(data) < 50:
+                if len(data) < constants.MIN_KLINE_DATA_POINTS:
                     print(
                         f"[WARN] Insufficient kline data for {symbol} ({interval}). Got {len(data)}.",
                     )
@@ -239,7 +243,7 @@ class RealMarketData:
                 return False
 
         # Check for identical prices (stuck data)
-        if df["close"].nunique() < 3:  # Less than 3 unique prices
+        if df["close"].nunique() < constants.STUCK_DATA_PRICE_COUNT:  # Less than 3 unique prices
             print(
                 f"[WARN] Stuck price data for {symbol} ({interval}): only {df['close'].nunique()} unique prices",
             )
@@ -277,11 +281,28 @@ class RealMarketData:
             response.raise_for_status()
             return float(response.json()["openInterest"])
         except Exception as e:
-            if isinstance(e, requests.exceptions.HTTPError) and e.response.status_code == 404:
+            if (
+                isinstance(e, requests.exceptions.HTTPError)
+                and e.response.status_code == constants.OI_NOT_AVAILABLE_STATUS
+            ):
                 print(f"[INFO] OI not available for {symbol}USDT on Futures.")
             else:
                 print(f"[ERR]   OI error for {symbol}: {e}")
             return 0.0
+
+    def _calculate_max_drawdown(self, value_history: list[float]) -> float:
+        """Calculate Maximum Drawdown from value history"""
+        if not value_history or len(value_history) < constants.MIN_HISTORY_FOR_ANALYSIS:
+            return 0.0
+
+        peak = value_history[0]
+        max_drawdown = 0.0
+        for value in value_history:
+            # Performance stats
+            peak = max(peak, value)
+            drawdown = (peak - value) / peak if peak > 0 else 0
+            max_drawdown = max(max_drawdown, drawdown)
+        return max_drawdown
 
     def get_funding_rate(self, symbol: str) -> float:
         """Get Latest Funding Rate from Binance Futures"""
@@ -320,7 +341,7 @@ class RealMarketData:
             return copy.deepcopy(cached)
 
         df = self.get_real_time_data(coin, interval=interval)
-        if df.empty or len(df) < 50:
+        if df.empty or len(df) < constants.MIN_KLINE_DATA_POINTS:
             return {"error": f"Not enough data for {coin} {interval} (got {len(df)})"}
 
         close_prices = df["close"]
@@ -331,9 +352,9 @@ class RealMarketData:
         hist_len = self.indicator_history_length
         indicators = {"current_price": current_price}
         try:
-            ema_20_series = calculate_ema_series(close_prices, 21)
-            ema_50_series = calculate_ema_series(close_prices, 55)  # Fibonacci: 21, 55
-            rsi_14_series = calculate_rsi_series(close_prices, 13)
+            ema_20_series = calculate_ema_series(close_prices, constants.FIB_21)
+            ema_50_series = calculate_ema_series(close_prices, constants.FIB_55)
+            rsi_14_series = calculate_rsi_series(close_prices, constants.FIB_13)
             macd_line_series, macd_signal_series, macd_hist_series = calculate_macd_series(
                 close_prices,
             )  # Fibonacci: 13
@@ -359,13 +380,15 @@ class RealMarketData:
             )
 
             if interval == "3m":
-                rsi_7_series = calculate_rsi_series(close_prices, 8)  # Fibonacci: 8
+                rsi_7_series = calculate_rsi_series(close_prices, constants.FIB_8)
                 indicators["rsi_7"] = rsi_7_series.iloc[-1]  # Keep key as rsi_7 for compatibility
                 indicators["rsi_7_series"] = (
                     rsi_7_series.iloc[-hist_len:].round(3).where(pd.notna, None).tolist()
                 )
             if interval == HTF_INTERVAL:
-                atr_3_series = calculate_atr_series(df["high"], df["low"], df["close"], 3)
+                atr_3_series = calculate_atr_series(
+                    df["high"], df["low"], df["close"], constants.FIB_3
+                )
                 indicators["atr_3"] = atr_3_series.iloc[-1]
 
             # Volume Analysis: Use last CLOSED candle for consistent ratio
@@ -373,9 +396,9 @@ class RealMarketData:
             current_vol = df["volume"].iloc[-1]
             last_closed_vol = df["volume"].iloc[-2]
 
-            # Calculate average volume based on LAST 20 CLOSED candles (excluding current partial)
-            # We take slice [-21:-1] which gives 20 candles ending at iloc[-2]
-            avg_vol_closed = df["volume"].iloc[-21:-1].mean()
+            # Calculate average volume based on LAST CLOSED candles (excluding current partial)
+            # Take slice representing VOLUME_WINDOW_SIZE
+            avg_vol_closed = df["volume"].iloc[-(constants.VOLUME_WINDOW_SIZE + 1) : -1].mean()
 
             indicators["volume"] = current_vol  # Keep current volume for AI context
             indicators["last_closed_volume"] = last_closed_vol
@@ -406,17 +429,19 @@ class RealMarketData:
             indicators["plus_di"] = plus_di
             indicators["minus_di"] = minus_di
 
-            if adx >= 40:
+            if adx >= constants.ADX_STRONG_THRESHOLD:
                 indicators["trend_strength_adx"] = "STRONG"
-            elif adx >= 25:
+            elif adx >= constants.ADX_MODERATE_THRESHOLD:
                 indicators["trend_strength_adx"] = "MODERATE"
-            elif adx >= 15:
+            elif adx >= constants.ADX_WEAK_THRESHOLD:
                 indicators["trend_strength_adx"] = "WEAK"
             else:
                 indicators["trend_strength_adx"] = "NO_TREND"
 
-            # 2. VWAP - Rolling 4-hour (60 bars for 4min cycle)
-            vwap = calculate_vwap(df["high"], df["low"], df["close"], df["volume"], period=60)
+            # 2. VWAP - Rolling 4-hour (bars count depends on cycle)
+            vwap = calculate_vwap(
+                df["high"], df["low"], df["close"], df["volume"], period=constants.VWAP_WINDOW_SIZE
+            )
             indicators["vwap"] = vwap
             if vwap > 0:
                 vwap_distance_pct = ((current_price - vwap) / vwap) * 100
@@ -433,7 +458,9 @@ class RealMarketData:
             indicators["bb_upper"] = bb_upper
             indicators["bb_lower"] = bb_lower
             indicators["bb_bandwidth"] = bb_bandwidth
-            indicators["bb_squeeze"] = bb_bandwidth < 0.03  # Squeeze detection
+            indicators["bb_squeeze"] = (
+                bb_bandwidth < constants.BB_SQUEEZE_THRESHOLD
+            )  # Squeeze detection
 
             if current_price > bb_upper:
                 indicators["bb_signal"] = "OVERBOUGHT"
@@ -463,11 +490,13 @@ class RealMarketData:
             if interval == HTF_INTERVAL:
                 indicators["smart_sparkline"] = generate_smart_sparkline(
                     close_prices,
-                    period=24,
+                    period=constants.SPARKLINE_WINDOW,
                 )
             elif interval == "15m":
                 # 15m: structure, momentum, and price_location (no key_level for token efficiency)
-                full_sparkline = generate_smart_sparkline(close_prices, period=24)
+                full_sparkline = generate_smart_sparkline(
+                    close_prices, period=constants.SPARKLINE_WINDOW
+                )
                 indicators["smart_sparkline"] = {
                     "structure": full_sparkline.get("structure", "UNCLEAR"),
                     "momentum": full_sparkline.get("momentum", "STABLE"),
@@ -476,7 +505,7 @@ class RealMarketData:
                         {"zone": "MIDDLE", "percentile": 50},
                     ),
                 }
-            indicators["pivots"] = calculate_pivots(df, periods=24)
+            indicators["pivots"] = calculate_pivots(df, periods=constants.SPARKLINE_WINDOW)
             indicators["tags"] = generate_tags(indicators)
 
             for key, value in indicators.items():
@@ -494,7 +523,10 @@ class RealMarketData:
         with self._price_cache_lock:
             # FIX: Check cache first (2-second TTL) to prevent duplicate logs/calls during concurrent cycle start
             current_time = time.time()
-            if current_time - self._last_price_fetch_time < 2.0 and self._last_price_cache:
+            if (
+                current_time - self._last_price_fetch_time < constants.PRICE_CACHE_TTL_S
+                and self._last_price_cache
+            ):
                 return copy.deepcopy(self._last_price_cache)
 
             prices: dict[str, float] = {}
@@ -862,13 +894,14 @@ class RealMarketData:
                 signals.append("macd_bullish_cross(+1)")
 
         # Determine strength from score
-        if score >= 8:
+        # Determine strength from score
+        if score >= constants.REVERSAL_SCORE_CRITICAL:
             strength = "CRITICAL"
-        elif score >= 5:
+        elif score >= constants.REVERSAL_SCORE_STRONG:
             strength = "STRONG"
-        elif score >= 3:
+        elif score >= constants.REVERSAL_SCORE_MODERATE:
             strength = "MODERATE"
-        elif score >= 1:
+        elif score >= constants.REVERSAL_SCORE_WEAK:
             strength = "WEAK"
         else:
             strength = "NONE"

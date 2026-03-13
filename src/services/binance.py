@@ -23,6 +23,7 @@ from typing import Any
 import requests
 
 from config.config import Config
+from src.core import constants
 from src.utils import RetryManager
 
 
@@ -117,7 +118,7 @@ class BinanceFuturesClient:
         except requests.RequestException as exc:
             raise BinanceAPIError(f"HTTP request failed: {exc}") from exc
 
-        if response.status_code >= 400:
+        if response.status_code >= constants.HTTP_STATUS_ERROR_THRESHOLD:
             try:
                 data = response.json()
                 message = data.get("msg", response.text)
@@ -319,7 +320,7 @@ class BinanceOrderExecutor:
     def _extract_fill_details(self, order: dict[str, Any]) -> tuple[float, float]:
         executed_qty = float(order.get("executedQty", order.get("origQty", "0")))
         avg_price = float(order.get("avgPrice", 0.0))
-        if executed_qty > 0 and (avg_price == 0.0 or math.isclose(avg_price, 0.0)):
+        if executed_qty > 0 and (avg_price == 0 or math.isclose(avg_price, 0)):
             cum_quote = float(order.get("cumQuote", 0.0))
             if cum_quote > 0:
                 avg_price = cum_quote / executed_qty
@@ -371,7 +372,7 @@ class BinanceOrderExecutor:
 
         # Fallback: Also get available balance from balance endpoint
         # This is needed if account_info doesn't have availableBalance
-        if overview["availableBalance"] == 0.0:
+        if overview["availableBalance"] == 0:
             try:
                 balances = self.client.get_balance()
                 for asset in balances:
@@ -381,7 +382,7 @@ class BinanceOrderExecutor:
                             overview["availableBalance"] = float(available_bal)
                         # walletBalance is just the USDT balance without unrealized PnL
                         balance = asset.get("balance", 0.0)
-                        if balance and overview["walletBalance"] == 0.0:
+                        if balance and overview["walletBalance"] == 0:
                             overview["walletBalance"] = float(balance)
                         break
             except Exception as e:

@@ -4,6 +4,7 @@ from typing import Any
 import pandas as pd
 
 from config.config import Config
+from src.core import constants
 from src.utils import safe_file_read, safe_file_write
 
 
@@ -227,9 +228,9 @@ class PerformanceMonitor:
             # Add new report to array
             reports_array.append(performance_report)
 
-            # Keep only last 50 reports to prevent file from growing too large
-            if len(reports_array) > 50:
-                reports_array = reports_array[-50:]
+            # Keep only last MAX_SAVED_REPORTS reports to prevent file from growing too large
+            if len(reports_array) > constants.MAX_SAVED_REPORTS:
+                reports_array = reports_array[-constants.MAX_SAVED_REPORTS :]
 
             # Save updated reports array
             safe_file_write(self.performance_file, reports_array)
@@ -242,7 +243,7 @@ class PerformanceMonitor:
 
     def _calculate_max_drawdown(self, value_history: list[float]) -> float:
         """Calculate Maximum Drawdown from value history"""
-        if not value_history or len(value_history) < 2:
+        if not value_history or len(value_history) < constants.MIN_HISTORY_FOR_ANALYSIS:
             return 0.0
 
         peak = value_history[0]
@@ -261,11 +262,11 @@ class PerformanceMonitor:
         risk_free_rate: float = 0.0,
     ) -> float:
         """Calculate Sortino Ratio (downside risk only)"""
-        if not value_history or len(value_history) < 2:
+        if not value_history or len(value_history) < constants.SORTINO_MIN_RETURNS:
             return 0.0
 
         returns = pd.Series(value_history).pct_change().dropna()
-        if len(returns) < 2:
+        if len(returns) < constants.SORTINO_MIN_RETURNS:
             return 0.0
 
         avg_return = returns.mean()
@@ -305,14 +306,14 @@ class PerformanceMonitor:
                 f"[INFO] Cash balance ${current_balance:.2f} vs ${initial_balance:.2f} initial; liquidity below 50% of baseline",
             )
 
-        # 3 positions threshold (more conservative)
-        if open_positions >= 3:
+        # N positions threshold (more conservative)
+        if open_positions >= constants.BEARISH_MAX_POSITIONS:
             recommendations.append(
-                f"[INFO] Position count {open_positions}; exceeds reference threshold (>=3)",
+                f"[INFO] Position count {open_positions}; exceeds reference threshold (>={constants.BEARISH_MAX_POSITIONS})",
             )
 
         # Performance feedback
-        if total_return < 5:
+        if total_return < constants.REGIME_PERFORMANCE_THRESHOLD:
             recommendations.append(
                 f"[INFO] Recorded return {total_return:.2f}% within analysis window; below growth target",
             )
@@ -470,13 +471,13 @@ class PerformanceMonitor:
             )
 
         # Position management suggestions
-        if open_positions >= 4 and total_return < 0:
+        if open_positions >= constants.MAX_POSITIONS_DIVERSITY and total_return < 0:
             suggestions.append(
-                "[INFO] Open positions >=4 while total return is negative; exposure concentration elevated",
+                f"[INFO] Open positions >={constants.MAX_POSITIONS_DIVERSITY} while total return is negative; exposure concentration elevated",
             )
-        elif open_positions <= 2 and total_return > 0:
+        elif open_positions <= constants.MIN_DIVERSITY_POSITIONS and total_return > 0:
             suggestions.append(
-                "[INFO] Open positions <=2 with positive total return; lean positioning correlated with gains",
+                f"[INFO] Open positions <={constants.MIN_DIVERSITY_POSITIONS} with positive total return; lean positioning correlated with gains",
             )
 
         # Coin-specific suggestions
@@ -500,12 +501,14 @@ class PerformanceMonitor:
                     )
 
         # Market regime suggestions
-        if total_return > 10:
+        if total_return > constants.PNL_THRESHOLD_POS:
             suggestions.append(
-                "[INFO] Portfolio return above 10%; market conditions appear supportive during analysis",
+                f"[INFO] Portfolio return above {constants.PNL_THRESHOLD_POS}%; market conditions appear supportive during analysis",
             )
-        elif total_return < -5:
-            suggestions.append("[INFO] Portfolio return below -5%; drawdown environment observed")
+        elif total_return < constants.PNL_THRESHOLD_NEG:
+            suggestions.append(
+                f"[INFO] Portfolio return below {constants.PNL_THRESHOLD_NEG}%; drawdown environment observed"
+            )
 
         # Risk management suggestions
         if profit_factor < Config.PERFORMANCE_PROFIT_FACTOR_CRITICAL:
@@ -637,20 +640,20 @@ class PerformanceMonitor:
         reversal_percentage = summary.get("loss_risk_percentage", 0)
 
         # Market-wide reversal signals
-        if strong_count >= 3:
+        if strong_count >= constants.ALIGNMENT_STRENGTH_ALL:
             recommendations.append("[INFO] Multiple strong reversal signals detected across assets")
-        elif strong_count >= 2:
+        elif strong_count >= constants.ALIGNMENT_STRENGTH_MANY:
             recommendations.append(
                 "[INFO] Several strong reversal signals present across coverage set",
             )
 
-        if reversal_percentage > 50:
+        if reversal_percentage > constants.REVERSAL_PCT_HIGH:
             recommendations.append(
-                "[INFO] Reversal signal percentage above 50%; elevated probability of directional shifts",
+                f"[INFO] Reversal signal percentage above {constants.REVERSAL_PCT_HIGH}%; elevated probability of directional shifts",
             )
-        elif reversal_percentage > 30:
+        elif reversal_percentage > constants.REVERSAL_PCT_MODERATE:
             recommendations.append(
-                "[INFO] Reversal signal percentage above 30%; moderate reversal frequency observed",
+                f"[INFO] Reversal signal percentage above {constants.REVERSAL_PCT_MODERATE}%; moderate reversal frequency observed",
             )
 
         # Specific coin recommendations
