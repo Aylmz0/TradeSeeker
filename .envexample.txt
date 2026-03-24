@@ -1,5 +1,26 @@
-# DeepSeek API Configuration
-DEEPSEEK_API_KEY=your_deepseek_api_key_here
+# ==========================================
+# AI LITELLM ROUTER CONFIGURATION
+# ==========================================
+# Note: PRIMARY_AI_PROVIDER is deprecated. TradeSeeker now uses a smart
+# litellm fallback router. It will try the keys strictly in the order below.
+# If OpenRouter hangs or rate limits, it will instantly fallback to Groq.
+
+# 1. Primary Provider (OpenRouter)
+OPENROUTER_API_KEY=your_openrouter_api_key_here
+OPENROUTER_MODEL=google/gemini-2.0-flash-exp:free
+OPENROUTER_REASONING_ENABLED=false
+
+# 2. Fast Fallback (Groq)
+GROQ_API_KEY=your_groq_api_key_here
+GROQ_MODEL=llama-3.3-70b-versatile
+
+# 3. Secondary Fallback (MiMo)
+# MIMO_API_KEY=your_mimo_key_here
+# MIMO_MODEL=mimo-v2-flash
+
+# 4. Tertiary Fallback (Z.AI)
+# ZAI_API_KEY=your_zai_key_here
+# ZAI_MODEL=glm-4.5-flash
 
 # Binance API Configuration (Optional for simulation, required for live)
 BINANCE_API_KEY=

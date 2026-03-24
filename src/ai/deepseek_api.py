@@ -1,123 +1,117 @@
 import json
+import re
 
-from openai import OpenAI
+import litellm
+from litellm import Router
 
 from config.config import Config
 from src.utils import safe_file_read
-
-
-# Try to import Gemini SDK
-try:
-    from google import genai
-    from google.genai import types
-
-    GEMINI_AVAILABLE = True
-except ImportError:
-    GEMINI_AVAILABLE = False
-
-# Try to import Groq SDK
-try:
-    from groq import Groq
-
-    GROQ_AVAILABLE = True
-except ImportError:
-    GROQ_AVAILABLE = False
 
 # HTF_INTERVAL used in prompt, we can get it from Config
 HTF_INTERVAL = getattr(Config, "HTF_INTERVAL", "1h") or "1h"
 HTF_LABEL = HTF_INTERVAL
 
+# Enable LiteLLM logging
+litellm.success_callback = ["logger_fn"]
+
+
+def custom_logger_fn(kwargs, completion_response, start_time, end_time):
+    # Optional callback logic for custom logging if needed
+    pass
+
+
+litellm.success_callback = [custom_logger_fn]
+
 
 class DeepSeekAPI:
-    """AI API integration with MiMo/Z.AI/DeepSeek support"""
+    """AI API integration natively powered by LiteLLM Router"""
 
     def __init__(self, api_key: str | None = None):
-        primary_provider = getattr(Config, "PRIMARY_AI_PROVIDER", "openrouter")
-        mimo_key = getattr(Config, "MIMO_API_KEY", None)
-        zai_key = getattr(Config, "ZAI_API_KEY", None)
+        model_list = []
+        self.primary_model = None
 
-        self.gemini_client = None
-        self.groq_client = None
-        self.client = None
+        # 1. OpenRouter (Primary)
+        if getattr(Config, "OPENROUTER_API_KEY", None):
+            self.primary_model = "openrouter/" + getattr(
+                Config, "OPENROUTER_MODEL", "google/gemini-2.0-flash-exp:free"
+            )
+            model_list.append(
+                {
+                    "model_name": self.primary_model,
+                    "litellm_params": {
+                        "model": self.primary_model,
+                        "api_key": Config.OPENROUTER_API_KEY,
+                        "api_base": "https://openrouter.ai/api/v1",
+                        "tpm": 100000,
+                        "rpm": 100,
+                    },
+                }
+            )
 
-        if primary_provider == "groq" and getattr(Config, "GROQ_API_KEY", None) and GROQ_AVAILABLE:
-            self.api_key = Config.GROQ_API_KEY
-            self.model = getattr(Config, "GROQ_MODEL", "groq/compound")
-            self.provider = "Groq"
-            self.thinking_enabled = False
-            print(f"[INFO] Using Groq API with model: {self.model}")
-            self.groq_client = Groq(api_key=self.api_key)
-        elif mimo_key:
-            # Use MiMo (Xiaomi AI - fast and free)
-            self.api_key = mimo_key
-            self.base_url = "https://api.xiaomimimo.com/v1"
-            self.model = getattr(Config, "MIMO_MODEL", "mimo-v2-flash")
-            self.provider = "MiMo"
-            self.thinking_enabled = getattr(Config, "MIMO_THINKING_ENABLED", False)
-            print(f"[INFO] Using MiMo API with model: {self.model}")
-            self.client = OpenAI(
-                api_key=self.api_key,
-                base_url=self.base_url,
-                timeout=180.0,
-                max_retries=2,
+        # 2. Groq (Fast Fallback)
+        if getattr(Config, "GROQ_API_KEY", None):
+            groq_model = "groq/" + getattr(Config, "GROQ_MODEL", "llama-3.3-70b-versatile")
+            if not self.primary_model:
+                self.primary_model = groq_model
+            model_list.append(
+                {
+                    "model_name": groq_model,
+                    "litellm_params": {
+                        "model": groq_model,
+                        "api_key": Config.GROQ_API_KEY,
+                        "tpm": 100000,
+                        "rpm": 30,
+                    },
+                }
             )
-        elif zai_key:
-            # Use Z.AI (GLM models with thinking support)
-            self.api_key = zai_key
-            self.base_url = "https://api.z.ai/api/paas/v4/"
-            self.model = getattr(Config, "ZAI_MODEL", "glm-4.5-flash")
-            self.provider = "Z.AI"
-            self.thinking_enabled = getattr(Config, "ZAI_THINKING_ENABLED", True)
+
+        # 3. MiMo (Secondary Fallback)
+        if getattr(Config, "MIMO_API_KEY", None):
+            mimo_model = "openai/" + getattr(Config, "MIMO_MODEL", "mimo-v2-flash")
+            if not self.primary_model:
+                self.primary_model = mimo_model
+            model_list.append(
+                {
+                    "model_name": mimo_model,
+                    "litellm_params": {
+                        "model": mimo_model,
+                        "api_key": Config.MIMO_API_KEY,
+                        "api_base": "https://api.xiaomimimo.com/v1",
+                    },
+                }
+            )
+
+        # 4. Z.AI
+        if getattr(Config, "ZAI_API_KEY", None):
+            zai_model = "openai/" + getattr(Config, "ZAI_MODEL", "glm-4.5-flash")
+            if not self.primary_model:
+                self.primary_model = zai_model
+            model_list.append(
+                {
+                    "model_name": zai_model,
+                    "litellm_params": {
+                        "model": zai_model,
+                        "api_key": Config.ZAI_API_KEY,
+                        "api_base": "https://api.z.ai/api/paas/v4/",
+                    },
+                }
+            )
+
+        self.thinking_enabled = getattr(Config, "OPENROUTER_REASONING_ENABLED", False)
+
+        if not model_list:
             print(
-                f"[INFO] Using Z.AI API with model: {self.model} (thinking: {self.thinking_enabled})"
-            )
-            self.client = OpenAI(
-                api_key=self.api_key,
-                base_url=self.base_url,
-                timeout=180.0,
-                max_retries=2,
-            )
-        elif getattr(Config, "OPENROUTER_API_KEY", None):
-            # Use OpenRouter (Excellent for cost management)
-            self.api_key = Config.OPENROUTER_API_KEY
-            self.base_url = "https://openrouter.ai/api/v1"
-            self.model = Config.OPENROUTER_MODEL
-            self.provider = "OpenRouter"
-            self.thinking_enabled = getattr(Config, "OPENROUTER_REASONING_ENABLED", True)
-            print(
-                f"[INFO] Using OpenRouter API with model: {self.model} (reasoning: {self.thinking_enabled})"
-            )
-            self.client = OpenAI(
-                api_key=self.api_key,
-                base_url=self.base_url,
-                timeout=180.0,
-                max_retries=2,
-                default_headers={
-                    "HTTP-Referer": "https://github.com/Aylmz0/TradeSeeker",
-                    "X-Title": "TradeSeeker AI",
-                },
+                "[ERR]   No API keys found in .env! Please set OPENROUTER_API_KEY or GROQ_API_KEY."
             )
         else:
-            # Fallback to DeepSeek
-            self.api_key = api_key or Config.DEEPSEEK_API_KEY
-            self.base_url = "https://api.deepseek.com"
-            self.model = "deepseek-chat"
-            self.provider = "DeepSeek"
-            self.thinking_enabled = False
-
-            if self.api_key:
-                self.client = OpenAI(
-                    api_key=self.api_key,
-                    base_url=self.base_url,
-                    timeout=180.0,
-                    max_retries=2,
-                )
-
-        if not self.api_key:
-            print(
-                "[ERR]   No API key found! Set MIMO_API_KEY, ZAI_API_KEY or DEEPSEEK_API_KEY in .env"
+            print(f"[INFO] Initializing LiteLLM Router with {len(model_list)} fallback models.")
+            self.router = Router(
+                model_list=model_list,
+                routing_strategy="latency-based-routing",
+                allowed_fails=1,
+                num_retries=2,
+                timeout=60.0,  # Strict timeout to prevent hanging
             )
-            print("[INFO] Please check your .env file configuration.")
 
     def _build_system_prompt(self) -> str:
         """Constructs the system prompt as a structured JSON object.
@@ -380,348 +374,126 @@ class DeepSeekAPI:
         return json.dumps(system_structure)
 
     def get_ai_decision(self, prompt: str) -> str:
-        """Get trading decision from AI API using structured JSON prompting"""
-        # Check if using Gemini
-        if getattr(self, "provider", None) == "Gemini" and getattr(self, "gemini_client", None):
-            return self._get_gemini_decision(prompt)
-
-        # Check if using Groq
-        if getattr(self, "provider", None) == "Groq" and getattr(self, "groq_client", None):
-            return self._get_groq_decision(prompt)
-
-        if not self.client:
+        """Get trading decision from AI API natively via LiteLLM Router"""
+        if not hasattr(self, "router"):
             return self._get_simulation_response(prompt)
 
         try:
-            # User prompt is already a JSON string from main.py
-            # We wrap it in a clear instruction
             user_message_content = f"Analyze the following market data JSON and provide decisions based on the system rules:\n\n{prompt}"
 
-            print(
-                f"[INFO] Sending request to {self.provider} API (JSON Mode)... Payload Size: {len(prompt)} chars",
-            )
+            print(f"[INFO] Sending request to LiteLLM Router... Payload Size: {len(prompt)} chars")
 
-            # Build request parameters
-            request_params = {
-                "model": self.model,
-                "messages": [
-                    {"role": "system", "content": self._build_system_prompt()},
-                    {"role": "user", "content": user_message_content},
-                ],
-                "temperature": 0.5,
-                "max_tokens": 10000,
-                "stream": True,
-            }
-
-            # Only use strict JSON mode if reasoning is NOT enabled
-            # reasoning and json_object mode sometimes conflict on OpenRouter
-            if not (self.provider == "OpenRouter" and self.thinking_enabled):
-                request_params["response_format"] = {"type": "json_object"}
-
-            # Add thinking support for Z.AI
-            if self.provider == "Z.AI" and self.thinking_enabled:
-                request_params["temperature"] = 1.0  # Required for thinking mode
-                request_params["extra_body"] = {"thinking": {"type": "enabled"}}
-
-            # Add reasoning support for OpenRouter
-            if self.provider == "OpenRouter" and self.thinking_enabled:
-                request_params["extra_body"] = {"reasoning": {"enabled": True}}
-
-            stream = self.client.chat.completions.create(**request_params)
-
-            print("[WAIT] Receiving stream...", end="", flush=True)
-            collected_content = []
-            collected_reasoning = []
-
-            for chunk in stream:
-                # Safe access - check if choices exists and has content
-                if hasattr(chunk, "choices") and chunk.choices and len(chunk.choices) > 0:
-                    delta = chunk.choices[0].delta
-
-                    # OpenRouter specific: check for reasoning_details or reasoning
-                    # Some models send reasoning in 'reasoning' or 'thought' or 'reasoning_details'
-                    reasoning = getattr(delta, "reasoning", None) or getattr(
-                        delta, "reasoning_details", None
-                    )
-                    if reasoning:
-                        collected_reasoning.append(str(reasoning))
-
-                    if hasattr(delta, "content") and delta.content:
-                        content_chunk = delta.content
-                        collected_content.append(content_chunk)
-                        # Optional: Print a dot every 10 chunks to show activity
-                        if len(collected_content) % 10 == 0:
-                            print(".", end="", flush=True)
-
-            print(" [OK]")
-            content = "".join(collected_content)
-            reasoning_content = "".join(collected_reasoning)
-
-            # If content is empty but reasoning has data, the model might have put everything in reasoning
-            if not content and reasoning_content:
-                print("[INFO] Using reasoning as fallback content for JSON search")
-                content = reasoning_content
-
-            # Robust JSON extraction using JSONDecoder
-            try:
-                # 1. First Pass: Find the first '{' and try raw_decode
-                start_index = content.find("{")
-                if start_index != -1:
-                    json_candidate = content[start_index:]
-                    try:
-                        decoder = json.JSONDecoder()
-                        obj, _end_index = decoder.raw_decode(json_candidate)
-
-                        if reasoning_content and "CHAIN_OF_THOUGHTS" not in obj:
-                            obj["CHAIN_OF_THOUGHTS"] = reasoning_content
-
-                        return json.dumps(obj, indent=2)
-                    except Exception as e:
-                        print(
-                            f"[WARN]  Strict JSON parse failed ({e}), attempting aggressive repair..."
-                        )
-                        import re
-
-                        # Aggressive Repair 1: Strip markdown and clean text
-                        cleaned = re.sub(r"```json\s*", "", json_candidate)
-                        cleaned = re.sub(r"```\s*", "", cleaned)
-
-                        # Aggressive Repair 2: Fix missing commas between properties (common AI error)
-                        cleaned = re.sub(r'(?<=[}\]])\s*(?=[{"\w])', ",", cleaned)
-
-                        # Aggressive Repair 3: Fix trailing commas
-                        cleaned = re.sub(r",\s*([}\]])", r"\1", cleaned)
-
-                        try:
-                            # Try loading the cleaned string directly
-                            obj = json.loads(cleaned)
-                            if reasoning_content and "CHAIN_OF_THOUGHTS" not in obj:
-                                obj["CHAIN_OF_THOUGHTS"] = reasoning_content
-                            print("[OK]    JSON repaired successfully via regex filtering.")
-                            return json.dumps(obj, indent=2)
-                        except Exception as inner_e:
-                            print(f"[WARN]  Regex repair failed: {inner_e}")
-
-                            # Aggressive Repair 4: Count braces and close strings (Hard Truncation Fix)
-                            try:
-                                print("[INFO]  Attempting Brace-Count String Repair...")
-                                repaired = cleaned
-                                brace_count = 0
-                                last_valid_pos = 0
-                                in_string = False
-                                escape_next = False
-
-                                for i, char in enumerate(repaired):
-                                    if escape_next:
-                                        escape_next = False
-                                        continue
-                                    if char == "\\":
-                                        escape_next = True
-                                        continue
-                                    if char == '"' and not escape_next:
-                                        in_string = not in_string
-                                    if not in_string:
-                                        if char == "{":
-                                            brace_count += 1
-                                        elif char == "}":
-                                            brace_count -= 1
-                                            if brace_count == 0:
-                                                last_valid_pos = i + 1
-
-                                if last_valid_pos > 0:
-                                    # If we found a clean closing, use it
-                                    repaired = repaired[:last_valid_pos]
-                                else:
-                                    # If it's hard truncated, close the string and add closing braces
-                                    if in_string:
-                                        repaired += '"'
-                                    if brace_count > 0:
-                                        repaired += "}" * brace_count
-
-                                obj = json.loads(repaired)
-                                if reasoning_content and "CHAIN_OF_THOUGHTS" not in obj:
-                                    obj["CHAIN_OF_THOUGHTS"] = reasoning_content
-                                print("[OK]    JSON repaired via Brace-Count & Truncation Closure.")
-                                return json.dumps(obj, indent=2)
-                            except Exception as truncate_e:
-                                print(f"[WARN]  Truncation repair failed: {truncate_e}")
-
-                                # Aggressive Repair 5: Try to extract just the DECISIONS block if everything else is corrupted
-                                match = re.search(r'"DECISIONS"\s*:\s*({[^}]+(}[^{}]*)*})', cleaned)
-                                if match:
-                                    try:
-                                        decisions_str = "{" + match.group(0) + "}"
-                                        obj = json.loads(decisions_str)
-                                        print(
-                                            "[OK]    JSON repaired successfully by extracting DECISIONS block only."
-                                        )
-                                        return json.dumps(obj, indent=2)
-                                    except Exception as e:
-                                        print(f"[WARN]  DECISIONS block extraction failed: {e}")
-
-                else:
-                    if reasoning_content:
-                        print(
-                            f"[WARN] No JSON found, but reasoning exists: {reasoning_content[:100]}..."
-                        )
-                    print("[WARN]  No JSON object found in response")
-                    return self.get_safe_hold_decisions()
-
-            except Exception as e:
-                print(f"[WARN]  JSON extraction warning: {e}")
-
-            # Final validation - if still not valid JSON, return safe hold
-            print("[ERR]   JSON parse failed completely, returning safe HOLD decisions")
-            return self.get_safe_hold_decisions()
-
-        except Exception as e:
-            # Detailed error logging
-            error_type = type(e).__name__
-            print(f"[ERR]   API error ({error_type}): {e}")
-            return self._get_error_response(f"{error_type}: {e}")
-
-    def _get_gemini_decision(self, prompt: str) -> str:
-        """Get trading decision from Gemini API with thinking support"""
-        try:
-            # Build the full prompt with system context
-            system_prompt = self._build_system_prompt()
-            user_message = f"Analyze the following market data JSON and provide decisions based on the system rules:\n\n{prompt}"
-            full_prompt = f"{system_prompt}\n\n{user_message}\n\nRespond with valid JSON only."
-
-            print(f"[INFO] Sending request to Gemini API... Payload Size: {len(prompt)} chars")
-
-            # Build content
-            contents = [
-                types.Content(
-                    role="user",
-                    parts=[types.Part.from_text(text=full_prompt)],
-                ),
+            messages = [
+                {"role": "system", "content": self._build_system_prompt()},
+                {"role": "user", "content": user_message_content},
             ]
 
-            # Configure thinking level and structured output
-            thinking_level = getattr(self, "thinking_level", "HIGH")
-            generate_config = types.GenerateContentConfig(
-                temperature=0.5,
-                thinking_config=types.ThinkingConfig(
-                    thinking_level=thinking_level,
-                ),
-                response_mime_type="application/json",  # Structured JSON output
-            )
+            kwargs = {
+                "model": self.primary_model,
+                "messages": messages,
+                "temperature": 0.5,
+                "max_tokens": 10000,
+                "stream": False,  # Non-streaming provides greater stability against free tier drops
+                "response_format": {"type": "json_object"},
+            }
 
-            print("[WAIT] Receiving stream...", end="", flush=True)
-            collected_content = []
+            # Handle Provider-Specific Reasoning Requirements
+            if self.thinking_enabled and "openrouter/" in self.primary_model:
+                kwargs["extra_body"] = {"reasoning": {"enabled": True}}
+                if "json_object" in str(kwargs.get("response_format", "")):
+                    del kwargs[
+                        "response_format"
+                    ]  # OpenRouter sometimes rejects JSON mode with reasoning
 
-            for chunk in self.gemini_client.models.generate_content_stream(
-                model=self.model,
-                contents=contents,
-                config=generate_config,
-            ):
-                if chunk.text:
-                    collected_content.append(chunk.text)
-                    if len(collected_content) % 5 == 0:
-                        print(".", end="", flush=True)
+            # Fallbacks are automatically collected from the remaining configured models
+            fallbacks = [
+                m["model_name"]
+                for m in self.router.model_list
+                if m["model_name"] != self.primary_model
+            ]
 
-            print(" [OK]")
-            content = "".join(collected_content)
-
-            # Extract JSON from response
-            try:
-                start_index = content.find("{")
-                if start_index != -1:
-                    json_candidate = content[start_index:]
-                    decoder = json.JSONDecoder()
-                    obj, _ = decoder.raw_decode(json_candidate)
-                    content = json.dumps(obj, indent=2)
-                else:
-                    print("[WARN]  No JSON object found in Gemini response")
-                    return self.get_safe_hold_decisions()
-            except Exception as e:
-                print(f"[WARN]  Gemini JSON extraction warning: {e}")
-                # Try to clean up
-                if "```json" in content:
-                    content = content.replace("```json", "").replace("```", "")
-                elif "```" in content:
-                    content = content.replace("```", "")
-
-            return content.strip()
-
-        except Exception as e:
-            error_type = type(e).__name__
-            print(f"[ERR]   Gemini API error ({error_type}): {e}")
-            return self._get_error_response(f"{error_type}: {e}")
-
-    def _get_groq_decision(self, prompt: str) -> str:
-        """Get trading decision from Groq API with compound tool support"""
-        try:
-            user_message_content = f"Analyze the following market data JSON and provide decisions based on the system rules:\n\n{prompt}"
-
-            print(
-                f"[INFO] Sending request to Groq API... Payload Size: {len(prompt)} chars",
-            )
-
-            # Using specific parameters for groq/compound as requested
-            stream = self.groq_client.chat.completions.create(
-                model=self.model,
-                messages=[
-                    {"role": "system", "content": self._build_system_prompt()},
-                    {"role": "user", "content": user_message_content},
-                ],
-                temperature=0.5,  # Reduced from 1 to 0.5 for trading stability
-                max_completion_tokens=10000,
-                top_p=1,
-                stream=True,
-                stop=None,
-                compound_custom={
-                    "tools": {"enabled_tools": ["web_search", "code_interpreter", "visit_website"]}
-                },
-            )
-
-            print("[WAIT] Receiving stream...", end="", flush=True)
-            collected_content = []
-            for chunk in stream:
-                if hasattr(chunk, "choices") and chunk.choices and len(chunk.choices) > 0:
-                    delta = chunk.choices[0].delta
-                    if hasattr(delta, "content") and delta.content:
-                        collected_content.append(delta.content)
-                        if len(collected_content) % 10 == 0:
-                            print(".", end="", flush=True)
+            # Execute request through Router
+            print(f"[WAIT] Waiting for response from LLM...", end="", flush=True)
+            response = self.router.completion(**kwargs, fallbacks=fallbacks)
 
             print(" [OK]")
-            content = "".join(collected_content)
 
-            # Extract JSON from response
-            try:
-                start_index = content.find("{")
-                if start_index != -1:
-                    json_candidate = content[start_index:]
-                    decoder = json.JSONDecoder()
-                    obj, _ = decoder.raw_decode(json_candidate)
-                    content = json.dumps(obj, indent=2)
-                else:
-                    print("[WARN]  No JSON object found in Groq response")
-                    return self.get_safe_hold_decisions()
-            except Exception as e:
-                print(f"[WARN]  Groq JSON extraction warning: {e}")
-                if "```json" in content:
-                    content = content.replace("```json", "").replace("```", "")
-                elif "```" in content:
-                    content = content.replace("```", "")
+            content = response.choices[0].message.content
 
-            # Strict final parse to guarantee we return JSON
-            try:
-                json.loads(content)
-            except Exception as e:
+            # LiteLLM makes token tracking easy
+            usage = response.usage
+            model_used = response.model
+            if usage:
                 print(
-                    f"[ERR]   JSON parse failed completely for Groq: {e}, returning safe HOLD decisions"
+                    f"[INFO] Router Selected: {model_used} | Tokens: Prompt {usage.prompt_tokens}, Completion {usage.completion_tokens}"
                 )
-                return self.get_safe_hold_decisions()
 
-            return content.strip()
+            return self._extract_json_from_content(content)
 
+        except litellm.ContextWindowExceededError as e:
+            print(f"[ERR]   Context window exceeded: {e}")
+            return self.get_cached_decisions()
+        except litellm.RateLimitError as e:
+            print(f"[ERR]   Rate Limit hit across all fallbacks: {e}")
+            return self.get_cached_decisions()
+        except litellm.Timeout as e:
+            print(f"[ERR]   Timeout across all fallbacks: {e}")
+            return self.get_cached_decisions()
         except Exception as e:
             error_type = type(e).__name__
-            print(f"[ERR]   Groq API error ({error_type}): {e}")
+            print(f"[ERR]   Router API error ({error_type}): {e}")
             return self._get_error_response(f"{error_type}: {e}")
+
+    def _extract_json_from_content(self, content: str) -> str:
+        """Robustly extracts and parses JSON from the LLM content block"""
+        if not content:
+            print("[WARN]  No content returned from API")
+            return self.get_safe_hold_decisions()
+
+        try:
+            # 1. First Pass: Try raw
+            start_index = content.find("{")
+            if start_index != -1:
+                json_candidate = content[start_index:]
+                try:
+                    decoder = json.JSONDecoder()
+                    obj, _ = decoder.raw_decode(json_candidate)
+                    return json.dumps(obj, indent=2)
+                except Exception as e:
+                    print(f"[WARN]  Strict JSON parse failed ({e}), attempting regex repair...")
+
+                    # 2. Aggressive Repair
+                    cleaned = re.sub(r"```json\s*", "", json_candidate)
+                    cleaned = re.sub(r"```\s*", "", cleaned)
+                    # Fix missing commas
+                    cleaned = re.sub(r'(?<=[}\]])\s*(?=[{"\w])', ",", cleaned)
+                    # Fix trailing commas
+                    cleaned = re.sub(r",\s*([}\]])", r"\1", cleaned)
+
+                    try:
+                        obj = json.loads(cleaned)
+                        print("[OK]    JSON repaired successfully via regex filtering.")
+                        return json.dumps(obj, indent=2)
+                    except Exception as inner_e:
+                        print(f"[WARN]  Regex repair failed: {inner_e}")
+
+                        # Extract DECISIONS block if everything else is corrupted
+                        match = re.search(r'"DECISIONS"\s*:\s*({[^}]+(}[^{}]*)*})', cleaned)
+                        if match:
+                            try:
+                                decisions_str = "{" + match.group(0) + "}"
+                                obj = json.loads(decisions_str)
+                                print(
+                                    "[OK]    JSON repaired successfully by extracting DECISIONS block only."
+                                )
+                                return json.dumps(obj, indent=2)
+                            except Exception:
+                                pass
+        except Exception as e:
+            print(f"[WARN]  JSON extraction warning: {e}")
+
+        print("[ERR]   JSON parse failed completely, returning safe HOLD decisions")
+        return self.get_safe_hold_decisions()
 
     def _get_simulation_response(self, prompt: str) -> str:
         """Simulation response without API - Returns valid JSON string"""
