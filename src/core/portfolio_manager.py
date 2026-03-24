@@ -3203,7 +3203,14 @@ class PortfolioManager:
             "trade": trade,
             "log_func": signal_ctx["log_func"],
         }
-        return self._handle_trend_flip_guard(guard_ctx)
+        proceed, final_conf, final_pmf = self._handle_trend_flip_guard(guard_ctx)
+        return {
+            "proceed": proceed,
+            "confidence": final_conf,
+            "partial_margin_factor": final_pmf,
+            "is_counter_trend": is_ct,
+            "classification": classification,
+        }
 
     def _log_trend_alignment_info(
         self,
