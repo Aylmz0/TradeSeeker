@@ -9,7 +9,7 @@ import pandas as pd
 
 from config.config import Config
 from src.core import constants
-from src.utils import format_number_for_json
+from src.ai.prompt_json_utils import format_number_for_json
 
 
 # ============================================================================

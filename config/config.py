@@ -59,6 +59,9 @@ class Config:
     MIN_CONFIDENCE: float = float(
         os.getenv("MIN_CONFIDENCE", "0.60"),
     )  # Sniper mode: only high confidence trades
+    ML_CONFIDENCE_THRESHOLD: float = float(
+        os.getenv("ML_CONFIDENCE_THRESHOLD", "70.0"),
+    )  # Threshold for ML consensus confirmation
     MAX_POSITIONS: int = int(
         os.getenv("MAX_POSITIONS", "5"),
     )  # Nof1ai blog: 2-3 positions, but system uses 5

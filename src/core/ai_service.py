@@ -976,8 +976,8 @@ Current live positions & performance:"""
             # Calculate Bias Deviation Score (BDS) - Professional Mitigation Layer
             ml_bias_label = "Neutral"
             if ml_consensus:
-                ml_prob_buy = ml_consensus.get("buy_prob", 0)
-                ml_prob_sell = ml_consensus.get("sell_prob", 0)
+                ml_prob_buy = ml_consensus.get("BUY", 0)
+                ml_prob_sell = ml_consensus.get("SELL", 0)
                 htf_direction = indicators_htf.get("trend_direction", "neutral")
 
                 # Flag deviation if ML is strong opposite to HTF trend
