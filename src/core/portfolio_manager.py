@@ -2634,7 +2634,7 @@ class PortfolioManager:
             True if diversity limits allow the trade, False otherwise.
 
         """
-        import constants
+        from src.core import constants
 
         from config.config import Config
 
@@ -2684,7 +2684,7 @@ class PortfolioManager:
             Dictionary with 'proceed', 'confidence', and 'leverage'.
 
         """
-        import constants
+        from src.core import constants
 
         from config.config import Config
 
