@@ -1,5 +1,4 @@
-"""
-src/core/regime_detector.py
+"""src/core/regime_detector.py
 Formalized Market Regime Detection for Tactical Scout v1.2.
 Uses ADX, ATR, and EMA to classify market states.
 """
@@ -19,8 +18,7 @@ class RegimeDetector:
 
     @staticmethod
     def classify_coin_regime(indicators: dict[str, Any]) -> str:
-        """
-        Classifies the regime for a single coin.
+        """Classifies the regime for a single coin.
         Returns: BULLISH, BEARISH, NEUTRAL, VOLATILE, CHOPPY
         """
         try:
@@ -53,9 +51,7 @@ class RegimeDetector:
 
     @classmethod
     def detect_overall_regime(cls, coin_indicators: dict[str, dict[str, Any]]) -> str:
-        """
-        Detects the global market regime by aggregating coin-level regimes.
-        """
+        """Detects the global market regime by aggregating coin-level regimes."""
         regimes = [cls.classify_coin_regime(ind) for ind in coin_indicators.values()]
         if not regimes:
             return "NEUTRAL"
@@ -77,8 +73,7 @@ class RegimeDetector:
 
     @classmethod
     def calculate_regime_strength(cls, coin_indicators: dict[str, dict[str, Any]]) -> float:
-        """
-        Calculates market regime strength (0.0 to 1.0) based on coin alignment.
+        """Calculates market regime strength (0.0 to 1.0) based on coin alignment.
         Replaces the legacy get_market_regime_strength in PortfolioManager.
         """
         try:

@@ -175,7 +175,6 @@ class AccountService:
 
     def sync_live_account(self):
         """Refresh balances and open positions from Binance when in live mode."""
-
         if not self.is_live_trading or not self.order_executor or not self.order_executor.is_live():
             return
 
@@ -658,17 +657,19 @@ class AccountService:
         current_price: float,
         reason: str = "Manual Close",
     ) -> dict[str, Any]:
-        """
-        Close a position in paper trading mode (simulation).
+        """Close a position in paper trading mode (simulation).
         Includes commission deduction for realism.
 
         Args:
+        ----
             coin: Coin symbol
             current_price: Current market price
             reason: Reason for closing
 
         Returns:
+        -------
             Dict with success status and PnL
+
         """
         # FIX: Thread-safe position access with lock
         with self.pm._lock:

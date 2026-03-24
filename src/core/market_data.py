@@ -657,8 +657,7 @@ class RealMarketData:
     def verify_sync_alignment(
         self, coin: str, intervals: list[str] | None = None
     ) -> AlignmentResult:
-        """
-        Verifies that the latest kline timestamps for multiple intervals are within
+        """Verifies that the latest kline timestamps for multiple intervals are within
         Config.MAX_ALIGNMENT_DELTA_S.
         """
         if intervals is None:
@@ -748,8 +747,7 @@ class RealMarketData:
         indicators_15m: dict[str, Any] | None = None,
         position_direction: str | None = None,
     ) -> dict[str, Any]:
-        """
-        Detect potential trend reversal signals with weighted scoring.
+        """Detect potential trend reversal signals with weighted scoring.
 
         Weights:
         - HTF trend reversal: +3

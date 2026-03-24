@@ -136,7 +136,8 @@ class AlphaArenaDeepSeek:
     def calculate_optimal_cycle_frequency(self) -> int:
         """Calculate optimal cycle frequency based on user configuration.
         Strictly uses CYCLE_INTERVAL_MINUTES from .env as requested by the user,
-        disabling the previous dynamic ATR-based volatility logic."""
+        disabling the previous dynamic ATR-based volatility logic.
+        """
         try:
             return Config.CYCLE_INTERVAL_MINUTES * 60  # Convert to seconds
         except Exception as e:

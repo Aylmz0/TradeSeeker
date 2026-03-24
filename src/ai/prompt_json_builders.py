@@ -1,5 +1,4 @@
-"""
-JSON builder functions for AI prompt generation.
+"""JSON builder functions for AI prompt generation.
 Converts data structures to JSON format for hybrid prompt.
 """
 
@@ -28,8 +27,7 @@ def _sv_trend_alignment(
     indicators_15m: dict[str, Any],
     indicators_3m: dict[str, Any],
 ) -> str:
-    """
-    Determine multi-timeframe trend alignment.
+    """Determine multi-timeframe trend alignment.
     Returns: FULL_BULLISH | FULL_BEARISH | MIXED_BULLISH | MIXED_BEARISH | CONFLICTED
     """
 
@@ -65,8 +63,7 @@ def _sv_trend_alignment(
 
 
 def _sv_momentum(indicators_15m: dict[str, Any]) -> str:
-    """
-    Extract momentum from 15m smart_sparkline.
+    """Extract momentum from 15m smart_sparkline.
     Returns: STRENGTHENING | STABLE | WEAKENING | UNKNOWN
     """
     if not indicators_15m or "error" in indicators_15m:
@@ -78,8 +75,7 @@ def _sv_momentum(indicators_15m: dict[str, Any]) -> str:
 
 
 def _sv_price_location(indicators_15m: dict[str, Any]) -> str:
-    """
-    Extract price location zone from 15m smart_sparkline.
+    """Extract price location zone from 15m smart_sparkline.
     Returns: UPPER_10 | LOWER_10 | MIDDLE
     """
     if not indicators_15m or "error" in indicators_15m:
@@ -95,8 +91,7 @@ def _sv_price_location(indicators_15m: dict[str, Any]) -> str:
 
 
 def _sv_structure(indicators_15m: dict[str, Any]) -> str:
-    """
-    Extract market structure from 15m smart_sparkline.
+    """Extract market structure from 15m smart_sparkline.
     Returns: HH_HL | LH_LL | RANGE | UNCLEAR
     """
     if not indicators_15m or "error" in indicators_15m:
@@ -108,8 +103,7 @@ def _sv_structure(indicators_15m: dict[str, Any]) -> str:
 
 
 def _sv_volatility_state(indicators_htf: dict[str, Any]) -> str:
-    """
-    Determine volatility state from BB squeeze.
+    """Determine volatility state from BB squeeze.
     Returns: SQUEEZE | EXPANDING | NORMAL
     """
     if not indicators_htf or "error" in indicators_htf:
@@ -127,8 +121,7 @@ def _sv_volatility_state(indicators_htf: dict[str, Any]) -> str:
 
 
 def _sv_volume_label(indicators_3m: dict[str, Any]) -> str:
-    """
-    Convert volume ratio to linguistic label.
+    """Convert volume ratio to linguistic label.
     Returns: EXCELLENT | GOOD | FAIR | POOR | LOW
     """
     if not indicators_3m or "error" in indicators_3m:
@@ -194,14 +187,14 @@ def build_coin_state_vector(
     counter_trade_result: dict[str, Any] | None = None,
     reversal_result: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
-    """
-    Build a refined State Vector for a single coin.
+    """Build a refined State Vector for a single coin.
 
     Combines pre-processed labels (for fast AI orientation) with key numerical
     anchors (for independent AI reasoning). This replaces the old
     build_market_data_json which dumped 51 raw indicator fields per coin.
 
     Args:
+    ----
         coin: Coin symbol
         market_regime: Market regime (BULLISH/BEARISH/NEUTRAL)
         sentiment: Sentiment data (OI, funding rate)
@@ -214,7 +207,9 @@ def build_coin_state_vector(
         reversal_result: Output from build_reversal_threat() for this coin
 
     Returns:
+    -------
         State vector dict with labels + numerical anchors
+
     """
     # Efficiency ratio for choppy detection
     efficiency_ratio = (
@@ -307,10 +302,10 @@ def build_counter_trade_json(
     htf_interval: str,
     market_data=None,  # NEW: market_data parameter for Funding Rate
 ) -> list[dict[str, Any]]:
-    """
-    Build counter-trade analysis JSON from text analysis or indicators.
+    """Build counter-trade analysis JSON from text analysis or indicators.
 
     Args:
+    ----
         counter_trade_analysis: Text analysis (legacy format)
         all_indicators: Pre-fetched indicators dict
         available_coins: List of coins to analyze
@@ -318,7 +313,9 @@ def build_counter_trade_json(
         market_data: RealMarketData instance for funding rate (optional)
 
     Returns:
+    -------
         Dict keyed by coin: {risk_level, alignment_strength, conditions_met}
+
     """
     analysis_list = {}
 
@@ -540,15 +537,17 @@ def build_trend_reversal_json(
     trend_reversal_analysis: dict[str, Any],
     portfolio_positions: dict[str, Any],
 ) -> dict[str, dict[str, Any]]:
-    """
-    Build trend reversal detection data from performance_monitor output.
+    """Build trend reversal detection data from performance_monitor output.
 
     Args:
+    ----
         trend_reversal_analysis: Output from detect_trend_reversal_for_all_coins()
         portfolio_positions: Current portfolio positions
 
     Returns:
+    -------
         Dict keyed by coin: {strength} for State Vector integration
+
     """
     reversal_dict = {}
 
@@ -642,14 +641,16 @@ def build_position_slot_json(
 
 
 def build_portfolio_json(portfolio: Any) -> dict[str, Any]:
-    """
-    Build portfolio JSON.
+    """Build portfolio JSON.
 
     Args:
+    ----
         portfolio: Portfolio object with attributes like total_return, current_balance, etc.
 
     Returns:
+    -------
         Portfolio JSON object
+
     """
     positions_list = []
     if hasattr(portfolio, "positions") and portfolio.positions:
@@ -717,14 +718,16 @@ def build_historical_context_json(trading_context: dict[str, Any]) -> dict[str, 
 
 
 def build_directional_bias_json(bias_metrics: dict[str, dict[str, Any]]) -> dict[str, Any]:
-    """
-    Build directional bias metrics JSON (Last 20 trades snapshot).
+    """Build directional bias metrics JSON (Last 20 trades snapshot).
 
     Args:
+    ----
         bias_metrics: Output from get_directional_bias_metrics()
 
     Returns:
+    -------
         Directional bias JSON object
+
     """
     result = {}
     for side in ("long", "short"):
@@ -748,16 +751,18 @@ def build_trend_flip_guard_json(
     trend_flip_cooldown: int,
     trend_flip_history_window: int,
 ) -> dict[str, Any]:
-    """
-    Build trend flip guard JSON.
+    """Build trend flip guard JSON.
 
     Args:
+    ----
         trend_flip_summary: Output from get_recent_trend_flip_summary()
         trend_flip_cooldown: Cooldown period in cycles
         trend_flip_history_window: History window in cycles
 
     Returns:
+    -------
         Trend flip guard JSON object
+
     """
     return {
         "cooldown_cycles": trend_flip_cooldown,

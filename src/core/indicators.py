@@ -57,8 +57,7 @@ def calculate_atr_series(
 def calculate_adx(
     high: pd.Series, low: pd.Series, close: pd.Series, period: int = 14
 ) -> tuple[float, float, float]:
-    """
-    Calculate ADX (Average Directional Index) and DI values.
+    """Calculate ADX (Average Directional Index) and DI values.
     Returns: (adx, plus_di, minus_di)
     """
     if len(close) < period + 1:
@@ -93,9 +92,7 @@ def calculate_adx(
 def calculate_vwap(
     high: pd.Series, low: pd.Series, close: pd.Series, volume: pd.Series, period: int = 60
 ) -> float:
-    """
-    Calculate Rolling VWAP (Volume Weighted Average Price).
-    """
+    """Calculate Rolling VWAP (Volume Weighted Average Price)."""
     if len(close) < period:
         return float(close.iloc[-1]) if len(close) > 0 else 0.0
 
@@ -111,8 +108,7 @@ def calculate_vwap(
 def calculate_bollinger_bands(
     close: pd.Series, period: int = 20, std_dev: float = 2.0
 ) -> tuple[float, float, float, float, float]:
-    """
-    Calculate Bollinger Bands.
+    """Calculate Bollinger Bands.
     Returns: (upper_band, middle_band, lower_band, bandwidth, percent_b)
     """
     if len(close) < period:
@@ -137,8 +133,7 @@ def calculate_bollinger_bands(
 
 
 def calculate_obv(close: pd.Series, volume: pd.Series) -> tuple[float, str, str]:
-    """
-    Calculate On Balance Volume and its trend using vectorized operations.
+    """Calculate On Balance Volume and its trend using vectorized operations.
     Returns: (obv, obv_trend, obv_divergence)
     """
     if len(close) < constants.INDICATOR_HISTORY_DEFAULT:
@@ -172,8 +167,7 @@ def calculate_obv(close: pd.Series, volume: pd.Series) -> tuple[float, str, str]
 def calculate_supertrend(
     high: pd.Series, low: pd.Series, close: pd.Series, period: int = 10, multiplier: float = 3.0
 ) -> tuple[float, str]:
-    """
-    Calculate SuperTrend indicator using optimized vectorization.
+    """Calculate SuperTrend indicator using optimized vectorization.
     Returns: (supertrend_line, direction)
     """
     if len(close) < period + 1:
@@ -223,9 +217,7 @@ def calculate_supertrend(
 
 
 def calculate_efficiency_ratio(prices: pd.Series, period: int = 10) -> float:
-    """
-    Calculate Kaufman Efficiency Ratio (ER) to detect Choppy vs Trending markets.
-    """
+    """Calculate Kaufman Efficiency Ratio (ER) to detect Choppy vs Trending markets."""
     if len(prices) < period + 1:
         return 0.5
 
@@ -445,8 +437,7 @@ def generate_tags(indicators: dict[str, Any]) -> list[str]:
 
 
 def get_features_for_ml(df: pd.DataFrame) -> pd.DataFrame:
-    """
-    Convert raw OHLCV Dataframe into an ML-ready Feature Matrix.
+    """Convert raw OHLCV Dataframe into an ML-ready Feature Matrix.
     Calculates technical indicators, applies stationarity (pct_change),
     and adds lag features to capture temporal dependencies (t-1, t-2).
     """

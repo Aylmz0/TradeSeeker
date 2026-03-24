@@ -13,8 +13,7 @@ HTF_LABEL = HTF_INTERVAL
 
 
 class EnhancedContextProvider:
-    """
-    Provides enhanced context to help AI make better decisions
+    """Provides enhanced context to help AI make better decisions
     NO manipulation - only better data and suggestions
     """
 

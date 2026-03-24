@@ -1,6 +1,5 @@
 #!/usr/bin/env python3
-"""
-scripts/run_replay_comparison.py
+"""scripts/run_replay_comparison.py
 Deterministic replay engine to verify Tactical Scout transition.
 Runs the live logic against historical database snapshots with a Mock executor.
 """

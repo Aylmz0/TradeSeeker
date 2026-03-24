@@ -1,5 +1,4 @@
-"""
-Flask-based Admin Server for Alpha Arena DeepSeek Trading Bot
+"""Flask-based Admin Server for Alpha Arena DeepSeek Trading Bot
 Modern web interface with RESTful API endpoints
 """
 

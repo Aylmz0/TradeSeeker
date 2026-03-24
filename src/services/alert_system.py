@@ -1,5 +1,4 @@
-"""
-Real-time alert system for trading bot.
+"""Real-time alert system for trading bot.
 Monitors price movements, risk limits, and performance metrics.
 """
 

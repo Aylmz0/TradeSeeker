@@ -27,9 +27,7 @@ class AIService:
         self.invocation_count = 0
 
     def _fetch_all_indicators_parallel(self) -> dict[str, dict[str, dict[str, Any]]]:
-        """
-        Fetch all indicators for all coins in parallel with smart caching.
-        """
+        """Fetch all indicators for all coins in parallel with smart caching."""
         if Config.USE_SMART_CACHE:
             return fetch_all_indicators_with_cache(
                 self.market_data,
@@ -193,17 +191,17 @@ class AIService:
         return self.portfolio.get_max_positions_for_cycle(cycle_number)
 
     def generate_alpha_arena_prompt(self) -> str:
-        """
-        Generate prompt with enhanced data, indicator history and AI decision context
+        """Generate prompt with enhanced data, indicator history and AI decision context
 
         .. deprecated:: 1.0
             Use :meth:`generate_alpha_arena_prompt_json` instead.
             This function is kept for backward compatibility and fallback scenarios.
 
-        Returns:
+        Returns
+        -------
             str: Text-formatted prompt (legacy format)
-        """
 
+        """
         warnings.warn(
             "generate_alpha_arena_prompt() is deprecated. "
             "Use generate_alpha_arena_prompt_json() instead. "
@@ -807,18 +805,20 @@ Current live positions & performance:"""
         return prompt
 
     def generate_alpha_arena_prompt_json(self) -> str:
-        """
-        Generate hybrid JSON prompt with structured data sections.
+        """Generate hybrid JSON prompt with structured data sections.
 
         Uses JSON for data, plain text for instructions and warnings.
         This is the recommended method for prompt generation.
 
         Returns:
+        -------
             str: Hybrid prompt with JSON sections and text instructions
 
         Note:
+        ----
             Falls back to text format if JSON serialization fails.
             See :meth:`generate_alpha_arena_prompt` for text-only format (deprecated).
+
         """
         from config.config import Config
         from src.ai.prompt_json_builders import (

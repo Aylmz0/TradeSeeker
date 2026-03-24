@@ -1,5 +1,4 @@
-"""
-Backtesting module for the Alpha Arena DeepSeek bot.
+"""Backtesting module for the Alpha Arena DeepSeek bot.
 Allows testing trading strategies on historical data.
 """
 
@@ -32,8 +31,7 @@ class BacktestEngine:
         end_date: str,
         interval: str = "1h",
     ) -> pd.DataFrame:
-        """
-        Load historical price data for backtesting.
+        """Load historical price data for backtesting.
         Note: This is a simplified implementation. In production, you would use
         a proper historical data source like Binance API, Yahoo Finance, etc.
         """
@@ -252,15 +250,16 @@ class BacktestEngine:
         end_date: str,
         interval: str = "1h",
     ) -> dict[str, Any]:
-        """
-        Run a complete backtest with the given strategy.
+        """Run a complete backtest with the given strategy.
 
         Args:
+        ----
             strategy_func: Function that takes (symbol, data, portfolio_state) and returns trading signals
             symbols: List of symbols to backtest
             start_date: Start date in 'YYYY-MM-DD' format
             end_date: End date in 'YYYY-MM-DD' format
             interval: Data interval ('1h', '4h', '1d', etc.)
+
         """
         logging.info(f"Starting backtest from {start_date} to {end_date}")
 
@@ -530,8 +529,7 @@ class AdvancedRiskManager:
 
 
 def sample_strategy(symbol: str, data: pd.DataFrame, portfolio_state: dict) -> dict | None:
-    """
-    Sample trading strategy for backtesting.
+    """Sample trading strategy for backtesting.
     This is a simple moving average crossover strategy.
     """
     if len(data) < constants.MIN_KLINE_DATA_POINTS:

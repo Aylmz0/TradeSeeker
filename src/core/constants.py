@@ -1,6 +1,4 @@
-"""
-Centralized constants for TradeSeeker to eliminate magic numbers (PLR2004).
-"""
+"""Centralized constants for TradeSeeker to eliminate magic numbers (PLR2004)."""
 
 # History & Retention
 PORTFOLIO_STATE_FILE = "data/portfolio_state.json"

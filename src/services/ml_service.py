@@ -16,8 +16,7 @@ logger = logging.getLogger(__name__)
 
 
 class MLService:
-    """
-    Singleton Inference Service for XGBoost.
+    """Singleton Inference Service for XGBoost.
     Loads model artifacts into memory on boot and provides real-time
     predictions (BUY, HOLD, SELL probabilities) for AI hybridization.
     """
@@ -80,8 +79,7 @@ class MLService:
             self.is_ready = False
 
     def predict(self, df_raw: pd.DataFrame, coin: str) -> dict[str, Any] | None:
-        """
-        Takes raw OHLCV from Binance, extracts features, scales the latest row,
+        """Takes raw OHLCV from Binance, extracts features, scales the latest row,
         and computes the directional multi-class probability.
         Includes automatic HOT-RELOAD if model file on disk is newer.
         """
@@ -142,8 +140,7 @@ class MLService:
             return None
 
     def get_model_health(self) -> dict[str, Any]:
-        """
-        Audit live predictions against ground truth from DataEngine.
+        """Audit live predictions against ground truth from DataEngine.
         Requires at least 5 periods (lookahead) to pass to determine truth.
         """
         try:

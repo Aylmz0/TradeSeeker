@@ -1,5 +1,4 @@
-"""
-JSON Schema definitions for AI prompt data structures.
+"""JSON Schema definitions for AI prompt data structures.
 Used for validation and documentation of JSON prompt format.
 """
 
@@ -244,8 +243,7 @@ def validate_json_against_schema(
     data: dict[str, Any],
     schema: dict[str, Any],
 ) -> tuple[bool, str | None]:
-    """
-    Simple JSON schema validation.
+    """Simple JSON schema validation.
     Returns (is_valid, error_message).
     Note: This is a basic implementation. For production, consider using jsonschema library.
     """

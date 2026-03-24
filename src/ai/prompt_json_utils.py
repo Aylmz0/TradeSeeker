@@ -1,5 +1,4 @@
-"""
-JSON utility functions for AI prompt generation.
+"""JSON utility functions for AI prompt generation.
 Handles safe JSON serialization, NaN/None handling, and data compression.
 """
 
@@ -9,8 +8,7 @@ from typing import Any
 
 
 class SafeJSONEncoder(json.JSONEncoder):
-    """
-    Custom JSON encoder that handles NaN, None, and other edge cases.
+    """Custom JSON encoder that handles NaN, None, and other edge cases.
     Integrates with format_num() for consistent number formatting.
     """
 
@@ -40,10 +38,10 @@ def safe_json_dumps(
     fallback_on_error: bool = True,
     fallback_value: str | None = None,
 ) -> str:
-    """
-    Safely serialize object to JSON string with error handling and fallback.
+    """Safely serialize object to JSON string with error handling and fallback.
 
     Args:
+    ----
         obj: Object to serialize
         indent: JSON indentation (None for compact, 2 for pretty)
         compact: If True, use compact JSON (indent=None, no spaces)
@@ -51,10 +49,13 @@ def safe_json_dumps(
         fallback_value: Value to return on error if fallback_on_error is True
 
     Returns:
+    -------
         JSON string representation of obj
 
     Raises:
+    ------
         json.JSONEncodeError: If serialization fails and fallback_on_error is False
+
     """
     try:
         # Use compact mode if requested
@@ -94,17 +95,19 @@ def compress_series(
     keep_first: int = 5,
     keep_last: int = 5,
 ) -> dict[str, Any]:
-    """
-    Compress a long series by keeping first N, last N, and summary stats.
+    """Compress a long series by keeping first N, last N, and summary stats.
 
     Args:
+    ----
         series: List of values to compress
         max_length: Maximum length before compression is applied
         keep_first: Number of first values to keep
         keep_last: Number of last values to keep
 
     Returns:
+    -------
         Dict with 'compressed' flag, 'values' (compressed list), and 'stats' (summary)
+
     """
     if len(series) <= max_length:
         return {"compressed": False, "values": series, "length": len(series)}
@@ -138,16 +141,18 @@ def compress_series(
 
 
 def format_number_for_json(value: Any, precision: int = 4) -> float | int | None:
-    """
-    Format number for JSON output.
+    """Format number for JSON output.
     Returns raw number (not string) for JSON, handling NaN/None.
 
     Args:
+    ----
         value: Number to format
         precision: Not used (kept for compatibility), numbers are stored as-is in JSON
 
     Returns:
+    -------
         Number (int or float) or None if invalid
+
     """
     if value is None:
         return None
@@ -178,17 +183,19 @@ def create_json_section(
     compact: bool = False,
     description: str | None = None,
 ) -> str:
-    """
-    Create a formatted JSON section for hybrid prompt.
+    """Create a formatted JSON section for hybrid prompt.
 
     Args:
+    ----
         section_name: Name of the JSON section (e.g., "COUNTER_TRADE_ANALYSIS")
         data: Data to serialize
         compact: Use compact JSON format
         description: Optional description text before JSON
 
     Returns:
+    -------
         Formatted string with description and JSON
+
     """
     json_str = safe_json_dumps(data, compact=compact)
 
@@ -201,15 +208,17 @@ def create_json_section(
 
 
 def estimate_token_count(text: str) -> int:
-    """
-    Rough estimation of token count for a text string.
+    """Rough estimation of token count for a text string.
     Uses simple heuristic: ~4 characters per token.
 
     Args:
+    ----
         text: Text to estimate
 
     Returns:
+    -------
         Estimated token count
+
     """
     # Rough estimation: 1 token ~ 4 characters
     # This is a simple heuristic, actual tokenization varies by model
@@ -217,15 +226,17 @@ def estimate_token_count(text: str) -> int:
 
 
 def compare_token_usage(text1: str, text2: str) -> dict[str, Any]:
-    """
-    Compare token usage between two text strings.
+    """Compare token usage between two text strings.
 
     Args:
+    ----
         text1: First text (e.g., old format)
         text2: Second text (e.g., new JSON format)
 
     Returns:
+    -------
         Dict with token counts and comparison metrics
+
     """
     tokens1 = estimate_token_count(text1)
     tokens2 = estimate_token_count(text2)

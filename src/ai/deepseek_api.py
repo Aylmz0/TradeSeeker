@@ -120,8 +120,7 @@ class DeepSeekAPI:
             print("[INFO] Please check your .env file configuration.")
 
     def _build_system_prompt(self) -> str:
-        """
-        Constructs the system prompt as a structured JSON object.
+        """Constructs the system prompt as a structured JSON object.
         Preserves 100% of the logic from the original text prompt.
         """
         system_structure = {

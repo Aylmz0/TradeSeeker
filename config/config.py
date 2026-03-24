@@ -1,5 +1,4 @@
-"""
-Configuration management for the Alpha Arena DeepSeek bot.
+"""Configuration management for the Alpha Arena DeepSeek bot.
 Provides secure API key handling and application configuration.
 """
 

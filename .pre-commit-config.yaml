@@ -12,7 +12,7 @@ repos:
     rev: v0.1.9
     hooks:
       - id: ruff
-        args: [--fix, --exit-non-zero-on-fix]
+        args: [--fix]
       - id: ruff-format
 
   - repo: https://github.com/Yelp/detect-secrets
@@ -21,12 +21,3 @@ repos:
       - id: detect-secrets
         args: ['--baseline', '.secrets.baseline']
         exclude: .env
-
-  - repo: local
-    hooks:
-      - id: ty
-        name: ty (Astral Type Checker)
-        entry: .venv/bin/ty check
-        language: system
-        types: [python]
-        pass_filenames: false

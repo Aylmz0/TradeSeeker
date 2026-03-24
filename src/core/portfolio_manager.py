@@ -1,11 +1,22 @@
+"""Portfolio management and trade execution engine for TradeSeeker.
+
+This module contains the PortfolioManager class which handles balance tracking,
+position management, trade history, and directional bias logic.
+"""
+
+from __future__ import annotations
+
 import copy
 import os
 import threading
 import time
 from collections import deque
-from collections.abc import Callable
 from datetime import datetime, timezone
-from typing import Any
+from pathlib import Path
+from typing import TYPE_CHECKING, Any, Literal
+
+if TYPE_CHECKING:
+    from collections.abc import Callable
 
 import numpy as np
 
@@ -31,17 +42,63 @@ except Exception as e:
 
 
 class PortfolioManager:
-    """Manages the portfolio state, positions, and history."""
+    """Manages the portfolio state, positions, and history.
 
-    def __init__(self, initial_balance: float | None = None):
+    This class provides a comprehensive system for tracking balance, managing active positions,
+    handling trade history, and applying directional bias based on performance.
+    """
+
+    # Class attributes with type hints
+    initial_balance: float
+    state_file: str
+    history_file: str
+    full_history_file: str
+    override_file: str
+    cycle_history_file: str
+    max_cycle_history: int
+    maintenance_margin_rate: float
+    current_balance: float
+    positions: dict[str, Any]
+    directional_bias: dict[str, dict[str, Any]]
+    trend_state: dict[str, dict[str, Any]]
+    trend_flip_cooldown: int
+    trend_flip_history_window: int
+    indicator_cache: dict[str, dict[str, dict[str, Any]]]
+    last_execution_report: dict[str, Any]
+    history_reset_interval: int
+    last_history_reset_cycle: int
+    cycles_since_history_reset: int
+    directional_cooldowns: dict[str, int]
+    relaxed_countertrend_cycles: int
+    counter_trend_cooldown: int
+    counter_trend_consecutive_losses: int
+    coin_cooldowns: dict[str, int]
+    current_cycle_number: int
+    trade_count: int
+    total_value: float
+    total_return: float
+    start_time: datetime
+    portfolio_values_history: list[float]
+    sharpe_ratio: float
+    is_live_trading: bool
+    order_executor: Any
+
+    def __init__(self, initial_balance: float | None = None) -> None:
+        """Initialize the PortfolioManager with optional initial balance.
+
+        Args:
+        ----
+            initial_balance: Starting balance for the portfolio. If None,
+                loads from saved state or Config.
+
+        """
         # Dynamic initial balance - if not provided, take from actual balance or use $200
         if initial_balance is None:
             # First try from saved state, otherwise take from Config
-            saved_state = safe_file_read_cached("data/portfolio_state.json", default_data={})
-            if "initial_balance" in saved_state:
-                self.initial_balance = saved_state["initial_balance"]
-            else:
-                self.initial_balance = Config.INITIAL_BALANCE
+            saved_state: dict[str, Any] = safe_file_read_cached(
+                "data/portfolio_state.json", default_data={}
+            )
+            self.initial_balance = saved_state.get("initial_balance", Config.INITIAL_BALANCE)
         else:
             self.initial_balance = initial_balance
 
@@ -57,28 +114,28 @@ class PortfolioManager:
         self.positions = {}
         self._lock = threading.RLock()  # RLock for re-entrant safety
         self.directional_bias = self._init_directional_bias()
-        self.trend_state: dict[str, dict[str, Any]] = {}
+        self.trend_state = {}
         self.trend_flip_cooldown = constants.TREND_FLIP_COOLDOWN_DEFAULT
         self.trend_flip_history_window = constants.TREND_FLIP_HISTORY_WINDOW
         # Trend flip cooldown management is kept on the PortfolioManager side.
-        self.indicator_cache: dict[str, dict[str, dict[str, Any]]] = {}
-        self.last_execution_report: dict[str, Any] = {}
+        self.indicator_cache = {}
+        self.last_execution_report = {}
         self.history_reset_interval = getattr(Config, "HISTORY_RESET_INTERVAL", 35)
         self.last_history_reset_cycle = 0
         self.cycles_since_history_reset = 0
 
-        self.directional_cooldowns: dict[str, int] = {"long": 0, "short": 0}
-        self.relaxed_countertrend_cycles: int = 0
-        self.counter_trend_cooldown: int = 0
-        self.counter_trend_consecutive_losses: int = 0
-        self.coin_cooldowns: dict[str, int] = {}  # Coin-based cooldown: {coin: cycles_remaining}
+        self.directional_cooldowns = {"long": 0, "short": 0}
+        self.relaxed_countertrend_cycles = 0
+        self.counter_trend_cooldown = 0
+        self.counter_trend_consecutive_losses = 0
+        self.coin_cooldowns = {}  # Coin-based cooldown: {coin: cycles_remaining}
 
         self.current_cycle_number = 0
 
-        self.trade_history = self.load_trade_history()  # Load first
+        self.trade_history: list[dict[str, Any]] = self.load_trade_history()  # Load first
         self._ensure_full_history_exists()  # Migrate existing history if needed
         self.load_state()  # Loads balance, positions, trade_count
-        self.cycle_history = self.load_cycle_history()
+        self.cycle_history: list[dict[str, Any]] = self.load_cycle_history()
         self.risk_manager = AdvancedRiskManager()  # Initialize risk manager
         self.market_data = RealMarketData()  # Initialize market data for counter-trend detection
 
@@ -100,13 +157,20 @@ class PortfolioManager:
             increment_loss_counters=False,
         )  # Calculate initial value with loaded positions
 
-    def _ensure_full_history_exists(self):
+    def _ensure_full_history_exists(self) -> None:
         """Ensure full trade history exists, copying from active history if needed."""
-        if not os.path.exists(self.full_history_file):
+        if not Path(self.full_history_file).exists():
             print(f"[INFO] Creating {self.full_history_file} from existing trade history...")
             safe_file_write(self.full_history_file, self.trade_history)
 
     def _init_directional_bias(self) -> dict[str, dict[str, Any]]:
+        """Initialize directional bias metrics for long and short trade tracking.
+
+        Returns
+        -------
+            Dictionary containing initialized stats for both 'long' and 'short' directions.
+
+        """
         return {
             "long": {
                 "rolling": deque(maxlen=constants.ROLLING_BIAS_WINDOW),
@@ -134,8 +198,12 @@ class PortfolioManager:
             },
         }
 
-    def load_state(self):
-        data = safe_file_read_cached(self.state_file, default_data={})
+    def load_state(self) -> None:
+        """Load portfolio state from local JSON file.
+
+        Restores balance, active positions, trade counts, and directional bias metrics.
+        """
+        data: dict[str, Any] = safe_file_read_cached(self.state_file, default_data={})
         self.current_balance = data.get("current_balance", self.initial_balance)
         self.positions = data.get("positions", {})
         self.trade_count = data.get(
@@ -178,9 +246,13 @@ class PortfolioManager:
         self.counter_trend_consecutive_losses = data.get("counter_trend_consecutive_losses", 0)
         self.coin_cooldowns = data.get("coin_cooldowns", {})
 
-    def save_state(self):
+    def save_state(self) -> None:
+        """Save current portfolio state to local JSON file.
+
+        Persists balance, positions, bias metrics, and cycle information with thread safety.
+        """
         with self._lock:
-            data = {
+            data: dict[str, Any] = {
                 "current_balance": self.current_balance,
                 "positions": self.positions,
                 "total_value": self.total_value,
@@ -203,34 +275,45 @@ class PortfolioManager:
 
     # --- Live trading helpers -------------------------------------------------
     def _backup_historical_files(self, cycle_number: int) -> str | None:
-        """Create a timestamped backup for historical JSON files before wiping them."""
+        """Create a timestamped backup for historical JSON files before wiping them.
+
+        Args:
+        ----
+            cycle_number: The current cycle number for grouping the backup.
+
+        Returns:
+        -------
+            Path to the backup directory if successful, None otherwise.
+
+        """
         timestamp = datetime.now(timezone.utc).strftime("%Y%m%d_%H%M%S")
-        backup_dir = os.path.join("history_backups", f"{timestamp}_cycle_{cycle_number}")
+        backup_dir = Path("history_backups") / f"{timestamp}_cycle_{cycle_number}"
         files_to_backup = [
             (self.history_file, []),
+            (self.bias_file, []),
+            (self.full_history_file, []),
             (self.cycle_history_file, []),
             ("data/performance_history.json", []),
-            ("data/performance_report.json", []),  # Changed from {} to [] - now array format
+            ("data/performance_report.json", []),
         ]
 
         try:
-            os.makedirs(backup_dir, exist_ok=True)
+            backup_dir.mkdir(parents=True, exist_ok=True)
             backed_up = []
 
             for file_path, default in files_to_backup:
-                data = safe_file_read(file_path, default)
+                path_obj = Path(file_path)
+                data = safe_file_read(str(path_obj), default)
                 # Skip writing files that never existed and match the empty default
-                if data == default and not os.path.exists(file_path):
+                if data == default and not path_obj.exists():
                     continue
-                target_path = os.path.join(backup_dir, os.path.basename(file_path))
-                safe_file_write(target_path, data)
+
+                target_path = backup_dir / path_obj.name
+                safe_file_write(str(target_path), data)
 
                 # Calculate items count for metadata
                 items_count = None
-                if isinstance(data, list):
-                    items_count = len(data)
-                elif isinstance(data, dict):
-                    # For dict, count keys (but performance_report.json should be array now)
+                if isinstance(data, (list, dict)):
                     items_count = len(data)
 
                 backed_up.append({"file": file_path, "items": items_count})
@@ -240,15 +323,21 @@ class PortfolioManager:
                 "backed_up_at": datetime.now(timezone.utc).isoformat(),
                 "files": backed_up,
             }
-            safe_file_write(os.path.join(backup_dir, "metadata.json"), metadata)
+            safe_file_write(str(backup_dir / "metadata.json"), metadata)
             print(f"[OK]    History backup created at {backup_dir}")
-            return backup_dir
+            return str(backup_dir)
         except Exception as e:
             print(f"[WARN]  History backup failed: {e}")
             return None
 
-    def reset_historical_data(self, cycle_number: int):
-        """Clear historical logs to prevent long-term bias while keeping live positions."""
+    def reset_historical_data(self, cycle_number: int) -> None:
+        """Clear historical logs to prevent long-term bias while keeping live positions.
+
+        Args:
+        ----
+            cycle_number: The current cycle number at which reset occurs.
+
+        """
         # FIX: Keep lock for entire state modification to prevent race conditions
         with self._lock:
             self._backup_historical_files(cycle_number)
@@ -298,7 +387,14 @@ class PortfolioManager:
         print("[OK]    History reset complete.")
 
     def _serialize_directional_bias(self) -> dict[str, dict[str, Any]]:
-        serialized = {}
+        """Serialize directional bias metrics for state saving.
+
+        Returns
+        -------
+            Dictionary containing bias stats simplified for JSON serialization.
+
+        """
+        serialized: dict[str, dict[str, Any]] = {}
         for side, stats in self.directional_bias.items():
             serialized[side] = {
                 "rolling": list(stats["rolling"]),
@@ -314,17 +410,45 @@ class PortfolioManager:
             }
         return serialized
 
-    def load_trade_history(self) -> list[dict]:
-        history = safe_file_read(self.history_file, default_data=[])
+    def load_trade_history(self) -> list[dict[str, Any]]:
+        """Load trade history from the local JSON file.
+
+        Returns
+        -------
+            List of trade records.
+
+        """
+        history: list[dict[str, Any]] = safe_file_read(self.history_file, default_data=[])
         print(f"[OK]    Loaded {len(history)} trades.")
         return history
 
-    def save_trade_history(self):
-        history_to_save = self.trade_history[-constants.MAX_TRADE_HISTORY_DISPLAY :]
+    def load_cycle_history(self) -> list[dict[str, Any]]:
+        """Load cycle-by-cycle performance history records.
+
+        Returns
+        -------
+            List of cycle history contexts.
+
+        """
+        history: list[dict[str, Any]] = safe_file_read(self.cycle_history_file, default_data=[])
+        return history
+
+    def save_trade_history(self) -> None:
+        """Save the most recent trade history to the active history file."""
+        history_to_save: list[dict[str, Any]] = self.trade_history[
+            -constants.MAX_TRADE_HISTORY_DISPLAY :
+        ]
         safe_file_write(self.history_file, history_to_save)
         print(f"[OK]    Saved {len(history_to_save)} trades.")
 
-    def add_to_history(self, trade: dict):
+    def add_to_history(self, trade: dict[str, Any]) -> None:
+        """Add a completed trade to both active and full history files.
+
+        Args:
+        ----
+            trade: The trade record to append.
+
+        """
         # FIX: Keep lock for state modifications to prevent race conditions
         with self._lock:
             self.trade_history.append(trade)
@@ -336,10 +460,8 @@ class PortfolioManager:
 
         if full_history is None:
             # Read failed or file doesn't exist
-            if (
-                os.path.exists(self.full_history_file)
-                and os.path.getsize(self.full_history_file) > 0
-            ):
+            path_obj = Path(self.full_history_file)
+            if path_obj.exists() and path_obj.stat().st_size > 0:
                 print(
                     f"[WARN]  Warning: Could not read {self.full_history_file} (lock/error). Appending to memory only to prevent overwrite.",
                 )
@@ -350,7 +472,7 @@ class PortfolioManager:
                 # Let's try to read one more time with a small delay
                 time.sleep(constants.FILE_RETRY_DELAY)
                 full_history = safe_file_read(self.full_history_file, [])
-                if not full_history and os.path.getsize(self.full_history_file) > 0:
+                if not full_history and path_obj.stat().st_size > 0:
                     print(
                         "[ERR]   Critical: Failed to read full history. Skipping write to prevent data loss.",
                     )
@@ -364,8 +486,8 @@ class PortfolioManager:
         self.update_directional_bias(trade)
         self.save_state()
 
-    def update_directional_bias(self, trade: dict):
-        """Updates directional bias based on trade outcome and logic."""
+    def update_directional_bias(self, trade: dict[str, Any]) -> None:
+        """Update directional bias based on trade outcome and logic."""
         direction = trade.get("direction")
         if direction not in ("long", "short"):
             return
@@ -389,8 +511,10 @@ class PortfolioManager:
             if trade.get("trend_alignment") == "counter_trend":
                 self.counter_trend_consecutive_losses = 0
 
-    def _handle_win_bias(self, direction: str, stats: dict, pnl: float, trade: dict):
-        """Processes logic for a winning trade."""
+    def _handle_win_bias(
+        self, direction: str, stats: dict[str, Any], pnl: float, trade: dict[str, Any]
+    ) -> None:
+        """Process logic for a winning trade."""
         from config.config import Config
 
         stats["wins"] += 1
@@ -422,8 +546,10 @@ class PortfolioManager:
         if trade.get("trend_alignment") == "counter_trend":
             self.counter_trend_consecutive_losses = 0
 
-    def _handle_loss_bias(self, direction: str, stats: dict, pnl: float, trade: dict):
-        """Processes logic for a losing trade."""
+    def _handle_loss_bias(
+        self, direction: str, stats: dict[str, Any], pnl: float, trade: dict[str, Any]
+    ) -> None:
+        """Process logic for a losing trade."""
         from config.config import Config
 
         stats["losses"] += 1
@@ -470,6 +596,13 @@ class PortfolioManager:
                 self.counter_trend_consecutive_losses = 0
 
     def count_positions_by_direction(self) -> dict[str, int]:
+        """Count currently open positions categorized by trade direction.
+
+        Returns
+        -------
+            Dictionary containing counts for 'long' and 'short' positions.
+
+        """
         counts = {"long": 0, "short": 0}
         for pos in self.positions.values():
             direction = pos.get("direction")
@@ -477,7 +610,15 @@ class PortfolioManager:
                 counts[direction] += 1
         return counts
 
-    def _activate_directional_cooldown(self, direction: str, cycles: int = 3):
+    def _activate_directional_cooldown(self, direction: str, cycles: int = 3) -> None:
+        """Activate a cooldown for a specific trade direction.
+
+        Args:
+        ----
+            direction: The trade direction ('long' or 'short') to cool down.
+            cycles: Number of cycles the cooldown should remain active.
+
+        """
         if direction not in ("long", "short"):
             return
         current = self.directional_cooldowns.get(direction, 0)
@@ -495,8 +636,8 @@ class PortfolioManager:
             f"[WARN]  Directional cooldown activated for {direction.upper()} trades ({constants.MIN_RELAXED_CYCLES} cycles). Counter-trend restrictions relaxed for {constants.MIN_RELAXED_CYCLES} cycles.",
         )
 
-    def tick_cooldowns(self):
-        """Decrements all active cooldown timers."""
+    def tick_cooldowns(self) -> None:
+        """Decrement all active cooldown timers."""
         print(
             f"[TIME] tick_cooldowns called. Current cooldowns: {self.directional_cooldowns}, Coin cooldowns: {self.coin_cooldowns}"
         )
@@ -513,8 +654,8 @@ class PortfolioManager:
             if self.relaxed_countertrend_cycles == 0:
                 print("[OK]    Relaxed counter-trend validation mode EXPIRED.")
 
-    def _tick_directional_cooldowns(self):
-        """Decrements long/short directional cooldowns."""
+    def _tick_directional_cooldowns(self) -> None:
+        """Decrement long/short directional cooldowns."""
         for direction in ("long", "short"):
             cycles = self.directional_cooldowns.get(direction, 0)
             if cycles > 0:
@@ -530,8 +671,8 @@ class PortfolioManager:
                         f"[OK]    Directional cooldown cleared for {direction.upper()} trades. Loss streak reset."
                     )
 
-    def _tick_coin_cooldowns(self):
-        """Decrements individual coin cooldowns."""
+    def _tick_coin_cooldowns(self) -> None:
+        """Decrement individual coin cooldowns."""
         to_remove = []
         for coin, cycles in self.coin_cooldowns.items():
             if cycles > 0:
@@ -551,12 +692,23 @@ class PortfolioManager:
                 print("[OK]    Counter-trend cooldown cleared.")
 
     def get_trend_following_strength(self, coin: str, signal: str) -> dict[str, Any] | None:
-        """Determines trend-following strength including 1h, 15m, and 3m alignment."""
-        result = None
+        """Determine trend-following strength including 1h, 15m, and 3m alignment.
+
+        Args:
+        ----
+            coin: The cryptocurrency symbol.
+            signal: The trade signal type ('buy_to_enter' or 'sell_to_enter').
+
+        Returns:
+        -------
+            Dictionary with 'strength', 'alignment_info', and 'trends' if valid, else None.
+
+        """
+        result: dict[str, Any] | None = None
         try:
-            inds_htf = self.market_data.get_technical_indicators(coin, HTF_INTERVAL)
-            inds_15m = self.market_data.get_technical_indicators(coin, "15m")
-            inds_3m = self.market_data.get_technical_indicators(coin, "3m")
+            inds_htf: dict[str, Any] = self.market_data.get_technical_indicators(coin, HTF_INTERVAL)
+            inds_15m: dict[str, Any] = self.market_data.get_technical_indicators(coin, "15m")
+            inds_3m: dict[str, Any] = self.market_data.get_technical_indicators(coin, "3m")
 
             if all("error" not in i for i in (inds_htf, inds_15m, inds_3m)):
                 p1h, e1h = inds_htf.get("current_price"), inds_htf.get("ema_20")
@@ -601,9 +753,20 @@ class PortfolioManager:
 
     def apply_directional_bias(
         self,
-        bias_ctx: dict,
+        bias_ctx: dict[str, Any],
     ) -> float:
-        """Applies directional bias metrics to adjust confidence."""
+        """Apply directional bias metrics to adjust confidence.
+
+        Args:
+        ----
+            bias_ctx: Context containing 'signal', 'confidence', 'bias_metrics',
+                and 'current_trend'.
+
+        Returns:
+        -------
+            The adjusted confidence value.
+
+        """
         signal = bias_ctx["signal"]
         confidence = bias_ctx["confidence"]
         bias_metrics = bias_ctx["bias_metrics"]
@@ -626,8 +789,19 @@ class PortfolioManager:
         min_floor = original_confidence * constants.CONFIDENCE_FLOOR_MULTIPLIER
         return max(confidence, min_floor, Config.MIN_CONFIDENCE)
 
-    def _apply_bias_penalty(self, confidence: float, stats: dict) -> float:
-        """Applies caution and negative rolling average penalties."""
+    def _apply_bias_penalty(self, confidence: float, stats: dict[str, Any]) -> float:
+        """Apply caution and negative rolling average penalties.
+
+        Args:
+        ----
+            confidence: Base confidence value.
+            stats: Dictionary of directional bias statistics.
+
+        Returns:
+        -------
+            The penalized confidence value.
+
+        """
         if stats.get("caution_active"):
             confidence = max(
                 confidence * constants.CAUTION_PENALTY_MULTIPLIER,
@@ -645,7 +819,19 @@ class PortfolioManager:
     def _apply_trend_bias_multipliers(
         self, confidence: float, side: str, current_trend: str
     ) -> float:
-        """Applies multipliers based on trend alignment and signal side."""
+        """Apply multipliers based on trend alignment and signal side.
+
+        Args:
+        ----
+            confidence: Base confidence value.
+            side: The trade side ('long' or 'short').
+            current_trend: The detected high-level trend direction.
+
+        Returns:
+        -------
+            The trend-adjusted confidence value.
+
+        """
         from config.config import Config
 
         trend_lower = current_trend.lower() if isinstance(current_trend, str) else "unknown"
@@ -666,6 +852,13 @@ class PortfolioManager:
         return confidence
 
     def get_directional_bias_metrics(self) -> dict[str, dict[str, Any]]:
+        """Calculate and retrieve holistic directional bias metrics.
+
+        Returns
+        -------
+            Dictionary with 'long' and 'short' performance metrics.
+
+        """
         metrics = {}
         for side, stats in self.directional_bias.items():
             rolling_list = list(stats["rolling"])
@@ -706,7 +899,19 @@ class PortfolioManager:
         indicators_htf: dict[str, Any],
         indicators_3m: dict[str, Any] | None = None,
     ) -> dict[str, Any]:
-        """Calculates and updates the trend state for a given coin."""
+        """Calculate and update the trend state for a given coin.
+
+        Args:
+        ----
+            coin: The cryptocurrency symbol.
+            indicators_htf: HTF technical indicators.
+            indicators_3m: Optional 3m technical indicators for intraday adjustment.
+
+        Returns:
+        -------
+            Dictionary containing the updated trend record.
+
+        """
         from config.config import Config
 
         price_htf = indicators_htf.get("current_price")
@@ -735,9 +940,22 @@ class PortfolioManager:
         price_htf: float,
         ema20_htf: float,
         current_trend: str,
-        indicators_3m: dict | None,
+        indicators_3m: dict[str, Any] | None,
     ) -> str:
-        """Applies intraday RSI and EMA filters to the high-level trend."""
+        """Apply intraday RSI and EMA filters to the high-level trend.
+
+        Args:
+        ----
+            price_htf: The HTF current price.
+            ema20_htf: The HTF EMA 20 value.
+            current_trend: The initial detected trend.
+            indicators_3m: Technical indicators for the 3m timeframe.
+
+        Returns:
+        -------
+            The adjusted trend direction as a string.
+
+        """
         from config.config import Config
 
         if not (indicators_3m and isinstance(indicators_3m, dict) and "error" not in indicators_3m):
@@ -768,8 +986,19 @@ class PortfolioManager:
 
         return current_trend
 
-    def _update_trend_record(self, coin: str, current_trend: str) -> dict:
-        """Updates the trend state record and detects flips."""
+    def _update_trend_record(self, coin: str, current_trend: str) -> dict[str, Any]:
+        """Update the trend state record and detect trend flips.
+
+        Args:
+        ----
+            coin: The cryptocurrency symbol.
+            current_trend: The latest calculated trend direction.
+
+        Returns:
+        -------
+            The updated trend record dictionary for the coin.
+
+        """
         record = self.trend_state.get(
             coin,
             {
@@ -805,25 +1034,35 @@ class PortfolioManager:
         }
 
     def get_recent_trend_flip_summary(self) -> list[str]:
-        guard_window = self.trend_flip_cooldown
-        history_window = max(guard_window, getattr(self, "trend_flip_history_window", guard_window))
+        """Get a summary of recent trend flips within the guard and history windows.
+
+        Returns
+        -------
+            List of summary strings describing recent trend changes.
+
+        """
+        guard_window: int = self.trend_flip_cooldown
+        history_window: int = max(
+            guard_window, getattr(self, "trend_flip_history_window", guard_window)
+        )
         entries: list[tuple[int, str]] = []
         for coin, record in self.trend_state.items():
-            last_flip_cycle = record.get("last_flip_cycle")
+            last_flip_cycle: int | None = record.get("last_flip_cycle")
             if last_flip_cycle is None:
                 continue
-            cycles_ago = self.current_cycle_number - last_flip_cycle
+            cycles_ago: int = self.current_cycle_number - last_flip_cycle
             if cycles_ago < 0 or cycles_ago > history_window:
                 continue
-            trend_label = record.get("trend", "unknown").upper()
-            status = "GUARD" if cycles_ago <= guard_window else "RECENT"
+            trend_label: str = record.get("trend", "unknown").upper()
+            status: str = "GUARD" if cycles_ago <= guard_window else "RECENT"
+            cycles_text: str
             if cycles_ago == 0:
                 cycles_text = "current cycle"
             elif cycles_ago == 1:
                 cycles_text = "1 cycle ago"
             else:
                 cycles_text = f"{cycles_ago} cycles ago"
-            direction_note = record.get("last_flip_direction", trend_label)
+            direction_note: str = record.get("last_flip_direction", trend_label)
             entries.append(
                 (
                     cycles_ago,
@@ -833,13 +1072,26 @@ class PortfolioManager:
         entries.sort(key=lambda x: x[0])
         return [text for _, text in entries]
 
-    def load_cycle_history(self) -> list[dict]:
+    def load_cycle_history(self) -> list[dict[str, Any]]:
+        """Load cycle history records from the local JSON file.
+
+        Returns
+        -------
+            List of cycle history records.
+
+        """
         history = safe_file_read(self.cycle_history_file, default_data=[])
         print(f"[OK]    Loaded {len(history)} cycles.")
         return history
 
-    def add_to_cycle_history(self, history_ctx: dict):
-        """Adds current state to cycle history."""
+    def add_to_cycle_history(self, history_ctx: dict[str, Any]) -> None:
+        """Add the current state and AI decisions to the cycle history log.
+
+        Args:
+        ----
+            history_ctx: Context containing cycle_number, prompt, thoughts, and decisions.
+
+        """
         cycle_number = history_ctx["cycle_number"]
         prompt = history_ctx["prompt"]
         thoughts = history_ctx["thoughts"]
@@ -919,26 +1171,44 @@ class PortfolioManager:
         safe_file_write(self.cycle_history_file, self.cycle_history)
         print(f"[OK]    Saved cycle {cycle_number} (Total: {len(self.cycle_history)})")
 
-    def _update_peak_pnl_tracking(self, coin: str, pos: dict):
-        """Track peak PnL and calculate erosion for a position."""
-        current_pnl = pos.get("unrealized_pnl", 0.0)
+    def _update_peak_pnl_tracking(self, coin: str, pos: dict[str, Any]) -> None:
+        """Track peak PnL and calculate profit erosion for a single position.
+
+        Args:
+        ----
+            coin: The cryptocurrency symbol.
+            pos: The position dictionary to update.
+
+        """
+        current_pnl: float = pos.get("unrealized_pnl", 0.0)
         if "peak_pnl" not in pos:
             pos["peak_pnl"] = 0.0
             pos["peak_pnl_cycle"] = None
-        peak_pnl = pos.get("peak_pnl", 0.0)
+        peak_pnl: float = pos.get("peak_pnl", 0.0)
         if current_pnl > peak_pnl and current_pnl > 0:
             pos["peak_pnl"] = current_pnl
             pos["peak_pnl_cycle"] = getattr(self, "current_cycle_number", None)
             peak_pnl = current_pnl
-        erosion_from_peak = peak_pnl - current_pnl if peak_pnl > 0 else 0.0
-        erosion_pct = (erosion_from_peak / peak_pnl * 100) if peak_pnl > 0 else 0.0
+        erosion_from_peak: float = peak_pnl - current_pnl if peak_pnl > 0 else 0.0
+        erosion_pct: float = (erosion_from_peak / peak_pnl * 100) if peak_pnl > 0 else 0.0
         pos["erosion_from_peak"] = round(erosion_from_peak, 4)
         pos["erosion_pct"] = round(erosion_pct, 2)
-        zone = self._get_erosion_zone(coin, pos)
+        zone: str = self._get_erosion_zone(coin, pos)
         self._apply_erosion_status(pos, erosion_pct, zone, peak_pnl)
 
-    def _get_erosion_zone(self, coin: str, pos: dict) -> str:
-        """Determines price location zone for erosion sensitivity."""
+    def _get_erosion_zone(self, coin: str, pos: dict[str, Any]) -> str:
+        """Determine price location zone for erosion sensitivity analysis.
+
+        Args:
+        ----
+            coin: The cryptocurrency symbol.
+            pos: The position dictionary.
+
+        Returns:
+        -------
+            String representing the sparkline zone (e.g., 'UPPER_10', 'MIDDLE').
+
+        """
         try:
             symbol = pos.get("symbol", "")
             coin_name = symbol.replace("USDT", "") if symbol else coin
@@ -959,8 +1229,19 @@ class PortfolioManager:
             pass
         return "MIDDLE"
 
-    def _apply_erosion_status(self, pos: dict, erosion_pct: float, zone: str, peak_pnl: float):
-        """Applies erosion status based on thresholds and zone."""
+    def _apply_erosion_status(
+        self, pos: dict[str, Any], erosion_pct: float, zone: str, peak_pnl: float
+    ) -> None:
+        """Apply erosion status based on thresholds and market zone.
+
+        Args:
+        ----
+            pos: The position dictionary to update.
+            erosion_pct: Percentage of profit eroded from peak.
+            zone: Current price location zone.
+            peak_pnl: Highest PnL reached for this position.
+
+        """
         from config.config import Config
 
         erosion_rate = (
@@ -982,8 +1263,18 @@ class PortfolioManager:
                 status = "MINOR"
         pos["erosion_status"] = status
 
-    def update_prices(self, new_prices: dict[str, float], increment_loss_counters: bool = True):
-        """Updates prices and recalculates total value."""
+    def update_prices(
+        self, new_prices: dict[str, float], increment_loss_counters: bool = True
+    ) -> None:
+        """Update portfolio prices and recalculate total valuation and return.
+
+        Args:
+        ----
+            new_prices: Dictionary mapping coin symbols to current market prices.
+            increment_loss_counters: Whether to increment cycle counters for
+                positions in loss.
+
+        """
         # FIX: Keep lock for entire position modification to prevent race conditions
         with self._lock:
             total_unrealized_pnl = 0.0
@@ -1028,8 +1319,15 @@ class PortfolioManager:
         # Save updated state with Sharpe ratio
         self.save_state()
 
-    def _sync_runtime_price(self, pos: dict, price: float):
-        """Syncs position price with market price, preferring Binance markPrice in live mode."""
+    def _sync_runtime_price(self, pos: dict[str, Any], price: float) -> None:
+        """Sync position price with market price, preferring mark price in live mode.
+
+        Args:
+        ----
+            pos: The position dictionary to update.
+            price: Current spot market price.
+
+        """
         if self.is_live_trading:
             # In live mode, prefer keeping Binance markPrice if available
             existing_price = pos.get("current_price", 0)
@@ -1046,8 +1344,16 @@ class PortfolioManager:
             # Simulation mode: always use Spot price
             pos["current_price"] = price
 
-    def _update_price_counters(self, coin: str, pos: dict, pnl: float):
-        """Updates loss and profit cycle counters for a position."""
+    def _update_price_counters(self, coin: str, pos: dict[str, Any], pnl: float) -> None:
+        """Update loss and profit cycle counters for a specific position.
+
+        Args:
+        ----
+            coin: The cryptocurrency symbol.
+            pos: The position dictionary to update.
+            pnl: Current unrealized PnL in USD.
+
+        """
         direction = pos.get("direction", "unknown")
         if pnl <= 0:
             pos["loss_cycle_count"] = pos.get("loss_cycle_count", 0) + 1
@@ -1066,8 +1372,8 @@ class PortfolioManager:
                     f"[WATCH] PROFIT CYCLE WATCH: {coin} {direction} profitable for {new_profit_count} cycles (PnL ${pnl:.2f}).",
                 )
 
-    def _calculate_total_portfolio_value(self):
-        """Calculates total portfolio value based on balance, margin, and PnL."""
+    def _calculate_total_portfolio_value(self) -> None:
+        """Calculate total portfolio value based on balance, margin, and PnL."""
         if not self.positions:
             self._calculate_empty_portfolio_value()
             return
@@ -1092,8 +1398,8 @@ class PortfolioManager:
 
         self.total_value = self.current_balance + total_margin_used + total_unrealized_pnl
 
-    def _calculate_empty_portfolio_value(self):
-        """Calculates total value when no positions are active."""
+    def _calculate_empty_portfolio_value(self) -> None:
+        """Calculate total value when no positions are active."""
         if self.is_live_trading and self.order_executor and self.order_executor.is_live():
             try:
                 overview = self.order_executor.get_account_overview()
@@ -1130,7 +1436,13 @@ class PortfolioManager:
         self.save_state()
 
     def calculate_sharpe_ratio(self) -> float:
-        """Calculate Sharpe ratio based on portfolio value history (Nof1ai blog style)."""
+        """Calculate the annualized Sharpe ratio based on portfolio value history.
+
+        Returns
+        -------
+            The calculated Sharpe ratio, or 0.0 if insufficient history.
+
+        """
         if len(self.portfolio_values_history) < constants.MIN_HISTORY_FOR_ANALYSIS:
             return 0.0
 
@@ -1180,13 +1492,20 @@ class PortfolioManager:
             print(f"[WARN]  Sharpe ratio calculation error: {e}")
             return 0.0
 
-    def get_manual_override(self) -> dict:
-        """Checks for and deletes the manual override file."""
-        override_data = safe_file_read_cached(self.override_file, default_data={})
+    def get_manual_override(self) -> dict[str, Any]:
+        """Check for and remove the manual override file.
+
+        Returns
+        -------
+            Dictionary containing override commands if found, else empty.
+
+        """
+        path_obj = Path(self.override_file)
+        override_data = safe_file_read_cached(str(path_obj), default_data={})
         if override_data:
             print(f"[ALERT] MANUAL OVERRIDE DETECTED: {override_data}")
             try:
-                os.remove(self.override_file)
+                path_obj.unlink(missing_ok=True)
                 print("[INFO]  Override file deleted.")
             except OSError as e:
                 print(f"[WARN]  Could not delete override file: {e}")
@@ -1198,7 +1517,19 @@ class PortfolioManager:
         leverage: int,
         direction: str,
     ) -> float:
-        """Estimate liquidation price."""
+        """Estimate the liquidation price for a position.
+
+        Args:
+        ----
+            entry_price: Price at which position was entered.
+            leverage: Leverage used for the position.
+            direction: Trade direction ('long' or 'short').
+
+        Returns:
+        -------
+            The estimated liquidation price.
+
+        """
         if leverage <= 1 or entry_price <= 0:
             return 0.0
         imr = 1.0 / leverage
@@ -1222,7 +1553,20 @@ class PortfolioManager:
         market_regime: str,
         trend_strength: int,
     ) -> float:
-        """Calculate dynamic position size based on multiple factors"""
+        """Calculate dynamic position size based on confidence, regime, and trend.
+
+        Args:
+        ----
+            coin: The cryptocurrency symbol.
+            confidence: Normalized confidence score.
+            market_regime: Detected market regime string.
+            trend_strength: Calculated strength of the trend.
+
+        Returns:
+        -------
+            The calculated dynamic risk amount in USD.
+
+        """
         base_risk = 25.0  # Reduced maximum risk to $25
 
         # Confidence factor
@@ -1269,7 +1613,17 @@ class PortfolioManager:
         return min(dynamic_risk, 25.0)
 
     def get_max_positions_for_cycle(self, cycle_number: int) -> int:
-        """Cycle-based maximum position limit - Gradual increase system, capped by MAX_POSITIONS"""
+        """Calculate gradual maximum position limit based on cycle number.
+
+        Args:
+        ----
+            cycle_number: The current cycle sequence number.
+
+        Returns:
+        -------
+            The maximum number of allowed concurrent positions.
+
+        """
         from config.config import Config
 
         max_allowed = Config.MAX_POSITIONS
@@ -1289,7 +1643,18 @@ class PortfolioManager:
         coin: str,
         indicator_cache: dict[str, dict[str, Any]] | None = None,
     ) -> tuple[dict[str, Any] | None, dict[str, Any] | None]:
-        """Fetch indicators for 3m and higher timeframe from cache if available, otherwise from market data."""
+        """Fetch indicators for 3m and HTF from cache or market data.
+
+        Args:
+        ----
+            coin: The cryptocurrency symbol.
+            indicator_cache: Optional cache to pull from.
+
+        Returns:
+        -------
+            A tuple of (indicators_3m, indicators_htf) dictionaries.
+
+        """
         cache_source = (
             indicator_cache if indicator_cache is not None else getattr(self, "indicator_cache", {})
         )
@@ -1314,16 +1679,27 @@ class PortfolioManager:
 
     def _execute_normal_decisions(
         self,
-        decisions: dict,
-        valid_prices: dict,
+        decisions: dict[str, Any],
+        valid_prices: dict[str, float],
         cycle_number: int,
         positions_closed_by_tp_sl: bool,
         indicator_cache: dict[str, dict[str, Any]] | None = None,
-    ):
-        """Execute normal AI decisions with partial profit active"""
+    ) -> None:
+        """Execute normal AI decisions with gradual position limit enforcement.
+
+        Args:
+        ----
+            decisions: Dictionary of coin-to-trade decisions.
+            valid_prices: Dictionary of current validated prices.
+            cycle_number: The current cycle sequence number.
+            positions_closed_by_tp_sl: Whether any positions were closed by TP/SL
+                flags during price update.
+            indicator_cache: Optional cache for technical indicators.
+
+        """
         # print("[INFO] Executing normal AI decisions (partial profit active)")
 
-        # KADEMELİ POZİSYON SİSTEMİ: Cycle bazlı pozisyon limiti
+        # KADEMELI POZISYON SISTEMI: Cycle bazli pozisyon limiti
         max_positions_for_cycle = self.get_max_positions_for_cycle(cycle_number)
         current_positions = len(self.positions)
 
@@ -1356,22 +1732,51 @@ class PortfolioManager:
             )
 
     def _calculate_maximum_limit(self) -> float:
-        """Calculate maximum limit: Configured value OR Config.MAXIMUM_LIMIT_BALANCE_PCT of available cash, whichever is larger"""
-        max_from_percentage = self.current_balance * Config.MAXIMUM_LIMIT_BALANCE_PCT
-        # Use configured value instead of hardcoded 15.0
-        min_limit = Config.MIN_PARTIAL_PROFIT_MARGIN_REMAINING_USD
-        max_limit = max(min_limit, max_from_percentage)
+        """Calculate the maximum margin limit for partial sales.
+
+        Returns
+        -------
+            The calculated maximum limit in USD.
+
+        """
+        max_from_percentage: float = self.current_balance * Config.MAXIMUM_LIMIT_BALANCE_PCT
+        min_limit: float = Config.MIN_PARTIAL_PROFIT_MARGIN_REMAINING_USD
+        max_limit: float = max(min_limit, max_from_percentage)
         print(
             f"[INFO]  Maximum limit: ${max_limit:.2f} (${min_limit} fixed vs ${max_from_percentage:.2f} {Config.MAXIMUM_LIMIT_BALANCE_PCT * 100:.1f}% of ${self.current_balance:.2f} available cash)",
         )
         return max_limit
 
+    def _calculate_dynamic_minimum_limit(self) -> float:
+        """Calculate the dynamic minimum margin limit for partial sales.
+
+        Returns
+        -------
+            The calculated minimum limit in USD.
+
+        """
+        # Note: 10% is used for 'minimum' to be more conservative after partial sales
+        min_from_percentage: float = self.current_balance * 0.10
+        min_limit: float = Config.MIN_PARTIAL_PROFIT_MARGIN_REMAINING_USD
+        return max(min_limit, min_from_percentage)
+
     def _adjust_partial_sale_for_max_limit(
         self,
-        position: dict,
+        position: dict[str, Any],
         proposed_percent: float,
     ) -> tuple[float, bool, str | None]:
-        """Adjust partial sale percentage to ensure position doesn't go below maximum limit"""
+        """Adjust partial sale percentage to respect the maximum limit.
+
+        Args:
+        ----
+            position: The position dictionary to evaluate.
+            proposed_percent: The original proposed sale percentage (0.0 to 1.0).
+
+        Returns:
+        -------
+            A tuple of (adjusted_percent, should_close_entirely, block_reason).
+
+        """
         current_margin = position.get("margin_usd", 0)
         if current_margin <= 0:
             # Fallback: Calculate from notional/leverage if margin_usd is missing/zero
@@ -1415,8 +1820,21 @@ class PortfolioManager:
         )
         return adjusted_percent, False, None
 
-    def _adjust_partial_sale_for_min_limit(self, position: dict, proposed_percent: float) -> float:
-        """Adjust partial sale percentage to ensure minimum limit remains after sale"""
+    def _adjust_partial_sale_for_min_limit(
+        self, position: dict[str, Any], proposed_percent: float
+    ) -> float:
+        """Adjust partial sale percentage to respect the minimum margin limit.
+
+        Args:
+        ----
+            position: The position dictionary.
+            proposed_percent: The original proposed sale percentage.
+
+        Returns:
+        -------
+            The adjusted sale percentage.
+
+        """
         current_margin = position.get("margin_usd", 0)
         if current_margin <= 0:
             # Fallback: Calculate from notional/leverage if margin_usd is missing/zero
@@ -1460,10 +1878,23 @@ class PortfolioManager:
         self,
         coin: str,
         signal: str,
-        indicators_3m: dict,
-        indicators_htf: dict,
+        indicators_3m: dict[str, Any],
+        indicators_htf: dict[str, Any],
     ) -> bool:
-        """Check if trade is counter-trend based on higher timeframe trend vs 15m+3m signal"""
+        """Determine if a prospective trade aligns with or counters the HTF trend.
+
+        Args:
+        ----
+            coin: The cryptocurrency symbol.
+            signal: The trade signal type.
+            indicators_3m: 3m technical indicators.
+            indicators_htf: HTF technical indicators.
+
+        Returns:
+        -------
+            True if the trade is considered counter-trend, False otherwise.
+
+        """
         try:
             if "error" in indicators_3m or "error" in indicators_htf:
                 return False
@@ -1492,7 +1923,18 @@ class PortfolioManager:
             return False
 
     def _calculate_trend_direction(self, price: float, ema20: float) -> str:
-        """Helper to determine trend with NEUTRAL BAND."""
+        """Determine trend direction relative to EMA with a neutral band.
+
+        Args:
+        ----
+            price: Current asset price.
+            ema20: The EMA 20 value.
+
+        Returns:
+        -------
+            String representing the trend direction ('BULLISH', 'BEARISH', or 'NEUTRAL').
+
+        """
         from config.config import Config
 
         if not isinstance(price, (int, float)) or not isinstance(ema20, (int, float)) or ema20 == 0:
@@ -1510,13 +1952,27 @@ class PortfolioManager:
         t_15m: str | None,
         t_3m: str,
     ) -> bool:
-        """Evaluates if the signal is counter-trend and if it has enough alignment."""
+        """Evaluate if a counter-trend signal has sufficient timeframe alignment.
+
+        Args:
+        ----
+            signal: The original signal string.
+            sig_dir: The normalized signal direction.
+            t_htf: The HTF trend direction.
+            t_15m: The 15m trend direction (if available).
+            t_3m: The 3m trend direction.
+
+        Returns:
+        -------
+            True if alignment is sufficient for entry, False otherwise.
+
+        """
         is_ct = False
         if t_htf == "NEUTRAL":
             is_ct = False
-        elif signal == "buy_to_enter" and t_htf == "BEARISH":
-            is_ct = True
-        elif signal == "sell_to_enter" and t_htf == "BULLISH":
+        elif (signal == "buy_to_enter" and t_htf == "BEARISH") or (
+            signal == "sell_to_enter" and t_htf == "BULLISH"
+        ):
             is_ct = True
 
         if is_ct:
@@ -1530,10 +1986,18 @@ class PortfolioManager:
 
     def calculate_confidence_based_margin(
         self,
-        margin_ctx: dict,
+        margin_ctx: dict[str, Any],
     ) -> float:
-        """
-        Calculate margin based on Volatility Sizing (Fixed Risk) + Confidence.
+        """Calculate margin based on volatility sizing (fixed risk) and confidence.
+
+        Args:
+        ----
+            margin_ctx: Context containing confidence, balance, and price data.
+
+        Returns:
+        -------
+            The calculated target margin in USD.
+
         """
         confidence = margin_ctx["confidence"]
         available_cash = margin_ctx["balance"]
@@ -1601,9 +2065,16 @@ class PortfolioManager:
         return target_margin
 
     def get_graduated_loss_multiplier(self, margin_usd: float) -> float:
-        """
-        Calculate the loss multiplier based on margin size.
-        Relaxed for Volatility Sizing: Acts as "Disaster Stop" only.
+        """Calculate the loss multiplier based on position margin size.
+
+        Args:
+        ----
+            margin_usd: The position margin in USD.
+
+        Returns:
+        -------
+            The graduated loss multiplier percentage.
+
         """
         if margin_usd < constants.MARGIN_TIER_20:
             return constants.LOSS_MULT_L1  # %50 for margin < 20 (Allows wide stops)
@@ -1620,7 +2091,18 @@ class PortfolioManager:
         coin: str,
         indicators_3m: dict[str, Any] | None = None,
     ) -> float:
-        """Calculate volume quality score (0-100) based on Config thresholds"""
+        """Calculate volume quality score based on current vs average volume.
+
+        Args:
+        ----
+            coin: The cryptocurrency symbol.
+            indicators_3m: Optional technical indicators for 3m timeframe.
+
+        Returns:
+        -------
+            A score from 0.0 to 100.0 representing volume quality.
+
+        """
         score = 0.0
         try:
             if indicators_3m is None or not isinstance(indicators_3m, dict):
@@ -1646,8 +2128,19 @@ class PortfolioManager:
             print(f"[WARN]  Volume quality score calculation error for {coin}: {e}")
         return score
 
-    def check_flash_exit_conditions(self, coin: str, position: dict) -> bool:
-        """Check for Flash Exit conditions (V-Reversal)."""
+    def check_flash_exit_conditions(self, coin: str, position: dict[str, Any]) -> bool:
+        """Check for flash exit conditions including price, RSI, and volume surge.
+
+        Args:
+        ----
+            coin: The cryptocurrency symbol.
+            position: The position dictionary to evaluate.
+
+        Returns:
+        -------
+            True if flash exit conditions are met, False otherwise.
+
+        """
         should_flash_exit = False
         if not Config.FLASH_EXIT_ENABLED:
             return should_flash_exit
@@ -1680,17 +2173,31 @@ class PortfolioManager:
         return should_flash_exit
 
     def get_effective_same_direction_limit(self) -> int:
-        """
-        Calculate the effective same direction limit based on market regime strength.
-        Backwards compatibility for AIService.
+        """Calculate the effective same direction position limit.
+
+        Returns
+        -------
+            The maximum number of allowed concurrent positions in the same direction.
+
         """
         # FIX: Use getattr for safe config access
         return getattr(Config, "SAME_DIRECTION_LIMIT", 2)
 
-    def validate_exit_signal(self, coin: str, position: dict, indicators_3m: dict) -> bool:
-        """
-        Validate exit signal (Reversal Desensitization).
-        Requires: STRONG 3m reversal OR 15m confirmation OR PnL thresholds.
+    def validate_exit_signal(
+        self, coin: str, position: dict[str, Any], indicators_3m: dict[str, Any]
+    ) -> bool:
+        """Validate if an exit signal should be executed based on PnL and technicals.
+
+        Args:
+        ----
+            coin: The cryptocurrency symbol.
+            position: The position dictionary.
+            indicators_3m: 3m technical indicators.
+
+        Returns:
+        -------
+            True if exit is validated, False to block the exit.
+
         """
         try:
             # 1. PnL Check (Profit Protection / Stop Loss)
@@ -1757,9 +2264,17 @@ class PortfolioManager:
             return True  # Fail safe: allow exit
 
     def _verify_technical_reversal(self, coin: str, direction: str) -> bool:
-        """
-        Verify if technical indicators actually support a reversal/invalidation claim.
-        Used to harden exit logic against 'fear-based' AI closures.
+        """Verify if technical indicators support a reversal claim to prevent premature exit.
+
+        Args:
+        ----
+            coin: The cryptocurrency symbol.
+            direction: The position direction ('long' or 'short').
+
+        Returns:
+        -------
+            True if technical indicators support the reversal, False otherwise.
+
         """
         try:
             indicators_3m = self.market_data.get_technical_indicators(coin, "3m")
@@ -1785,12 +2300,17 @@ class PortfolioManager:
             print(f"[WARN] Error in _verify_technical_reversal: {e}")
             return True
 
-    def _get_signal_priority(self, item: tuple) -> tuple[int, float]:
-        """
-        Slot Priority by Confidence: Sort entry signals by confidence (highest first)
-        This ensures when slots are limited, we pick the best signals.
+    def _get_signal_priority(self, item: tuple[str, Any]) -> tuple[int, float]:
+        """Determine the execution priority for a trade signal based on confidence.
 
-        Returns (priority_index, -confidence)
+        Args:
+        ----
+            item: A tuple of (coin, trade_decision).
+
+        Returns:
+        -------
+            A tuple of (priority_index, negative_confidence) for sorting.
+
         """
         _coin, trade = item
         if not isinstance(trade, dict):
@@ -1810,8 +2330,14 @@ class PortfolioManager:
             return (1, 0)  # Close signals after entries
         return (2, 0)  # Hold signals last
 
-    def _prepare_execution_context(self) -> dict:
-        """Initializes the execution report and performs setup like live sync and regime detection."""
+    def _prepare_execution_context(self) -> dict[str, Any]:
+        """Initialize the execution context including regime detection and report setup.
+
+        Returns
+        -------
+            Dictionary containing 'report', 'market_regime', and 'regime_strength'.
+
+        """
         if self.is_live_trading:
             self.sync_live_account()
 
@@ -1843,12 +2369,22 @@ class PortfolioManager:
     def _handle_exit_signal_logic(
         self,
         coin: str,
-        trade: dict,
+        trade: dict[str, Any],
         current_price: float,
-        position: dict,
-        execution_report: dict,
-    ):
-        """Processes the exit (close_position) signal, including technical verification and execution."""
+        position: dict[str, Any] | None,
+        execution_report: dict[str, Any],
+    ) -> None:
+        """Process an exit signal including verification and execution steps.
+
+        Args:
+        ----
+            coin: The cryptocurrency symbol.
+            trade: The trade decision from AI.
+            current_price: The current market price.
+            position: The existing position dictionary, if any.
+            execution_report: The report dictionary to update.
+
+        """
         if not position:
             print(f"[WARN]  CLOSE {coin}: No position to close.")
             execution_report["skipped"].append(
@@ -1961,11 +2497,18 @@ class PortfolioManager:
 
     def _check_entry_preconditions(
         self,
-        signal_ctx: dict,
-    ) -> dict:
-        """
-        Validates if a new entry signal should proceed based on slot limits, cooldowns and existing positions.
-        Returns a dictionary with 'proceed', 'confidence', and 'leverage'.
+        signal_ctx: dict[str, Any],
+    ) -> dict[str, Any]:
+        """Validate if a new entry signal should proceed based on limits and state.
+
+        Args:
+        ----
+            signal_ctx: Context containing coin, trade, and execution state.
+
+        Returns:
+        -------
+            Dictionary with 'proceed', 'confidence', and 'leverage'.
+
         """
         # 1. Basic checks (Existing position & Same-cycle limit)
         if not self._check_basic_preconditions(signal_ctx):
@@ -1982,8 +2525,18 @@ class PortfolioManager:
         # 4. Confidence & Leverage Validation
         return self._validate_and_clamp_leverage(signal_ctx)
 
-    def _check_basic_preconditions(self, signal_ctx: dict) -> bool:
-        """Checks for existing positions and same-cycle limits."""
+    def _check_basic_preconditions(self, signal_ctx: dict[str, Any]) -> bool:
+        """Check for existing positions and same-cycle entry limits.
+
+        Args:
+        ----
+            signal_ctx: Context containing coin, trade, and execution state.
+
+        Returns:
+        -------
+            True if basic preconditions are met, False otherwise.
+
+        """
         from config.config import Config
 
         coin = signal_ctx["coin"]
@@ -2020,8 +2573,18 @@ class PortfolioManager:
 
         return True
 
-    def _check_cooldown_preconditions(self, signal_ctx: dict) -> bool:
-        """Checks for coin and directional cooldowns."""
+    def _check_cooldown_preconditions(self, signal_ctx: dict[str, Any]) -> bool:
+        """Check for active coin or directional cooldown restrictions.
+
+        Args:
+        ----
+            signal_ctx: Context containing coin, trade, and execution state.
+
+        Returns:
+        -------
+            True if no cooldowns are active, False otherwise.
+
+        """
         coin = signal_ctx["coin"]
         direction = signal_ctx["direction"]
         execution_report = signal_ctx["report"]
@@ -2059,8 +2622,18 @@ class PortfolioManager:
 
         return True
 
-    def _check_diversity_preconditions(self, signal_ctx: dict) -> bool:
-        """Checks for directional slot limits and regimes."""
+    def _check_diversity_preconditions(self, signal_ctx: dict[str, Any]) -> bool:
+        """Check for directional slot limits and regime-based capacity.
+
+        Args:
+        ----
+            signal_ctx: Context containing coin, trade, and execution state.
+
+        Returns:
+        -------
+            True if diversity limits allow the trade, False otherwise.
+
+        """
         import constants
 
         from config.config import Config
@@ -2099,8 +2672,18 @@ class PortfolioManager:
 
         return True
 
-    def _validate_and_clamp_leverage(self, signal_ctx: dict) -> dict:
-        """Validates and clamps confidence and leverage values."""
+    def _validate_and_clamp_leverage(self, signal_ctx: dict[str, Any]) -> dict[str, Any]:
+        """Validate and clamp confidence and leverage values to operational limits.
+
+        Args:
+        ----
+            signal_ctx: Context containing coin, trade, and execution state.
+
+        Returns:
+        -------
+            Dictionary with 'proceed', 'confidence', and 'leverage'.
+
+        """
         import constants
 
         from config.config import Config
@@ -2150,11 +2733,18 @@ class PortfolioManager:
 
     def _apply_technical_confidence_adjustments(
         self,
-        signal_ctx: dict,
-    ) -> dict:
-        """
-        Applies commission guard and technical indicator adjustments to confidence.
-        Returns a dictionary with 'proceed' and 'confidence'.
+        signal_ctx: dict[str, Any],
+    ) -> dict[str, Any]:
+        """Apply commission guard and technical indicator adjustments to confidence.
+
+        Args:
+        ----
+            signal_ctx: Context containing coin, trade, and market indicators.
+
+        Returns:
+        -------
+            Dictionary with 'proceed' status and the adjusted 'confidence'.
+
         """
         coin = signal_ctx["coin"]
         signal = signal_ctx["signal"]
@@ -2236,10 +2826,24 @@ class PortfolioManager:
         coin: str,
         direction: str,
         confidence: float,
-        indicators_15m: dict,
-        indicators_3m: dict,
+        indicators_15m: dict[str, Any],
+        indicators_3m: dict[str, Any],
     ) -> tuple[float, list[str]]:
-        """Calculates combined technical adjustments for confidence."""
+        """Calculate combined technical adjustments for trade confidence.
+
+        Args:
+        ----
+            coin: The cryptocurrency symbol.
+            direction: Trade direction ('long' or 'short').
+            confidence: Base confidence level.
+            indicators_15m: 15m technical indicators.
+            indicators_3m: 3m technical indicators.
+
+        Returns:
+        -------
+            A tuple of (adjusted_confidence, list_of_adjustment_notes).
+
+        """
         adjustments = []
 
         # 1. Momentum & Price Location (15m)
@@ -2258,10 +2862,23 @@ class PortfolioManager:
         self,
         direction: str,
         confidence: float,
-        indicators_15m: dict,
+        indicators_15m: dict[str, Any],
         adjustments: list[str],
     ) -> tuple[float, list[str]]:
-        """Handles Momentum, Zone, RSI, and VWAP adjustments."""
+        """Handle momentum, price zone, RSI, and VWAP adjustments to confidence.
+
+        Args:
+        ----
+            direction: Trade direction ('long' or 'short').
+            confidence: Current confidence level.
+            indicators_15m: 15m technical indicators.
+            adjustments: List of existing adjustment notes to append to.
+
+        Returns:
+        -------
+            A tuple of (adjusted_confidence, updated_adjustments).
+
+        """
         sparkline = indicators_15m.get("smart_sparkline", {})
         mom = sparkline.get("momentum", "STABLE") if isinstance(sparkline, dict) else "STABLE"
         price_loc = sparkline.get("price_location", {}) if isinstance(sparkline, dict) else {}
@@ -2286,10 +2903,22 @@ class PortfolioManager:
     def _apply_momentum_and_rsi_zone_adjustments(
         self,
         confidence: float,
-        mom_ctx: dict,
+        mom_ctx: dict[str, Any],
         adjustments: list[str],
     ) -> tuple[float, list[str]]:
-        """Handles Momentum and RSI Zone specific adjustments."""
+        """Handle momentum and RSI zone specific adjustments to confidence.
+
+        Args:
+        ----
+            confidence: Current confidence level.
+            mom_ctx: Momentum context containing direction, mom, zone, and rsi.
+            adjustments: List of existing adjustment notes.
+
+        Returns:
+        -------
+            A tuple of (adjusted_confidence, updated_adjustments).
+
+        """
         direction = mom_ctx["direction"]
         mom = mom_ctx["mom"]
         zone = mom_ctx["zone"]
@@ -2324,7 +2953,20 @@ class PortfolioManager:
         vwap_rel: str,
         adjustments: list[str],
     ) -> tuple[float, list[str]]:
-        """Handles VWAP relationship adjustments."""
+        """Apply VWAP relationship adjustments to trade confidence.
+
+        Args:
+        ----
+            direction: Trade direction ('long' or 'short').
+            confidence: Current confidence level.
+            vwap_rel: Price relationship to VWAP ('ABOVE' or 'BELOW').
+            adjustments: List of existing adjustment notes.
+
+        Returns:
+        -------
+            A tuple of (adjusted_confidence, updated_adjustments).
+
+        """
         if direction == "long":
             if vwap_rel == "BELOW":
                 confidence *= 0.95
@@ -2345,11 +2987,25 @@ class PortfolioManager:
         self,
         direction: str,
         confidence: float,
-        indicators_15m: dict,
-        indicators_3m: dict,
+        indicators_15m: dict[str, Any],
+        indicators_3m: dict[str, Any],
         adjustments: list[str],
     ) -> tuple[float, list[str]]:
-        """Handles Volume, ADX, Bollinger, OBV, and SuperTrend adjustments."""
+        """Apply volume, ADX, and indicator alignment adjustments to confidence.
+
+        Args:
+        ----
+            direction: Trade direction ('long' or 'short').
+            confidence: Current confidence level.
+            indicators_15m: 15m technical indicators.
+            indicators_3m: 3m technical indicators.
+            adjustments: List of existing adjustment notes.
+
+        Returns:
+        -------
+            A tuple of (adjusted_confidence, updated_adjustments).
+
+        """
         # 1. Volume & ADX
         confidence, adjustments = self._apply_volume_and_adx_adjustments(
             confidence, indicators_15m, indicators_3m, adjustments
@@ -2363,11 +3019,24 @@ class PortfolioManager:
     def _apply_volume_and_adx_adjustments(
         self,
         confidence: float,
-        indicators_15m: dict,
-        indicators_3m: dict,
+        indicators_15m: dict[str, Any],
+        indicators_3m: dict[str, Any],
         adjustments: list[str],
     ) -> tuple[float, list[str]]:
-        """Handles Volume and ADX based adjustments."""
+        """Apply volume and ADX trend strength adjustments to confidence.
+
+        Args:
+        ----
+            confidence: Current confidence level.
+            indicators_15m: 15m technical indicators.
+            indicators_3m: 3m technical indicators.
+            adjustments: List of existing adjustment notes.
+
+        Returns:
+        -------
+            A tuple of (adjusted_confidence, updated_adjustments).
+
+        """
         # Volume (3m)
         v_rat = indicators_3m.get("volume_ratio", 1.0) if indicators_3m else 1.0
         if v_rat < constants.VOL_RATIO_WEAK:
@@ -2396,10 +3065,23 @@ class PortfolioManager:
         self,
         direction: str,
         confidence: float,
-        indicators_15m: dict,
+        indicators_15m: dict[str, Any],
         adjustments: list[str],
     ) -> tuple[float, list[str]]:
-        """Handles Bollinger, OBV, SuperTrend and Zone alignment adjustments."""
+        """Apply Bollinger, OBV, and SuperTrend alignment adjustments.
+
+        Args:
+        ----
+            direction: Trade direction ('long' or 'short').
+            confidence: Current confidence level.
+            indicators_15m: 15m technical indicators.
+            adjustments: List of existing adjustment notes.
+
+        Returns:
+        -------
+            A tuple of (adjusted_confidence, updated_adjustments).
+
+        """
         # Bollinger
         bb_sig = indicators_15m.get("bb_signal", "NORMAL")
         bb_sqz = indicators_15m.get("bb_squeeze", False)
@@ -2451,10 +3133,18 @@ class PortfolioManager:
 
     def _analyze_entry_trend_and_bias(
         self,
-        signal_ctx: dict,
-    ) -> dict:
-        """
-        Analyzes trend alignment, applies directional bias, and applies flip guard logic.
+        signal_ctx: dict[str, Any],
+    ) -> dict[str, Any]:
+        """Analyze trend alignment, apply directional bias, and apply flip guard logic.
+
+        Args:
+        ----
+            signal_ctx: Context for the trade signal.
+
+        Returns:
+        -------
+            Dictionary with 'proceed' status and updated signal data.
+
         """
         coin = signal_ctx["coin"]
         signal = signal_ctx["signal"]
@@ -2517,9 +3207,24 @@ class PortfolioManager:
         return self._handle_trend_flip_guard(guard_ctx)
 
     def _log_trend_alignment_info(
-        self, coin: str, signal: str, inds_htf: dict, inds_3m: dict, log_func: Any
-    ):
-        """Logs detailed trend alignment information and fallbacks."""
+        self,
+        coin: str,
+        signal: str,
+        inds_htf: dict[str, Any],
+        inds_3m: dict[str, Any],
+        log_func: Callable[[str, str, dict[str, Any] | None], None],
+    ) -> None:
+        """Log detailed trend alignment information and fallbacks.
+
+        Args:
+        ----
+            coin: The cryptocurrency symbol.
+            signal: The original signal string.
+            inds_htf: HTF technical indicators.
+            inds_3m: 3m technical indicators.
+            log_func: Logging function to use.
+
+        """
         strength_result = self.get_trend_following_strength(coin, signal)
         if strength_result and strength_result.get("strength"):
             log_func(
@@ -2543,9 +3248,21 @@ class PortfolioManager:
 
     def _handle_volume_analysis_and_penalty(
         self,
-        signal_ctx: dict,
-        indicators_3m_snap: dict,
+        signal_ctx: dict[str, Any],
+        indicators_3m_snap: dict[str, Any],
     ) -> tuple[bool, float]:
+        """Perform volume quality analysis and apply confidence penalties if weak.
+
+        Args:
+        ----
+            signal_ctx: Context for the trade signal.
+            indicators_3m_snap: Snapshot of 3m technical indicators.
+
+        Returns:
+        -------
+            A tuple of (proceed_boolean, final_confidence_float).
+
+        """
         """Handles volume quality scoring and filters."""
         from config.config import Config
 
@@ -2620,10 +3337,21 @@ class PortfolioManager:
 
     def _handle_trend_clash_and_bias(
         self,
-        signal_ctx: dict,
+        signal_ctx: dict[str, Any],
         current_trend: str,
     ) -> float:
-        """Handles trend clash detection and directional bias adjustments."""
+        """Handle detection of AI/Runtime trend clashes and apply directional bias.
+
+        Args:
+        ----
+            signal_ctx: Context for the trade signal.
+            current_trend: The current detected runtime trend.
+
+        Returns:
+        -------
+            The adjusted confidence level.
+
+        """
         coin = signal_ctx["coin"]
         signal = signal_ctx["signal"]
         direction = signal_ctx["direction"]
@@ -2678,13 +3406,23 @@ class PortfolioManager:
 
     def _log_execution_snapshot(
         self,
-        signal_ctx: dict,
-        indicators_htf_snap: dict,
-        indicators_3m_snap: dict,
+        signal_ctx: dict[str, Any],
+        indicators_htf_snap: dict[str, Any],
+        indicators_3m_snap: dict[str, Any],
         current_trend: str,
         is_counter_trend: bool,
-    ):
-        """Logs the execution snapshot and checks for trend inconsistencies."""
+    ) -> None:
+        """Log a detailed snapshot of market conditions at the time of execution.
+
+        Args:
+        ----
+            signal_ctx: Context for the trade signal.
+            indicators_htf_snap: Snapshot of HTF technical indicators.
+            indicators_3m_snap: Snapshot of 3m technical indicators.
+            current_trend: The current detected runtime trend.
+            is_counter_trend: Boolean indicating if trade is counter-trend.
+
+        """
         coin = signal_ctx["coin"]
         trade = signal_ctx["trade"]
         execution_report = signal_ctx["report"]
@@ -2700,7 +3438,7 @@ class PortfolioManager:
             indicators_3m_snap.get("ema_20"),
         )
 
-        def _fmt(val):
+        def _fmt(val: float | int | None) -> str:
             return f"{val:.4f}" if isinstance(val, (int, float)) else "n/a"
 
         comp_htf = ">" if (price_htf or 0) > (ema20_htf or 0) else "<"
@@ -2741,21 +3479,40 @@ class PortfolioManager:
 
     def _handle_trend_flip_guard(
         self,
-        guard_ctx: dict,
+        guard_ctx: dict[str, Any],
     ) -> tuple[bool, float, float]:
-        """Orchestrates trend flip guard logic."""
+        """Orchestrate trend flip guard logic based on trade classification.
+
+        Args:
+        ----
+            guard_ctx: Context containing trend flip and trade data.
+
+        Returns:
+        -------
+            A tuple of (proceed_boolean, confidence, partial_margin_factor).
+
+        """
         is_counter_trend = guard_ctx["is_counter_trend"]
         if is_counter_trend:
             return self._apply_counter_trend_flip_logic(guard_ctx)
-        else:
-            confidence, partial_margin_factor = self._apply_trend_following_flip_logic(guard_ctx)
-            return True, confidence, partial_margin_factor
+        confidence, partial_margin_factor = self._apply_trend_following_flip_logic(guard_ctx)
+        return True, confidence, partial_margin_factor
 
     def _apply_counter_trend_flip_logic(
         self,
-        guard_ctx: dict,
+        guard_ctx: dict[str, Any],
     ) -> tuple[bool, float, float]:
-        """Specialized logic for counter-trend flip guard."""
+        """Apply specialized guard logic for counter-trend trades.
+
+        Args:
+        ----
+            guard_ctx: Context containing trend flip and trade data.
+
+        Returns:
+        -------
+            A tuple of (proceed_boolean, confidence, partial_margin_factor).
+
+        """
         coin = guard_ctx["coin"]
         signal = guard_ctx["signal"]
         confidence = guard_ctx["confidence"]
@@ -2785,13 +3542,27 @@ class PortfolioManager:
             if not proceed:
                 return False, confidence, partial_margin_factor
 
+        return True, confidence, partial_margin_factor
+
     def _check_flip_guard_confidence(
         self,
-        guard_ctx: dict,
+        guard_ctx: dict[str, Any],
         confidence: float,
         partial_margin_factor: float,
     ) -> tuple[bool, float, float]:
-        """Checks confidence floor and caps sizing after a trend flip."""
+        """Check confidence floor and cap sizing after a trend flip.
+
+        Args:
+        ----
+            guard_ctx: Context for the flip guard.
+            confidence: Current confidence level.
+            partial_margin_factor: Current margin scaling factor.
+
+        Returns:
+        -------
+            A tuple of (proceed_boolean, updated_confidence, updated_factor).
+
+        """
         coin = guard_ctx["coin"]
         signal = guard_ctx["signal"]
         guard_cycles_since_flip = guard_ctx["guard_cycles_since_flip"]
@@ -2842,16 +3613,26 @@ class PortfolioManager:
             if cap < 1.0:
                 log_func(
                     "sizing",
-                    f"[WATCH] Trend flip guard ({classification}): {coin} sizing capped at {cap*100:.0f}% {desc} after flip.",
+                    f"[WATCH] Trend flip guard ({classification}): {coin} sizing capped at {cap * 100:.0f}% {desc} after flip.",
                 )
 
         return True, confidence, partial_margin_factor
 
     def _apply_trend_following_flip_logic(
         self,
-        guard_ctx: dict,
+        guard_ctx: dict[str, Any],
     ) -> tuple[float, float]:
-        """Specialized logic for trend-following flip guard."""
+        """Apply specialized guard logic for trend-following flip scenarios.
+
+        Args:
+        ----
+            guard_ctx: Context containing trend flip and trade data.
+
+        Returns:
+        -------
+            A tuple of (adjusted_confidence, adjusted_margin_factor).
+
+        """
         coin = guard_ctx["coin"]
         direction = guard_ctx["direction"]
         confidence = guard_ctx["confidence"]
@@ -2898,11 +3679,18 @@ class PortfolioManager:
 
     def _finalize_entry_sizing_and_execution(
         self,
-        signal_ctx: dict,
+        signal_ctx: dict[str, Any],
     ) -> bool:
-        """
-        Finalizes position sizing, applies regime-specific multipliers, and triggers execution.
-        Returns True if execution was attempted.
+        """Finalize position sizing and trigger the order execution process.
+
+        Args:
+        ----
+            signal_ctx: Context for the trade signal.
+
+        Returns:
+        -------
+            True if execution was successfully attempted.
+
         """
         coin = signal_ctx["coin"]
         signal = signal_ctx["signal"]
@@ -2927,9 +3715,22 @@ class PortfolioManager:
         signal: str,
         coin: str,
         current_price: float,
-        indicators_htf: dict,
+        indicators_htf: dict[str, Any],
     ) -> float:
-        """Calculates ATR-based stop loss with fallback."""
+        """Calculate an ATR-based stop loss price for a new entry.
+
+        Args:
+        ----
+            signal: The entry signal type.
+            coin: The cryptocurrency symbol.
+            current_price: Current market entry price.
+            indicators_htf: HTF technical indicators.
+
+        Returns:
+        -------
+            The calculated stop loss price.
+
+        """
         from config.config import Config
 
         try:
@@ -2945,17 +3746,14 @@ class PortfolioManager:
                     f"[INFO]  Pre-calculated ATR SL for sizing: {coin} ATR={atr_value:.6f} x {Config.ATR_SL_MULTIPLIER} -> SL=${atr_stop_loss:.6f}",
                 )
                 return atr_stop_loss
-            else:
-                fallback_dist = current_price * 0.02
-                atr_stop_loss = (
-                    (current_price - fallback_dist)
-                    if signal == "buy_to_enter"
-                    else (current_price + fallback_dist)
-                )
-                print(
-                    f"[WARN]  ATR unavailable for {coin}, using 2% fallback SL: ${atr_stop_loss:.6f}"
-                )
-                return atr_stop_loss
+            fallback_dist = current_price * 0.02
+            atr_stop_loss = (
+                (current_price - fallback_dist)
+                if signal == "buy_to_enter"
+                else (current_price + fallback_dist)
+            )
+            print(f"[WARN]  ATR unavailable for {coin}, using 2% fallback SL: ${atr_stop_loss:.6f}")
+            return atr_stop_loss
         except Exception as e:
             print(f"[WARN]  ATR SL calculation failed for {coin}: {e}")
             fallback_dist = current_price * 0.02
@@ -2965,8 +3763,19 @@ class PortfolioManager:
                 else (current_price + fallback_dist)
             )
 
-    def _calculate_final_margin(self, signal_ctx: dict, atr_stop_loss: float) -> float:
-        """Calculates and adjusts the final margin for a trade."""
+    def _calculate_final_margin(self, signal_ctx: dict[str, Any], atr_stop_loss: float) -> float:
+        """Calculate and adjust the final margin for a trade based on risk and context.
+
+        Args:
+        ----
+            signal_ctx: Context for the trade signal.
+            atr_stop_loss: The pre-calculated stop loss price.
+
+        Returns:
+        -------
+            The final margin amount in USD.
+
+        """
         from config.config import Config
 
         confidence = signal_ctx["confidence"]
@@ -3028,8 +3837,19 @@ class PortfolioManager:
 
         return calculated_margin
 
-    def _validate_risk_and_cash(self, signal_ctx: dict, calculated_margin: float) -> bool:
-        """Validates the trade against available cash and risk management limits."""
+    def _validate_risk_and_cash(self, signal_ctx: dict[str, Any], calculated_margin: float) -> bool:
+        """Validate the trade against available cash and risk management constraints.
+
+        Args:
+        ----
+            signal_ctx: Context for the trade signal.
+            calculated_margin: The proposed margin amount.
+
+        Returns:
+        -------
+            True if the trade passes risk calibration, False otherwise.
+
+        """
         from config.config import Config
 
         coin = signal_ctx["coin"]
@@ -3077,11 +3897,23 @@ class PortfolioManager:
 
     def _execute_order_payload(
         self,
-        signal_ctx: dict,
+        signal_ctx: dict[str, Any],
         calculated_margin: float,
         atr_stop_loss: float,
     ) -> bool:
-        """Triggers the final order execution (live or simulated)."""
+        """Execute the final order payload using live or simulated execution.
+
+        Args:
+        ----
+            signal_ctx: Context for the trade signal.
+            calculated_margin: The final margin to use.
+            atr_stop_loss: The stop loss price.
+
+        Returns:
+        -------
+            True if the order execution was successful.
+
+        """
         coin = signal_ctx["coin"]
         signal = signal_ctx["signal"]
         current_price = signal_ctx["current_price"]
@@ -3203,11 +4035,19 @@ class PortfolioManager:
 
     def execute_decision(
         self,
-        decisions: dict[str, dict],
+        decisions: dict[str, dict[str, Any]],
         current_prices: dict[str, float],
         indicator_cache: dict[str, dict[str, Any]] | None = None,
-    ):
-        """Executes trading decisions from AI, incorporating dynamic sizing and enhanced features."""
+    ) -> None:
+        """Execute trading decisions from AI with dynamic sizing and slot management.
+
+        Args:
+        ----
+            decisions: Dictionary of coin-to-decision data.
+            current_prices: Current market price dictionary.
+            indicator_cache: Optional technical indicator cache.
+
+        """
         if not isinstance(decisions, dict):
             print(f"[ERR]   Invalid decisions format: {type(decisions)}")
             return
@@ -3219,8 +4059,20 @@ class PortfolioManager:
 
         self.last_execution_report = batch_ctx["report"]
 
-    def _prepare_decision_batch_context(self, decisions: dict) -> dict:
-        """Sets up the context for a batch of trading decisions."""
+    def _prepare_decision_batch_context(
+        self, decisions: dict[str, dict[str, Any]]
+    ) -> dict[str, Any]:
+        """Prepare the context and report for a batch of trading decisions.
+
+        Args:
+        ----
+            decisions: The dictionary of raw AI decisions.
+
+        Returns:
+        -------
+            Dictionary containing sorted decisions, report, and metrics.
+
+        """
         from config.config import Config
 
         bias_metrics = getattr(self, "latest_bias_metrics", self.get_directional_bias_metrics())
@@ -3228,7 +4080,7 @@ class PortfolioManager:
         report = context["report"]
 
         # Define logging helper
-        def log_func(category: str, message: str, details: dict | None = None):
+        def log_func(category: str, message: str, details: dict | None = None) -> None:
             print(message)
             report["debug_logs"].append(
                 {
@@ -3262,12 +4114,22 @@ class PortfolioManager:
     def _process_single_decision(
         self,
         coin: str,
-        trade: dict,
-        current_prices: dict,
-        indicator_cache: Any,
-        batch_ctx: dict,
-    ):
-        """Processes a single AI trading decision."""
+        trade: dict[str, Any],
+        current_prices: dict[str, float],
+        indicator_cache: object,
+        batch_ctx: dict[str, Any],
+    ) -> None:
+        """Process a single AI trading decision through the execution pipeline.
+
+        Args:
+        ----
+            coin: The cryptocurrency symbol.
+            trade: The decision data for the coin.
+            current_prices: Dictionary of current market prices.
+            indicator_cache: Technical indicator cache handler.
+            batch_ctx: Shared execution context for the cycle.
+
+        """
         if not isinstance(trade, dict):
             print(f"[WARN]  Invalid trade data for {coin}: {type(trade)}")
             return
@@ -3299,9 +4161,15 @@ class PortfolioManager:
 
     def _handle_entry_decision(
         self,
-        entry_ctx: dict,
-    ):
-        """Processes an entry (buy/sell) decision."""
+        entry_ctx: dict[str, Any],
+    ) -> None:
+        """Process an entry (buy/sell) decision including technical scaling.
+
+        Args:
+        ----
+            entry_ctx: Context for the entry attempt.
+
+        """
         coin = entry_ctx["coin"]
         trade = entry_ctx["trade"]
         price = entry_ctx["price"]
@@ -3366,8 +4234,23 @@ class PortfolioManager:
         if self._finalize_entry_sizing_and_execution(signal_ctx):
             batch_ctx["new_positions_this_cycle"] += 1
 
-    def _handle_hold_signal(self, coin: str, position: dict | None, report: dict, trade: dict):
-        """Handles a hold signal."""
+    def _handle_hold_signal(
+        self,
+        coin: str,
+        position: dict[str, Any] | None,
+        report: dict[str, Any],
+        trade: dict[str, Any],
+    ) -> None:
+        """Handle a 'hold' signal for a coin by logging the decision.
+
+        Args:
+        ----
+            coin: The cryptocurrency symbol.
+            position: The existing position, if any.
+            report: The execution report to update.
+            trade: The trade decision dictionary.
+
+        """
         if position:
             print(f"[INFO]  HOLD: Holding {position.get('direction', 'long')} {coin} position.")
         else:
@@ -3375,8 +4258,19 @@ class PortfolioManager:
         report["holds"].append({"coin": coin, "has_position": bool(position)})
         trade["runtime_decision"] = "hold"
 
-    def _update_position_pnl(self, pos: dict, price: float) -> float:
-        """Calculates unrealized PnL for a position, preserving live values if available."""
+    def _update_position_pnl(self, pos: dict[str, Any], price: float) -> float:
+        """Calculate unrealized PnL for a position, honoring live values if available.
+
+        Args:
+        ----
+            pos: The position dictionary.
+            price: Current market price.
+
+        Returns:
+        -------
+            The calculated unrealized PnL in USD.
+
+        """
         if self.is_live_trading:
             # Live mode: Keep Binance unrealized_pnl if available (includes funding fees)
             existing_pnl = pos.get("unrealized_pnl", 0.0)
@@ -3388,9 +4282,8 @@ class PortfolioManager:
             qty = pos["quantity"]
             direction = pos.get("direction", "long")
             return (price - entry) * qty if direction == "long" else (entry - price) * qty
-        else:
-            # Simulation mode: calculate manually
-            entry = pos["entry_price"]
-            qty = pos["quantity"]
-            direction = pos.get("direction", "long")
-            return (price - entry) * qty if direction == "long" else (entry - price) * qty
+        # Simulation mode: calculate manually
+        entry = pos["entry_price"]
+        qty = pos["quantity"]
+        direction = pos.get("direction", "long")
+        return (price - entry) * qty if direction == "long" else (entry - price) * qty

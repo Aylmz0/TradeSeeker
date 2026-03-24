@@ -19,9 +19,7 @@ from src.core.indicators import get_features_for_ml
 
 
 def train_global_model(interval: str):
-    """
-    Trains a single unified Global ML model using data from all active coins.
-    """
+    """Trains a single unified Global ML model using data from all active coins."""
     engine = DataEngine()
     target_coins = getattr(Config, "COINS", ["XRP", "DOGE", "ASTER", "TRX", "ETH", "SOL"])
 

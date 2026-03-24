@@ -541,11 +541,11 @@ class PortfolioManager:
                 print("[OK]    Counter-trend cooldown cleared.")
 
     def get_trend_following_strength(self, coin: str, signal: str) -> dict[str, Any]:
-        """
-        Hybrid approach: Determines trend-following strength including 15m
+        """Hybrid approach: Determines trend-following strength including 15m
         (No confidence or margin adjustment, just for informational purposes)
 
-        Returns:
+        Returns
+        -------
             {
                 'strength': 'STRONG' | 'MEDIUM' | 'WEAK' | None,
                 'alignment_info': str,
@@ -560,6 +560,7 @@ class PortfolioManager:
         - STRONG: 1h+15m+3m all in same direction
         - MEDIUM: 1h+15m in same direction (3m different) OR 1h+3m in same direction (15m different)
         - WEAK: Only 1h in same direction (15m and 3m different)
+
         """
         try:
             indicators_htf = self.market_data.get_technical_indicators(coin, HTF_INTERVAL)
@@ -921,8 +922,7 @@ class PortfolioManager:
         print(f"[OK]    Saved cycle {cycle_number} (Total: {len(self.cycle_history)})")
 
     def _update_peak_pnl_tracking(self, coin: str, pos: dict):
-        """
-        Track peak PnL and calculate erosion for a position.
+        """Track peak PnL and calculate erosion for a position.
         Called after unrealized_pnl is updated in update_prices().
 
         Updates pos dict with:
@@ -1621,8 +1621,7 @@ class PortfolioManager:
         market_regime: str = "NEUTRAL",  # Passed from cycle to avoid re-calculation
         log_func: Any = None,
     ) -> float:
-        """
-        Calculate margin based on Volatility Sizing (Fixed Risk) + Confidence.
+        """Calculate margin based on Volatility Sizing (Fixed Risk) + Confidence.
         Formula: Position Size = (Risk Amount / Stop Distance %) * Confidence
         """
         # 1. Default fallback (Old method) if data is missing
@@ -1685,8 +1684,7 @@ class PortfolioManager:
         return target_margin
 
     def get_graduated_loss_multiplier(self, margin_usd: float) -> float:
-        """
-        Calculate the loss multiplier based on margin size.
+        """Calculate the loss multiplier based on margin size.
         Relaxed for Volatility Sizing: Acts as "Disaster Stop" only.
         """
         if margin_usd < constants.MARGIN_TIER_20:
@@ -1738,8 +1736,7 @@ class PortfolioManager:
             return 0.0
 
     def check_flash_exit_conditions(self, coin: str, position: dict) -> bool:
-        """
-        Check for Flash Exit conditions (V-Reversal).
+        """Check for Flash Exit conditions (V-Reversal).
         Trigger: RSI Spike + Volume Surge + Price moving against position.
         """
         if not Config.FLASH_EXIT_ENABLED:
@@ -1798,16 +1795,14 @@ class PortfolioManager:
             return False
 
     def get_effective_same_direction_limit(self) -> int:
-        """
-        Calculate the effective same direction limit based on market regime strength.
+        """Calculate the effective same direction limit based on market regime strength.
         Backwards compatibility for AIService.
         """
         # FIX: Use getattr for safe config access
         return getattr(Config, "SAME_DIRECTION_LIMIT", 2)
 
     def validate_exit_signal(self, coin: str, position: dict, indicators_3m: dict) -> bool:
-        """
-        Validate exit signal (Reversal Desensitization).
+        """Validate exit signal (Reversal Desensitization).
         Requires: STRONG 3m reversal OR 15m confirmation OR PnL thresholds.
         """
         try:
@@ -1875,8 +1870,7 @@ class PortfolioManager:
             return True  # Fail safe: allow exit
 
     def _verify_technical_reversal(self, coin: str, direction: str) -> bool:
-        """
-        Verify if technical indicators actually support a reversal/invalidation claim.
+        """Verify if technical indicators actually support a reversal/invalidation claim.
         Used to harden exit logic against 'fear-based' AI closures.
         """
         try:
@@ -1944,8 +1938,7 @@ class PortfolioManager:
 
         # Helper: Log to both console and execution_report
         def _log_debug(category: str, message: str, details: dict | None = None):
-            """
-            Log critical information both to console and JSON.
+            """Log critical information both to console and JSON.
             Categories: 'confidence', 'flip_guard', 'volume', 'sizing', 'trend', 'block', 'info'
             """
             print(message)

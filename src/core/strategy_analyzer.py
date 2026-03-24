@@ -539,8 +539,7 @@ class StrategyAnalyzer:
         indicators_3m: dict[str, Any] | None = None,
         indicators_15m: dict[str, Any] | None = None,
     ) -> str:
-        """
-        Detect market condition based on multi-timeframe indicators.
+        """Detect market condition based on multi-timeframe indicators.
 
         Rule: For a coin to be BULLISH, 1h must be bullish AND (3m OR 15m must be bullish).
         For a coin to be BEARISH, 1h must be bearish AND (3m OR 15m must be bearish).

@@ -1,5 +1,4 @@
-"""
-Binance Futures order execution utilities for Alpha Arena.
+"""Binance Futures order execution utilities for Alpha Arena.
 
 Provides a thin REST client with request signing plus a higher-level executor
 that converts bot decisions into exchange orders and synchronized portfolio
@@ -307,8 +306,7 @@ class BinanceOrderExecutor:
         self.symbol_leverage[symbol] = leverage
 
     def _determine_side(self, direction: str, action: str) -> str:
-        """
-        Determine Binance side parameter.
+        """Determine Binance side parameter.
 
         direction: 'long' / 'short'
         action: 'open' / 'close'
@@ -692,17 +690,19 @@ class BinanceOrderExecutor:
         stop_price: float,
         quantity: float | None = None,
     ) -> dict[str, Any]:
-        """
-        Place a TAKE_PROFIT_MARKET order on Binance.
+        """Place a TAKE_PROFIT_MARKET order on Binance.
 
         Args:
+        ----
             coin: Coin symbol (e.g., 'BTC')
             direction: 'long' or 'short'
             stop_price: Price at which to trigger the take profit
             quantity: Optional quantity (if None, uses closePosition=true)
 
         Returns:
+        -------
             Order response from Binance
+
         """
         if not self.is_live():
             raise BinanceAPIError("Attempted to place live order while executor disabled.")
@@ -749,17 +749,19 @@ class BinanceOrderExecutor:
         stop_price: float,
         quantity: float | None = None,
     ) -> dict[str, Any]:
-        """
-        Place a STOP_MARKET order on Binance.
+        """Place a STOP_MARKET order on Binance.
 
         Args:
+        ----
             coin: Coin symbol (e.g., 'BTC')
             direction: 'long' or 'short'
             stop_price: Price at which to trigger the stop loss
             quantity: Optional quantity (if None, uses closePosition=true)
 
         Returns:
+        -------
             Order response from Binance
+
         """
         if not self.is_live():
             raise BinanceAPIError("Attempted to place live order while executor disabled.")

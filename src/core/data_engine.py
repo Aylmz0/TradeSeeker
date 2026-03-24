@@ -16,8 +16,7 @@ logger = logging.getLogger(__name__)
 
 
 class DataEngine:
-    """
-    Core Database Engine for TradeSeeker's ML Pipeline.
+    """Core Database Engine for TradeSeeker's ML Pipeline.
     Handles SQLite ingestion, storage, and retrieval of market data, ML features, and AI decisions.
     """
 
@@ -120,8 +119,7 @@ class DataEngine:
         self._insert_klines_bulk(df, coin, interval)
 
     def log_cycle_features(self, coin: str, interval: str, indicators: dict[str, Any]):
-        """
-        Logs indicator snapshots to the 'features' table.
+        """Logs indicator snapshots to the 'features' table.
         Indicators should be a dict containing numeric values or series.
         """
         if not isinstance(indicators, dict):
@@ -243,8 +241,7 @@ class DataEngine:
         loss_threshold: float = -0.005,  # -0.5% loss
         limit: int | None = None,
     ) -> pd.DataFrame:
-        """
-        Creates the ML targets (Labels) by looking ahead in time.
+        """Creates the ML targets (Labels) by looking ahead in time.
         Calculates the future percentage return from the current close to the close at (t + lookahead).
         Assigns:
         -  1 (BUY):  Return >= profit_threshold
@@ -279,9 +276,7 @@ class DataEngine:
         return df
 
     def fetch_and_store_klines(self, coin: str, interval: str, limit: int = 1000):
-        """
-        Fetches KLines directly from Binance API to avoid importing bot configs during tests.
-        """
+        """Fetches KLines directly from Binance API to avoid importing bot configs during tests."""
         try:
             url = "https://api.binance.com/api/v3/klines"
             params = {"symbol": f"{coin}USDT", "interval": interval, "limit": limit}
