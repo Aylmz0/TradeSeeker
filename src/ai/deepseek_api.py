@@ -11,16 +11,11 @@ from src.utils import safe_file_read
 HTF_INTERVAL = getattr(Config, "HTF_INTERVAL", "1h") or "1h"
 HTF_LABEL = HTF_INTERVAL
 
-# Enable LiteLLM logging
-litellm.success_callback = ["logger_fn"]
+import os
 
-
-def custom_logger_fn(kwargs, completion_response, start_time, end_time):
-    # Optional callback logic for custom logging if needed
-    pass
-
-
-litellm.success_callback = [custom_logger_fn]
+# Suppress messy internal LiteLLM terminal logs
+os.environ["LITELLM_LOG"] = "ERROR"
+litellm.suppress_debug_info = True
 
 
 class DeepSeekAPI:
