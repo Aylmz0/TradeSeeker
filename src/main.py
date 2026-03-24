@@ -712,12 +712,14 @@ class AlphaArenaDeepSeek:
                     print("[INFO]  Timers: " + " | ".join(timing_summary))
 
             self.portfolio.add_to_cycle_history(
-                cycle_number,
-                prompt,
-                thoughts,
-                decisions,
-                status=cycle_status,
-                metadata=cycle_metadata or None,
+                {
+                    "cycle_number": cycle_number,
+                    "prompt": prompt,
+                    "thoughts": thoughts,
+                    "decisions": decisions,
+                    "status": cycle_status,
+                    "metadata": cycle_metadata or None,
+                }
             )
 
             # tick_cooldowns() MUST be called AFTER the prompt is generated
@@ -736,12 +738,14 @@ class AlphaArenaDeepSeek:
             try:
                 decisions_log = decisions if isinstance(decisions, dict) else {}
                 self.portfolio.add_to_cycle_history(
-                    cycle_number,
-                    prompt,
-                    f"CRITICAL CYCLE ERROR: {e}\n{traceback.format_exc()}",
-                    decisions_log,
-                    status="error",
-                    metadata={"exception": str(e)},
+                    {
+                        "cycle_number": cycle_number,
+                        "prompt": prompt,
+                        "thoughts": f"CRITICAL CYCLE ERROR: {e}\n{traceback.format_exc()}",
+                        "decisions": decisions_log,
+                        "status": "error",
+                        "metadata": {"exception": str(e)},
+                    }
                 )
             except Exception as log_e:
                 print(f"[ERR]   Failed to save error to cycle history: {log_e}")

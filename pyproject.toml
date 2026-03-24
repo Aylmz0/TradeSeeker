@@ -51,12 +51,8 @@ select = [
     "S",      # flake8-bandit (Security)
 ]
 ignore = [
-    # --- Structural & Complexity (Phase 13) ---
-    "C901",    # Too complex
-    "PLR0911", # Too many return statements
-    "PLR0912", # Too many branches
-    "PLR0913", # Too many arguments
-    "PLR0915", # Too many statements
+    # --- Structural & Complexity ---
+    # Global complexity limits restored after Phase 13 Refactor
 
     # --- Magic Numbers (Phase 11) ---
 

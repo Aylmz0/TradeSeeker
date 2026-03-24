@@ -1,0 +1,3350 @@
+import copy
+import os
+import threading
+import time
+from collections import deque
+from datetime import datetime, timezone
+from typing import Any
+
+import numpy as np
+
+from config.config import Config
+from src.core import constants
+from src.core.backtest import AdvancedRiskManager
+from src.core.market_data import RealMarketData
+from src.core.regime_detector import RegimeDetector
+from src.utils import format_num, safe_file_read, safe_file_read_cached, safe_file_write
+
+
+# Define HTF constants
+HTF_INTERVAL = getattr(Config, "HTF_INTERVAL", "1h") or "1h"
+HTF_LABEL = HTF_INTERVAL
+
+try:
+    from src.services.binance import BinanceOrderExecutor
+
+    BINANCE_IMPORT_ERROR = None
+except Exception as e:
+    BinanceOrderExecutor = None
+    BINANCE_IMPORT_ERROR = str(e)
+
+
+class PortfolioManager:
+    """Manages the portfolio state, positions, and history."""
+
+    def __init__(self, initial_balance: float | None = None):
+        # Dynamic initial balance - if not provided, take from actual balance or use $200
+        if initial_balance is None:
+            # First try from saved state, otherwise take from Config
+            saved_state = safe_file_read_cached("data/portfolio_state.json", default_data={})
+            if "initial_balance" in saved_state:
+                self.initial_balance = saved_state["initial_balance"]
+            else:
+                self.initial_balance = Config.INITIAL_BALANCE
+        else:
+            self.initial_balance = initial_balance
+
+        self.state_file = constants.PORTFOLIO_STATE_FILE
+        self.history_file = constants.TRADE_HISTORY_FILE
+        self.full_history_file = constants.FULL_TRADE_HISTORY_FILE
+        self.override_file = "data/manual_override.json"
+        self.cycle_history_file = "data/cycle_history.json"
+        self.max_cycle_history = constants.MAX_CYCLE_HISTORY
+        self.maintenance_margin_rate = constants.MAINTENANCE_MARGIN_RATE
+
+        self.current_balance = self.initial_balance
+        self.positions = {}
+        self._lock = threading.RLock()  # RLock for re-entrant safety
+        self.directional_bias = self._init_directional_bias()
+        self.trend_state: dict[str, dict[str, Any]] = {}
+        self.trend_flip_cooldown = constants.TREND_FLIP_COOLDOWN_DEFAULT
+        self.trend_flip_history_window = constants.TREND_FLIP_HISTORY_WINDOW
+        # Trend flip cooldown management is kept on the PortfolioManager side.
+        self.indicator_cache: dict[str, dict[str, dict[str, Any]]] = {}
+        self.last_execution_report: dict[str, Any] = {}
+        self.history_reset_interval = getattr(Config, "HISTORY_RESET_INTERVAL", 35)
+        self.last_history_reset_cycle = 0
+        self.cycles_since_history_reset = 0
+
+        self.directional_cooldowns: dict[str, int] = {"long": 0, "short": 0}
+        self.relaxed_countertrend_cycles: int = 0
+        self.counter_trend_cooldown: int = 0
+        self.counter_trend_consecutive_losses: int = 0
+        self.coin_cooldowns: dict[str, int] = {}  # Coin-based cooldown: {coin: cycles_remaining}
+
+        self.current_cycle_number = 0
+
+        self.trade_history = self.load_trade_history()  # Load first
+        self._ensure_full_history_exists()  # Migrate existing history if needed
+        self.load_state()  # Loads balance, positions, trade_count
+        self.cycle_history = self.load_cycle_history()
+        self.risk_manager = AdvancedRiskManager()  # Initialize risk manager
+        self.market_data = RealMarketData()  # Initialize market data for counter-trend detection
+
+        # Fixed: Initialize live trading attributes used in update_prices()
+        self.is_live_trading = False
+        self.order_executor = None
+
+        # Initialize total_value before _initialize_live_trading (which calls sync_live_account)
+        self.total_value = self.current_balance
+        self.total_return = 0.0
+        self.start_time = datetime.now(timezone.utc)
+        self.portfolio_values_history = [
+            self.initial_balance,
+        ]  # Track portfolio values for Sharpe ratio
+        self.sharpe_ratio = 0.0
+
+        self.update_prices(
+            {},
+            increment_loss_counters=False,
+        )  # Calculate initial value with loaded positions
+
+    def _ensure_full_history_exists(self):
+        """Ensure full trade history exists, copying from active history if needed."""
+        if not os.path.exists(self.full_history_file):
+            print(f"[INFO] Creating {self.full_history_file} from existing trade history...")
+            safe_file_write(self.full_history_file, self.trade_history)
+
+    def _init_directional_bias(self) -> dict[str, dict[str, Any]]:
+        return {
+            "long": {
+                "rolling": deque(maxlen=constants.ROLLING_BIAS_WINDOW),
+                "net_pnl": 0.0,
+                "trades": 0,
+                "wins": 0,
+                "losses": 0,
+                "consecutive_losses": 0,
+                "consecutive_wins": 0,
+                "caution_active": False,
+                "caution_win_progress": 0,
+                "loss_streak_loss_usd": 0.0,
+            },
+            "short": {
+                "rolling": deque(maxlen=constants.ROLLING_BIAS_WINDOW),
+                "net_pnl": 0.0,
+                "trades": 0,
+                "wins": 0,
+                "losses": 0,
+                "consecutive_losses": 0,
+                "consecutive_wins": 0,
+                "caution_active": False,
+                "caution_win_progress": 0,
+                "loss_streak_loss_usd": 0.0,
+            },
+        }
+
+    def load_state(self):
+        data = safe_file_read_cached(self.state_file, default_data={})
+        self.current_balance = data.get("current_balance", self.initial_balance)
+        self.positions = data.get("positions", {})
+        self.trade_count = data.get(
+            "trade_count",
+            len(self.trade_history),
+        )  # Initialize from history if not in state
+        print(
+            f"[OK]    Loaded state ({len(self.positions)} positions, {self.trade_count} closed trades)"
+            if data
+            else "[INFO] No state file found.",
+        )
+
+        bias_state = data.get("directional_bias")
+        if bias_state:
+            self.directional_bias = self._init_directional_bias()
+            for side in ("long", "short"):
+                stored = bias_state.get(side, {})
+                stats = self.directional_bias[side]
+                stats["rolling"].extend(stored.get("rolling", []))
+                stats["net_pnl"] = stored.get("net_pnl", 0.0)
+                stats["trades"] = stored.get("trades", 0)
+                stats["wins"] = stored.get("wins", 0)
+                stats["losses"] = stored.get("losses", 0)
+                stats["consecutive_losses"] = stored.get("consecutive_losses", 0)
+                stats["consecutive_wins"] = stored.get("consecutive_wins", 0)
+                stats["caution_active"] = stored.get("caution_active", False)
+                stats["caution_win_progress"] = stored.get("caution_win_progress", 0)
+                stats["loss_streak_loss_usd"] = stored.get("loss_streak_loss_usd", 0.0)
+        self.last_history_reset_cycle = data.get(
+            "last_history_reset_cycle",
+            self.last_history_reset_cycle,
+        )
+        self.cycles_since_history_reset = data.get(
+            "cycles_since_history_reset",
+            self.cycles_since_history_reset,
+        )
+        self.directional_cooldowns = data.get("directional_cooldowns", {"long": 0, "short": 0})
+        self.relaxed_countertrend_cycles = data.get("relaxed_countertrend_cycles", 0)
+        self.counter_trend_cooldown = data.get("counter_trend_cooldown", 0)
+        self.counter_trend_consecutive_losses = data.get("counter_trend_consecutive_losses", 0)
+        self.coin_cooldowns = data.get("coin_cooldowns", {})
+
+    def save_state(self):
+        with self._lock:
+            data = {
+                "current_balance": self.current_balance,
+                "positions": self.positions,
+                "total_value": self.total_value,
+                "total_return": self.total_return,
+                "initial_balance": self.initial_balance,
+                "trade_count": self.trade_count,
+                "last_updated": datetime.now(timezone.utc).isoformat(),
+                "sharpe_ratio": self.sharpe_ratio,
+                "directional_bias": self._serialize_directional_bias(),
+                "last_history_reset_cycle": self.last_history_reset_cycle,
+                "cycles_since_history_reset": self.cycles_since_history_reset,
+                "directional_cooldowns": self.directional_cooldowns,
+                "relaxed_countertrend_cycles": self.relaxed_countertrend_cycles,
+                "counter_trend_cooldown": self.counter_trend_cooldown,
+                "counter_trend_consecutive_losses": self.counter_trend_consecutive_losses,
+                "coin_cooldowns": self.coin_cooldowns,
+            }
+            safe_file_write(self.state_file, data)
+            # print("[OK]    Saved state.") # Silenced for less console noise
+
+    # --- Live trading helpers -------------------------------------------------
+    def _backup_historical_files(self, cycle_number: int) -> str | None:
+        """Create a timestamped backup for historical JSON files before wiping them."""
+        timestamp = datetime.now(timezone.utc).strftime("%Y%m%d_%H%M%S")
+        backup_dir = os.path.join("history_backups", f"{timestamp}_cycle_{cycle_number}")
+        files_to_backup = [
+            (self.history_file, []),
+            (self.cycle_history_file, []),
+            ("data/performance_history.json", []),
+            ("data/performance_report.json", []),  # Changed from {} to [] - now array format
+        ]
+
+        try:
+            os.makedirs(backup_dir, exist_ok=True)
+            backed_up = []
+
+            for file_path, default in files_to_backup:
+                data = safe_file_read(file_path, default)
+                # Skip writing files that never existed and match the empty default
+                if data == default and not os.path.exists(file_path):
+                    continue
+                target_path = os.path.join(backup_dir, os.path.basename(file_path))
+                safe_file_write(target_path, data)
+
+                # Calculate items count for metadata
+                items_count = None
+                if isinstance(data, list):
+                    items_count = len(data)
+                elif isinstance(data, dict):
+                    # For dict, count keys (but performance_report.json should be array now)
+                    items_count = len(data)
+
+                backed_up.append({"file": file_path, "items": items_count})
+
+            metadata = {
+                "cycle_number": cycle_number,
+                "backed_up_at": datetime.now(timezone.utc).isoformat(),
+                "files": backed_up,
+            }
+            safe_file_write(os.path.join(backup_dir, "metadata.json"), metadata)
+            print(f"[OK]    History backup created at {backup_dir}")
+            return backup_dir
+        except Exception as e:
+            print(f"[WARN]  History backup failed: {e}")
+            return None
+
+    def reset_historical_data(self, cycle_number: int):
+        """Clear historical logs to prevent long-term bias while keeping live positions."""
+        # FIX: Keep lock for entire state modification to prevent race conditions
+        with self._lock:
+            self._backup_historical_files(cycle_number)
+            print(f"[CLEANUP] HISTORY RESET: Clearing logs at cycle {cycle_number}")
+            self.trade_history = []
+            self.trade_count = 0
+            self.directional_bias = self._init_directional_bias()
+            self.trend_state = {}
+            self.cycle_history = []
+        # File writes outside lock - they're thread-safe themselves
+        safe_file_write(self.history_file, [])
+        safe_file_write(self.cycle_history_file, [])
+        safe_file_write("data/performance_history.json", [])
+        # Preserve existing performance reports, just add a reset marker
+        existing_reports = safe_file_read("data/performance_report.json", [])
+        if isinstance(existing_reports, dict):
+            # Old format - convert to array
+            existing_reports = [existing_reports] if "reset_reason" not in existing_reports else []
+        elif not isinstance(existing_reports, list):
+            existing_reports = []
+
+        # Add reset marker
+        reset_marker = {
+            "reset_reason": "periodic_bias_control",
+            "reset_at_cycle": cycle_number,
+            "timestamp": datetime.now(timezone.utc).isoformat(),
+        }
+        existing_reports.append(reset_marker)
+
+        # Keep only last MAX_REPORT_ENTRIES entries
+        if len(existing_reports) > constants.MAX_REPORT_ENTRIES:
+            existing_reports = existing_reports[-constants.MAX_REPORT_ENTRIES :]
+
+        safe_file_write("data/performance_report.json", existing_reports)
+        self.portfolio_values_history = [self.total_value]
+        for pos in self.positions.values():
+            pos["loss_cycle_count"] = 0
+            pos["profit_cycle_count"] = 0
+        self.last_history_reset_cycle = cycle_number
+        self.cycles_since_history_reset = 0
+        self.directional_cooldowns = {"long": 0, "short": 0}
+        self.coin_cooldowns = {}  # Also reset coin-based cooldowns
+        self.counter_trend_cooldown = 0
+        self.counter_trend_consecutive_losses = 0
+        self.relaxed_countertrend_cycles = 0
+        self.save_state()
+        print("[OK]    History reset complete.")
+
+    def _serialize_directional_bias(self) -> dict[str, dict[str, Any]]:
+        serialized = {}
+        for side, stats in self.directional_bias.items():
+            serialized[side] = {
+                "rolling": list(stats["rolling"]),
+                "net_pnl": stats["net_pnl"],
+                "trades": stats["trades"],
+                "wins": stats["wins"],
+                "losses": stats["losses"],
+                "consecutive_losses": stats["consecutive_losses"],
+                "consecutive_wins": stats.get("consecutive_wins", 0),
+                "caution_active": stats.get("caution_active", False),
+                "caution_win_progress": stats.get("caution_win_progress", 0),
+                "loss_streak_loss_usd": stats.get("loss_streak_loss_usd", 0.0),
+            }
+        return serialized
+
+    def load_trade_history(self) -> list[dict]:
+        history = safe_file_read(self.history_file, default_data=[])
+        print(f"[OK]    Loaded {len(history)} trades.")
+        return history
+
+    def save_trade_history(self):
+        history_to_save = self.trade_history[-constants.MAX_TRADE_HISTORY_DISPLAY :]
+        safe_file_write(self.history_file, history_to_save)
+        print(f"[OK]    Saved {len(history_to_save)} trades.")
+
+    def add_to_history(self, trade: dict):
+        # FIX: Keep lock for state modifications to prevent race conditions
+        with self._lock:
+            self.trade_history.append(trade)
+            self.trade_count = len(self.trade_history)
+        self.save_trade_history()
+
+        # Also append to full history with robustness check
+        full_history = safe_file_read(self.full_history_file, None)
+
+        if full_history is None:
+            # Read failed or file doesn't exist
+            if (
+                os.path.exists(self.full_history_file)
+                and os.path.getsize(self.full_history_file) > 0
+            ):
+                print(
+                    f"[WARN]  Warning: Could not read {self.full_history_file} (lock/error). Appending to memory only to prevent overwrite.",
+                )
+                # Ideally we should retry or abort, but for now let's try to append if possible or just log error
+                # If we write [trade] now, we lose history.
+                # Better strategy: Try to read again? Or just skip writing to full history this time (data gap is better than data wipe)
+                # But we want to persist.
+                # Let's try to read one more time with a small delay
+                time.sleep(constants.FILE_RETRY_DELAY)
+                full_history = safe_file_read(self.full_history_file, [])
+                if not full_history and os.path.getsize(self.full_history_file) > 0:
+                    print(
+                        "[ERR]   Critical: Failed to read full history. Skipping write to prevent data loss.",
+                    )
+                    return
+            else:
+                full_history = []
+
+        full_history.append(trade)
+        safe_file_write(self.full_history_file, full_history)
+
+        self.update_directional_bias(trade)
+        self.save_state()
+
+    def update_directional_bias(self, trade: dict):
+        direction = trade.get("direction")
+        if direction not in ("long", "short"):
+            return
+        stats = self.directional_bias[direction]
+        pnl = float(trade.get("pnl", 0.0) or 0.0)
+        print(f"[INFO]  update_directional_bias called: {direction.upper()} trade, PnL=${pnl:.2f}")
+        stats["rolling"].append(pnl)
+        stats["net_pnl"] += pnl
+        stats["trades"] += 1
+
+        # Check if this is a counter-trend trade
+        trend_alignment = trade.get("trend_alignment", "unknown")
+        is_counter_trend = trend_alignment == "counter_trend"
+
+        if pnl > 0:
+            stats["wins"] += 1
+            stats["consecutive_losses"] = 0
+            stats["consecutive_wins"] = stats.get("consecutive_wins", 0) + 1
+
+            # Win Streak Cooldown: 2+ consecutive wins in same direction → 1 cycle cooldown
+            if stats["consecutive_wins"] >= Config.WIN_STREAK_COOLDOWN_THRESHOLD:
+                self._activate_directional_cooldown(direction, Config.WIN_STREAK_COOLDOWN_CYCLES)
+                print(
+                    f"[WARN]  Win streak cooldown for {direction.upper()}: {stats['consecutive_wins']} wins -> {Config.WIN_STREAK_COOLDOWN_CYCLES} cycle cooldown",
+                )
+
+            # Smart Cooldown (WIN): Short cooldown on profit (Config.SMART_COOLDOWN_WIN)
+            coin_symbol = trade.get("symbol", "").upper()
+            if coin_symbol:
+                self.coin_cooldowns[coin_symbol] = Config.SMART_COOLDOWN_WIN
+                print(
+                    f"[WARN]  Smart Cooldown (WIN) ACTIVATED for {coin_symbol}: {Config.SMART_COOLDOWN_WIN} cycles (win: ${pnl:.2f})",
+                )
+            if stats.get("caution_active"):
+                stats["caution_win_progress"] = stats.get("caution_win_progress", 0) + 1
+                if stats["caution_win_progress"] >= constants.CAUTION_WIN_PROGRESS_THRESHOLD:
+                    stats["caution_active"] = False
+                    stats["caution_win_progress"] = 0
+            # Reset counter-trend consecutive losses on win
+            if is_counter_trend:
+                self.counter_trend_consecutive_losses = 0
+        elif pnl < 0:
+            stats["losses"] += 1
+            stats["consecutive_losses"] += 1
+            stats["consecutive_wins"] = 0
+            stats["caution_win_progress"] = 0
+            # Update loss_streak_loss_usd - continue tracking even if cooldown is active
+            # New losses may still occur during cooldown and exceed $5 total
+            current_loss_streak = stats.get("loss_streak_loss_usd", 0.0)
+            # FIX: Buffer overflow protection - cap to prevent float overflow
+            new_streak = current_loss_streak + abs(pnl)
+            stats["loss_streak_loss_usd"] = min(new_streak, constants.LOSS_STREAK_MAX_CAP_USD)
+
+            # Coin-based cooldown: Smart Cooldown
+            # Longer cooldown in case of loss (Config.SMART_COOLDOWN_LOSS)
+            coin_symbol = trade.get("symbol", "").upper()
+            if coin_symbol:
+                self.coin_cooldowns[coin_symbol] = Config.SMART_COOLDOWN_LOSS
+                print(
+                    f"[WARN]  Smart Cooldown (LOSS) ACTIVATED for {coin_symbol}: {Config.SMART_COOLDOWN_LOSS} cycles (loss: ${pnl:.2f})",
+                )
+
+            if stats["consecutive_losses"] >= constants.REVERSAL_SCORE_MODERATE:
+                stats["caution_active"] = True
+                stats["caution_win_progress"] = 0
+            # Cooldown: consecutive losses OR total loss -> default cooldown
+            # Re-check and re-activate cooldown if new losses occur even if already active
+            loss_streak_usd = stats.get("loss_streak_loss_usd", 0.0)
+            consecutive = stats["consecutive_losses"]
+            should_activate = (
+                consecutive >= constants.REVERSAL_SCORE_MODERATE
+                or loss_streak_usd >= constants.LOSS_STREAK_USD_THRESHOLD
+            )
+
+            print(
+                f"[DEBUG] Cooldown check for {direction.upper()}: consecutive_losses={consecutive}, loss_streak_usd=${loss_streak_usd:.2f}, should_activate={should_activate}",
+            )
+
+            if should_activate:
+                self._activate_directional_cooldown(direction, constants.DEFAULT_COOLDOWN_CYCLES)
+                print(
+                    f"[WARN]  Directional cooldown ACTIVATED for {direction.upper()}: consecutive_losses={consecutive}, loss_streak_usd=${loss_streak_usd:.2f}",
+                )
+                # Do not reset loss_streak_loss_usd - continue tracking for next loss
+                # Will only be reset when cooldown expires
+
+            # Counter-trend cooldown: consecutive counter-trend losses
+            if is_counter_trend:
+                self.counter_trend_consecutive_losses += 1
+                if self.counter_trend_consecutive_losses >= constants.COUNTER_TREND_LOSS_THRESHOLD:
+                    self.counter_trend_cooldown = constants.DEFAULT_COOLDOWN_CYCLES
+                    self.counter_trend_consecutive_losses = 0
+                    print(
+                        "[WARN]  Counter-trend cooldown activated: 2 consecutive counter-trend losses (3 cycles cooldown).",
+                    )
+        else:
+            stats["consecutive_losses"] = 0
+            stats["consecutive_wins"] = 0
+            stats["caution_win_progress"] = 0
+            stats["loss_streak_loss_usd"] = 0.0
+            # Reset counter-trend consecutive losses on breakeven
+            if is_counter_trend:
+                self.counter_trend_consecutive_losses = 0
+
+    def count_positions_by_direction(self) -> dict[str, int]:
+        counts = {"long": 0, "short": 0}
+        for pos in self.positions.values():
+            direction = pos.get("direction")
+            if direction in counts:
+                counts[direction] += 1
+        return counts
+
+    def _activate_directional_cooldown(self, direction: str, cycles: int = 3):
+        if direction not in ("long", "short"):
+            return
+        current = self.directional_cooldowns.get(direction, 0)
+        # If there is a longer duration than currently exists, use it
+        new_cooldown = max(current, cycles)
+        # FIX: Cooldown overflow protection - cap at MAX_DIRECTIONAL_COOLDOWN cycles
+        self.directional_cooldowns[direction] = min(
+            new_cooldown, constants.MAX_DIRECTIONAL_COOLDOWN
+        )
+        self.relaxed_countertrend_cycles = max(
+            self.relaxed_countertrend_cycles,
+            constants.MIN_RELAXED_CYCLES,
+        )
+        print(
+            f"[WARN]  Directional cooldown activated for {direction.upper()} trades ({constants.MIN_RELAXED_CYCLES} cycles). Counter-trend restrictions relaxed for {constants.MIN_RELAXED_CYCLES} cycles.",
+        )
+
+    def tick_cooldowns(self):
+        print(
+            f"[TIME] tick_cooldowns called. Current cooldowns: {self.directional_cooldowns}, Coin cooldowns: {self.coin_cooldowns}",
+        )
+        for direction in ("long", "short"):
+            cycles = self.directional_cooldowns.get(direction, 0)
+            if cycles > 0:
+                self.directional_cooldowns[direction] = cycles - 1
+                print(
+                    f"[TIME] {direction.upper()} cooldown: {cycles} -> {self.directional_cooldowns[direction]} cycles remaining",
+                )
+                if self.directional_cooldowns[direction] == 0:
+                    # Reset loss_streak_loss_usd and consecutive_losses when cooldown expires
+                    # Because cooldown is a "reset" period - we are starting fresh
+                    if direction in self.directional_bias:
+                        self.directional_bias[direction]["loss_streak_loss_usd"] = 0.0
+                        self.directional_bias[direction]["consecutive_losses"] = 0
+                    print(
+                        f"[OK]    Directional cooldown cleared for {direction.upper()} trades. Loss streak reset.",
+                    )
+
+        # Decrement coin-based cooldowns
+        coins_to_remove = []
+        for coin, cycles in self.coin_cooldowns.items():
+            if cycles > 0:
+                self.coin_cooldowns[coin] = cycles - 1
+                print(
+                    f"[TIME] {coin} coin cooldown: {cycles} -> {self.coin_cooldowns[coin]} cycles remaining",
+                )
+                if self.coin_cooldowns[coin] == 0:
+                    coins_to_remove.append(coin)
+                    print(f"[OK]    Coin cooldown cleared for {coin}.")
+
+        # Clean up expired coin cooldowns
+        for coin in coins_to_remove:
+            del self.coin_cooldowns[coin]
+
+        if self.relaxed_countertrend_cycles > 0:
+            self.relaxed_countertrend_cycles -= 1
+            if self.relaxed_countertrend_cycles == 0:
+                print("[OK]    Relaxed counter-trend mode cleared.")
+        if self.counter_trend_cooldown > 0:
+            self.counter_trend_cooldown -= 1
+            if self.counter_trend_cooldown == 0:
+                print("[OK]    Counter-trend cooldown cleared.")
+
+    def get_trend_following_strength(self, coin: str, signal: str) -> dict[str, Any]:
+        """
+        Hybrid approach: Determines trend-following strength including 15m
+        (No confidence or margin adjustment, just for informational purposes)
+
+        Returns:
+            {
+                'strength': 'STRONG' | 'MEDIUM' | 'WEAK' | None,
+                'alignment_info': str,
+                'trends': {
+                    '1h': str,
+                    '15m': str,
+                    '3m': str
+                }
+            }
+
+        Logic:
+        - STRONG: 1h+15m+3m all in same direction
+        - MEDIUM: 1h+15m in same direction (3m different) OR 1h+3m in same direction (15m different)
+        - WEAK: Only 1h in same direction (15m and 3m different)
+        """
+        try:
+            indicators_htf = self.market_data.get_technical_indicators(coin, HTF_INTERVAL)
+            indicators_15m = self.market_data.get_technical_indicators(coin, "15m")
+            indicators_3m = self.market_data.get_technical_indicators(coin, "3m")
+
+            if "error" in indicators_htf or "error" in indicators_15m or "error" in indicators_3m:
+                return None
+
+            price_htf = indicators_htf.get("current_price")
+            ema20_htf = indicators_htf.get("ema_20")
+            price_15m = indicators_15m.get("current_price")
+            ema20_15m = indicators_15m.get("ema_20")
+            price_3m = indicators_3m.get("current_price")
+            ema20_3m = indicators_3m.get("ema_20")
+
+            # Validasyon
+            if not all(
+                isinstance(x, (int, float))
+                for x in [price_htf, ema20_htf, price_15m, ema20_15m, price_3m, ema20_3m]
+            ):
+                return None
+
+            # Trend directions
+            trend_1h = "BULLISH" if price_htf > ema20_htf else "BEARISH"
+            trend_15m = "BULLISH" if price_15m > ema20_15m else "BEARISH"
+            trend_3m = "BULLISH" if price_3m > ema20_3m else "BEARISH"
+
+            # Signal direction
+            signal_direction = "BULLISH" if signal == "buy_to_enter" else "BEARISH"
+
+            # Counter-trend check: if 1h and signal are opposite, return None
+            if trend_1h != signal_direction:
+                return None
+
+            # Determine trend-following strength level
+            # Logic: 1h+15m+3m = STRONG, 1h+15m = MEDIUM, 1h+3m = MEDIUM, 1h only = WEAK
+            if trend_1h == trend_15m == trend_3m == signal_direction:
+                # STRONG: 1h + 15m + 3m hepsi aynı yönde
+                return {
+                    "strength": "STRONG",
+                    "alignment_info": f"Perfect alignment: {HTF_LABEL}+15m+3m all {signal_direction}",
+                    "trends": {"1h": trend_1h, "15m": trend_15m, "3m": trend_3m},
+                }
+            if trend_1h == trend_15m == signal_direction:
+                # MEDIUM_15: 1h + 15m aynı (3m farklı)
+                return {
+                    "strength": "MEDIUM_15",
+                    "alignment_info": f"Moderate: {HTF_LABEL}+15m {signal_direction} (3m {trend_3m})",
+                    "trends": {"1h": trend_1h, "15m": trend_15m, "3m": trend_3m},
+                }
+            if trend_1h == trend_3m == signal_direction:
+                # MEDIUM_3: 1h + 3m aynı (15m farklı)
+                return {
+                    "strength": "MEDIUM_3",
+                    "alignment_info": f"Moderate: {HTF_LABEL}+3m {signal_direction} (15m {trend_15m})",
+                    "trends": {"1h": trend_1h, "15m": trend_15m, "3m": trend_3m},
+                }
+            # WEAK: Sadece 1h aynı (15m ve 3m farklı)
+            return {
+                "strength": "WEAK",
+                "alignment_info": f"Weak: Only {HTF_LABEL} {signal_direction} (15m {trend_15m}, 3m {trend_3m})",
+                "trends": {"1h": trend_1h, "15m": trend_15m, "3m": trend_3m},
+            }
+
+        except Exception as e:
+            print(f"[WARN]  Trend-following strength detection error for {coin}: {e}")
+            return None
+
+    def apply_directional_bias(
+        self,
+        signal: str,
+        confidence: float,
+        bias_metrics: dict[str, dict[str, Any]],
+        current_trend: str,
+    ) -> float:
+        side = "long" if signal == "buy_to_enter" else "short"
+        stats = bias_metrics.get(side)
+        if not stats:
+            return confidence
+
+        original_confidence = confidence
+        adjusted_confidence = confidence
+
+        # Adjusted caution penalty
+        if stats.get("caution_active"):
+            adjusted_confidence = max(
+                adjusted_confidence * constants.CAUTION_PENALTY_MULTIPLIER,
+                adjusted_confidence - constants.CAUTION_ABSOLUTE_REDUCTION,
+            )
+
+        trend_lower = current_trend.lower() if isinstance(current_trend, str) else "unknown"
+
+        if trend_lower == "neutral":
+            adjusted_confidence *= Config.DIRECTIONAL_NEUTRAL_MULTIPLIER
+        elif trend_lower == "bullish":
+            if side == "long":
+                adjusted_confidence *= Config.DIRECTIONAL_BULLISH_LONG_MULTIPLIER
+            elif side == "short":
+                adjusted_confidence *= Config.DIRECTIONAL_BULLISH_SHORT_MULTIPLIER
+        elif trend_lower == "bearish":
+            if side == "long":
+                adjusted_confidence *= Config.DIRECTIONAL_BEARISH_LONG_MULTIPLIER
+            elif side == "short":
+                adjusted_confidence *= Config.DIRECTIONAL_BEARISH_SHORT_MULTIPLIER
+
+        # Adjusted rolling avg penalty
+        rolling_avg = stats.get("rolling_avg", 0.0)
+        if rolling_avg < 0:
+            adjusted_confidence = max(
+                adjusted_confidence * constants.NEGATIVE_ROLLING_AVG_PENALTY_MULTIPLIER,
+                adjusted_confidence - constants.NEGATIVE_ROLLING_AVG_REDUCTION,
+            )
+
+        # Minimum confidence floor: Orijinal değerin altına aşırı düşmesin
+        min_floor = original_confidence * constants.CONFIDENCE_FLOOR_MULTIPLIER
+        return max(adjusted_confidence, min_floor, Config.MIN_CONFIDENCE)
+
+    def get_directional_bias_metrics(self) -> dict[str, dict[str, Any]]:
+        metrics = {}
+        for side, stats in self.directional_bias.items():
+            rolling_list = list(stats["rolling"])
+            rolling_sum = sum(rolling_list)
+            # FIX: Zero division protection
+            rolling_avg = (
+                (rolling_sum / len(rolling_list)) if rolling_list and len(rolling_list) > 0 else 0.0
+            )
+
+            # Calculate profitability index based on profit/loss amounts (not trade counts)
+            # Profitability Index = Total Profit / (|Total Profit| + |Total Loss|) * 100
+            total_profit = sum(pnl for pnl in rolling_list if pnl > 0)
+            total_loss = abs(sum(pnl for pnl in rolling_list if pnl < 0))
+
+            if total_profit + total_loss > 0:
+                profitability_index = (total_profit / (total_profit + total_loss)) * 100
+            else:
+                profitability_index = 0.0
+
+            metrics[side] = {
+                "net_pnl": stats["net_pnl"],
+                "trades": stats["trades"],
+                "wins": stats["wins"],
+                "losses": stats["losses"],
+                "profitability_index": profitability_index,  # Added profitability_index based on profit/loss amounts
+                "rolling_sum": rolling_sum,
+                "rolling_avg": rolling_avg,
+                "consecutive_losses": stats["consecutive_losses"],
+                "consecutive_wins": stats.get("consecutive_wins", 0),
+                "caution_active": stats.get("caution_active", False),
+                "caution_win_progress": stats.get("caution_win_progress", 0),
+            }
+        return metrics
+
+    def update_trend_state(
+        self,
+        coin: str,
+        indicators_htf: dict[str, Any],
+        indicators_3m: dict[str, Any] | None = None,
+    ) -> dict[str, Any]:
+        price_htf = indicators_htf.get("current_price")
+        ema20_htf = indicators_htf.get("ema_20")
+
+        if (
+            not isinstance(price_htf, (int, float))
+            or not isinstance(ema20_htf, (int, float))
+            or ema20_htf == 0
+        ):
+            return {"trend": "unknown", "recent_flip": False, "last_flip_cycle": None}
+
+        delta = (price_htf - ema20_htf) / ema20_htf
+        price_neutral = abs(delta) <= Config.EMA_NEUTRAL_BAND_PCT
+        current_trend = "neutral" if price_neutral else ("bullish" if delta > 0 else "bearish")
+
+        if indicators_3m and isinstance(indicators_3m, dict) and "error" not in indicators_3m:
+            price_3m = indicators_3m.get("current_price")
+            ema20_3m = indicators_3m.get("ema_20", price_3m)
+            rsi_3m = indicators_3m.get("rsi_14", indicators_3m.get("rsi_7", 50))
+
+            if (
+                isinstance(price_3m, (int, float))
+                and isinstance(ema20_3m, (int, float))
+                and isinstance(rsi_3m, (int, float))
+            ):
+                intraday_trend = "bullish" if price_3m >= ema20_3m else "bearish"
+                if (
+                    current_trend == "bearish"
+                    and intraday_trend == "bullish"
+                    and rsi_3m >= Config.INTRADAY_NEUTRAL_RSI_HIGH
+                ) or (
+                    current_trend == "bullish"
+                    and intraday_trend == "bearish"
+                    and rsi_3m <= Config.INTRADAY_NEUTRAL_RSI_LOW
+                ):
+                    current_trend = "neutral"
+
+                if current_trend == "neutral":
+                    if (
+                        price_htf <= ema20_htf
+                        and price_3m <= ema20_3m
+                        and rsi_3m <= Config.TREND_SHORT_RSI_THRESHOLD
+                    ):
+                        current_trend = "bearish"
+                    elif (
+                        price_htf >= ema20_htf
+                        and price_3m >= ema20_3m
+                        and rsi_3m >= Config.TREND_LONG_RSI_THRESHOLD
+                    ):
+                        current_trend = "bullish"
+
+        record = self.trend_state.get(
+            coin,
+            {
+                "trend": current_trend,
+                "last_flip_cycle": self.current_cycle_number,
+                "last_flip_direction": current_trend,
+            },
+        )
+        previous_trend = record.get("trend", current_trend)
+        recent_flip = False
+
+        if previous_trend != current_trend:
+            record["trend"] = current_trend
+            if current_trend != "neutral":
+                record["last_flip_cycle"] = self.current_cycle_number
+                record["last_flip_direction"] = current_trend
+                recent_flip = True
+        else:
+            last_flip_cycle = record.get("last_flip_cycle", self.current_cycle_number)
+            if (
+                current_trend != "neutral"
+                and self.current_cycle_number - last_flip_cycle
+                <= constants.TREND_FLIP_COOLDOWN_DEFAULT
+            ):
+                recent_flip = True
+
+        record["last_seen_cycle"] = self.current_cycle_number
+        self.trend_state[coin] = record
+        return {
+            "trend": current_trend,
+            "recent_flip": recent_flip,
+            "last_flip_cycle": record.get("last_flip_cycle"),
+            "last_flip_direction": record.get("last_flip_direction"),
+        }
+
+    def get_recent_trend_flip_summary(self) -> list[str]:
+        guard_window = self.trend_flip_cooldown
+        history_window = max(guard_window, getattr(self, "trend_flip_history_window", guard_window))
+        entries: list[tuple[int, str]] = []
+        for coin, record in self.trend_state.items():
+            last_flip_cycle = record.get("last_flip_cycle")
+            if last_flip_cycle is None:
+                continue
+            cycles_ago = self.current_cycle_number - last_flip_cycle
+            if cycles_ago < 0 or cycles_ago > history_window:
+                continue
+            trend_label = record.get("trend", "unknown").upper()
+            status = "GUARD" if cycles_ago <= guard_window else "RECENT"
+            if cycles_ago == 0:
+                cycles_text = "current cycle"
+            elif cycles_ago == 1:
+                cycles_text = "1 cycle ago"
+            else:
+                cycles_text = f"{cycles_ago} cycles ago"
+            direction_note = record.get("last_flip_direction", trend_label)
+            entries.append(
+                (
+                    cycles_ago,
+                    f"{coin}: {direction_note} since cycle {last_flip_cycle} ({status}, {cycles_text})",
+                ),
+            )
+        entries.sort(key=lambda x: x[0])
+        return [text for _, text in entries]
+
+    def load_cycle_history(self) -> list[dict]:
+        history = safe_file_read(self.cycle_history_file, default_data=[])
+        print(f"[OK]    Loaded {len(history)} cycles.")
+        return history
+
+    def add_to_cycle_history(
+        self,
+        cycle_number: int,
+        prompt: str,
+        thoughts: str,
+        decisions: dict,
+        status: str = "ai_decision",
+        metadata: dict[str, Any] | None = None,
+    ):
+        with self._lock:
+            prompt_summary = "N/A"
+        if isinstance(prompt, str) and prompt not in (None, "N/A"):
+            # For JSON prompts, try to extract a meaningful summary
+            # Check for all JSON sections
+            json_sections = [
+                ("COUNTER_TRADE_ANALYSIS (JSON):", "Counter-trade analysis"),
+                ("TREND_REVERSAL_DATA (JSON):", "Trend reversal"),
+                ("ENHANCED_CONTEXT (JSON):", "Enhanced context"),
+                ("DIRECTIONAL_BIAS (JSON):", "Directional bias"),
+                ("COOLDOWN_STATUS (JSON):", "Cooldown status"),
+                ("TREND_FLIP_GUARD (JSON):", "Trend flip guard"),
+                ("POSITION_SLOTS (JSON):", "Position slots"),
+                ("MARKET_DATA (JSON):", "Market data"),
+                ("HISTORICAL_CONTEXT (JSON):", "Historical context"),
+                ("RISK_STATUS (JSON):", "Risk status"),
+                ("PORTFOLIO (JSON):", "Portfolio"),
+            ]
+
+            found_sections = [name for marker, name in json_sections if marker in prompt]
+
+            if found_sections:
+                # JSON format prompt - create a structured summary
+                try:
+                    section_count = len(found_sections)
+                    if section_count <= constants.PROMPT_SUMMARY_MAX_SECTIONS:
+                        summary_text = ", ".join(found_sections)
+                    else:
+                        summary_text = f"{', '.join(found_sections[: constants.PROMPT_SUMMARY_MAX_SECTIONS])} + {section_count - constants.PROMPT_SUMMARY_MAX_SECTIONS} more"
+                    prompt_summary = (
+                        f"JSON Format ({section_count} sections): {summary_text} | "
+                        + prompt[:200]
+                        + "..."
+                    )
+                except Exception:
+                    # FIX: Replace bare except with specific exception handling
+                    prompt_summary = (
+                        prompt[: constants.PROMPT_SUMMARY_MAX_SECTIONS] + "..."
+                        if len(prompt) > constants.PROMPT_SUMMARY_TRUNCATE
+                        else prompt
+                    )
+            else:
+                # Text format prompt - use original truncation
+                prompt_summary = (
+                    prompt[: constants.PROMPT_SUMMARY_TRUNCATE] + "..."
+                    if len(prompt) > constants.PROMPT_SUMMARY_TRUNCATE
+                    else prompt
+                )
+
+        # Add cooldown information to cycle data
+        cooldown_info = {
+            "directional_cooldowns": dict(self.directional_cooldowns),
+            "relaxed_countertrend_cycles": self.relaxed_countertrend_cycles,
+            "counter_trend_cooldown": self.counter_trend_cooldown,
+            "coin_cooldowns": dict(self.coin_cooldowns),
+        }
+
+        cycle_data = {
+            "cycle": cycle_number,
+            "timestamp": datetime.now(timezone.utc).isoformat(),
+            "user_prompt_summary": prompt_summary,
+            "chain_of_thoughts": thoughts,
+            "decisions": decisions,
+            "status": status,
+            "cooldown_status": cooldown_info,  # Always include cooldown status
+        }
+        if metadata:
+            cycle_data["metadata"] = metadata
+        self.cycle_history.append(cycle_data)
+        self.cycle_history = self.cycle_history[-constants.MAX_CYCLE_HISTORY :]
+        safe_file_write(self.cycle_history_file, self.cycle_history)
+        print(f"[OK]    Saved cycle {cycle_number} (Total: {len(self.cycle_history)})")
+
+    def _update_peak_pnl_tracking(self, coin: str, pos: dict):
+        """
+        Track peak PnL and calculate erosion for a position.
+        Called after unrealized_pnl is updated in update_prices().
+
+        Updates pos dict with:
+        - peak_pnl: Highest profit reached ($)
+        - peak_pnl_cycle: Cycle when peak was reached
+        - erosion_from_peak: How much profit has eroded ($)
+        - erosion_pct: Erosion percentage (%)
+        - erosion_status: NONE, MINOR, SIGNIFICANT, CRITICAL
+        """
+        current_pnl = pos.get("unrealized_pnl", 0.0)
+
+        # Initialize if not exists
+        if "peak_pnl" not in pos:
+            pos["peak_pnl"] = 0.0
+            pos["peak_pnl_cycle"] = None
+
+        peak_pnl = pos.get("peak_pnl", 0.0)
+
+        # Update peak if current pnl is higher (only positive peaks matter)
+        if current_pnl > peak_pnl and current_pnl > 0:
+            pos["peak_pnl"] = current_pnl
+            pos["peak_pnl_cycle"] = getattr(self, "current_cycle", None)
+            peak_pnl = current_pnl  # Use new peak for erosion calc
+
+        # Calculate erosion (only if there was a positive peak)
+        # Note: NaN > 0 evaluates to False, so NaN values are safely handled by the else branch
+        if peak_pnl > 0:
+            erosion_from_peak = peak_pnl - current_pnl
+            erosion_pct = (erosion_from_peak / peak_pnl) * 100
+        else:
+            erosion_from_peak = 0.0
+            erosion_pct = 0.0
+
+        pos["erosion_from_peak"] = round(erosion_from_peak, 4)
+        pos["erosion_pct"] = round(erosion_pct, 2)
+
+        # Dynamic erosion rate based on price_location zone
+        # UPPER_10/LOWER_10: More sensitive (0.012) - price at extremes, protect profits earlier
+        # MIDDLE: Normal sensitivity (0.02) - give more room for fluctuation
+        zone = None
+        try:
+            symbol = pos.get("symbol", "")
+            coin_name = symbol.replace("USDT", "") if symbol else coin
+            htf_interval = Config.HTF_INTERVAL if hasattr(Config, "HTF_INTERVAL") else "1h"
+            if hasattr(self, "indicator_cache") and self.indicator_cache:
+                indicators_htf = self.indicator_cache.get_indicators(
+                    coin_name,
+                    htf_interval,
+                    self.market_data,
+                )
+                if indicators_htf and "smart_sparkline" in indicators_htf:
+                    sparkline = indicators_htf.get("smart_sparkline", {})
+                    price_location = sparkline.get("price_location", {})
+                    zone = price_location.get("zone", "MIDDLE")
+        except (KeyError, AttributeError, TypeError):
+            # FIX: Specific exception handling for zone extraction
+            zone = "MIDDLE"
+
+        # Set erosion rate based on zone - USE CONFIG VALUES
+        if zone in ["LOWER_10", "UPPER_10"]:
+            erosion_rate = (
+                Config.EROSION_RATE_EXTREME
+            )  # More sensitive at extremes (default: 0.012)
+        else:
+            erosion_rate = (
+                Config.EROSION_RATE_NORMAL
+            )  # Normal sensitivity in MIDDLE (default: 0.02)
+
+        # Minimum meaningful profit threshold
+        # Small profits are normal fluctuation, not worth triggering erosion alerts
+        # Formula: min_meaningful_profit = margin_usd * erosion_rate
+        margin_usd = pos.get("margin_usd", 0.0)
+        if isinstance(margin_usd, str):  # Handle 'N/A' case
+            margin_usd = 0.0
+
+        # Calculate min_meaningful_profit: margin_usd * erosion_rate OR EROSION_MIN_PROFIT_USD minimum
+        calculated_min_profit = margin_usd * erosion_rate
+        min_meaningful_profit = max(calculated_min_profit, Config.EROSION_MIN_PROFIT_USD)
+
+        # Determine erosion status
+        if peak_pnl <= 0:
+            pos["erosion_status"] = "NONE"  # Never had profit
+        elif peak_pnl < min_meaningful_profit:
+            pos["erosion_status"] = "NONE"  # Profit too small to matter
+        elif erosion_pct < constants.EROSION_THRESHOLD_MINOR:
+            pos["erosion_status"] = "NONE"
+        elif erosion_pct < constants.EROSION_THRESHOLD_SIGNIFICANT:
+            pos["erosion_status"] = "MINOR"
+        elif erosion_pct < constants.EROSION_THRESHOLD_CRITICAL:
+            pos["erosion_status"] = "SIGNIFICANT"
+        else:
+            pos["erosion_status"] = "CRITICAL"  # Profit fully eroded or now losing
+
+    def update_prices(self, new_prices: dict[str, float], increment_loss_counters: bool = True):
+        """Updates prices and recalculates total value."""
+        # FIX: Keep lock for entire position modification to prevent race conditions
+        with self._lock:
+            total_unrealized_pnl = 0.0
+            for coin, price in new_prices.items():
+                if coin in self.positions and isinstance(price, (int, float)) and price > 0:
+                    pos = self.positions[coin]
+
+                    # Update current_price (use Spot price, but in live mode markPrice from Binance is preferred)
+                    # For live mode, current_price should already be set from sync_live_account() (markPrice)
+                    # We update it with Spot price only if it's significantly different (fallback)
+                    if self.is_live_trading:
+                        # In live mode, prefer keeping Binance markPrice if available
+                        existing_price = pos.get("current_price", 0)
+                        if existing_price > 0:
+                            # Keep Binance markPrice, but update if Spot price is significantly different (>0.1%)
+                            price_diff_pct = (
+                                abs(price - existing_price) / existing_price
+                                if existing_price > 0
+                                else 1.0
+                            )
+                            if (
+                                price_diff_pct > constants.EMA_BAND_SENSITIVITY
+                            ):  # More than 0.1% difference
+                                # Use Spot price as fallback if markPrice seems stale
+                                pos["current_price"] = price
+                            # else: keep existing markPrice
+                        else:
+                            # No existing price, use Spot price
+                            pos["current_price"] = price
+                    else:
+                        # Simulation mode: always use Spot price
+                        pos["current_price"] = price
+
+                    # CRITICAL FIX: In live mode, preserve Binance unrealized_pnl (includes funding fees)
+                    # In simulation mode, calculate manually
+                    if self.is_live_trading:
+                        # Live mode: Keep Binance unrealized_pnl if available (includes funding fees, commissions, etc.)
+                        existing_pnl = pos.get("unrealized_pnl", 0.0)
+                        if isinstance(existing_pnl, (int, float)) and existing_pnl != 0:
+                            # Use Binance value (more accurate, includes funding fees)
+                            pnl = existing_pnl
+                            pos["unrealized_pnl"] = pnl
+                        else:
+                            # Fallback: calculate manually if Binance value not available
+                            entry = pos["entry_price"]
+                            qty = pos["quantity"]
+                            direction = pos.get("direction", "long")
+                            pnl = (
+                                (price - entry) * qty
+                                if direction == "long"
+                                else (entry - price) * qty
+                            )
+                            pos["unrealized_pnl"] = pnl
+                    else:
+                        # Simulation mode: calculate manually
+                        entry = pos["entry_price"]
+                        qty = pos["quantity"]
+                        direction = pos.get("direction", "long")
+                        pnl = (
+                            (price - entry) * qty if direction == "long" else (entry - price) * qty
+                        )
+                        pos["unrealized_pnl"] = pnl
+
+                    total_unrealized_pnl += pos.get("unrealized_pnl", 0.0)
+
+                    # Track peak PnL and calculate erosion
+                    self._update_peak_pnl_tracking(coin, pos)
+
+                    if increment_loss_counters:
+                        direction = pos.get("direction", "unknown")
+                        pnl_for_counter = pos.get("unrealized_pnl", 0.0)
+                        if pnl_for_counter <= 0:
+                            pos["loss_cycle_count"] = pos.get("loss_cycle_count", 0) + 1
+                            pos["profit_cycle_count"] = 0  # Reset profit counter when negative
+                            new_count = pos["loss_cycle_count"]
+                            if new_count in constants.WATCH_CYCLES_LIST:
+                                print(
+                                    f"[WATCH] LOSS CYCLE WATCH: {coin} {direction} negative for {new_count} cycles (PnL ${pnl_for_counter:.2f}).",
+                                )
+                        else:
+                            pos["loss_cycle_count"] = 0
+                            pos["profit_cycle_count"] = (
+                                pos.get("profit_cycle_count", 0) + 1
+                            )  # Increment profit counter
+                            new_profit_count = pos["profit_cycle_count"]
+                            if new_profit_count in constants.PROFIT_WATCH_CYCLES_LIST:
+                                print(
+                                    f"[WATCH] PROFIT CYCLE WATCH: {coin} {direction} profitable for {new_profit_count} cycles (PnL ${pnl_for_counter:.2f}).",
+                                )
+                elif coin in self.positions:
+                    print(f"[WARN]  Invalid price for {coin}: {price}. PnL skip.")
+
+        # Calculate total value correctly
+        # In live mode, prefer syncing from Binance (done in sync_live_account)
+        # In simulation mode or when Binance data unavailable, calculate manually
+        if not self.positions:
+            # No positions, total value = available cash (or totalWalletBalance if available in live mode)
+            if self.is_live_trading and self.order_executor and self.order_executor.is_live():
+                # Try to get totalWalletBalance from Binance
+                try:
+                    overview = self.order_executor.get_account_overview()
+                    if (
+                        overview
+                        and overview.get("totalWalletBalance")
+                        and overview.get("totalWalletBalance") > 0
+                    ):
+                        self.total_value = float(overview["totalWalletBalance"])
+                    else:
+                        self.total_value = self.current_balance
+                except Exception:
+                    # FIX: Replace bare except with specific exception handling
+                    self.total_value = self.current_balance
+            else:
+                self.total_value = self.current_balance
+        # With positions: Calculate margin used (for cross margin, calculate from notional/leverage)
+        # OPTIMIZATION: In live mode, total_value was already calculated in sync_live_account()
+        # Only recalculate in simulation mode or if sync_live_account() wasn't called
+        elif self.is_live_trading and self.order_executor and self.order_executor.is_live():
+            # In live mode, total_value should already be set by sync_live_account()
+            # But we recalculate here to ensure consistency after price updates
+            # Use the unrealized_pnl values we just updated (which preserve Binance values)
+            total_margin_used = 0.0
+            total_unrealized_pnl = 0.0
+
+            for pos in self.positions.values():
+                # Get unrealized PnL (should be Binance value in live mode)
+                pnl = pos.get("unrealized_pnl", 0.0)
+                if isinstance(pnl, (int, float)):
+                    total_unrealized_pnl += pnl
+
+                # Get margin (for cross margin, margin_usd might be 0, so calculate from notional/leverage)
+                margin = pos.get("margin_usd", 0.0)
+                if margin <= 0:
+                    notional = pos.get("notional_usd", 0.0)
+                    leverage = pos.get("leverage", 1)
+                    if notional > 0 and leverage > 0:
+                        margin = notional / leverage
+                if isinstance(margin, (int, float)) and margin > 0:
+                    total_margin_used += margin
+
+            # Total value = Available cash + Margin used + Unrealized PnL
+            # In live mode, unrealized_pnl should be from Binance (includes funding fees)
+            self.total_value = self.current_balance + total_margin_used + total_unrealized_pnl
+        else:
+            # Simulation mode: calculate manually
+            total_margin_used = 0.0
+            total_unrealized_pnl = 0.0
+
+            for pos in self.positions.values():
+                # Get unrealized PnL (manually calculated in simulation mode)
+                pnl = pos.get("unrealized_pnl", 0.0)
+                if isinstance(pnl, (int, float)):
+                    total_unrealized_pnl += pnl
+
+                # Get margin (for cross margin, margin_usd might be 0, so calculate from notional/leverage)
+                margin = pos.get("margin_usd", 0.0)
+                if margin <= 0:
+                    notional = pos.get("notional_usd", 0.0)
+                    leverage = pos.get("leverage", 1)
+                    if notional > 0 and leverage > 0:
+                        margin = notional / leverage
+                if isinstance(margin, (int, float)) and margin > 0:
+                    total_margin_used += margin
+
+            # Total value = Available cash + Margin used + Unrealized PnL
+            self.total_value = self.current_balance + total_margin_used + total_unrealized_pnl
+
+        if self.initial_balance > 0:
+            self.total_return = (
+                (self.total_value - self.initial_balance) / self.initial_balance
+            ) * 100
+        else:
+            self.total_return = 0.0
+
+        # Update portfolio history for Sharpe ratio calculation
+        self.portfolio_values_history.append(self.total_value)
+        if (
+            len(self.portfolio_values_history) > constants.PORTFOLIO_HISTORY_MAX_ENTRIES
+        ):  # Keep last 5000 values (approx 1 week)
+            self.portfolio_values_history = self.portfolio_values_history[
+                -constants.PORTFOLIO_HISTORY_MAX_ENTRIES :
+            ]
+
+        # Calculate Sharpe ratio
+        self.sharpe_ratio = self.calculate_sharpe_ratio()
+
+        # Save updated state with Sharpe ratio
+        self.save_state()
+
+    def calculate_sharpe_ratio(self) -> float:
+        """Calculate Sharpe ratio based on portfolio value history (Nof1ai blog style)."""
+        if len(self.portfolio_values_history) < constants.MIN_HISTORY_FOR_ANALYSIS:
+            return 0.0
+
+        try:
+            # Calculate simple returns (percentage changes)
+            returns = []
+            for i in range(1, len(self.portfolio_values_history)):
+                if self.portfolio_values_history[i - 1] > 0:
+                    ret = (
+                        self.portfolio_values_history[i] - self.portfolio_values_history[i - 1]
+                    ) / self.portfolio_values_history[i - 1]
+                    returns.append(ret)
+
+            if len(returns) < constants.MIN_HISTORY_FOR_ANALYSIS:
+                return 0.0
+
+            # Nof1ai style: Simple Sharpe ratio with 0% risk-free rate
+            # Daily Sharpe ratio (assuming 2-minute cycles = 720 cycles per day)
+            risk_free_rate = 0.0
+
+            # Calculate excess returns
+            excess_returns = [r - risk_free_rate for r in returns]
+
+            # Daily return and volatility
+            avg_return_per_cycle = np.mean(excess_returns)
+            std_return_per_cycle = np.std(excess_returns)
+
+            # Annualize metrics
+            # Assuming 2-minute cycles -> 720 cycles/day
+            cycles_per_day = 720
+
+            avg_daily_return = avg_return_per_cycle * cycles_per_day
+            std_daily_return = std_return_per_cycle * np.sqrt(cycles_per_day)
+
+            if std_daily_return == 0:
+                return 0.0
+
+            # Daily Sharpe Ratio
+            daily_sharpe = avg_daily_return / std_daily_return
+
+            # Annualized Sharpe Ratio (Daily Sharpe * sqrt(365))
+            annualized_sharpe = daily_sharpe * np.sqrt(365)
+
+            return float(annualized_sharpe)
+
+        except Exception as e:
+            print(f"[WARN]  Sharpe ratio calculation error: {e}")
+            return 0.0
+
+    def get_manual_override(self) -> dict:
+        """Checks for and deletes the manual override file."""
+        override_data = safe_file_read_cached(self.override_file, default_data={})
+        if override_data:
+            print(f"[ALERT] MANUAL OVERRIDE DETECTED: {override_data}")
+            try:
+                os.remove(self.override_file)
+                print("[INFO]  Override file deleted.")
+            except OSError as e:
+                print(f"[WARN]  Could not delete override file: {e}")
+        return override_data
+
+    def _estimate_liquidation_price(
+        self,
+        entry_price: float,
+        leverage: int,
+        direction: str,
+    ) -> float:
+        """Estimate liquidation price."""
+        if leverage <= 1 or entry_price <= 0:
+            return 0.0
+        imr = 1.0 / leverage
+        mmr = self.maintenance_margin_rate
+        margin_diff = imr - mmr
+        if margin_diff <= 0:
+            print(f"[WARN]  Liq est. failed: margin diff <= 0 ({margin_diff}).")
+            return 0.0
+        liq_price = (
+            entry_price * (1 - margin_diff)
+            if direction == "long"
+            else entry_price * (1 + margin_diff)
+        )
+        return max(0.0, liq_price)
+
+    # --- NEW: Enhanced Auto TP/SL Check with Advanced Exit Strategies ---
+    def calculate_dynamic_position_size(
+        self,
+        coin: str,
+        confidence: float,
+        market_regime: str,
+        trend_strength: int,
+    ) -> float:
+        """Calculate dynamic position size based on multiple factors"""
+        base_risk = 25.0  # Reduced maximum risk to $25
+
+        # Confidence factor
+        confidence_multiplier = confidence
+
+        # Market regime factor
+        if market_regime == "BULLISH":
+            regime_multiplier = 1.2
+        elif market_regime == "BEARISH":
+            regime_multiplier = 0.8
+        else:
+            regime_multiplier = 1.0
+
+        # Trend strength factor
+        trend_multiplier = 1.0 + (trend_strength * 0.1)
+
+        # Volume consideration
+        try:
+            indicators_3m = self.market_data.get_technical_indicators(coin, "3m")
+            volume = indicators_3m.get("volume", 0)
+            avg_volume = indicators_3m.get("avg_volume", 0)
+
+            # Volume multiplier: higher volume = higher confidence
+            if volume > avg_volume * 2:
+                volume_multiplier = 1.2
+            elif volume > avg_volume:
+                volume_multiplier = 1.1
+            else:
+                volume_multiplier = 0.8  # Penalize low volume
+        except Exception:
+            # FIX: Replace bare except with specific exception handling
+            volume_multiplier = 1.0
+
+        # Dynamic risk calculation
+        dynamic_risk = (
+            base_risk
+            * confidence_multiplier
+            * regime_multiplier
+            * trend_multiplier
+            * volume_multiplier
+        )
+
+        # Maximum risk limit
+        return min(dynamic_risk, 25.0)
+
+    def get_max_positions_for_cycle(self, cycle_number: int) -> int:
+        """Cycle-based maximum position limit - Gradual increase system, capped by MAX_POSITIONS"""
+        from config.config import Config
+
+        max_allowed = Config.MAX_POSITIONS
+
+        if cycle_number == constants.ALIGNMENT_STRENGTH_L1:
+            return min(1, max_allowed)  # Cycle 1: max 1 position (or MAX_POSITIONS)
+        if cycle_number == constants.ALIGNMENT_STRENGTH_L2:
+            return min(2, max_allowed)  # Cycle 2: max 2 positions (or MAX_POSITIONS)
+        if cycle_number == constants.ALIGNMENT_STRENGTH_L3:
+            return min(3, max_allowed)  # Cycle 3: max 3 positions (or MAX_POSITIONS)
+        if cycle_number == constants.ALIGNMENT_STRENGTH_L4:
+            return min(4, max_allowed)  # Cycle 4: max 4 positions (or MAX_POSITIONS)
+        return max_allowed  # Cycle 5+: use MAX_POSITIONS value
+
+    def _get_indicator_snapshot(
+        self,
+        coin: str,
+        indicator_cache: dict[str, dict[str, Any]] | None = None,
+    ) -> tuple[dict[str, Any] | None, dict[str, Any] | None]:
+        """Fetch indicators for 3m and higher timeframe from cache if available, otherwise from market data."""
+        cache_source = (
+            indicator_cache if indicator_cache is not None else getattr(self, "indicator_cache", {})
+        )
+        cached_entry = cache_source.get(coin) if isinstance(cache_source, dict) else None
+
+        indicators_3m = None
+        indicators_htf = None
+
+        if isinstance(cached_entry, dict):
+            indicators_3m = copy.deepcopy(cached_entry.get("3m"))
+            cached_htf = cached_entry.get(HTF_INTERVAL)
+            if cached_htf is None and HTF_INTERVAL != "4h":
+                cached_htf = cached_entry.get("4h")  # backward compatibility
+            indicators_htf = copy.deepcopy(cached_htf)
+
+        if not isinstance(indicators_3m, dict) or "error" in indicators_3m:
+            indicators_3m = self.market_data.get_technical_indicators(coin, "3m")
+        if not isinstance(indicators_htf, dict) or "error" in indicators_htf:
+            indicators_htf = self.market_data.get_technical_indicators(coin, HTF_INTERVAL)
+
+        return indicators_3m, indicators_htf
+
+    def _execute_normal_decisions(
+        self,
+        decisions: dict,
+        valid_prices: dict,
+        cycle_number: int,
+        positions_closed_by_tp_sl: bool,
+        indicator_cache: dict[str, dict[str, Any]] | None = None,
+    ):
+        """Execute normal AI decisions with partial profit active"""
+        # print("[INFO] Executing normal AI decisions (partial profit active)")
+
+        # KADEMELİ POZİSYON SİSTEMİ: Cycle bazlı pozisyon limiti
+        max_positions_for_cycle = self.get_max_positions_for_cycle(cycle_number)
+        current_positions = len(self.positions)
+
+        decisions_to_execute = {}
+        for coin, trade in decisions.items():
+            if not isinstance(trade, dict):
+                continue
+
+            signal = trade.get("signal")
+            if signal in ["buy_to_enter", "sell_to_enter"]:
+                # Apply kademeli position limit
+                if current_positions >= max_positions_for_cycle:
+                    print(
+                        f"[WARN]  KADEMELİ POZİSYON LİMİTİ (Cycle {cycle_number}): Max {max_positions_for_cycle} positions allowed. Skipping {coin} entry.",
+                    )
+                    continue
+                current_positions += 1
+
+                decisions_to_execute[coin] = trade
+            else:
+                # Execute all other decisions (hold, close_position)
+                decisions_to_execute[coin] = trade
+
+        if decisions_to_execute:
+            self.execute_decision(
+                decisions_to_execute,
+                valid_prices,
+                indicator_cache=indicator_cache,
+            )
+
+    def _calculate_maximum_limit(self) -> float:
+        """Calculate maximum limit: Configured value OR Config.MAXIMUM_LIMIT_BALANCE_PCT of available cash, whichever is larger"""
+        max_from_percentage = self.current_balance * Config.MAXIMUM_LIMIT_BALANCE_PCT
+        # Use configured value instead of hardcoded 15.0
+        min_limit = Config.MIN_PARTIAL_PROFIT_MARGIN_REMAINING_USD
+        max_limit = max(min_limit, max_from_percentage)
+        print(
+            f"[INFO]  Maximum limit: ${max_limit:.2f} (${min_limit} fixed vs ${max_from_percentage:.2f} {Config.MAXIMUM_LIMIT_BALANCE_PCT * 100:.1f}% of ${self.current_balance:.2f} available cash)",
+        )
+        return max_limit
+
+    def _adjust_partial_sale_for_max_limit(
+        self,
+        position: dict,
+        proposed_percent: float,
+    ) -> tuple[float, bool, str | None]:
+        """Adjust partial sale percentage to ensure position doesn't go below maximum limit"""
+        current_margin = position.get("margin_usd", 0)
+        if current_margin <= 0:
+            # Fallback: Calculate from notional/leverage if margin_usd is missing/zero
+            notional = position.get("notional_usd", 0)
+            leverage = position.get("leverage", 1)
+            if notional > 0 and leverage > 0:
+                current_margin = notional / leverage
+            elif position.get("entry_price", 0) > 0 and position.get("quantity", 0) > 0:
+                current_margin = (position["entry_price"] * position["quantity"]) / position.get(
+                    "leverage",
+                    10,
+                )
+
+        # Calculate maximum limit: $15 fixed OR 15% of available cash, whichever is larger
+        max_limit = self._calculate_maximum_limit()
+
+        if current_margin <= max_limit:
+            # Position already at or below maximum limit, don't sell - close completely
+            print(
+                f"🛑 Partial sale blocked: Position margin ${current_margin:.2f} <= maximum limit ${max_limit:.2f}. Position will be closed.",
+            )
+            return (
+                0.0,
+                True,
+                f"Position margin ${current_margin:.2f} <= maximum limit ${max_limit:.2f}",
+            )
+
+        # Calculate remaining margin after proposed sale
+        remaining_after_proposed = current_margin * (1 - proposed_percent)
+
+        if remaining_after_proposed >= max_limit:
+            # Proposed sale keeps us above maximum limit, use as-is
+            return proposed_percent, False, None
+        # Adjust sale to leave exactly max_limit margin
+        adjusted_sale_amount = current_margin - max_limit
+        # FIX: Division by zero protection
+        adjusted_percent = adjusted_sale_amount / current_margin if current_margin > 0 else 0.0
+
+        print(
+            f"[INFO]  Adjusted partial sale: {proposed_percent * 100:.0f}% → {adjusted_percent * 100:.0f}% to maintain ${max_limit:.2f} maximum limit",
+        )
+        return adjusted_percent, False, None
+
+    def _adjust_partial_sale_for_min_limit(self, position: dict, proposed_percent: float) -> float:
+        """Adjust partial sale percentage to ensure minimum limit remains after sale"""
+        current_margin = position.get("margin_usd", 0)
+        if current_margin <= 0:
+            # Fallback: Calculate from notional/leverage if margin_usd is missing/zero
+            notional = position.get("notional_usd", 0)
+            leverage = position.get("leverage", 1)
+            if notional > 0 and leverage > 0:
+                current_margin = notional / leverage
+            elif position.get("entry_price", 0) > 0 and position.get("quantity", 0) > 0:
+                current_margin = (position["entry_price"] * position["quantity"]) / position.get(
+                    "leverage",
+                    10,
+                )
+
+        # Calculate dynamic minimum limit: $15 fixed OR 10% of available cash, whichever is larger
+        min_remaining = self._calculate_dynamic_minimum_limit()
+
+        if current_margin <= min_remaining:
+            # Position already at or below minimum, don't sell
+            print(
+                f"🛑 Partial sale blocked: Position margin ${current_margin:.2f} <= minimum limit ${min_remaining:.2f}",
+            )
+            return 0.0
+
+        # Calculate remaining margin after proposed sale
+        remaining_after_proposed = current_margin * (1 - proposed_percent)
+
+        if remaining_after_proposed >= min_remaining:
+            # Proposed sale keeps us above minimum, use as-is
+            return proposed_percent
+        # Adjust sale to leave exactly min_remaining margin
+        adjusted_sale_amount = current_margin - min_remaining
+        # FIX: Division by zero protection
+        adjusted_percent = adjusted_sale_amount / current_margin if current_margin > 0 else 0.0
+
+        print(
+            f"[INFO]  Adjusted partial sale: {proposed_percent * 100:.0f}% → {adjusted_percent * 100:.0f}% to maintain ${min_remaining:.2f} minimum limit",
+        )
+        return adjusted_percent
+
+    def _is_counter_trend_trade(
+        self,
+        coin: str,
+        signal: str,
+        indicators_3m: dict,
+        indicators_htf: dict,
+    ) -> bool:
+        """Check if trade is counter-trend based on higher timeframe trend vs 15m+3m signal"""
+        try:
+            if "error" in indicators_3m or "error" in indicators_htf:
+                return False
+
+            # Get 15m indicators for counter-trend validation
+            indicators_15m = self.market_data.get_technical_indicators(coin, "15m")
+            if "error" in indicators_15m:
+                # Fallback: use only 3m if 15m unavailable
+                indicators_15m = None
+
+            price_htf = indicators_htf.get("current_price")
+            ema20_htf = indicators_htf.get("ema_20")
+            price_3m = indicators_3m.get("current_price")
+            ema20_3m = indicators_3m.get("ema_20")
+
+            # Helper function to determine trend with NEUTRAL BAND
+            # This matches the logic in update_trend_state for consistency
+            def _determine_trend(price, ema20):
+                if (
+                    not isinstance(price, (int, float))
+                    or not isinstance(ema20, (int, float))
+                    or ema20 == 0
+                ):
+                    return "NEUTRAL"
+                delta = (price - ema20) / ema20
+                if abs(delta) <= Config.EMA_NEUTRAL_BAND_PCT:
+                    return "NEUTRAL"
+                return "BULLISH" if delta > 0 else "BEARISH"
+
+            # Determine higher timeframe trend direction WITH NEUTRAL BAND
+            trend_htf = _determine_trend(price_htf, ema20_htf)
+
+            # Determine 3m trend direction WITH NEUTRAL BAND
+            trend_3m = _determine_trend(price_3m, ema20_3m)
+
+            # Determine 15m trend direction (if available) WITH NEUTRAL BAND
+            trend_15m = None
+            if indicators_15m:
+                price_15m = indicators_15m.get("current_price")
+                ema20_15m = indicators_15m.get("ema_20")
+                trend_15m = _determine_trend(price_15m, ema20_15m)
+
+            # Determine signal direction
+            signal_direction = "BULLISH" if signal == "buy_to_enter" else "BEARISH"
+
+            # Check if trade is counter-trend (signal vs higher timeframe trend)
+            # NEUTRAL trend is NOT counter-trend - this allows trades when price is close to EMA
+            is_counter_trend = False
+            if trend_htf == "NEUTRAL":
+                # When HTF is neutral, trade is NOT counter-trend regardless of signal
+                is_counter_trend = False
+            elif signal == "buy_to_enter" and trend_htf == "BEARISH":
+                is_counter_trend = True  # Long against bearish higher timeframe trend
+            elif signal == "sell_to_enter" and trend_htf == "BULLISH":
+                is_counter_trend = True  # Short against bullish higher timeframe trend
+
+            # Counter-trend STRONG: 15m + 3m both align with signal direction (against 1h)
+            if is_counter_trend and trend_15m and trend_15m == trend_3m == signal_direction:
+                # STRONG counter-trend: 15m + 3m both support the counter-trend signal
+                return True
+            if is_counter_trend:
+                # Counter-trend but not STRONG (15m or 3m doesn't align)
+                return True  # Still counter-trend, just not STRONG
+
+            return False
+
+        except Exception as e:
+            print(f"[WARN]  Counter-trend detection error for {coin}: {e}")
+            return False
+
+    def calculate_confidence_based_margin(
+        self,
+        confidence: float,
+        available_cash: float,
+        entry_price: float | None = None,
+        stop_loss: float | None = None,
+        leverage: int = 10,
+        market_regime: str = "NEUTRAL",  # Passed from cycle to avoid re-calculation
+        log_func: Any = None,
+    ) -> float:
+        """
+        Calculate margin based on Volatility Sizing (Fixed Risk) + Confidence.
+        Formula: Position Size = (Risk Amount / Stop Distance %) * Confidence
+        """
+        # 1. Default fallback (Old method) if data is missing
+        if entry_price is None or stop_loss is None or entry_price <= 0:
+            margin = available_cash * 0.40 * confidence
+            margin = max(margin, Config.MIN_POSITION_MARGIN_USD)
+            print(f"[INFO]  Standard Sizing (Missing Data): ${margin:.2f} (conf: {confidence:.2f})")
+            return margin
+
+        # 2. Calculate Stop Distance %
+        dist_pct = abs(entry_price - stop_loss) / entry_price
+
+        # Safety: Avoid division by zero or extremely small stops (<0.2%)
+        dist_pct = max(dist_pct, 0.002)  # Min 0.2% stop distance assumption
+
+        # 3. Calculate Base Position Size (Notional) for Fixed Risk
+        # Risk = Notional * Dist_Pct  =>  Notional = Risk / Dist_Pct
+        risk_amount = Config.RISK_PER_TRADE_USD
+        base_notional = risk_amount / dist_pct
+
+        # 4. Apply Confidence Scaling
+        target_notional = base_notional * confidence
+
+        # 5. Convert to Margin
+        target_margin = target_notional / leverage
+
+        # 6. Apply Limits
+        # Cap margin at 40% of available cash (Safety ceiling)
+        max_margin_cash = available_cash * 0.40
+        if target_margin > max_margin_cash:
+            if log_func:
+                log_func(
+                    "sizing",
+                    f"[WARN]  Volatility sizing capped by cash limit: ${target_margin:.2f} -> ${max_margin_cash:.2f}",
+                    {
+                        "coin": self.market_data.available_coins[0]
+                        if hasattr(self, "market_data")
+                        else "unknown",
+                        "target_margin": target_margin,
+                        "max_margin": max_margin_cash,
+                    },
+                )
+            else:
+                print(
+                    f"[WARN]  Volatility sizing capped by cash limit: ${target_margin:.2f} -> ${max_margin_cash:.2f}"
+                )
+            target_margin = max_margin_cash
+
+        # Note: Scout Sizing multipliers are now handled centrally in the main loop
+        # via Config.MARKET_REGIME_MULTIPLIERS to avoid double multiplication.
+
+        # Apply minimum margin ($10)
+        target_margin = max(target_margin, Config.MIN_POSITION_MARGIN_USD)
+
+        msg = f"[INFO]  Volatility Sizing: Risk ${risk_amount} | Stop {dist_pct * 100:.2f}% | Base Notional ${base_notional:.1f} | Conf {confidence:.2f} -> Margin ${target_margin:.2f}"
+        if log_func:
+            log_func("sizing", msg)
+        else:
+            print(msg)
+        return target_margin
+
+    def get_graduated_loss_multiplier(self, margin_usd: float) -> float:
+        """
+        Calculate the loss multiplier based on margin size.
+        Relaxed for Volatility Sizing: Acts as "Disaster Stop" only.
+        """
+        if margin_usd < constants.MARGIN_TIER_20:
+            return constants.LOSS_MULT_L1  # %50 for margin < 20 (Allows wide stops)
+        if margin_usd < constants.MARGIN_TIER_30:
+            return constants.LOSS_MULT_L2  # %45 for margin 20-30
+        if margin_usd < constants.MARGIN_TIER_40:
+            return constants.LOSS_MULT_L3  # %40 for margin 30-40
+        if margin_usd < constants.MARGIN_TIER_50:
+            return constants.LOSS_MULT_L4  # %35 for margin 40-50
+        return constants.LOSS_MULT_BASE  # %30 for margin >= 50
+
+    def calculate_volume_quality_score(
+        self,
+        coin: str,
+        indicators_3m: dict[str, Any] | None = None,
+    ) -> float:
+        """Calculate volume quality score (0-100) based on Config thresholds"""
+        try:
+            if indicators_3m is None or not isinstance(indicators_3m, dict):
+                indicators_3m = self.market_data.get_technical_indicators(coin, "3m")
+            if "error" in indicators_3m:
+                return 0.0
+
+            current_volume = indicators_3m.get("volume", 0)
+            avg_volume = indicators_3m.get("avg_volume", 0)
+
+            # CRITICAL FIX: Use pre-calculated ratio based on CLOSED candles if available
+            if "volume_ratio" in indicators_3m:
+                volume_ratio = indicators_3m["volume_ratio"]
+            else:
+                if avg_volume <= 0:
+                    return 0.0
+                volume_ratio = current_volume / avg_volume
+
+            # Calculate score based on Config thresholds
+            if volume_ratio >= Config.VOLUME_QUALITY_THRESHOLDS["excellent"]:
+                return 90.0
+            if volume_ratio >= Config.VOLUME_QUALITY_THRESHOLDS["good"]:
+                return 75.0
+            if volume_ratio >= Config.VOLUME_QUALITY_THRESHOLDS["fair"]:
+                return 60.0
+            if volume_ratio >= Config.VOLUME_QUALITY_THRESHOLDS["poor"]:
+                return 40.0
+            return 20.0
+
+        except Exception as e:
+            print(f"[WARN]  Volume quality score calculation error for {coin}: {e}")
+            return 0.0
+
+    def check_flash_exit_conditions(self, coin: str, position: dict) -> bool:
+        """
+        Check for Flash Exit conditions (V-Reversal).
+        Trigger: RSI Spike + Volume Surge + Price moving against position.
+        """
+        if not Config.FLASH_EXIT_ENABLED:
+            return False
+
+        try:
+            indicators_3m = self.market_data.get_technical_indicators(coin, "3m")
+            if "error" in indicators_3m:
+                return False
+
+            direction = position.get("direction")
+            entry_price = position.get("entry_price")
+            current_price = indicators_3m.get("current_price")
+
+            # 1. Price Check (Must be moving against us)
+            if direction == "short":
+                if current_price <= entry_price * Config.FLASH_EXIT_LOSS_TRIGGER_MULTIPLIER:
+                    return False
+            elif direction == "long":
+                if current_price >= entry_price * (2 - Config.FLASH_EXIT_LOSS_TRIGGER_MULTIPLIER):
+                    return False
+
+            # 2. RSI Spike Check
+            rsi_current = indicators_3m.get("rsi_14", 50)
+            rsi_series = indicators_3m.get("rsi_14_series", [])
+            if len(rsi_series) < constants.MAX_POSITIONS_DIVERSITY:
+                return False
+
+            rsi_prev = rsi_series[
+                -constants.MAX_POSITIONS_DIVERSITY
+            ]  # 3 candles ago (offset index)
+            rsi_delta = abs(rsi_current - rsi_prev)
+
+            # Spike threshold from config
+            if rsi_delta < Config.FLASH_EXIT_RSI_DELTA_MIN:
+                return False
+
+            # Directional check for RSI
+            if direction == "short" and rsi_current < rsi_prev:
+                return False  # RSI falling is good for short
+            if direction == "long" and rsi_current > rsi_prev:
+                return False  # RSI rising is good for long
+
+            # 3. Volume Surge Check
+            volume_ratio = indicators_3m.get("volume_ratio", 1.0)
+            if volume_ratio < Config.FLASH_EXIT_VOLUME_SURGE_MIN:
+                return False
+
+            print(
+                f"[ALERT] FLASH EXIT TRIGGERED for {coin} ({direction}): RSI Delta {rsi_delta:.1f}, Vol {volume_ratio:.1f}x",
+            )
+            return True
+
+        except Exception as e:
+            print(f"[WARN]  Flash exit check error for {coin}: {e}")
+            return False
+
+    def get_effective_same_direction_limit(self) -> int:
+        """
+        Calculate the effective same direction limit based on market regime strength.
+        Backwards compatibility for AIService.
+        """
+        # FIX: Use getattr for safe config access
+        return getattr(Config, "SAME_DIRECTION_LIMIT", 2)
+
+    def validate_exit_signal(self, coin: str, position: dict, indicators_3m: dict) -> bool:
+        """
+        Validate exit signal (Reversal Desensitization).
+        Requires: STRONG 3m reversal OR 15m confirmation OR PnL thresholds.
+        """
+        try:
+            # 1. PnL Check (Profit Protection / Stop Loss)
+            current_price = indicators_3m.get("current_price")
+            entry_price = position.get("entry_price")
+            quantity = position.get("quantity")
+            direction = position.get("direction")
+
+            if not all(isinstance(x, (int, float)) for x in [current_price, entry_price, quantity]):
+                return True  # Default to allow exit if data missing
+
+            pnl_usd = (
+                (current_price - entry_price) * quantity
+                if direction == "long"
+                else (entry_price - current_price) * quantity
+            )
+            margin = position.get("margin_usd", 1.0)
+            pnl_pct = (pnl_usd / margin) * 100 if margin > 0 else 0
+
+            # Allow exit if PnL is good (>2%) or bad (<-1.5%)
+            if pnl_pct > constants.PNL_PCT_EXIT_PROFIT or pnl_pct < constants.PNL_PCT_EXIT_LOSS:
+                print(f"[OK]    Exit validated by PnL: {pnl_pct:.2f}%")
+                return True
+
+            # 2. 15m Confirmation
+            indicators_15m = self.market_data.get_technical_indicators(coin, "15m")
+            if "error" not in indicators_15m:
+                price_15m = indicators_15m.get("current_price")
+                ema20_15m = indicators_15m.get("ema_20")
+                # Check if 15m trend opposes position
+                is_15m_reversal = (direction == "long" and price_15m < ema20_15m) or (
+                    direction == "short" and price_15m > ema20_15m
+                )
+                if is_15m_reversal:
+                    print("[OK]    Exit validated by 15m reversal")
+                    return True
+
+            # 3. Strong 3m Reversal (Check MACD/RSI intensity)
+            # This is a heuristic since we don't have explicit "strength" flag from AI here easily
+            # We assume if AI called close, it saw a reversal. We check if it's "strong".
+            # Strong = Price crossed EMA20 AND (RSI extreme or MACD cross)
+            price_3m = indicators_3m.get("current_price")
+            ema20_3m = indicators_3m.get("ema_20")
+            rsi_3m = indicators_3m.get("rsi_14", 50)
+
+            is_price_crossed = (direction == "long" and price_3m < ema20_3m) or (
+                direction == "short" and price_3m > ema20_3m
+            )
+
+            is_rsi_extreme = (direction == "long" and rsi_3m > constants.RSI_OVERBOUGHT) or (
+                direction == "short" and rsi_3m < constants.RSI_OVERSOLD
+            )  # Overbought/sold reversal
+
+            if is_price_crossed and is_rsi_extreme:
+                print("[OK]    Exit validated by Strong 3m Reversal (Price+RSI)")
+                return True
+
+            print(
+                f"[BLOCK] Exit blocked: Weak 3m reversal without confirmation (PnL: {pnl_pct:.2f}%)"
+            )
+            return False
+        except Exception as e:
+            print(f"[WARN]  Exit validation error: {e}")
+            return True  # Fail safe: allow exit
+
+    def _verify_technical_reversal(self, coin: str, direction: str) -> bool:
+        """
+        Verify if technical indicators actually support a reversal/invalidation claim.
+        Used to harden exit logic against 'fear-based' AI closures.
+        """
+        try:
+            indicators_3m = self.market_data.get_technical_indicators(coin, "3m")
+            if "error" in indicators_3m:
+                return True  # Fail-safe: allow exit if data is missing
+
+            price_3m = indicators_3m.get("current_price")
+            ema20_3m = indicators_3m.get("ema_20")
+
+            if not price_3m or not ema20_3m:
+                return True
+
+            # Threshold for strict validation (0.1% buffer)
+            if direction == "long":
+                # Long is still valid if price is not significantly below EMA20
+                is_invalid = price_3m < (ema20_3m * 0.999)
+            else:
+                # Short is still valid if price is not significantly above EMA20
+                is_invalid = price_3m > (ema20_3m * 1.001)
+
+            return is_invalid
+        except Exception as e:
+            print(f"[WARN] Error in _verify_technical_reversal: {e}")
+            return True
+
+    def execute_decision(
+        self,
+        decisions: dict[str, dict],
+        current_prices: dict[str, float],
+        indicator_cache: dict[str, dict[str, Any]] | None = None,
+    ):
+        """Executes trading decisions from AI, incorporating dynamic sizing and enhanced features."""
+        # print("\n[INFO] EXECUTING AI DECISIONS...")
+        if not isinstance(decisions, dict):
+            print(f"[ERR]   Invalid decisions format: {type(decisions)}")
+            return
+
+        # Import Config inside the function to avoid scope issues
+        from config.config import Config
+
+        bias_metrics = getattr(self, "latest_bias_metrics", self.get_directional_bias_metrics())
+        execution_report = {
+            "executed": [],
+            "blocked": [],
+            "skipped": [],
+            "holds": [],
+            "notes": [],
+            "debug_logs": [],  # Stores critical console logs (flip guard, confidence adjustments etc.)
+            "timestamp": datetime.now(timezone.utc).isoformat(),
+        }
+        if self.is_live_trading:
+            self.sync_live_account()
+
+        # Phase 7: Centralized Regime Detection (Single Source of Truth)
+        coin_indicators = {}
+        for coin in self.market_data.available_coins:
+            indicators_htf = self.market_data.get_technical_indicators(coin, HTF_INTERVAL)
+            if "error" not in indicators_htf:
+                coin_indicators[coin] = indicators_htf
+
+        market_regime = RegimeDetector.detect_overall_regime(coin_indicators)
+        regime_strength = RegimeDetector.calculate_regime_strength(coin_indicators)
+        print(f"[CYCLE] Market Regime: {market_regime} | Strength: {regime_strength:.2f}")
+
+        # Helper: Log to both console and execution_report
+        def _log_debug(category: str, message: str, details: dict | None = None):
+            """
+            Log critical information both to console and JSON.
+            Categories: 'confidence', 'flip_guard', 'volume', 'sizing', 'trend', 'block', 'info'
+            """
+            print(message)
+            execution_report["debug_logs"].append(
+                {
+                    "category": category,
+                    "message": message,
+                    "details": details or {},
+                    "timestamp": datetime.now(timezone.utc).isoformat(),
+                },
+            )
+
+        # Slot Priority by Confidence: Sort entry signals by confidence (highest first)
+        # This ensures when slots are limited, we pick the best signals
+        def get_signal_priority(item):
+            _coin, trade = item
+            if not isinstance(trade, dict):
+                return (2, 0)  # Invalid trades last
+            signal = trade.get("signal", "")
+            confidence = trade.get("confidence", 0)
+            try:
+                confidence = float(confidence)
+            except (ValueError, TypeError):
+                confidence = 0
+            if signal in ["buy_to_enter", "sell_to_enter"]:
+                return (0, -confidence)  # Entry signals first, sorted by confidence desc
+            if signal == "close_position":
+                return (1, 0)  # Close signals after entries
+            return (2, 0)  # Hold signals last
+
+        sorted_decisions = sorted(decisions.items(), key=get_signal_priority)
+        entry_signals = [
+            f"{c}({t.get('confidence', 0):.2f})"
+            for c, t in sorted_decisions
+            if t.get("signal") in ["buy_to_enter", "sell_to_enter"]
+        ]
+        if entry_signals:
+            print(f"[INFO]  Signal priority order: {entry_signals}")
+
+        # Same-cycle position limit tracking
+        new_positions_this_cycle = 0
+        trend_inconsistent = False  # Default - will be set in signal processing for entries
+
+        for coin, trade in sorted_decisions:
+            if not isinstance(trade, dict):
+                print(f"[WARN]  Invalid trade data for {coin}: {type(trade)}")
+                continue
+            if (
+                coin not in current_prices
+                or not isinstance(current_prices[coin], (int, float))
+                or current_prices[coin] <= 0
+            ):
+                print(f"[WARN]  Skipping {coin}: Invalid price data.")
+                continue
+
+            signal = trade.get("signal")
+            current_price = current_prices[coin]
+            position = self.positions.get(coin)
+
+            # --- SURGICAL FIX: Initialize indicator variables for new context ---
+            indicators_htf = (
+                indicator_cache.get_indicators(coin, HTF_INTERVAL, self.market_data)
+                if indicator_cache
+                else {}
+            )
+            indicators_3m = (
+                indicator_cache.get_indicators(coin, "3m", self.market_data)
+                if indicator_cache
+                else {}
+            )
+            # --------------------------------------------------------------------
+
+            if signal in {"buy_to_enter", "sell_to_enter"}:
+                if position:
+                    print(f"[WARN]  {signal.upper()} {coin}: Position already open.")
+                    execution_report["skipped"].append(
+                        {"coin": coin, "reason": "position_exists", "signal": signal},
+                    )
+                    trade["runtime_decision"] = "skipped_existing_position"
+                    continue
+
+                # Same-cycle position limit check
+                if new_positions_this_cycle >= Config.MAX_NEW_POSITIONS_PER_CYCLE:
+                    _log_debug(
+                        "block",
+                        f"[BLOCK] Same-cycle limit ({Config.MAX_NEW_POSITIONS_PER_CYCLE}): Blocking {coin} {signal}",
+                        {
+                            "coin": coin,
+                            "signal": signal,
+                            "limit": Config.MAX_NEW_POSITIONS_PER_CYCLE,
+                            "opened": new_positions_this_cycle,
+                        },
+                    )
+                    execution_report["blocked"].append(
+                        {"coin": coin, "reason": "same_cycle_limit", "signal": signal},
+                    )
+                    trade["runtime_decision"] = "blocked_same_cycle_limit"
+                    continue
+
+                confidence = trade.get("confidence", 0.5)  # Default 50% confidence if missing
+                leverage = trade.get("leverage")
+                if leverage in (None, "", 0):
+                    leverage = 8
+                # Ensure confidence and leverage are valid numbers
+                try:
+                    confidence = float(confidence)
+                    leverage = int(leverage)
+                except (ValueError, TypeError):
+                    print(
+                        f"[WARN]  Invalid confidence ({confidence}) or leverage ({leverage}) for {coin}. Skipping.",
+                    )
+                    continue
+                leverage = max(leverage, 1)
+                # Enforce maximum leverage limit from config
+                if leverage > Config.MAX_LEVERAGE:
+                    print(
+                        f"[WARN]  Leverage {leverage}x exceeds maximum limit of {Config.MAX_LEVERAGE}x. Reducing to {Config.MAX_LEVERAGE}x.",
+                    )
+                    leverage = Config.MAX_LEVERAGE
+                # Clamp leverage into operational band for new entries
+                if signal in ["buy_to_enter", "sell_to_enter"]:
+                    if leverage < constants.LEVERAGE_MIN_OP:
+                        print(
+                            f"[INFO]  Adjusting leverage from {leverage}x to minimum operational level {constants.LEVERAGE_MIN_OP}x for {coin}.",
+                        )
+                        leverage = constants.LEVERAGE_MIN_OP
+                    elif leverage > constants.LEVERAGE_MAX_OP:
+                        print(
+                            f"[INFO]  Adjusting leverage from {leverage}x to maximum operational level {constants.LEVERAGE_MAX_OP}x for {coin}.",
+                        )
+                        leverage = constants.LEVERAGE_MAX_OP
+                if not (0 <= confidence <= 1):
+                    confidence = 0.5  # Clamp confidence to 0.0-1.0
+
+                # 2. Market Regime Position Sizing & Strategy Adjustment
+                market_regime_multiplier = Config.MARKET_REGIME_MULTIPLIERS.get(market_regime, 1.0)
+                partial_margin_factor = 1.0
+
+                # 2.1 Commission Guard (v1.2)
+                if signal in ["buy_to_enter", "sell_to_enter"]:
+                    try:
+                        atr_val = indicators_htf.get("atr_14", 0)
+                        if atr_val > 0:
+                            # Expected profit estimate: ATR * Multiplier (e.g. 3.0)
+                            tp_mult = getattr(Config, "ATR_PROFIT_MULTIPLIER", 3.0)
+                            expected_profit_usd_per_coin = atr_val * tp_mult
+                            expected_profit_pct = expected_profit_usd_per_coin / current_price
+
+                            # Commission cost estimate: Round-trip (entry + exit)
+                            comm_rate = getattr(Config, "SIMULATION_COMMISSION_RATE", 0.001)
+                            round_trip_comm_pct = comm_rate * 2
+
+                            profit_comm_ratio = expected_profit_pct / round_trip_comm_pct
+                            guard_ratio = getattr(Config, "COMMISSION_GUARD_RATIO", 5.0)
+
+                            if profit_comm_ratio < guard_ratio:
+                                _log_debug(
+                                    "trade",
+                                    f"[BLOCK] COMMISSION GUARD: {coin} Ratio {profit_comm_ratio:.2f} < {guard_ratio:.2f}. Trade not economically viable.",
+                                    {"coin": coin, "ratio": profit_comm_ratio},
+                                )
+                                execution_report["blocked"].append(
+                                    {
+                                        "coin": coin,
+                                        "reason": "commission_guard",
+                                        "ratio": profit_comm_ratio,
+                                    }
+                                )
+                                trade["runtime_decision"] = "blocked_commission_guard"
+                                continue
+                            _log_debug(
+                                "trade",
+                                f"[OK]    COMMISSION GUARD: {coin} Ratio {profit_comm_ratio:.2f} passed threshold {guard_ratio}.",
+                            )
+                    except Exception as e:
+                        _log_debug(
+                            "trade", f"[WARN]  Commission guard check failed for {coin}: {e}"
+                        )
+
+                # 3. Momentum and Price Location Confidence Adjustments
+                # Reduce confidence when trend conviction is weak or price is in extreme zones
+                confidence_adjustments = []
+                direction = "long" if signal == "buy_to_enter" else "short"
+                try:
+                    indicators_15m = (
+                        self.market_data.get_technical_indicators(coin, "15m")
+                        if self.market_data
+                        else {}
+                    )
+                    if isinstance(indicators_15m, dict) and "error" not in indicators_15m:
+                        # Momentum WEAKENING adjustment (×0.90)
+                        sparkline_15m = indicators_15m.get("smart_sparkline", {})
+                        momentum_15m = (
+                            sparkline_15m.get("momentum", "STABLE")
+                            if isinstance(sparkline_15m, dict)
+                            else "STABLE"
+                        )
+                        if momentum_15m == "WEAKENING":
+                            confidence = confidence * 0.90
+                            confidence_adjustments.append("momentum_weak(-10%)")
+                        elif momentum_15m == "STRENGTHENING":
+                            confidence = confidence * 1.10
+                            confidence_adjustments.append("momentum_strong(+10%)")
+                        # LOWER_10 + RSI<30 = SHORT için riskli (×0.90)
+                        # UPPER_10 + RSI>70 = LONG için riskli (×0.90)
+                        price_loc_15m = (
+                            sparkline_15m.get("price_location", {})
+                            if isinstance(sparkline_15m, dict)
+                            else {}
+                        )
+                        zone_15m = price_loc_15m.get("zone", "MIDDLE")
+                        rsi_15m = indicators_15m.get("rsi_14", 50)
+
+                        if (
+                            zone_15m == "LOWER_10"
+                            and rsi_15m < constants.RSI_OVERSOLD
+                            and direction == "short"
+                        ):
+                            confidence = confidence * 0.90
+                            confidence_adjustments.append(f"lower10_rsi{rsi_15m:.0f}(-10%)")
+                        elif (
+                            zone_15m == "UPPER_10"
+                            and rsi_15m > constants.RSI_OVERBOUGHT
+                            and direction == "long"
+                        ):
+                            confidence = confidence * 0.90
+                            confidence_adjustments.append(f"upper10_rsi{rsi_15m:.0f}(-10%)")
+
+                        # Zone + WEAKENING adjustment (×0.90) - simetrik koruma
+                        # UPPER_10 + WEAKENING + LONG: Fiyat tepede + trend zayıflıyor = düşüş riski
+                        # LOWER_10 + WEAKENING + SHORT: Fiyat dipte + trend zayıflıyor = bounce riski
+                        if momentum_15m == "WEAKENING":
+                            if zone_15m == "UPPER_10" and direction == "long":
+                                confidence = confidence * 0.90
+                                confidence_adjustments.append("upper10_weak(-10%)")
+                            elif zone_15m == "LOWER_10" and direction == "short":
+                                confidence = confidence * 0.90
+                                confidence_adjustments.append("lower10_weak(-10%)")
+
+                        # ==================== NEW INDICATOR ADJUSTMENTS (v5.0) ====================
+
+                        # 0. Volume-based confidence adjustment (±5%)
+                        volume_ratio_3m = (
+                            indicators_3m.get("volume_ratio", 1.0) if indicators_3m else 1.0
+                        )
+                        if volume_ratio_3m < constants.VOL_RATIO_WEAK:
+                            confidence = confidence * 0.95
+                            confidence_adjustments.append(
+                                f"volume_weak({volume_ratio_3m:.2f})(-5%)",
+                            )
+                        elif volume_ratio_3m > constants.VOL_CONF_CRITICAL:
+                            confidence = confidence * 1.05
+                            confidence_adjustments.append(
+                                f"volume_strong({volume_ratio_3m:.2f})(+5%)",
+                            )
+
+                        # 1. ADX-based confidence adjustment
+                        adx = indicators_15m.get("adx", 25)
+                        trend_strength_adx = indicators_15m.get("trend_strength_adx", "MODERATE")
+
+                        if trend_strength_adx == "NO_TREND":
+                            confidence = confidence * 0.80  # Increased from 0.85 to 0.80 (-20%)
+                            confidence_adjustments.append(f"adx_no_trend({adx:.0f})(-20%)")
+                        elif trend_strength_adx == "WEAK":
+                            confidence = confidence * 0.90  # Simetrik: -10% (was -15%)
+                            confidence_adjustments.append(f"adx_weak({adx:.0f})(-10%)")
+                        elif trend_strength_adx == "STRONG":
+                            confidence = (
+                                confidence * 1.05
+                            )  # Simetrik: +5% reward (was -10% penalty)
+                            confidence_adjustments.append(f"adx_strong({adx:.0f})(+5%)")
+
+                        # 2. VWAP-based confidence adjustment
+                        price_vs_vwap = indicators_15m.get("price_vs_vwap", "UNKNOWN")
+
+                        if direction == "long" and price_vs_vwap == "BELOW":
+                            confidence = confidence * 0.95
+                            confidence_adjustments.append("vwap_below_long(-5%)")
+                        elif direction == "short" and price_vs_vwap == "ABOVE":
+                            confidence = confidence * 0.95
+                            confidence_adjustments.append("vwap_above_short(-5%)")
+                        # Simetrik VWAP ödülleri
+                        elif direction == "long" and price_vs_vwap == "ABOVE":
+                            confidence = confidence * 1.05
+                            confidence_adjustments.append("vwap_above_long(+5%)")
+                        elif direction == "short" and price_vs_vwap == "BELOW":
+                            confidence = confidence * 1.05
+                            confidence_adjustments.append("vwap_below_short(+5%)")
+
+                        # 3. Bollinger-based confidence adjustment
+                        bb_signal = indicators_15m.get("bb_signal", "NORMAL")
+                        bb_squeeze = indicators_15m.get("bb_squeeze", False)
+
+                        if bb_signal == "OVERBOUGHT" and direction == "long":
+                            confidence = confidence * 0.90
+                            confidence_adjustments.append("bb_overbought_long(-10%)")
+                        elif bb_signal == "OVERSOLD" and direction == "short":
+                            confidence = confidence * 0.90
+                            confidence_adjustments.append("bb_oversold_short(-10%)")
+
+                        if bb_squeeze:
+                            confidence = confidence * 0.95
+                            confidence_adjustments.append("bb_squeeze(-5%)")
+
+                        # 4. OBV divergence-based adjustment
+                        obv_divergence = indicators_15m.get("obv_divergence", "NONE")
+
+                        if obv_divergence == "BEARISH" and direction == "long":
+                            confidence = confidence * 0.85
+                            confidence_adjustments.append("obv_bearish_div(-15%)")
+                        elif obv_divergence == "BULLISH" and direction == "short":
+                            confidence = confidence * 0.85
+                            confidence_adjustments.append("obv_bullish_div(-15%)")
+
+                        # 5. SuperTrend confirmation (v5.1: increased from ±3% to ±5%)
+                        st_direction = indicators_15m.get("supertrend_direction", "UP")
+
+                        if (direction == "long" and st_direction == "UP") or (
+                            direction == "short" and st_direction == "DOWN"
+                        ):
+                            confidence = confidence * 1.05
+                            confidence_adjustments.append("st_confirms(+5%)")
+                        elif (direction == "long" and st_direction == "DOWN") or (
+                            direction == "short" and st_direction == "UP"
+                        ):
+                            confidence = confidence * 0.95
+                            confidence_adjustments.append("st_against(-5%)")
+
+                        # 6. Zone Alignment Reward (Simetrik v4)
+                        price_location_15m = indicators_15m.get("price_location", "MIDDLE")
+                        if direction == "long" and price_location_15m == "LOWER_10":
+                            confidence = confidence * 1.05
+                            confidence_adjustments.append("zone_aligned_long(+5%)")
+                        elif direction == "short" and price_location_15m == "UPPER_10":
+                            confidence = confidence * 1.05
+                            confidence_adjustments.append("zone_aligned_short(+5%)")
+
+                        # ==================== END NEW INDICATOR ADJUSTMENTS ====================
+
+                    if confidence_adjustments:
+                        _log_debug(
+                            "confidence",
+                            f"[INFO] Confidence adjusted for {coin}: {' '.join(confidence_adjustments)} -> {confidence:.2f}",
+                            {
+                                "coin": coin,
+                                "adjustments": confidence_adjustments,
+                                "final_confidence": confidence,
+                            },
+                        )
+                except (KeyError, AttributeError, ValueError):
+                    # FIX: Specific exception handling for confidence adjustment logging
+                    pass  # Continue without adjustments
+
+                # NOTE: TP/SL calculation removed - now handled exclusively by execute_live_entry
+                # using 1h ATR with Config.ATR_SL_MULTIPLIER and Config.ATR_TP_MULTIPLIER
+
+                direction = "long" if signal == "buy_to_enter" else "short"
+                if market_regime in {"BULLISH", "BEARISH"}:
+                    pass
+
+                # Coin bazlı cooldown kontrolü (öncelikli - zararlı trade'den sonra aynı coin'i engelle)
+                coin_cooldowns = self.coin_cooldowns
+                coin_upper = coin.upper()
+                coin_cooldown_remaining = coin_cooldowns.get(coin_upper, 0)
+                if coin_cooldown_remaining > 0:
+                    print(
+                        f"[PAUSED] Coin cooldown active: Blocking {coin} entry ({coin_cooldown_remaining} cycles remaining - previous loss).",
+                    )
+                    execution_report["blocked"].append(
+                        {
+                            "coin": coin,
+                            "reason": "coin_cooldown",
+                            "cooldown_remaining": coin_cooldown_remaining,
+                        },
+                    )
+                    trade["runtime_decision"] = "blocked_coin_cooldown"
+                    continue
+
+                # Cooldown kontrolü: PortfolioManager'dan cooldown durumunu al
+                cooldowns = self.directional_cooldowns
+                cooldown_remaining = cooldowns.get(direction, 0)
+                print(
+                    f"🔍 Cooldown check for {coin} {direction.upper()}: cooldown_remaining={cooldown_remaining}, cooldowns={cooldowns}",
+                )
+                if cooldown_remaining > 0:
+                    print(
+                        f"[PAUSED] Directional cooldown active: Blocking {direction.upper()} entry for {coin} ({cooldown_remaining} cycles remaining).",
+                    )
+                    execution_report["blocked"].append(
+                        {
+                            "coin": coin,
+                            "reason": "directional_cooldown",
+                            "direction": direction,
+                            "cooldown_remaining": cooldown_remaining,
+                        },
+                    )
+                    trade["runtime_decision"] = "blocked_directional_cooldown"
+                    continue
+
+                # Check SAME_DIRECTION_LIMIT for ALL directions (not just dominant)
+                directional_counts = self.count_positions_by_direction()
+                current_same_direction = directional_counts.get(direction, 0)
+
+                # DYNAMIC SLOT LIMIT LOGIC (v1.2: Centralized regime_strength)
+                effective_limit = Config.SAME_DIRECTION_LIMIT
+                if regime_strength > constants.REGIME_STRENGTH_THRESHOLD:
+                    effective_limit = Config.DYNAMIC_DIRECTION_LIMIT
+                    print(
+                        f"🌊 Dynamic Slot Limit Active: Strength {regime_strength:.2f} > 0.7 -> Limit increased to {effective_limit}",
+                    )
+
+                if current_same_direction >= effective_limit:
+                    print(
+                        f"[BLOCK] SAME-DIRECTION LIMIT: {coin} {signal} blocked. "
+                        f"{current_same_direction}/{effective_limit} {direction.upper()} positions already open.",
+                    )
+                    execution_report["blocked"].append(
+                        {
+                            "coin": coin,
+                            "reason": "same_direction_limit",
+                            "direction": direction,
+                            "current": current_same_direction,
+                            "limit": effective_limit,
+                        },
+                    )
+                    trade["runtime_decision"] = "blocked_same_direction_limit"
+                    continue
+
+                # 4. Get stop_loss from trade (if AI provided one)
+                stop_loss = trade.get("stop_loss")
+                try:
+                    stop_loss = float(stop_loss) if stop_loss is not None else None
+                except (ValueError, TypeError):
+                    stop_loss = None
+
+                # 5. Counter-Trend detection (validate only for counter trades) & indicator alignment
+                # Use cached indicators when available to keep prompt/execution consistent
+                current_trend = "unknown"
+                volume_ratio = None
+                trend_classification = "unknown"
+                try:
+                    indicators_3m, indicators_htf = self._get_indicator_snapshot(
+                        coin,
+                        indicator_cache,
+                    )
+                    if ("error" in indicators_3m) or ("error" in indicators_htf):
+                        print(
+                            f"[WARN]  Indicator fetch error for {coin}: {indicators_3m.get('error', '') or indicators_htf.get('error', '')}",
+                        )
+                        execution_report["blocked"].append(
+                            {"coin": coin, "reason": "indicator_error"},
+                        )
+                        trade["runtime_decision"] = "blocked_indicator_error"
+                        continue
+                    # Volume quality scoring using the same data the AI saw
+                    volume_quality_score = self.calculate_volume_quality_score(
+                        coin,
+                        indicators_3m=indicators_3m,
+                    )
+                    confidence = min(1.0, confidence + (volume_quality_score / 1000))
+                    trade["volume_quality_score"] = volume_quality_score
+
+                    current_volume = indicators_3m.get("volume", 0)
+                    avg_volume = indicators_3m.get("avg_volume", 1)
+
+                    # CRITICAL FIX: Use pre-calculated ratio based on CLOSED candles if available
+                    if "volume_ratio" in indicators_3m:
+                        volume_ratio = indicators_3m["volume_ratio"]
+                    else:
+                        volume_ratio = (
+                            current_volume / avg_volume if avg_volume and avg_volume > 0 else 0.0
+                        )
+
+                    trade["volume_ratio_runtime"] = round(volume_ratio, 4)
+                    relax_cycles_global = getattr(self, "relaxed_countertrend_cycles", 0)
+                    relax_mode_active_global = relax_cycles_global > 0
+
+                    # HARD VOLUME FILTER with position bypass
+                    volume_threshold = Config.VOLUME_MINIMUM_THRESHOLD  # From .env (default 0.30)
+                    has_existing_position = coin in self.positions
+
+                    if volume_ratio < volume_threshold and not has_existing_position:
+                        _log_debug(
+                            "block",
+                            f"[BLOCK] HARD VOLUME FILTER: {coin} volume ratio {volume_ratio:.2f} < {volume_threshold}. Trade blocked.",
+                            {
+                                "coin": coin,
+                                "volume_ratio": volume_ratio,
+                                "threshold": volume_threshold,
+                            },
+                        )
+                        execution_report["blocked"].append(
+                            {
+                                "coin": coin,
+                                "reason": "hard_volume_filter",
+                                "volume_ratio": volume_ratio,
+                            },
+                        )
+                        trade["runtime_decision"] = "blocked_hard_volume_filter"
+                        continue
+                    if volume_ratio < volume_threshold and has_existing_position:
+                        _log_debug(
+                            "info",
+                            f"[INFO] Volume filter BYPASS for {coin}: existing position (vol={volume_ratio:.2f})",
+                            {
+                                "coin": coin,
+                                "volume_ratio": volume_ratio,
+                                "bypass_reason": "existing_position",
+                            },
+                        )
+
+                    if volume_ratio is not None:
+                        low_volume_threshold = 0.20 if not relax_mode_active_global else 0.15
+                        if volume_ratio < low_volume_threshold:
+                            if relax_mode_active_global:
+                                _log_debug(
+                                    "volume",
+                                    f"⚡ Relaxed mode: skipping low-volume penalty for {coin} (ratio {volume_ratio:.2f}x).",
+                                    {"coin": coin, "volume_ratio": volume_ratio, "mode": "relaxed"},
+                                )
+                            else:
+                                original_confidence = confidence
+                                # Relaxed penalty: 0.92 instead of 0.8 (only 8% drop)
+                                confidence = max(confidence * 0.92, confidence - 0.05)
+                                # Minimum confidence floor: AI'nın verdiği değerin %85'i altına düşmesin
+                                min_floor = original_confidence * 0.85
+                                confidence = max(confidence, min_floor, Config.MIN_CONFIDENCE)
+                                _log_debug(
+                                    "volume",
+                                    f"[INFO] LOW VOLUME PENALTY: {coin} volume ratio {volume_ratio:.2f}x. Confidence {original_confidence:.2f} -> {confidence:.2f}",
+                                    {
+                                        "coin": coin,
+                                        "volume_ratio": volume_ratio,
+                                        "original_confidence": original_confidence,
+                                        "adjusted_confidence": confidence,
+                                    },
+                                )
+                                if confidence < Config.MIN_CONFIDENCE:
+                                    print(
+                                        f"[BLOCK] Low volume block: {coin} confidence {confidence:.2f} below minimum after penalty.",
+                                    )
+                                    execution_report["blocked"].append(
+                                        {
+                                            "coin": coin,
+                                            "reason": "low_volume",
+                                            "volume_ratio": volume_ratio,
+                                            "confidence": confidence,
+                                        },
+                                    )
+                                    trade["runtime_decision"] = "blocked_low_volume"
+                                    continue
+                                trade["confidence"] = confidence
+
+                    trend_info = self.update_trend_state(coin, indicators_htf, indicators_3m)
+                    current_trend = trend_info.get("trend", "unknown")
+                    flip_cycle = trend_info.get("last_flip_cycle")
+                    last_flip_direction = trend_info.get("last_flip_direction")
+                    guard_cycles_since_flip = None
+                    guard_window = self.trend_flip_cooldown
+                    if isinstance(flip_cycle, int):
+                        guard_cycles_since_flip = max(0, self.current_cycle_number - flip_cycle)
+                    trade["trend_runtime"] = current_trend
+
+                    # ==================== AI/RUNTIME TREND CLASH DETECTION ====================
+                    # If AI signal direction conflicts with runtime trend → apply MIN_MARGIN
+                    # BULLISH trend + SHORT signal = counter-trend (clash)
+                    # BEARISH trend + LONG signal = counter-trend (clash)
+                    ai_runtime_clash = False
+                    if (current_trend == "BULLISH" and direction == "short") or (
+                        current_trend == "BEARISH" and direction == "long"
+                    ):
+                        ai_runtime_clash = True
+                        trade["classification"] = "counter_trend"
+                    else:
+                        trade["classification"] = "trend_following"
+
+                    if ai_runtime_clash:
+                        trade["forced_min_margin"] = True
+                        trade["forced_min_margin_reason"] = "ai_runtime_trend_clash"
+                        # Apply confidence penalty for counter-trend trades
+                        original_conf = confidence
+                        confidence = confidence * 0.85  # -15% for counter-trend clash
+                        confidence_adjustments.append("trend_clash(-15%)")
+                        _log_debug(
+                            "sizing",
+                            f"[WARN]  AI/Runtime TREND CLASH: {coin} {direction.upper()} vs {current_trend} trend → MIN_MARGIN + confidence penalty",
+                            {
+                                "coin": coin,
+                                "direction": direction,
+                                "runtime_trend": current_trend,
+                                "original_conf": original_conf,
+                                "new_conf": confidence,
+                            },
+                        )
+                    # ==================== END AI/RUNTIME CLASH ====================
+
+                    pre_bias_confidence = confidence
+                    confidence = self.apply_directional_bias(
+                        signal,
+                        confidence,
+                        bias_metrics,
+                        current_trend,
+                    )
+                    if confidence != pre_bias_confidence:
+                        _log_debug(
+                            "confidence",
+                            f"[INFO]  Directional bias adjustment: {coin} {signal} confidence {pre_bias_confidence:.2f} -> {confidence:.2f}",
+                            {
+                                "coin": coin,
+                                "signal": signal,
+                                "original": pre_bias_confidence,
+                                "adjusted": confidence,
+                            },
+                        )
+                        trade["confidence"] = confidence
+                    is_counter_trend = self._is_counter_trend_trade(
+                        coin,
+                        signal,
+                        indicators_3m,
+                        indicators_htf,
+                    )
+                    trend_classification = (
+                        "counter_trend" if is_counter_trend else "trend_following"
+                    )
+
+                    # Trend inconsistency check: EMA-based vs runtime trend
+                    # If AI/EMA says counter-trend but runtime says different, use min margin
+                    runtime_counter_trend = (
+                        signal == "buy_to_enter" and current_trend == "bearish"
+                    ) or (signal == "sell_to_enter" and current_trend == "bullish")
+                    trend_inconsistent = is_counter_trend != runtime_counter_trend
+                    if trend_inconsistent:
+                        _log_debug(
+                            "trend",
+                            f"[WARN]  TREND INCONSISTENCY {coin}: EMA counter_trend={is_counter_trend}, Runtime counter_trend={runtime_counter_trend}",
+                            {
+                                "coin": coin,
+                                "signal": signal,
+                                "ema_counter_trend": is_counter_trend,
+                                "runtime_counter_trend": runtime_counter_trend,
+                                "current_trend": current_trend,
+                            },
+                        )
+                        # TREND MISMATCH GUARD v5.1: Instead of blocking, use MIN_MARGIN
+                        # This allows testing trades with disagreement at reduced risk
+                        print(
+                            f"[WARN]  TREND MISMATCH: {coin} - Using MIN_MARGIN ($25) due to AI/Runtime trend conflict",
+                        )
+                        trade[
+                            "forced_min_margin"
+                        ] = True  # Will be used later to cap margin at MIN_POSITION_MARGIN_USD
+                        execution_report["notes"].append(
+                            {
+                                "coin": coin,
+                                "note": "trend_mismatch_min_margin",
+                                "classification": trend_classification,
+                                "ema_counter_trend": is_counter_trend,
+                                "runtime_counter_trend": runtime_counter_trend,
+                            },
+                        )
+
+                    trade["trend_alignment"] = trend_classification
+                    snapshot_parts = []
+                    price_htf = indicators_htf.get("current_price")
+                    ema20_htf = indicators_htf.get("ema_20")
+                    price_3m = indicators_3m.get("current_price")
+                    ema20_3m = indicators_3m.get("ema_20")
+
+                    def _fmt(val):
+                        return f"{val:.4f}" if isinstance(val, (int, float)) else "n/a"
+
+                    comparison_htf = (
+                        "?"
+                        if not isinstance(price_htf, (int, float))
+                        or not isinstance(ema20_htf, (int, float))
+                        else (
+                            ">" if price_htf > ema20_htf else "<" if price_htf < ema20_htf else "="
+                        )
+                    )
+                    comparison_3m = (
+                        "?"
+                        if not isinstance(price_3m, (int, float))
+                        or not isinstance(ema20_3m, (int, float))
+                        else (">" if price_3m > ema20_3m else "<" if price_3m < ema20_3m else "=")
+                    )
+                    snapshot_parts.append(
+                        f"{HTF_LABEL} price={_fmt(price_htf)} {comparison_htf} EMA20={_fmt(ema20_htf)}",
+                    )
+                    snapshot_parts.append(
+                        f"3m price={_fmt(price_3m)} {comparison_3m} EMA20={_fmt(ema20_3m)}",
+                    )
+                    snapshot_parts.append(f"volume_ratio={volume_ratio:.2f}x")
+                    snapshot_parts.append(f"counter_trend={is_counter_trend}")
+                    snapshot_parts.append(f"trend_state={current_trend.upper()}")
+                    print(f"🧾 EXECUTION SNAPSHOT {coin}: " + " | ".join(snapshot_parts))
+
+                    direction = "long" if signal == "buy_to_enter" else "short"
+
+                    if is_counter_trend:
+                        # Check counter-trend cooldown
+                        counter_trend_cooldown = self.counter_trend_cooldown
+                        if counter_trend_cooldown > 0:
+                            print(
+                                f"[BLOCK] Counter-trend cooldown active: Blocking {coin} {signal} ({counter_trend_cooldown} cycles remaining).",
+                            )
+                            execution_report["blocked"].append(
+                                {
+                                    "coin": coin,
+                                    "reason": "counter_trend_cooldown",
+                                    "classification": trend_classification,
+                                },
+                            )
+                            trade["runtime_decision"] = "blocked_counter_trend_cooldown"
+                            continue
+
+                        relaxed_countertrend = self.relaxed_countertrend_cycles > 0
+                        if relaxed_countertrend:
+                            remaining_relax = self.relaxed_countertrend_cycles
+                            _log_debug(
+                                "flip_guard",
+                                f"[INFO] RELAXED COUNTER-TREND MODE: {coin} - skipping flip guard & validation ({remaining_relax} cycles remaining).",
+                                {
+                                    "coin": coin,
+                                    "mode": "relaxed",
+                                    "cycles_remaining": remaining_relax,
+                                },
+                            )
+                        else:
+                            guard_active = (
+                                guard_cycles_since_flip is not None
+                                and guard_cycles_since_flip <= guard_window
+                            )
+                            if guard_active:
+                                # FIXED: Confidence threshold DECREASES over time (stricter → more relaxed)
+                                if guard_cycles_since_flip == 0:
+                                    min_conf = 0.60  # Tolerant: was 0.65
+                                    if confidence < min_conf:
+                                        _log_debug(
+                                            "flip_guard",
+                                            f"[BLOCK] Flip guard confidence floor: {coin} {signal} confidence {confidence:.2f} < {min_conf:.2f} in same cycle after flip.",
+                                            {
+                                                "coin": coin,
+                                                "signal": signal,
+                                                "confidence": confidence,
+                                                "min_required": min_conf,
+                                                "cycles_since_flip": 0,
+                                            },
+                                        )
+                                        execution_report["blocked"].append(
+                                            {
+                                                "coin": coin,
+                                                "reason": "trend_flip_guard_confidence",
+                                                "classification": trend_classification,
+                                            },
+                                        )
+                                        trade["runtime_decision"] = "blocked_trend_flip_confidence"
+                                        continue
+                                    partial_margin_factor = min(
+                                        partial_margin_factor,
+                                        0.8,
+                                    )  # Tolerant: was 0.7
+                                    _log_debug(
+                                        "sizing",
+                                        f"[WATCH] Trend flip guard: {coin} sizing capped at 80% in same-cycle counter-trend attempt (confidence {confidence:.2f}).",
+                                        {
+                                            "coin": coin,
+                                            "sizing_cap": 0.8,
+                                            "confidence": confidence,
+                                            "cycles_since_flip": 0,
+                                        },
+                                    )
+                                elif guard_cycles_since_flip == 1:
+                                    min_conf = 0.55  # Tolerant: was 0.60
+                                    if confidence < min_conf:
+                                        _log_debug(
+                                            "flip_guard",
+                                            f"[BLOCK] Flip guard confidence floor: {coin} {signal} confidence {confidence:.2f} < {min_conf:.2f} one cycle after flip.",
+                                            {
+                                                "coin": coin,
+                                                "signal": signal,
+                                                "confidence": confidence,
+                                                "min_required": min_conf,
+                                                "cycles_since_flip": 1,
+                                            },
+                                        )
+                                        execution_report["blocked"].append(
+                                            {
+                                                "coin": coin,
+                                                "reason": "trend_flip_guard_confidence",
+                                                "classification": trend_classification,
+                                            },
+                                        )
+                                        trade["runtime_decision"] = "blocked_trend_flip_confidence"
+                                        continue
+                                    partial_margin_factor = min(
+                                        partial_margin_factor,
+                                        0.9,
+                                    )  # Tolerant: was 0.8
+                                    _log_debug(
+                                        "sizing",
+                                        f"[WATCH] Trend flip guard (counter-trend): {coin} sizing capped at 90% {constants.ALIGNMENT_STRENGTH_L1} cycle after flip.",
+                                        {
+                                            "coin": coin,
+                                            "sizing_cap": 0.9,
+                                            "cycles_since_flip": constants.ALIGNMENT_STRENGTH_L1,
+                                        },
+                                    )
+                                elif (
+                                    guard_cycles_since_flip == constants.TREND_FLIP_COOLDOWN_DEFAULT
+                                ):
+                                    min_conf = 0.50  # Tolerant: was 0.55
+                                    if confidence < min_conf:
+                                        _log_debug(
+                                            "flip_guard",
+                                            f"[BLOCK] Flip guard confidence floor: {coin} {signal} confidence {confidence:.2f} < {min_conf:.2f} two cycles after flip.",
+                                            {
+                                                "coin": coin,
+                                                "signal": signal,
+                                                "confidence": confidence,
+                                                "min_required": min_conf,
+                                                "cycles_since_flip": 2,
+                                            },
+                                        )
+                                        execution_report["blocked"].append(
+                                            {
+                                                "coin": coin,
+                                                "reason": "trend_flip_guard_confidence",
+                                                "classification": trend_classification,
+                                            },
+                                        )
+                                        trade["runtime_decision"] = "blocked_trend_flip_confidence"
+                                        continue
+                                    partial_margin_factor = min(
+                                        partial_margin_factor,
+                                        1.0,
+                                    )  # Tolerant: was 0.9 - full margin
+                                    _log_debug(
+                                        "sizing",
+                                        f"[WATCH] Trend flip guard (counter-trend): {coin} sizing at 100% two cycles after flip.",
+                                        {"coin": coin, "sizing_cap": 1.0, "cycles_since_flip": 2},
+                                    )
+                            counter_confidence_floor = (
+                                0.62 if not relaxed_countertrend else 0.58
+                            )  # Sıkılaştırıldı (0.65→0.62, 0.60→0.58)
+                            if confidence < counter_confidence_floor:
+                                if relaxed_countertrend:
+                                    _log_debug(
+                                        "info",
+                                        f"[WARN]  Relaxed mode: counter-trend confidence {confidence:.2f} below {counter_confidence_floor:.2f}, but allowing due to cooldown.",
+                                        {
+                                            "coin": coin,
+                                            "confidence": confidence,
+                                            "floor": counter_confidence_floor,
+                                        },
+                                    )
+                                else:
+                                    _log_debug(
+                                        "info",
+                                        f"[WARN]  WARNING: Counter-trend confidence {confidence:.2f} below recommended {counter_confidence_floor:.2f} - proceeding with AI decision",
+                                        {
+                                            "coin": coin,
+                                            "confidence": confidence,
+                                            "recommended_floor": counter_confidence_floor,
+                                        },
+                                    )
+                            _log_debug(
+                                "trend",
+                                f"[WARN]  COUNTER-TREND DETECTED: {coin} - respecting AI decision (risk_level from prompt_json_builders.py)",
+                                {"coin": coin, "classification": "counter_trend"},
+                            )
+                    else:
+                        guard_active = (
+                            guard_cycles_since_flip is not None
+                            and guard_cycles_since_flip <= guard_window
+                        )
+                        if guard_active and last_flip_direction:
+                            is_trend_direction = (
+                                last_flip_direction == "bullish" and direction == "long"
+                            ) or (last_flip_direction == "bearish" and direction == "short")
+                            if is_trend_direction:
+                                original_conf = confidence
+                                if guard_cycles_since_flip == 0:
+                                    # Relaxed: 0.97 instead of 0.90
+                                    confidence = max(
+                                        confidence * 0.97,
+                                        confidence - 0.02,
+                                        original_conf * 0.95,
+                                    )
+                                    partial_margin_factor = min(partial_margin_factor, 0.7)
+                                    _log_debug(
+                                        "sizing",
+                                        f"[WATCH] Trend flip guard (trend-following): {coin} confidence {original_conf:.2f} → {confidence:.2f} & sizing 50% immediately after flip.",
+                                        {
+                                            "coin": coin,
+                                            "original_confidence": original_conf,
+                                            "adjusted_confidence": confidence,
+                                            "sizing_cap": 0.5,
+                                            "cycles_since_flip": 0,
+                                        },
+                                    )
+                                elif guard_cycles_since_flip == 1:
+                                    # Relaxed: 0.98 instead of 0.95
+                                    confidence = max(
+                                        confidence * 0.98,
+                                        confidence - 0.01,
+                                        original_conf * 0.97,
+                                    )
+                                    partial_margin_factor = min(partial_margin_factor, 0.8)
+                                    _log_debug(
+                                        "sizing",
+                                        f"[WATCH] Trend flip guard (trend-following): {coin} confidence {original_conf:.2f} → {confidence:.2f} & sizing 70% {constants.ALIGNMENT_STRENGTH_L1} cycle after flip.",
+                                        {
+                                            "coin": coin,
+                                            "original_confidence": original_conf,
+                                            "adjusted_confidence": confidence,
+                                            "sizing_cap": 0.7,
+                                            "cycles_since_flip": constants.ALIGNMENT_STRENGTH_L1,
+                                        },
+                                    )
+                                elif (
+                                    guard_cycles_since_flip == constants.TREND_FLIP_COOLDOWN_DEFAULT
+                                ):
+                                    # Relaxed: 0.99 instead of 0.98
+                                    confidence = max(confidence * 0.99, original_conf * 0.98)
+                                    partial_margin_factor = min(partial_margin_factor, 0.90)
+                                    _log_debug(
+                                        "sizing",
+                                        f"[WATCH] Trend flip guard (trend-following): {coin} confidence {original_conf:.2f} → {confidence:.2f} & sizing 85% {constants.TREND_FLIP_COOLDOWN_DEFAULT} cycles after flip.",
+                                        {
+                                            "coin": coin,
+                                            "original_confidence": original_conf,
+                                            "adjusted_confidence": confidence,
+                                            "sizing_cap": 0.85,
+                                            "cycles_since_flip": constants.TREND_FLIP_COOLDOWN_DEFAULT,
+                                        },
+                                    )
+                                trade["confidence"] = confidence
+                        # Trend-following trade path - Hibrit yaklaşım (15m dahil)
+                        trend_strength_result = self.get_trend_following_strength(coin, signal)
+
+                        if trend_strength_result and trend_strength_result["strength"]:
+                            # 15m dahil multi-timeframe analizi başarılı
+                            strength = trend_strength_result["strength"]
+                            alignment_info = trend_strength_result["alignment_info"]
+                            trends = trend_strength_result["trends"]
+
+                            # Mevcut trend_aligned kontrolü (geriye dönük uyumluluk için)
+                            price_htf_follow = indicators_htf.get("current_price")
+                            ema20_htf_follow = indicators_htf.get("ema_20")
+                            ema20_3m = indicators_3m.get("ema_20")
+                            price_3m = indicators_3m.get("current_price")
+                            trend_aligned = False
+                            if (
+                                isinstance(price_htf_follow, (int, float))
+                                and isinstance(ema20_htf_follow, (int, float))
+                                and isinstance(price_3m, (int, float))
+                                and isinstance(ema20_3m, (int, float))
+                            ) and (
+                                (
+                                    signal == "buy_to_enter"
+                                    and price_htf_follow >= ema20_htf_follow
+                                    and price_3m >= ema20_3m
+                                )
+                                or (
+                                    signal == "sell_to_enter"
+                                    and price_htf_follow <= ema20_htf_follow
+                                    and price_3m <= ema20_3m
+                                )
+                            ):
+                                trend_aligned = True
+
+                            # Logging - with strength level and 15m info
+                            ratio_str = f"{volume_ratio:.2f}" if volume_ratio is not None else "n/a"
+                            _log_debug(
+                                "trend",
+                                f"[OK]    TREND-FOLLOWING ({strength}): {coin} {alignment_info}",
+                                {
+                                    "coin": coin,
+                                    "strength": strength,
+                                    "trends": trends,
+                                    "volume_ratio": ratio_str,
+                                },
+                            )
+                            _log_debug(
+                                "trend",
+                                f"   Timeframes: 1h={trends['1h']}, 15m={trends['15m']}, 3m={trends['3m']} | Volume: {ratio_str}x",
+                                {"coin": coin, "timeframes": trends, "volume_ratio": ratio_str},
+                            )
+
+                            # Volume 0.5-0.8 arasinda ise normal devam et (0.5 carpani kaldirildi)
+                            # Hard volume filter (<0.20) zaten kotu trade'leri engelliyor
+                        else:
+                            # Fallback: Eski mantık (hata durumunda veya 15m verisi yoksa)
+                            price_htf_follow = indicators_htf.get("current_price")
+                            ema20_htf_follow = indicators_htf.get("ema_20")
+                            ema20_3m = indicators_3m.get("ema_20")
+                            price_3m = indicators_3m.get("current_price")
+                            trend_aligned = False
+                            if (
+                                isinstance(price_htf_follow, (int, float))
+                                and isinstance(ema20_htf_follow, (int, float))
+                                and isinstance(price_3m, (int, float))
+                                and isinstance(ema20_3m, (int, float))
+                            ) and (
+                                (
+                                    signal == "buy_to_enter"
+                                    and price_htf_follow >= ema20_htf_follow
+                                    and price_3m >= ema20_3m
+                                )
+                                or (
+                                    signal == "sell_to_enter"
+                                    and price_htf_follow <= ema20_htf_follow
+                                    and price_3m <= ema20_3m
+                                )
+                            ):
+                                trend_aligned = True
+                            if trend_aligned:
+                                # Volume 0.5-0.8 arasinda normal devam et (0.5 carpani kaldirildi)
+                                ratio_str = (
+                                    f"{volume_ratio:.2f}" if volume_ratio is not None else "n/a"
+                                )
+                                print(
+                                    f"[OK]    TREND-FOLLOWING: {coin} aligns with {HTF_LABEL} trend direction (volume ratio {ratio_str})",
+                                )
+                            else:
+                                print(
+                                    f"[OK]    TREND-FOLLOWING: {coin} aligns with {HTF_LABEL} trend direction",
+                                )
+
+                except Exception as e:
+                    print(f"[WARN]  Counter-trend detection failed for {coin}: {e}")
+                    # Detection hatasında trade'e izin ver
+                    execution_report["notes"].append({"coin": coin, "warning": str(e)})
+
+                # Use dynamic confidence-based margin calculation instead of AI's quantity_usd
+                # This ensures position sizing is ratio-based and dynamic
+
+                # FIX: Calculate ATR-based stop loss BEFORE margin calculation for proper volatility sizing
+                atr_stop_loss = None
+                try:
+                    # Fetch ATR from HTF (1h) for consistent SL calculation
+                    atr_value = (
+                        indicators_htf.get("atr_14") if isinstance(indicators_htf, dict) else None
+                    )
+                    if atr_value and atr_value > 0:
+                        sl_distance = atr_value * Config.ATR_SL_MULTIPLIER
+                        if signal == "buy_to_enter":
+                            atr_stop_loss = current_price - sl_distance
+                        else:  # sell_to_enter
+                            atr_stop_loss = current_price + sl_distance
+                        print(
+                            f"[INFO]  Pre-calculated ATR SL for sizing: {coin} ATR={atr_value:.6f} x {Config.ATR_SL_MULTIPLIER} -> SL=${atr_stop_loss:.6f}",
+                        )
+                    else:
+                        # Fallback: 2% stop distance
+                        fallback_distance = current_price * 0.02
+                        if signal == "buy_to_enter":
+                            atr_stop_loss = current_price - fallback_distance
+                        else:
+                            atr_stop_loss = current_price + fallback_distance
+                        print(
+                            f"[WARN]  ATR unavailable for {coin}, using 2% fallback SL: ${atr_stop_loss:.6f}",
+                        )
+                except Exception as e:
+                    print(f"[WARN]  ATR SL calculation failed for {coin}: {e}")
+
+                calculated_margin = self.calculate_confidence_based_margin(
+                    confidence,
+                    self.current_balance,
+                    entry_price=current_price,
+                    stop_loss=atr_stop_loss,  # Use ATR-based SL instead of AI's (None)
+                    leverage=leverage,
+                    market_regime=market_regime,
+                    log_func=_log_debug,
+                )
+
+                # Apply market regime multiplier (v1.2: Scout leverage mult incorporated here if enabled)
+                current_multiplier = market_regime_multiplier
+                if Config.SCOUT_MODE_ENABLED and market_regime == "NEUTRAL":
+                    current_multiplier *= getattr(Config, "SCOUT_LEVERAGE_MULT", 0.5)
+
+                calculated_margin *= current_multiplier
+                if partial_margin_factor < 1:
+                    standard_margin = calculated_margin
+                    reduced_margin = standard_margin * partial_margin_factor
+                    print(
+                        f"[WATCH] Applying partial margin ({partial_margin_factor * 100:.0f}%): ${standard_margin:.2f} → ${reduced_margin:.2f}",
+                    )
+                    calculated_margin = max(reduced_margin, Config.MIN_POSITION_MARGIN_USD)
+
+                # Trend mismatch override (v5.1): use minimum margin if AI/Runtime trends disagree
+                if trade.get("forced_min_margin"):
+                    original_margin = calculated_margin
+                    calculated_margin = Config.MIN_POSITION_MARGIN_USD
+                    _log_debug(
+                        "sizing",
+                        f"[WARN]  TREND MISMATCH: Using MIN_MARGIN ${Config.MIN_POSITION_MARGIN_USD:.0f} (was ${original_margin:.2f})",
+                        {
+                            "coin": coin,
+                            "original_margin": original_margin,
+                            "reduced_margin": calculated_margin,
+                            "reason": "trend_mismatch_min_margin",
+                        },
+                    )
+
+                # MINIMUM $10 COIN AMOUNT CHECK
+                if calculated_margin < Config.MIN_POSITION_MARGIN_USD:
+                    print(
+                        f"[INFO]  Calculated margin ${calculated_margin:.2f} below minimum ${Config.MIN_POSITION_MARGIN_USD:.2f}. Using minimum margin instead.",
+                    )
+                    calculated_margin = Config.MIN_POSITION_MARGIN_USD
+
+                # AVAILABLE CASH PROTECTION CHECK
+                min_available_cash = self.current_balance * 0.10
+                if (self.current_balance - calculated_margin) < min_available_cash:
+                    print(
+                        f"[WARN]  Trade would reduce available cash below minimum ${min_available_cash:.2f}. Trade blocked.",
+                    )
+                    execution_report["blocked"].append(
+                        {
+                            "coin": coin,
+                            "reason": "available_cash_guard",
+                            "calculated_margin": calculated_margin,
+                        },
+                    )
+                    trade["runtime_decision"] = "blocked_cash_guard"
+                    continue
+
+                # Convert margin to notional using leverage
+                calculated_notional_usd = calculated_margin * leverage
+                print(
+                    f"   Dynamic confidence-based sizing: ${calculated_notional_usd:.2f} notional (${calculated_margin:.2f} margin)",
+                )
+
+                # Check risk management constraints with new simplified system
+                # Minimum $10 and available cash protection already checked
+                # Risk manager now only performs position limit checks
+                risk_decision = self.risk_manager.should_enter_trade(
+                    symbol=coin,
+                    current_positions=self.positions,
+                    current_prices=current_prices,
+                    confidence=confidence,
+                    proposed_notional=calculated_notional_usd,
+                    current_balance=self.current_balance,
+                )
+
+                if not risk_decision["should_enter"]:
+                    print(f"[WARN]  Risk management blocked trade: {risk_decision['reason']}")
+                    execution_report["blocked"].append(
+                        {"coin": coin, "reason": f"risk_manager:{risk_decision['reason']}"},
+                    )
+                    trade["runtime_decision"] = "blocked_risk_manager"
+                    continue
+
+                notional_usd = calculated_notional_usd
+                margin_usd = notional_usd / leverage  # Margin required
+
+                if margin_usd <= 0:
+                    print(
+                        f"[WARN]  {signal.upper()} {coin}: Calculated margin is zero/negative. Skipping.",
+                    )
+                    continue
+                if margin_usd > self.current_balance:
+                    print(
+                        f"[WARN]  {signal.upper()} {coin}: Not enough cash for margin (${margin_usd:.2f} > ${self.current_balance:.2f})",
+                    )
+                    continue
+
+                quantity_coin = notional_usd / current_price
+
+                if self.is_live_trading:
+                    live_result = self.execute_live_entry(
+                        coin=coin,
+                        direction=direction,
+                        quantity=quantity_coin,
+                        leverage=leverage,
+                        current_price=current_price,
+                        notional_usd=notional_usd,
+                        confidence=confidence,
+                        margin_usd=margin_usd,  # Pass calculated margin_usd
+                        stop_loss=stop_loss,
+                        profit_target=trade.get("profit_target"),
+                        invalidation=trade.get("invalidation_condition"),
+                    )
+                    if not live_result.get("success"):
+                        error_msg = live_result.get("error", "unknown_error")
+                        print(f"[BLOCK] LIVE ORDER FAILED: {coin} {signal} ({error_msg})")
+                        execution_report["blocked"].append(
+                            {"coin": coin, "reason": "live_order_failed", "error": error_msg},
+                        )
+                        trade["runtime_decision"] = "blocked_live_order"
+                        continue
+
+                    execution_report["executed"].append(
+                        {
+                            "coin": coin,
+                            "signal": signal,
+                            "confidence": confidence,
+                            "classification": trend_classification,
+                            "volume_ratio": volume_ratio,
+                            "margin_usd": live_result.get("margin_usd"),
+                            "mode": "live",
+                            "order_id": live_result.get("order", {}).get("orderId"),
+                        },
+                    )
+                    trade["runtime_decision"] = "executed_live"
+                    new_positions_this_cycle += 1
+                    continue
+
+                self.current_balance -= margin_usd  # Deduct margin (simulation)
+
+                direction = "long" if signal == "buy_to_enter" else "short"
+                estimated_liq_price = self._estimate_liquidation_price(
+                    current_price,
+                    leverage,
+                    direction,
+                )
+
+                self.positions[coin] = {
+                    "symbol": coin,
+                    "direction": direction,
+                    "quantity": quantity_coin,
+                    "entry_price": current_price,
+                    "entry_time": datetime.now(timezone.utc).isoformat(),
+                    "current_price": current_price,
+                    "unrealized_pnl": 0.0,
+                    "notional_usd": notional_usd,
+                    "margin_usd": margin_usd,
+                    "leverage": leverage,
+                    "liquidation_price": estimated_liq_price,
+                    "confidence": confidence,
+                    "exit_plan": {
+                        "profit_target": trade.get("profit_target"),
+                        "stop_loss": stop_loss,
+                        "invalidation_condition": trade.get("invalidation_condition"),
+                    },
+                    "risk_usd": margin_usd,
+                    "loss_cycle_count": 0,
+                    "entry_volume": indicators_3m.get("volume")
+                    if isinstance(indicators_3m, dict)
+                    else None,
+                    "entry_avg_volume": indicators_3m.get("avg_volume")
+                    if isinstance(indicators_3m, dict)
+                    else None,
+                    "entry_volume_ratio": volume_ratio,
+                    "entry_atr_14": indicators_3m.get("atr_14")
+                    if isinstance(indicators_3m, dict)
+                    else None,
+                    "trend_alignment": trend_classification,
+                    "trend_context": {
+                        "trend_at_entry": current_trend,
+                        "alignment": trend_classification,
+                        "cycle": self.current_cycle_number,
+                    },
+                    "trailing": {},
+                    "sl_oid": -1,
+                    "tp_oid": -1,
+                    "entry_oid": -1,
+                    "wait_for_fill": False,
+                }
+                print(
+                    f"[OK]    {signal.upper()}: Opened {direction} {coin} ({format_num(quantity_coin, 4)} @ ${format_num(current_price, 4)} / Notional ${format_num(notional_usd, 2)} / Margin ${format_num(margin_usd, 2)} / Est. Liq: ${format_num(estimated_liq_price, 4)})",
+                )
+                execution_report["executed"].append(
+                    {
+                        "coin": coin,
+                        "signal": signal,
+                        "confidence": confidence,
+                        "classification": trend_classification,
+                        "volume_ratio": volume_ratio,
+                        "margin_usd": margin_usd,
+                    },
+                )
+                trade["runtime_decision"] = "executed"
+                new_positions_this_cycle += 1
+
+            elif signal == "close_position":
+                if not position:
+                    print(f"[WARN]  CLOSE {coin}: No position to close.")
+                    execution_report["skipped"].append(
+                        {"coin": coin, "reason": "no_position_to_close"},
+                    )
+                    trade["runtime_decision"] = "skipped_no_position"
+                    continue
+
+                justification = trade.get("justification", "")
+                if "reversal" in justification or "invalidation" in justification:
+                    # Treat Take Profit, Stop Loss or PnL justifications as hard exits
+                    is_pnl_exit = any(
+                        word in justification.lower()
+                        for word in ["take profit", "stop loss", "pnl"]
+                    )
+
+                    if not is_pnl_exit:
+                        # 5.1 Surgical Invalidation Check
+                        direction = position.get("direction", "long")
+                        strong_reversal = self._verify_technical_reversal(coin, direction)
+
+                        if not strong_reversal:
+                            print(
+                                f"[BLOCK] Exit Desensitization: {coin} close blocked. Technicals still support {direction.upper()}."
+                            )
+                            execution_report["holds"].append(
+                                {
+                                    "coin": coin,
+                                    "reason": "exit_desensitization_blocked",
+                                    "justification": justification,
+                                },
+                            )
+                            trade["runtime_decision"] = "blocked_exit_desensitization"
+                            continue
+
+                if self.is_live_trading:
+                    live_result = self.execute_live_close(
+                        coin=coin,
+                        position=position,
+                        current_price=current_price,
+                        reason=trade.get("justification"),
+                    )
+                    if not live_result.get("success"):
+                        error_msg = live_result.get("error", "unknown_error")
+                        print(f"[BLOCK] LIVE CLOSE FAILED: {coin} ({error_msg})")
+                        execution_report["blocked"].append(
+                            {"coin": coin, "reason": "live_close_failed", "error": error_msg},
+                        )
+                        trade["runtime_decision"] = "blocked_live_close"
+                    else:
+                        history_entry = live_result.get("history_entry")
+                        if history_entry:
+                            self.add_to_history(history_entry)
+                        execution_report["executed"].append(
+                            {
+                                "coin": coin,
+                                "signal": "close_position",
+                                "pnl": live_result.get("pnl"),
+                                "direction": position.get("direction"),
+                                "mode": "live",
+                                "order_id": live_result.get("order", {}).get("orderId"),
+                            },
+                        )
+                        trade["runtime_decision"] = "executed_live"
+                    continue
+
+                sell_quantity = position["quantity"]
+                direction = position.get("direction", "long")
+                entry_price = position["entry_price"]
+                margin_used = position.get(
+                    "margin_usd",
+                    position.get("notional_usd", 0) / position.get("leverage", 1),
+                )
+
+                profit = (
+                    (current_price - entry_price) * sell_quantity
+                    if direction == "long"
+                    else (entry_price - current_price) * sell_quantity
+                )
+                if not self.is_live_trading:
+                    self.current_balance += margin_used + profit
+
+                print(
+                    f"[OK]    CLOSE (AI): Closed {direction} {coin} @ ${format_num(current_price, 4)} (PnL: ${format_num(profit, 2)})",
+                )
+                execution_report["executed"].append(
+                    {
+                        "coin": coin,
+                        "signal": "close_position",
+                        "pnl": profit,
+                        "direction": direction,
+                    },
+                )
+                trade["runtime_decision"] = "executed"
+
+                history_entry = {
+                    "symbol": coin,
+                    "direction": direction,
+                    "entry_price": entry_price,
+                    "exit_price": current_price,
+                    "quantity": position["quantity"],
+                    "notional_usd": position.get("notional_usd", "N/A"),
+                    "pnl": profit,
+                    "entry_time": position["entry_time"],
+                    "exit_time": datetime.now(timezone.utc).isoformat(),
+                    "leverage": position.get("leverage", "N/A"),
+                    "close_reason": f"AI Decision: {trade.get('justification', 'N/A')}",
+                }
+                self.add_to_history(history_entry)
+                del self.positions[coin]
+
+            elif signal == "hold":
+                # For hold signals, just log the decision - no action needed
+                if position:
+                    print(
+                        f"[INFO]  HOLD: Holding {position.get('direction', 'long')} {coin} position."
+                    )
+                else:
+                    print(f"[INFO]  HOLD: Staying cash in {coin}.")
+                execution_report["holds"].append({"coin": coin, "has_position": bool(position)})
+                trade["runtime_decision"] = "hold"
+            else:
+                print(f"[WARN]  Unknown signal '{signal}' for {coin}. Skipping.")
+
+        self.last_execution_report = execution_report
