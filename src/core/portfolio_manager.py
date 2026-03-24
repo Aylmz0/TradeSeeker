@@ -290,7 +290,6 @@ class PortfolioManager:
         backup_dir = Path("history_backups") / f"{timestamp}_cycle_{cycle_number}"
         files_to_backup = [
             (self.history_file, []),
-            (self.bias_file, []),
             (self.full_history_file, []),
             (self.cycle_history_file, []),
             ("data/performance_history.json", []),
