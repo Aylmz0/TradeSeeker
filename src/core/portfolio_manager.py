@@ -3154,13 +3154,19 @@ class PortfolioManager:
 
         # 1. Snapshot
         inds_3m, inds_htf = self._get_indicator_snapshot(coin, indicator_cache)
-        if ("error" in inds_3m) or ("error" in inds_htf):
+
+        # Pull 15m explicitly to form the hybrid volume filter
+        inds_15m = indicator_cache.get(coin, {}).get("15m") if indicator_cache else None
+        if not isinstance(inds_15m, dict) or "error" in inds_15m:
+            inds_15m = self.market_data.get_technical_indicators(coin, "15m")
+
+        if ("error" in inds_3m) or ("error" in inds_htf) or ("error" in inds_15m):
             execution_report["blocked"].append({"coin": coin, "reason": "indicator_error"})
             trade["runtime_decision"] = "blocked_indicator_error"
             return {"proceed": False}
 
-        # 2. Volume Analysis
-        proceed, conf = self._handle_volume_analysis_and_penalty(signal_ctx, inds_3m)
+        # 2. Volume Analysis (Hybrid 3m/15m)
+        proceed, conf = self._handle_volume_analysis_and_penalty(signal_ctx, inds_3m, inds_15m)
         signal_ctx["confidence"] = conf
         if not proceed:
             return {"proceed": False}
@@ -3256,6 +3262,7 @@ class PortfolioManager:
         self,
         signal_ctx: dict[str, Any],
         indicators_3m_snap: dict[str, Any],
+        indicators_15m_snap: dict[str, Any] | None = None,
     ) -> tuple[bool, float]:
         """Perform volume quality analysis and apply confidence penalties if weak.
 
@@ -3287,40 +3294,70 @@ class PortfolioManager:
 
         current_volume = indicators_3m_snap.get("volume", 0)
         avg_volume = indicators_3m_snap.get("avg_volume", 1)
-        volume_ratio = indicators_3m_snap.get(
+        volume_ratio_3m = indicators_3m_snap.get(
             "volume_ratio", (current_volume / avg_volume if avg_volume > 0 else 0.0)
         )
-        trade["volume_ratio_runtime"] = round(volume_ratio, 4)
+        trade["volume_ratio_runtime"] = round(volume_ratio_3m, 4)
 
-        # Hard Volume Filter
+        volume_ratio_15m = 0.0
+        if indicators_15m_snap:
+            vol_15m = indicators_15m_snap.get("volume", 0)
+            avg_vol_15m = indicators_15m_snap.get("avg_volume", 1)
+            volume_ratio_15m = indicators_15m_snap.get(
+                "volume_ratio", (vol_15m / avg_vol_15m if avg_vol_15m > 0 else 0.0)
+            )
+            trade["volume_ratio_15m_runtime"] = round(volume_ratio_15m, 4)
+
+        # Hard Volume Filter (HYBRID: 3m OR 15m)
         volume_threshold = Config.VOLUME_MINIMUM_THRESHOLD
         has_existing_position = coin in self.positions
-        if volume_ratio < volume_threshold and not has_existing_position:
+
+        if (
+            volume_ratio_3m < volume_threshold
+            and volume_ratio_15m < volume_threshold
+            and not has_existing_position
+        ):
             log_func(
                 "block",
-                f"[BLOCK] HARD VOLUME FILTER: {coin} volume ratio {volume_ratio:.2f} < {volume_threshold}. Trade blocked.",
-                {"coin": coin, "volume_ratio": volume_ratio},
+                f"[BLOCK] HYBRID VOLUME FILTER: {coin} 3m ratio {volume_ratio_3m:.2f} & 15m ratio {volume_ratio_15m:.2f} < {volume_threshold}. Trade blocked.",
+                {
+                    "coin": coin,
+                    "volume_ratio": volume_ratio_3m,
+                    "volume_ratio_3m": volume_ratio_3m,
+                    "volume_ratio_15m": volume_ratio_15m,
+                },
             )
             execution_report["blocked"].append(
-                {"coin": coin, "reason": "hard_volume_filter", "volume_ratio": volume_ratio}
+                {
+                    "coin": coin,
+                    "reason": "hybrid_volume_filter",
+                    "volume_ratio_3m": volume_ratio_3m,
+                    "volume_ratio_15m": volume_ratio_15m,
+                }
             )
-            trade["runtime_decision"] = "blocked_hard_volume_filter"
+            trade["runtime_decision"] = "blocked_hybrid_volume_filter"
             return False, confidence
 
-        # Low Volume Penalty
+        # Low Volume Penalty (Applies only if BOTH are below threshold)
         relax_mode_active = getattr(self, "relaxed_countertrend_cycles", 0) > 0
         low_vol_threshold = 0.20 if not relax_mode_active else 0.15
-        if volume_ratio < low_vol_threshold and not relax_mode_active:
+
+        if (
+            volume_ratio_3m < low_vol_threshold
+            and volume_ratio_15m < low_vol_threshold
+            and not relax_mode_active
+        ):
             original_conf = confidence
             confidence = max(confidence * 0.92, confidence - 0.05)
             min_floor = original_conf * 0.85
             confidence = max(confidence, min_floor, Config.MIN_CONFIDENCE)
             log_func(
                 "volume",
-                f"[INFO] LOW VOLUME PENALTY: {coin} volume ratio {volume_ratio:.2f}x. Confidence {original_conf:.2f} -> {confidence:.2f}",
+                f"[INFO] LOW VOLUME PENALTY (HYBRID): {coin} 3m ratio {volume_ratio_3m:.2f}x, 15m ratio {volume_ratio_15m:.2f}x. Confidence {original_conf:.2f} -> {confidence:.2f}",
                 {
                     "coin": coin,
-                    "volume_ratio": volume_ratio,
+                    "volume_ratio_3m": volume_ratio_3m,
+                    "volume_ratio_15m": volume_ratio_15m,
                     "original_confidence": original_conf,
                     "adjusted_confidence": confidence,
                 },
@@ -3330,12 +3367,13 @@ class PortfolioManager:
                 execution_report["blocked"].append(
                     {
                         "coin": coin,
-                        "reason": "low_volume",
-                        "volume_ratio": volume_ratio,
+                        "reason": "low_volume_hybrid",
+                        "volume_ratio_3m": volume_ratio_3m,
+                        "volume_ratio_15m": volume_ratio_15m,
                         "confidence": confidence,
                     }
                 )
-                trade["runtime_decision"] = "blocked_low_volume"
+                trade["runtime_decision"] = "blocked_low_volume_hybrid"
                 return False, confidence
 
         trade["confidence"] = confidence

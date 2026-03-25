@@ -25,21 +25,30 @@ class DeepSeekAPI:
         model_list = []
         self.primary_model = None
 
+        self.thinking_enabled = getattr(Config, "OPENROUTER_REASONING_ENABLED", False)
+
         # 1. OpenRouter (Primary)
         if getattr(Config, "OPENROUTER_API_KEY", None):
             self.primary_model = "openrouter/" + getattr(
                 Config, "OPENROUTER_MODEL", "google/gemini-2.0-flash-exp:free"
             )
+
+            or_params = {
+                "model": self.primary_model,
+                "api_key": Config.OPENROUTER_API_KEY,
+                "api_base": "https://openrouter.ai/api/v1",
+                "tpm": 100000,
+                "rpm": 100,
+            }
+            if self.thinking_enabled:
+                or_params["extra_body"] = {"reasoning": {"enabled": True}}
+            else:
+                or_params["response_format"] = {"type": "json_object"}
+
             model_list.append(
                 {
                     "model_name": self.primary_model,
-                    "litellm_params": {
-                        "model": self.primary_model,
-                        "api_key": Config.OPENROUTER_API_KEY,
-                        "api_base": "https://openrouter.ai/api/v1",
-                        "tpm": 100000,
-                        "rpm": 100,
-                    },
+                    "litellm_params": or_params,
                 }
             )
 
@@ -56,6 +65,7 @@ class DeepSeekAPI:
                         "api_key": Config.GROQ_API_KEY,
                         "tpm": 100000,
                         "rpm": 30,
+                        "response_format": {"type": "json_object"},
                     },
                 }
             )
@@ -72,6 +82,7 @@ class DeepSeekAPI:
                         "model": mimo_model,
                         "api_key": Config.MIMO_API_KEY,
                         "api_base": "https://api.xiaomimimo.com/v1",
+                        "response_format": {"type": "json_object"},
                     },
                 }
             )
@@ -88,11 +99,10 @@ class DeepSeekAPI:
                         "model": zai_model,
                         "api_key": Config.ZAI_API_KEY,
                         "api_base": "https://api.z.ai/api/paas/v4/",
+                        "response_format": {"type": "json_object"},
                     },
                 }
             )
-
-        self.thinking_enabled = getattr(Config, "OPENROUTER_REASONING_ENABLED", False)
 
         if not model_list:
             print(
@@ -389,16 +399,7 @@ class DeepSeekAPI:
                 "temperature": 0.5,
                 "max_tokens": 10000,
                 "stream": False,  # Non-streaming provides greater stability against free tier drops
-                "response_format": {"type": "json_object"},
             }
-
-            # Handle Provider-Specific Reasoning Requirements
-            if self.thinking_enabled and "openrouter/" in self.primary_model:
-                kwargs["extra_body"] = {"reasoning": {"enabled": True}}
-                if "json_object" in str(kwargs.get("response_format", "")):
-                    del kwargs[
-                        "response_format"
-                    ]  # OpenRouter sometimes rejects JSON mode with reasoning
 
             # Fallbacks are automatically collected from the remaining configured models
             fallbacks = [
