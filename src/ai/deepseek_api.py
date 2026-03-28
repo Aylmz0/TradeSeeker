@@ -294,7 +294,7 @@ class DeepSeekAPI:
             "analysis_process": [
                 "1. Check EACH coin's market_context.regime (1h Boss) and risk_profile.",
                 "2. Review technical_summary (15m Advisor): trend_alignment, momentum, structure_15m.",
-                "3. Use 3m (Sensor) ONLY for entry timing via volume surges or RSI extremes. Do NOT block 1h/15m setups if 3m is neutral/noisy.",
+                "3. Use 3m (Sensor) ONLY for entry timing via volume surges or RSI extremes. Do NOT block 1h/15m setups if 3m is neutral/noisy. RULE: If 1h Trend + 15m Structure are in FULL alignment, 3m alignment is OPTIONAL.",
                 "4. CROSS-REFERENCE with ml_consensus (XGBoost) if available. If null, rely STRICTLY on technical_summary (15m) and key_levels.",
                 "5. Evaluate risk_profile: counter_trade_risk + reversal_threat.",
                 "6. Check sentiment: funding_rate, open_interest.",
