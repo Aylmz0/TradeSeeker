@@ -1,3 +1,6 @@
+import glob
+import json
+import os
 from datetime import datetime, timezone
 from typing import Any
 
@@ -676,6 +679,76 @@ class PerformanceMonitor:
             )
 
         return recommendations
+
+    def aggregate_all_history(self) -> dict[str, Any]:
+        """Aggregate data from all history backups and active data files."""
+        all_trades = []
+        all_cycles = []
+        all_performance = []
+
+        # 1. Scan history_backups directory
+        backup_dir = "history_backups"
+        if os.path.exists(backup_dir):
+            subdirs = sorted(glob.glob(os.path.join(backup_dir, "*_cycle_*")))
+            for subdir in subdirs:
+                # Load files from this backup
+                trades = safe_file_read(os.path.join(subdir, "trade_history.json"), [])
+                cycles = safe_file_read(os.path.join(subdir, "cycle_history.json"), [])
+                perf = safe_file_read(os.path.join(subdir, "performance_history.json"), [])
+
+                if isinstance(trades, list):
+                    all_trades.extend(trades)
+                if isinstance(cycles, list):
+                    all_cycles.extend(cycles)
+                if isinstance(perf, list):
+                    all_performance.extend(perf)
+
+        # 2. Add active data
+        active_trades = safe_file_read(self.trade_history_file, [])
+        active_cycles = safe_file_read(self.cycle_history_file, [])
+        active_performance = safe_file_read(
+            "data/performance_history.json", []
+        )  # Hardcoded or from member?
+
+        if isinstance(active_trades, list):
+            all_trades.extend(active_trades)
+        if isinstance(active_cycles, list):
+            all_cycles.extend(active_cycles)
+        if isinstance(active_performance, list):
+            all_performance.extend(active_performance)
+
+        # 3. De-duplicate Trades (by entry_time and symbol)
+        unique_trades = {}
+        for t in all_trades:
+            if not isinstance(t, dict):
+                continue
+            key = f"{t.get('symbol')}_{t.get('entry_time')}"
+            unique_trades[key] = t
+        sorted_trades = sorted(unique_trades.values(), key=lambda x: x.get("entry_time", ""))
+
+        # 4. De-duplicate Cycle History (by cycle number)
+        unique_cycles = {}
+        for c in all_cycles:
+            if not isinstance(c, dict):
+                continue
+            cycle_num = c.get("cycle_number", c.get("cycle"))  # Try both keys
+            if cycle_num is not None:
+                unique_cycles[cycle_num] = c
+        sorted_cycles = sorted(
+            unique_cycles.values(), key=lambda x: x.get("cycle_number", x.get("cycle", 0))
+        )
+
+        # 5. De-duplicate Performance History (by cycle number)
+        unique_perf = {}
+        for p in all_performance:
+            if not isinstance(p, dict):
+                continue
+            cycle_num = p.get("cycle")
+            if cycle_num is not None:
+                unique_perf[cycle_num] = p
+        sorted_perf = sorted(unique_perf.values(), key=lambda x: x.get("cycle", 0))
+
+        return {"trades": sorted_trades, "cycles": sorted_cycles, "performance": sorted_perf}
 
 
 # Main function for standalone usage

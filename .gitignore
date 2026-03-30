@@ -84,6 +84,7 @@ all_trades_log.txt
 .agent/
 .system_generated/
 /tmp/
+/history_backups/
 
 # === Exceptions ===
 !requirements.txt
