@@ -530,6 +530,31 @@ class AlphaArenaDeepSeek:
                                 quantity = position["quantity"]
                                 margin_used = position.get("margin_usd", 0)
 
+                                # AI Panic Exit Preventer (Minimum Hold Shield)
+                                entry_time_str = position.get("entry_time")
+                                if entry_time_str:
+                                    try:
+                                        entry_dt = datetime.fromisoformat(entry_time_str)
+                                        held_minutes = max(
+                                            0,
+                                            (datetime.now(timezone.utc) - entry_dt).total_seconds()
+                                            / 60,
+                                        )
+                                        if held_minutes < 12.0:
+                                            print(
+                                                f"[SHIELD]  Panic exit prevented for {coin} (Held: {int(held_minutes)}m). Minimum hold is 12m."
+                                            )
+                                            close_execution_report["blocked"].append(
+                                                {
+                                                    "coin": coin,
+                                                    "reason": "minimum_hold_prevented",
+                                                    "held_minutes": int(held_minutes),
+                                                }
+                                            )
+                                            continue
+                                    except (ValueError, TypeError, AttributeError):
+                                        pass
+
                                 if self.portfolio.is_live_trading:
                                     live_result = self.account_service.execute_live_close(
                                         coin=coin,

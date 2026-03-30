@@ -30,7 +30,7 @@ def train_global_model(interval: str):
 
     for coin in target_coins:
         print(f"\n---> Processing {coin}...")
-        df_raw_labeled = engine.get_labeled_data(coin, interval, lookahead_periods=5)
+        df_raw_labeled = engine.get_labeled_data(coin, interval, lookahead_periods=3)
 
         if df_raw_labeled.empty:
             print(f"     [WARN] Not enough data for {coin}. Skipping.")
@@ -104,15 +104,16 @@ def train_global_model(interval: str):
         eval_metric="mlogloss",
         n_estimators=100,
         learning_rate=0.05,
-        max_depth=5,
+        max_depth=4,  # Düşürüldü, overfitting engellemek için
         subsample=0.8,
         colsample_bytree=0.8,
         random_state=Config.REPLAY_SEED,
     )
 
-    # Class Weighting: Focus on BUY (2) and SELL (0)
-    # We use sample_weight to compensate for class imbalance (HOLD dominance)
-    train_weights = np.where(y_train != 1, 10.0, 1.0)
+    # Class Weighting: Precision Focus
+    # Eskiden BUY/SELL'e 10.0 weight verilip false-positive patlaması yaşatılıyordu.
+    # Şimdi HOLD dışındakilere sadece 1.5 weight vererek doğal HOLD dominansını çok az törpülüyoruz.
+    train_weights = np.where(y_train != 1, 1.5, 1.0)
 
     model.fit(
         X_train_scaled,

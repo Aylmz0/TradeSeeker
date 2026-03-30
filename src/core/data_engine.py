@@ -236,9 +236,9 @@ class DataEngine:
         self,
         coin: str,
         interval: str,
-        lookahead_periods: int = 5,
-        profit_threshold: float = 0.005,  # 0.5% profit
-        loss_threshold: float = -0.005,  # -0.5% loss
+        lookahead_periods: int = 3,  # Cerrahi müdahale: 5'ten 3'e düşürüldü (45 dk)
+        profit_threshold: float = 0.004,  # %0.4 kâr beklentisi
+        loss_threshold: float = -0.004,  # -%0.4 zarar eşiği
         limit: int | None = None,
     ) -> pd.DataFrame:
         """Creates the ML targets (Labels) by looking ahead in time.
