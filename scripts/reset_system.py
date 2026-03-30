@@ -29,20 +29,21 @@ def reset_system():
             except Exception as e:
                 print(f"[ERR] Failed to delete {f}: {e}")
 
-    # 2. Clear backups
-    if os.path.exists("data/backups"):
-        try:
-            shutil.rmtree("data/backups")
-            os.makedirs("data/backups")
-            print("[OK] Cleared Backups")
-        except Exception as e:
-            print(f"[ERR] Failed to clear backups: {e}")
+    # 2. Clear backups and history_backups
+    for folder in ["data/backups", "history_backups"]:
+        if os.path.exists(folder):
+            try:
+                shutil.rmtree(folder)
+                os.makedirs(folder, exist_ok=True)
+                print(f"[OK] Cleared folder: {folder}")
+            except Exception as e:
+                print(f"[ERR] Failed to clear folder {folder}: {e}")
 
-    # 3. Market data (Optional - keeping by default but user can uncomment)
-    # db_path = "data/market_data.db"
-    # if os.path.exists(db_path):
-    #     os.remove(db_path)
-    #     print(f"[OK] Deleted Market Database: {db_path}")
+    # 3. KORUNAN VERİLER (Safe Zone - Temiz başlangıçta silinmeyenler)
+    print("\n[SAFE] Aşağıdaki veriler korundu (SILINMEDI):")
+    print("       - data/market_data.db (Toplanan kline / market verileri)")
+    print("       - models/seeker_v1.xgb (Eğitilmiş yapay zeka/ML modeli)")
+    print("       - .env & config dosyaları")
 
     print("\n[SUCCESS] System is clean. Ready for a fresh start.")
     print("Next: Run 'python3 src/main.py' to begin first cycle.")
