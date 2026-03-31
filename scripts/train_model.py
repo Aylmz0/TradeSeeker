@@ -12,6 +12,7 @@ import pandas as pd
 import xgboost as xgb
 from sklearn.metrics import accuracy_score, classification_report, confusion_matrix, log_loss
 from sklearn.preprocessing import StandardScaler
+from sklearn.utils.class_weight import compute_class_weight
 
 from config.config import Config
 from src.core.data_engine import DataEngine
@@ -97,7 +98,9 @@ def train_global_model(interval: str):
     X_test_scaled = scaler.transform(X_test)
 
     # Model Factory (XGBoost)
-    print("\n[INFO] Training Global XGBoost classifier with Tactical Scout weighting (v1.2)...")
+    print(
+        "\n[INFO] Training Global XGBoost classifier with Perfection Pipeline (Dynamic Weights & Early Stopping)..."
+    )
     model = xgb.XGBClassifier(
         objective="multi:softprob",
         num_class=3,
@@ -108,11 +111,21 @@ def train_global_model(interval: str):
         subsample=0.8,
         colsample_bytree=0.8,
         random_state=Config.REPLAY_SEED,
+        early_stopping_rounds=10,
     )
 
-    # Class Weighting: Focus on Entry Precision
-    # HOLD (1) is 1.0, while BUY (2) and SELL (0) are prioritized at 3.0x
-    train_weights = np.where(y_train != 1, 3.0, 1.0)
+    # === Perfection Phase: Dynamic Class Weights ===
+    # Calculate mathematically balanced weights based on actual class frequencies
+    unique_classes = np.unique(y_train)
+    weights_auto = compute_class_weight("balanced", classes=unique_classes, y=y_train)
+    weight_dict = dict(zip(unique_classes, weights_auto))
+
+    # Cap weights at max 5.0x to prevent explosive gradients for ultra-rare classes
+    max_weight_multiplier = 5.0
+    capped_weight_dict = {k: min(v, max_weight_multiplier) for k, v in weight_dict.items()}
+
+    print(f"[INFO] Applied Dynamic Capped Class Weights: {capped_weight_dict}")
+    train_weights = np.array([capped_weight_dict[c] for c in y_train])
 
     model.fit(
         X_train_scaled,

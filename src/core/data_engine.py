@@ -257,10 +257,20 @@ class DataEngine:
         df["future_close"] = df["close"].shift(-lookahead_periods)
         df["future_return"] = (df["future_close"] - df["close"]) / df["close"]
 
+        # === Perfection Phase: Dynamic Volatility (ATR) Based Thresholds ===
+        # Default fallback is 0.4% but it scales with 1.0x ATR_14 dynamically
+        tr = df["high"] - df["low"]
+        atr_14 = tr.ewm(span=14, adjust=False).mean()
+        atr_pct = (atr_14 / df["close"]).fillna(profit_threshold)
+
+        # We ensure a minimum floor of 0.3% to avoid noise in dead markets
+        dynamic_profit = np.maximum(atr_pct * 1.0, 0.003)
+        dynamic_loss = -dynamic_profit
+
         # Apply labels using numpy.select for blazing fast vectorization
         conditions = [
-            (df["future_return"] >= profit_threshold),
-            (df["future_return"] <= loss_threshold),
+            (df["future_return"] >= dynamic_profit),
+            (df["future_return"] <= dynamic_loss),
         ]
         choices = [1, -1]  # 1=BUY, -1=SELL
 
