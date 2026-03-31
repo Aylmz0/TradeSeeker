@@ -1035,13 +1035,17 @@ DIRECTIONAL PERFORMANCE SNAPSHOT (Last 20 trades max):
 [WARNING] CRITICAL: If "long_slots_available" is 0, do NOT propose LONG entries. If "short_slots_available" is 0, do NOT propose SHORT entries.
 [WARNING] CRITICAL: If you identify a valid counter-trend opportunity (e.g. LONG) but cannot execute it because slots are full, you MUST NOT open a trend-following trade in the opposite direction (e.g. SHORT). The counter-trend signal invalidates the trend-following setup. Simply HOLD.
 
+[RULE] VOLUME-BASED EXECUTION:
+1. If "vol_ratio" < 0.30x: ENTRY IS HARD-BLOCKED. Propose HOLD.
+2. If "vol_ratio" < 0.70x and you are proposing a TREND-FOLLOWING trade: You MUST either (a) Reduce Leverage by 50% or (b) Require FULL_BULLISH/FULL_BEARISH alignment + STRENGTHENING momentum. Low volume trend-following is high risk.
+
 {"=" * 20} MARKET STATE VECTORS {"=" * 20}
 
 Each coin below contains a State Vector with:
 - ml_consensus: XGBoost probability (>45% BUY/SELL = strong signal). Combine with your own analysis.
 - ml_bias_label: Indicates if ML is currently deviating from the HTF trend (Trend-Averse status).
 - market_context: Regime, volatility state, price location labels.
-- technical_summary: Trend alignment, momentum, volume, structure labels.
+- technical_summary: Trend alignment, momentum, vol_ratio, structure labels.
 - key_levels: price, ema20_htf, rsi_15m, atr_htf for your independent reasoning.
 - risk_profile: Counter-trade risk and reversal threat assessments.
 - sentiment: Funding rate and open interest.
@@ -1064,7 +1068,8 @@ Each coin below contains a State Vector with:
 [DIRECTIVE] STRATEGIC PRIORITY:
 1. Technical Confluence (HTF Trend + 15m Momentum + Volume) is your PRIMARY source of truth.
 2. ML Consensus is a statistical probability tool. If it shows "Trend-Averse" bias, DE-PRIORITIZE it and stick to the clear technical trend.
-3. Only perform counter-trend trades if Counter-Trade Risk is LOW and price is at extreme exhaustion (RSI/BB).
+3. STRICT TREND-FOLLOWING: Never force a trend-following entry into weak volume (< 0.70x) unless momentum is exceptionally strong.
+4. Only perform counter-trend trades if Counter-Trade Risk is LOW and price is at extreme exhaustion (RSI/BB).
 """
 
         # Validate JSON if enabled

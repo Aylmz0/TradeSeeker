@@ -1,6 +1,6 @@
 # 🕵️ TradeSeeker Forensic Post-Mortem Analysis v2
-*Deep analysis of 12 trades across 254 cycles*
-*Generated: 2026-03-31 05:48:14 UTC*
+*Deep analysis of 11 trades across 117 cycles*
+*Generated: 2026-03-31 14:01:53 UTC*
 
 ## 1. Exit Reason Breakdown (Why Trades Close)
 > [!IMPORTANT]
@@ -8,18 +8,18 @@
 
 | Close Category | Trades | Total PnL | Avg PnL | Win Rate |
 | :--- | :---: | :---: | :---: | :---: |
-| Extended Loss Timer | 2 | $-6.40 | $-3.20 | 0.0% |
-| AI Signal | 7 | $-2.01 | $-0.29 | 14.3% |
-| Take Profit | 1 | $-0.01 | $-0.01 | 0.0% |
-| Other | 2 | $1.85 | $0.93 | 100.0% |
+| AI Signal | 5 | $-5.65 | $-1.13 | 0.0% |
+| Extended Loss Timer | 1 | $-2.55 | $-2.55 | 0.0% |
+| Stop Loss | 1 | $0.48 | $0.48 | 100.0% |
+| Other | 4 | $3.85 | $0.96 | 100.0% |
 
 ### Raw Close Reasons (Top 15)
 | Reason | Count |
 | :--- | :---: |
-| AI close_position signal | 7 |
-| Position negative for 15 cycles | 2 |
-| Position margin $15.00 <= maximum limit $15.00 | 2 |
-| Taking profit after 15 profitable cycles (PnL $0.09) | 1 |
+| AI close_position signal | 5 |
+| Position margin $15.00 <= maximum limit $15.00 | 4 |
+| Stop Loss (1.314057) hit | 1 |
+| Position negative for 15 cycles | 1 |
 
 ## 2. Trade Duration Analysis (Premature Exits?)
 > [!WARNING]
@@ -27,12 +27,12 @@
 
 | Duration | Trades | Total PnL | Avg PnL | Win Rate |
 | :--- | :---: | :---: | :---: | :---: |
-| < 15 min | 1 | $0.95 | $0.95 | 100.0% |
-| 15-60 min | 8 | $-5.74 | $-0.72 | 25.0% |
-| > 60 min | 3 | $-1.77 | $-0.59 | 0.0% |
+| < 15 min | 1 | $0.93 | $0.93 | 100.0% |
+| 15-60 min | 8 | $-0.28 | $-0.03 | 50.0% |
+| > 60 min | 2 | $-4.53 | $-2.26 | 0.0% |
 
-- **Average Trade Duration**: 50.7 minutes
-- **Median Trade Duration**: 45.5 minutes
+- **Average Trade Duration**: 47.9 minutes
+- **Median Trade Duration**: 40.5 minutes
 
 ## 3. AI Reasoning Pattern Analysis (CoT Mining)
 > [!IMPORTANT]
@@ -43,126 +43,140 @@
 ### Entry Quality Flags
 | Flag | Trades | PnL | Win Rate | Verdict |
 | :--- | :---: | :---: | :---: | :--- |
-| Entered w/ POOR Volume | 8 | $-5.05 | 25.0% | ⚠️ Problem |
-| Entered w/ WEAKENING Momentum | 7 | $-5.75 | 14.3% | ⚠️ Problem |
-| ML Said SELL (but bot went long/short) | 0 | $0.00 | N/A | - |
-| ML Said BUY | 0 | $0.00 | N/A | - |
-| HIGH_RISK Counter-Trend | 8 | $-1.11 | 25.0% | ⚠️ Problem |
-| Counter-Trend Strategy | 7 | $-5.72 | 28.6% | ⚠️ Problem |
-| Safe Mode / API Error | 1 | $-1.40 | 0.0% | ⚠️ Problem |
+| Entered w/ POOR Volume | 9 | $-1.11 | 55.6% | ✅ Acceptable |
+| Entered w/ WEAKENING Momentum | 6 | $-0.53 | 66.7% | ✅ Acceptable |
+| ML Said SELL (but bot went long/short) | 1 | $-1.89 | 0.0% | ⚠️ Problem |
+| ML Said BUY | 1 | $0.97 | 100.0% | ✅ Acceptable |
+| HIGH_RISK Counter-Trend | 6 | $-0.45 | 66.7% | ✅ Acceptable |
+| Counter-Trend Strategy | 8 | $-4.31 | 50.0% | ✅ Acceptable |
+| Safe Mode / API Error | 0 | $0.00 | N/A | - |
 
 ### Worst 10 Trades - AI Reasoning Deep Dive
-#### #1. ETH LONG — PnL: $-5.00
-- **Entry**: 2026-03-30 13:40:54.555762+00:00
-- **Duration**: 58 min
+#### #1. DOGE SHORT — PnL: $-2.55
+- **Entry**: 2026-03-31 09:59:09.134264+00:00
+- **Duration**: 106 min
 - **Close Reason**: Extended Loss Timer — `Position negative for 15 cycles`
-- **Strategy**: unknown | **Confidence**: 0
-- **Red Flags at Entry**: ⚠️POOR_VOL ⚠️WEAKENING ↩️COUNTER
-- **AI Reasoning**: `Systematic evaluation: All coins show ML consensus HOLD dominant (50-70% confidence), indicating weak statistical edge. Technical confluence mixed: most have FULL or MIXED trend alignment but suffer from WEAKENING momentum, POOR volume support, or RANGE structure on 15m. Counter-trade risk is HIGH f`
-
-#### #2. ETH SHORT — PnL: $-1.40
-- **Entry**: 2026-03-30 19:28:28.310126+00:00
-- **Duration**: 75 min
-- **Close Reason**: Extended Loss Timer — `Position negative for 15 cycles`
-- **Strategy**: unknown | **Confidence**: 0
-- **Red Flags at Entry**: None detected
-- **AI Reasoning**: `API Error - Operating in safe mode. Holding all positions/cash to preserve capital.`
-
-#### #3. TRX LONG — PnL: $-0.90
-- **Entry**: 2026-03-30 19:16:58.330342+00:00
-- **Duration**: 47 min
-- **Close Reason**: AI Signal — `AI close_position signal`
 - **Strategy**: unknown | **Confidence**: 0
 - **Red Flags at Entry**: 🚫HIGH_RISK ↩️COUNTER
-- **AI Reasoning**: `System constraints: Short direction in cooldown (1), short slots full (0 available), ETH in coin cooldown (2 cycles). Therefore no new shorts and no new ETH trades. Long slots available but no valid long setups identified.
+- **AI Reasoning**: `Systematic execution: 1h Trend + 15m Momentum/Structure + 3m Timing + ML Consensus. Logic precedes decision.
 
-XRP: 1h BEARISH (Price 1.3254 < EMA20 1.3405, RSI 29.58 oversold). 15m: Stru`
+XRP (OPEN SHORT): 1h Bearish (Regime BEARISH, Price $1.3119 < EMA20 $1.3278). 15m Bearish (Structure LH_LL, Momentum STRENGTHENING, Volume LOW 0.31x). 3m Neutral (RSI 48.6, Price ~EMA20). ML`
 
-#### #4. SOL SHORT — PnL: $-0.46
-- **Entry**: 2026-03-31 00:04:28.627303+00:00
-- **Duration**: 44 min
+#### #2. TRX LONG — PnL: $-1.97
+- **Entry**: 2026-03-31 06:30:32.096156+00:00
+- **Duration**: 112 min
 - **Close Reason**: AI Signal — `AI close_position signal`
 - **Strategy**: unknown | **Confidence**: 0
-- **Red Flags at Entry**: ⚠️POOR_VOL ⚠️WEAKENING 🚫HIGH_RISK ↩️COUNTER
-- **AI Reasoning**: `Systematic analysis per coin using 1h Boss (market_context.regime), 15m Advisor (technical_summary), 3m Sensor (key_levels for timing only), ML consensus, and risk_profile. All coins have ML dominant HOLD with confidence 50-68%, indicating weak statistical edges. Volume checks: DOGE and ETH have vol`
+- **Red Flags at Entry**: ⚠️POOR_VOL ⚠️WEAKENING ↩️COUNTER
+- **AI Reasoning**: `Systematic execution: 1h Trend + 15m Momentum/Structure + 3m Timing + ML Consensus. Logic precedes decision. Cycle 3 startup observation phase active; prioritizing high-quality confluence over forced entries.
 
-#### #5. ETH SHORT — PnL: $-0.45
-- **Entry**: 2026-03-31 00:04:28.626338+00:00
-- **Duration**: 24 min
+XRP: 1h BEARISH (Price $1.321 < EMA20 $1.332, LOWER_10 location). 15m MIXED_BEARISH (Struc`
+
+#### #3. ETH LONG — PnL: $-1.89
+- **Entry**: 2026-03-31 07:06:55.331069+00:00
+- **Duration**: 20 min
 - **Close Reason**: AI Signal — `AI close_position signal`
 - **Strategy**: unknown | **Confidence**: 0
-- **Red Flags at Entry**: ⚠️POOR_VOL ⚠️WEAKENING 🚫HIGH_RISK ↩️COUNTER
-- **AI Reasoning**: `Systematic analysis per coin using 1h Boss (market_context.regime), 15m Advisor (technical_summary), 3m Sensor (key_levels for timing only), ML consensus, and risk_profile. All coins have ML dominant HOLD with confidence 50-68%, indicating weak statistical edges. Volume checks: DOGE and ETH have vol`
+- **Red Flags at Entry**: ⚠️POOR_VOL ⚠️WEAKENING 🔴ML_SELL ↩️COUNTER
+- **AI Reasoning**: `Systematic execution: 1h Regime + 15m Structure/Momentum + Volume Filter + ML Consensus. Logic precedes decision.
 
-#### #6. SOL SHORT — PnL: $-0.37
-- **Entry**: 2026-03-30 18:52:23.752098+00:00
-- **Duration**: 84 min
+XRP: 1h Bearish (Regime BEARISH, Price < EMA20 $1.331). 15m Mixed Bearish (Structure RANGE, Momentum WEAKENING). Volume LOW (0.28x). ML Neutral (BUY 34.7%). Logic: Low volume and weaken`
+
+#### #4. SOL SHORT — PnL: $-1.23
+- **Entry**: 2026-03-31 10:23:41.642542+00:00
+- **Duration**: 56 min
 - **Close Reason**: AI Signal — `AI close_position signal`
 - **Strategy**: unknown | **Confidence**: 0
 - **Red Flags at Entry**: ⚠️POOR_VOL 🚫HIGH_RISK ↩️COUNTER
-- **AI Reasoning**: `Systematic evaluation: 1h Regime (Boss) + 15m Structure/Volume (Advisor) + ML Consensus + Risk Profile. No open positions, all slots available, no cooldowns. Volume guard active: LOW volume entries prohibited. All coins show either LOW/POOR volume or RANGE structure, negating trend-following edges. `
-
-#### #7. TRX SHORT — PnL: $-0.23
-- **Entry**: 2026-03-31 04:40:31.052230+00:00
-- **Duration**: 23 min
-- **Close Reason**: AI Signal — `AI close_position signal`
-- **Strategy**: unknown | **Confidence**: 0
-- **Red Flags at Entry**: ⚠️POOR_VOL ⚠️WEAKENING 🚫HIGH_RISK
 - **AI Reasoning**: `Systematic execution: 1h Trend + 15m Momentum/Structure + 3m Timing + ML Consensus. Logic precedes decision.
 
-XRP: 1h BEARISH (price $1.3251 < EMA20 $1.3340). 15m structure HH_HL (bullish) conflicting with 1h trend. Momentum STRENGTHENING but volume support POOR. 3m bearish (price below EMA20). ML C`
+DOGE (OPEN SHORT): 1h Bearish (Price $0.090 < EMA20 $0.091). 15m MIXED_BEARISH (Structure LH_LL, Momentum STRENGTHENING). 3m RSI 63.5 (minor intraday bounce). Volume 0.31x (LOW support). ML `
 
-#### #8. TRX SHORT — PnL: $-0.16
-- **Entry**: 2026-03-30 14:28:58.910038+00:00
-- **Duration**: 48 min
+#### #5. XRP SHORT — PnL: $-0.34
+- **Entry**: 2026-03-31 09:42:43.857306+00:00
+- **Duration**: 28 min
 - **Close Reason**: AI Signal — `AI close_position signal`
 - **Strategy**: unknown | **Confidence**: 0
-- **Red Flags at Entry**: ⚠️WEAKENING 🚫HIGH_RISK
-- **AI Reasoning**: `Systematic execution: 1h Trend + 15m Momentum/Structure + 3m Timing + ML Consensus. Logic precedes decision.
+- **Red Flags at Entry**: ⚠️POOR_VOL
+- **AI Reasoning**: `Systematic execution: 1h Regime + 15m Structure/Momentum + 3m Volume/RSI + ML Consensus. Logic precedes decision.
 
-XRP: 1h NEUTRAL regime (ambiguous trend). 15m MIXED_BEARISH with LH_LL structure and WEAKENING momentum. Volume FAIR (1.307x). 3m RSI 27.74 oversold but price above EMA20_3m. ML consensus HO`
+XRP: 1h BEARISH (Price $1.313 < EMA20 $1.328). 15m FULL_BEARISH, Momentum STRENGTHENING, Structure LH_LL. Context: Volatility SQUEEZE, Price in LOWER_10. Volume NORMAL (1.08x). ML Conse`
 
-#### #9. TRX SHORT — PnL: $-0.01
-- **Entry**: 2026-03-31 01:16:44.988669+00:00
-- **Duration**: 146 min
-- **Close Reason**: Take Profit — `Taking profit after 15 profitable cycles (PnL $0.09)`
-- **Strategy**: unknown | **Confidence**: 0
-- **Red Flags at Entry**: ⚠️POOR_VOL ⚠️WEAKENING
-- **AI Reasoning**: `Systematic analysis per coin: 1h regime (Boss), 15m technicals (Advisor), volume, ML consensus, risk profile, and entry logic. No positions open; slots available. All coins show poor volume or lack of clear trend alignment, with high counter-trade risk and ML HOLD dominance. No valid entries.
-
-XRP: `
-
-#### #10. SOL LONG — PnL: $0.55
-- **Entry**: 2026-03-31 03:43:51.412014+00:00
-- **Duration**: 33 min
+#### #6. SOL SHORT — PnL: $-0.21
+- **Entry**: 2026-03-31 11:30:55.776068+00:00
+- **Duration**: 52 min
 - **Close Reason**: AI Signal — `AI close_position signal`
+- **Strategy**: unknown | **Confidence**: 0
+- **Red Flags at Entry**: None detected
+- **AI Reasoning**: `No thoughts provided.`
+
+#### #7. XRP SHORT — PnL: $0.48
+- **Entry**: 2026-03-31 07:55:02.062624+00:00
+- **Duration**: 53 min
+- **Close Reason**: Stop Loss — `Stop Loss (1.314057) hit`
 - **Strategy**: unknown | **Confidence**: 0
 - **Red Flags at Entry**: ⚠️POOR_VOL ⚠️WEAKENING 🚫HIGH_RISK ↩️COUNTER
 - **AI Reasoning**: `Systematic execution: 1h Trend + 15m Momentum/Structure + 3m Timing + ML Consensus. Logic precedes decision.
 
-XRP: 1h NEUTRAL regime (no directional bias). 15m: trend_alignment FULL_BEARISH but structure HH_HL (conflict), momentum WEAKENING, volume FAIR (1.4x). 3m: RSI 14.15 (oversold) and price > E`
+XRP: 1h Bearish (Price $1.325 < EMA20 $1.331). 15m Mixed Bearish (Structure LH_LL, Momentum WEAKENING, Volume POOR 0.54x). ML Consensus: HOLD 33.81% (Statistical uncertainty). Logic: Bearish`
+
+#### #8. ETH LONG — PnL: $0.93
+- **Entry**: 2026-03-31 13:34:51.856371+00:00
+- **Duration**: 15 min
+- **Close Reason**: Other — `Position margin $15.00 <= maximum limit $15.00`
+- **Strategy**: unknown | **Confidence**: 0
+- **Red Flags at Entry**: ⚠️POOR_VOL ⚠️WEAKENING 🚫HIGH_RISK ↩️COUNTER
+- **AI Reasoning**: `Systematic execution: 1h Regime + 15m Structure/Momentum + Volume Filter + ML Consensus. Logic precedes decision.
+
+XRP: 1h NEUTRAL (SQUEEZE). 15m MIXED_BULLISH with STABLE momentum, GOOD volume (1.83x), HH_HL structure. ML Consensus: HOLD (35.6%). Logic: Neutral squeeze requires directional breakout`
+
+#### #9. ETH SHORT — PnL: $0.95
+- **Entry**: 2026-03-31 08:54:27.415426+00:00
+- **Duration**: 29 min
+- **Close Reason**: Other — `Position margin $15.00 <= maximum limit $15.00`
+- **Strategy**: unknown | **Confidence**: 0
+- **Red Flags at Entry**: ⚠️POOR_VOL ⚠️WEAKENING 🚫HIGH_RISK ↩️COUNTER
+- **AI Reasoning**: `Systematic execution: 1h Trend + 15m Momentum/Structure + 3m Timing + ML Consensus. Logic precedes decision.
+
+DOGE: 1h Bearish (Regime BEARISH, Price $0.0911 < EMA20 $0.0916). 15m Bearish (Structure LH_LL, Momentum WEAKENING at LOWER_10). Volume EXCELLENT (2.93x). ML Consensus: HOLD 0.343 (Model unc`
+
+#### #10. SOL SHORT — PnL: $0.97
+- **Entry**: 2026-03-31 08:38:53.273660+00:00
+- **Duration**: 17 min
+- **Close Reason**: Other — `Position margin $15.00 <= maximum limit $15.00`
+- **Strategy**: unknown | **Confidence**: 0
+- **Red Flags at Entry**: ⚠️POOR_VOL ⚠️WEAKENING 🚫HIGH_RISK ↩️COUNTER
+- **AI Reasoning**: `Systematic execution: 1h Trend + 15m Momentum/Structure + 3m Timing + ML Consensus. Cycle 1 protocol active: prioritize capital preservation and structural clarity over marginal edges.
+
+XRP (OPEN SHORT): 1h Bearish (Price $1.3178 < EMA20 $1.3297). 15m Bearish (Structure LH_LL, Momentum WEAKENING, Vo`
 
 ## 4. ML Model Impact Analysis
 > [!CAUTION]
-> ML model accuracy from model_metrics.json: **65.83%**.
+> ML model accuracy from model_metrics.json: **34.60%**.
 
 | ML Context | Trades | Total PnL | Avg PnL | Win Rate |
 | :--- | :---: | :---: | :---: | :---: |
-| ML Neutral/Unknown | 11 | $-7.51 | $-0.68 | 18.2% |
+| ML Said SELL | 1 | $-1.89 | $-1.89 | 0.0% |
+| ML Said BUY | 1 | $0.97 | $0.97 | 100.0% |
+| ML Neutral/Unknown | 9 | $-2.95 | $-0.33 | 44.4% |
 
 ## 5. Strategy Performance
 | Strategy | Trades | Total PnL | Avg PnL | Win Rate |
 | :--- | :---: | :---: | :---: | :---: |
-| unknown | 11 | $-7.51 | $-0.68 | 18.2% |
+| unknown | 11 | $-3.87 | $-0.35 | 45.5% |
 
 ## 6. Confidence Score Analysis
 | Confidence Range | Trades | Total PnL | Avg PnL | Win Rate |
 | :--- | :---: | :---: | :---: | :---: |
-| Very Low (0-0.5) | 11 | $-7.51 | $-0.68 | 18.2% |
+| Very Low (0-0.5) | 11 | $-3.87 | $-0.35 | 45.5% |
 
 ## 🔬 DIAGNOSTIC VERDICT
 
-1. **Volume Blind Entries**: 8 trades entered despite AI noting POOR/LOW volume. Combined PnL: $-5.05, Win Rate: 25.0%. Volume quality IS checked by the runtime, but the AI ignores the signal when other factors look 'good enough'.
+1. **Stop Loss Hits**: 1 trades hit stop loss for $0.48. Stop losses are functioning.
+
+2. **Volume Blind Entries**: 9 trades entered despite AI noting POOR/LOW volume. Combined PnL: $-1.11, Win Rate: 55.6%. Volume quality IS checked by the runtime, but the AI ignores the signal when other factors look 'good enough'.
+
+3. **ML Confusion**: When ML said SELL, total trade PnL was $-1.89. The ML model's 34.60% accuracy can be noise. The AI treats ML as a 'tie-breaker' per the prompt, but since ML is often unreliable, it's actually a 'wrong-breaker'.
 
 ## 🎯 EVIDENCE-BASED RECOMMENDATIONS
 
@@ -170,7 +184,7 @@ Based on the data above, these are the **provable** fixes:
 
 1. **FIX: AI Premature Close Signal** — The AI closes positions too early (especially profitable ones that dip temporarily). Recommendation: Add a 'minimum hold period' (e.g., 3 cycles / ~12 min) before AI can issue close_position, UNLESS stop loss is hit.
 
-2. **FIX: ML Weight Reduction** — The XGBoost model at 65.83% accuracy can be problematic if recall is low. Either retrain with more data + better features, or reduce ML's influence in the prompt from 'tie-breaker' to 'informational only'.
+2. **FIX: ML Weight Reduction** — The XGBoost model at 34.60% accuracy can be problematic if recall is low. Either retrain with more data + better features, or reduce ML's influence in the prompt from 'tie-breaker' to 'informational only'.
 
 3. **FIX: Confidence Threshold** — Raise MIN_CONFIDENCE from 0.60 to at least 0.70. Data shows low-confidence entries have worse outcomes.
 

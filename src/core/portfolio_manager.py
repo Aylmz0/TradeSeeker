@@ -1789,7 +1789,7 @@ class PortfolioManager:
                     10,
                 )
 
-        # Calculate maximum limit: $15 fixed OR 15% of available cash, whichever is larger
+        # Calculate maximum limit: $10 fixed OR 15% of available cash, whichever is larger (from Config)
         max_limit = self._calculate_maximum_limit()
 
         if current_margin <= max_limit:
@@ -1847,7 +1847,7 @@ class PortfolioManager:
                     10,
                 )
 
-        # Calculate dynamic minimum limit: $15 fixed OR 10% of available cash, whichever is larger
+        # Calculate dynamic minimum limit: $10 fixed OR 10% of available cash, whichever is larger (from Config)
         min_remaining = self._calculate_dynamic_minimum_limit()
 
         if current_margin <= min_remaining:
@@ -2075,15 +2075,17 @@ class PortfolioManager:
             The graduated loss multiplier percentage.
 
         """
+        from config.config import Config
+
         if margin_usd < constants.MARGIN_TIER_20:
-            return constants.LOSS_MULT_L1  # %50 for margin < 20 (Allows wide stops)
+            return Config.LOSS_MULT_L1  # %20 for margin < 20 (Allows tight stops)
         if margin_usd < constants.MARGIN_TIER_30:
-            return constants.LOSS_MULT_L2  # %45 for margin 20-30
+            return Config.LOSS_MULT_L2  # %15 for margin 20-30
         if margin_usd < constants.MARGIN_TIER_40:
-            return constants.LOSS_MULT_L3  # %40 for margin 30-40
+            return Config.LOSS_MULT_L3  # %12 for margin 30-40
         if margin_usd < constants.MARGIN_TIER_50:
-            return constants.LOSS_MULT_L4  # %35 for margin 40-50
-        return constants.LOSS_MULT_BASE  # %30 for margin >= 50
+            return Config.LOSS_MULT_L4  # %10 for margin 40-50
+        return Config.LOSS_MULT_BASE  # %8 for margin >= 50
 
     def calculate_volume_quality_score(
         self,

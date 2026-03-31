@@ -69,6 +69,13 @@ class Config:
         os.getenv("RISK_PER_TRADE_USD", "3.0"),
     )  # Fixed dollar risk per trade
 
+    # Graduated Stop Loss Limits (Max Margin Loss %)
+    LOSS_MULT_L1: float = float(os.getenv("LOSS_MULT_L1", "0.20"))  # < 20$ Margin
+    LOSS_MULT_L2: float = float(os.getenv("LOSS_MULT_L2", "0.15"))  # 20-30$ Margin
+    LOSS_MULT_L3: float = float(os.getenv("LOSS_MULT_L3", "0.12"))  # 30-40$ Margin
+    LOSS_MULT_L4: float = float(os.getenv("LOSS_MULT_L4", "0.10"))  # 40-50$ Margin
+    LOSS_MULT_BASE: float = float(os.getenv("LOSS_MULT_BASE", "0.08"))  # > 50$ Margin
+
     # Smart Cooldown Settings
     SMART_COOLDOWN_LOSS: int = int(os.getenv("SMART_COOLDOWN_LOSS", "3"))
     SMART_COOLDOWN_WIN: int = int(os.getenv("SMART_COOLDOWN_WIN", "2"))
@@ -216,8 +223,8 @@ class Config:
 
     # Partial Profit Taking Configuration (Margin-based)
     MIN_PARTIAL_PROFIT_MARGIN_REMAINING_USD: float = float(
-        os.getenv("MIN_PARTIAL_PROFIT_MARGIN_REMAINING_USD", "15.0"),
-    )  # Minimum $15 margin kalacak şekilde satış
+        os.getenv("MIN_PARTIAL_PROFIT_MARGIN_REMAINING_USD", "10.0"),
+    )  # Minimum $10 margin kalacak şekilde satış
     MAXIMUM_LIMIT_BALANCE_PCT: float = float(
         os.getenv("MAXIMUM_LIMIT_BALANCE_PCT", "0.08"),
     )  # %8 of current balance for max limit calculation
