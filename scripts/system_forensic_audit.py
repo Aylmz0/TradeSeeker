@@ -22,6 +22,7 @@ class ForensicAuditEngine:
     def __init__(self):
         self.monitor = PerformanceMonitor()
         self.output_file = "post_mortem_analysis.md"
+        self.metrics_file = os.path.join(PROJECT_ROOT, "models/model_metrics.json")
 
     def run(self):
         print("[INIT] Starting Deep Forensic Audit v2...")
@@ -29,6 +30,18 @@ class ForensicAuditEngine:
         data = self.monitor.aggregate_all_history()
         trades = data["trades"]
         cycles = data["cycles"]
+
+        # Load actual ML metrics
+        ml_accuracy = "N/A"
+        if os.path.exists(self.metrics_file):
+            try:
+                import json
+
+                with open(self.metrics_file, "r") as f:
+                    m_data = json.load(f)
+                    ml_accuracy = f"{m_data.get('accuracy', 0) * 100:.2f}%"
+            except Exception:
+                pass
 
         if not trades or not cycles:
             print("[ERR] Insufficient data.")
@@ -357,9 +370,7 @@ class ForensicAuditEngine:
             # ---- ML IMPACT ----
             f.write("## 4. ML Model Impact Analysis\n")
             f.write("> [!CAUTION]\n")
-            f.write(
-                f"> ML model accuracy from model_metrics.json: **38.99%**. This is effectively random for a 3-class problem.\n\n"
-            )
+            f.write(f"> ML model accuracy from model_metrics.json: **{ml_accuracy}**.\n\n")
 
             f.write("| ML Context | Trades | Total PnL | Avg PnL | Win Rate |\n")
             f.write("| :--- | :---: | :---: | :---: | :---: |\n")
@@ -451,7 +462,7 @@ class ForensicAuditEngine:
             if not ml_sell_trades.empty:
                 ml_sell_pnl = ml_sell_trades["pnl"].sum()
                 verdicts.append(
-                    f"**ML Confusion**: When ML said SELL, total trade PnL was ${ml_sell_pnl:.2f}. The ML model's 38.99% accuracy makes it effectively noise. The AI treats ML as a 'tie-breaker' per the prompt, but since ML is always wrong, it's actually a 'wrong-breaker'."
+                    f"**ML Confusion**: When ML said SELL, total trade PnL was ${ml_sell_pnl:.2f}. The ML model's {ml_accuracy} accuracy can be noise. The AI treats ML as a 'tie-breaker' per the prompt, but since ML is often unreliable, it's actually a 'wrong-breaker'."
                 )
 
             for i, v in enumerate(verdicts, 1):
@@ -464,7 +475,7 @@ class ForensicAuditEngine:
                 "1. **FIX: AI Premature Close Signal** — The AI closes positions too early (especially profitable ones that dip temporarily). Recommendation: Add a 'minimum hold period' (e.g., 3 cycles / ~12 min) before AI can issue close_position, UNLESS stop loss is hit.\n\n"
             )
             f.write(
-                "2. **FIX: ML Weight Reduction** — The XGBoost model at 38.99% accuracy is actively harmful. Either retrain with more data + better features, or reduce ML's influence in the prompt from 'tie-breaker' to 'informational only'.\n\n"
+                f"2. **FIX: ML Weight Reduction** — The XGBoost model at {ml_accuracy} accuracy can be problematic if recall is low. Either retrain with more data + better features, or reduce ML's influence in the prompt from 'tie-breaker' to 'informational only'.\n\n"
             )
             f.write(
                 "3. **FIX: Confidence Threshold** — Raise MIN_CONFIDENCE from 0.60 to at least 0.70. Data shows low-confidence entries have worse outcomes.\n\n"

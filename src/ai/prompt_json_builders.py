@@ -121,29 +121,28 @@ def _sv_volatility_state(indicators_htf: dict[str, Any]) -> str:
 
 
 def _sv_volume_label(indicators_3m: dict[str, Any]) -> str:
-    """Convert volume ratio to linguistic label.
-    Returns: EXCELLENT | GOOD | FAIR | POOR | LOW
+    """Convert volume ratio to linguistic label with revised calibration (v3.1).
+    Returns: EXCELLENT | GOOD | FAIR | NORMAL | POOR | LOW
     """
     if not indicators_3m or "error" in indicators_3m:
         return "LOW"
-    vol = indicators_3m.get("volume", 0)
-    avg_vol = indicators_3m.get("avg_volume", 1)
-    if not avg_vol or avg_vol == 0:
-        return "LOW"
 
     # Use pre-calculated volume_ratio if available
-    if "volume_ratio" in indicators_3m:
-        ratio = indicators_3m["volume_ratio"]
-    else:
-        ratio = (vol or 0) / (avg_vol or 1)
+    ratio = indicators_3m.get("volume_ratio", 1.0)
+    if "volume_ratio" not in indicators_3m:
+        vol = indicators_3m.get("volume", 0)
+        avg_vol = indicators_3m.get("avg_volume", 1)
+        ratio = (vol or 0) / (avg_vol or 1) if avg_vol > 0 else 0.0
 
-    if ratio >= constants.VOL_RATIO_EXCELLENT:
+    if ratio >= 2.0:
         return "EXCELLENT"
-    if ratio >= constants.VOL_RATIO_GOOD:
+    if ratio >= 1.5:
         return "GOOD"
-    if ratio >= constants.VOL_RATIO_FAIR:
+    if ratio >= 1.2:
         return "FAIR"
-    if ratio >= constants.VOL_RATIO_POOR:
+    if ratio >= 0.8:
+        return "NORMAL"
+    if ratio >= 0.4:
         return "POOR"
     return "LOW"
 

@@ -110,10 +110,9 @@ def train_global_model(interval: str):
         random_state=Config.REPLAY_SEED,
     )
 
-    # Class Weighting: Precision Focus
-    # Eskiden BUY/SELL'e 10.0 weight verilip false-positive patlaması yaşatılıyordu.
-    # Şimdi HOLD dışındakilere sadece 1.5 weight vererek doğal HOLD dominansını çok az törpülüyoruz.
-    train_weights = np.where(y_train != 1, 1.5, 1.0)
+    # Class Weighting: Focus on Entry Precision
+    # HOLD (1) is 1.0, while BUY (2) and SELL (0) are prioritized at 3.0x
+    train_weights = np.where(y_train != 1, 3.0, 1.0)
 
     model.fit(
         X_train_scaled,

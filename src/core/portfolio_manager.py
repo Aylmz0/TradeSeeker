@@ -3308,21 +3308,18 @@ class PortfolioManager:
             )
             trade["volume_ratio_15m_runtime"] = round(volume_ratio_15m, 4)
 
-        # Hard Volume Filter (HYBRID: 3m OR 15m)
+        # Average Volume Filter (HYBRID: 3m & 15m Average)
         volume_threshold = Config.VOLUME_MINIMUM_THRESHOLD
+        avg_volume_ratio = (volume_ratio_3m + volume_ratio_15m) / 2
         has_existing_position = coin in self.positions
 
-        if (
-            volume_ratio_3m < volume_threshold
-            and volume_ratio_15m < volume_threshold
-            and not has_existing_position
-        ):
+        if avg_volume_ratio < volume_threshold and not has_existing_position:
             log_func(
                 "block",
-                f"[BLOCK] HYBRID VOLUME FILTER: {coin} 3m ratio {volume_ratio_3m:.2f} & 15m ratio {volume_ratio_15m:.2f} < {volume_threshold}. Trade blocked.",
+                f"[BLOCK] AVERAGE VOLUME FILTER: {coin} Avg ratio {avg_volume_ratio:.2f} (3m:{volume_ratio_3m:.2f}, 15m:{volume_ratio_15m:.2f}) < {volume_threshold}. Trade blocked.",
                 {
                     "coin": coin,
-                    "volume_ratio": volume_ratio_3m,
+                    "avg_volume_ratio": avg_volume_ratio,
                     "volume_ratio_3m": volume_ratio_3m,
                     "volume_ratio_15m": volume_ratio_15m,
                 },
@@ -3330,7 +3327,8 @@ class PortfolioManager:
             execution_report["blocked"].append(
                 {
                     "coin": coin,
-                    "reason": "hybrid_volume_filter",
+                    "reason": "average_volume_filter",
+                    "avg_ratio": avg_volume_ratio,
                     "volume_ratio_3m": volume_ratio_3m,
                     "volume_ratio_15m": volume_ratio_15m,
                 }
