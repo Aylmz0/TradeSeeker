@@ -122,7 +122,7 @@ AUTO_TRAIN_CYCLE_INTERVAL = 12
 
 # ML Labeling Configuration
 ML_LOOKAHEAD_PERIODS = 5  # 5 bars * 15m = 75 min forward window
-ML_ATR_LABEL_MULTIPLIER = 0.7  # 0.7x ATR = softer threshold for more BUY/SELL labels
+ML_ATR_LABEL_MULTIPLIER = 0.5  # 0.5x ATR = sharper threshold for more BUY/SELL conviction
 ML_ATR_LABEL_FLOOR = 0.002  # Minimum 0.2% movement to avoid labeling noise
 ML_HOLD_ABORT_RATIO = 0.75  # Abort training if HOLD > 75%
 

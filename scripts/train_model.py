@@ -146,15 +146,15 @@ def train_global_model():
         objective="multi:softprob",
         num_class=3,
         eval_metric="mlogloss",
-        n_estimators=200,
-        learning_rate=0.03,
-        max_depth=5,
+        n_estimators=300,
+        learning_rate=0.02,
+        max_depth=7,
         subsample=0.8,
         colsample_bytree=0.8,
         random_state=Config.REPLAY_SEED,
-        early_stopping_rounds=25,
+        early_stopping_rounds=40,
         min_child_weight=3,
-        gamma=0.1,
+        gamma=0.2,
     )
 
     # === Perfection Phase: Dynamic Class Weights ===
