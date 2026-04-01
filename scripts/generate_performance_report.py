@@ -59,21 +59,23 @@ class MasterReportingEngine:
             df_perf["total_value"] = pd.to_numeric(df_perf["total_value"], errors="coerce")
 
         # 3. Calculate Global Metrics
-        total_pnl = df_trades["pnl"].sum()
-        win_rate = (df_trades["pnl"] > 0).mean() * 100
+        total_pnl = df_trades["pnl"].sum() if not df_trades.empty else 0
+        win_rate = (df_trades["pnl"] > 0).mean() * 100 if not df_trades.empty else 0
         profit_factor = (
             abs(
                 df_trades[df_trades["pnl"] > 0]["pnl"].sum()
                 / df_trades[df_trades["pnl"] < 0]["pnl"].sum()
             )
-            if df_trades[df_trades["pnl"] < 0]["pnl"].sum() != 0
+            if not df_trades.empty and df_trades[df_trades["pnl"] < 0]["pnl"].sum() != 0
             else float("inf")
         )
-        avg_trade = df_trades["pnl"].mean()
+        avg_trade = df_trades["pnl"].mean() if not df_trades.empty else 0
 
         initial_value = Config.INITIAL_BALANCE
         current_value = df_perf["total_value"].iloc[-1] if not df_perf.empty else initial_value
-        total_return_pct = ((current_value - initial_value) / initial_value) * 100
+        total_return_pct = (
+            ((current_value - initial_value) / initial_value) * 100 if initial_value > 0 else 0
+        )
 
         # 4. Deep Dive Analysis
 
@@ -90,12 +92,14 @@ class MasterReportingEngine:
         # Toxic Coins (Negative PnL or Very Low Win Rate)
         toxic_coins = coin_perf[(coin_perf["total_pnl"] < 0) & (coin_perf["trade_count"] >= 3)]
 
-        # Directional Analysis
-        dir_perf = df_trades.groupby("direction").agg({"pnl": ["sum", "count", "mean"]})
-        dir_perf.columns = ["total_pnl", "trade_count", "avg_pnl"]
-        dir_perf["win_rate"] = df_trades.groupby("direction").apply(
-            lambda x: (x["pnl"] > 0).mean() * 100
-        )
+        # Directional Analysis (handle empty data)
+        dir_perf = pd.DataFrame()
+        if not df_trades.empty and "direction" in df_trades.columns:
+            dir_perf = df_trades.groupby("direction").agg({"pnl": ["sum", "count", "mean"]})
+            dir_perf.columns = ["total_pnl", "trade_count", "avg_pnl"]
+            dir_perf["win_rate"] = df_trades.groupby("direction").apply(
+                lambda x: (x["pnl"] > 0).mean() * 100
+            )
 
         # Hour of Day Analysis
         df_trades["entry_time"] = pd.to_datetime(
@@ -148,17 +152,23 @@ class MasterReportingEngine:
             f.write(f"## 🪙 Strategy Analysis: Long vs Short\n")
             f.write(f"| Direction | Trades | Win Rate | Total PnL | Avg PnL |\n")
             f.write(f"| :--- | :---: | :---: | :---: | :---: |\n")
-            for idx, row in dir_perf.iterrows():
-                f.write(
-                    f"| {idx.upper()} | {row['trade_count']} | {format_pct(row['win_rate'])} | {format_currency(row['total_pnl'])} | {format_currency(row['avg_pnl'])} |\n"
-                )
+            if not dir_perf.empty:
+                for idx, row in dir_perf.iterrows():
+                    f.write(
+                        f"| {idx.upper()} | {row['trade_count']} | {format_pct(row['win_rate'])} | {format_currency(row['total_pnl'])} | {format_currency(row['avg_pnl'])} |\n"
+                    )
+            else:
+                f.write(f"| N/A | 0 | 0% | $0.00 | $0.00 |\n")
             f.write("\n")
 
             f.write(f"## ⏰ Temporal Performance (Hourly)\n")
             f.write(f"| Hour (UTC) | PnL Sum |\n")
             f.write(f"| :--- | :---: |\n")
-            for h, p in hour_perf.items():
-                f.write(f"| {h:02d}:00 | {format_currency(p)} |\n")
+            if not hour_perf.empty:
+                for h, p in hour_perf.items():
+                    f.write(f"| {h:02d}:00 | {format_currency(p)} |\n")
+            else:
+                f.write(f"| N/A | $0.00 |\n")
             f.write("\n")
 
             f.write(f"## 💡 Actionable Insights & Recommendations\n")
@@ -176,10 +186,11 @@ class MasterReportingEngine:
                 insights.append(
                     f"- **[ACTION] Toxic Asset**: {worst_coin} is your worst performer. Consider blacklisting it or increasing confidence requirements for this coin."
                 )
-            if dir_perf.loc["short"]["total_pnl"] < dir_perf.loc["long"]["total_pnl"] * 0.5:
-                insights.append(
-                    "- **[STRATEGY] Short Bias**: Short performance is significantly worse than Longs. Consider disabling shorts in non-bearish regimes."
-                )
+            if "short" in dir_perf.index and "long" in dir_perf.index:
+                if dir_perf.loc["short"]["total_pnl"] < dir_perf.loc["long"]["total_pnl"] * 0.5:
+                    insights.append(
+                        "- **[STRATEGY] Short Bias**: Short performance is significantly worse than Longs. Consider disabling shorts in non-bearish regimes."
+                    )
 
             for insight in insights:
                 f.write(f"{insight}\n")

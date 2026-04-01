@@ -84,11 +84,14 @@ def analyze_ml_vs_llm():
 
     results = []
 
+    # Comprehensive ML patterns to catch all variations
     patterns = [
-        r"ML Consensus:\s*([A-Za-z]+)\s*(\d+\.?\d*)\%",
-        r"ML\s*Consensus:\s*.*?([A-Za-z]+)\s*(\d+\.?\d*)\%",
-        r"ML:.*?(SELL|BUY|HOLD)\s*(\d+\.?\d*)\%",
-        r"ML\s*(leans|shows|favors|strongly favors)?\s*(SELL|BUY|HOLD)\s*\(?(\d+\.?\d*)\%\)?",
+        r"ML Consensus[:\s]+(?:neutral\s+)?\(?([A-Z]+)\s*(\d+\.?\d*)%",
+        r"ML Consensus:\s*([A-Z]+)\s*(\d+\.?\d*)%",
+        r"ML leans ([A-Z]+)\s*\(?(\d+\.?\d*)%",
+        r"ML dominant ([A-Z]+)\s*\((\d+\.?\d*)%",
+        r"ML:\s*([A-Z]+)\s*(\d+\.?\d*)%",
+        r"ML\s+(leans|shows|favors)\s+([A-Z]+)\s*\(?(\d+\.?\d*)%?\)?",
     ]
 
     for t in trades:
@@ -134,19 +137,30 @@ def analyze_ml_vs_llm():
             ml_bias = "Unknown"
             ml_conf = 0.0
 
+            # Try each pattern
             for pat in patterns:
                 m = re.search(pat, coin_cot, re.IGNORECASE)
                 if m:
-                    groups = [g for g in m.groups() if g and g.upper() in ["BUY", "SELL", "HOLD"]]
-                    nums = [g for g in m.groups() if g and g.replace(".", "", 1).isdigit()]
-                    if groups:
-                        ml_bias = groups[0].upper()
-                    if nums:
-                        ml_conf = float(nums[0])
-                    break
+                    groups = m.groups()
+                    # Find the signal (BUY/SELL/HOLD)
+                    for g in groups:
+                        if g and isinstance(g, str) and g.upper() in ["BUY", "SELL", "HOLD"]:
+                            ml_bias = g.upper()
+                            break
+                    # Find the confidence number
+                    for g in groups:
+                        if g and isinstance(g, str):
+                            # Remove % and check if it's a number
+                            clean_g = g.replace("%", "").strip()
+                            if clean_g.replace(".", "", 1).isdigit():
+                                ml_conf = float(clean_g.replace("%", ""))
+                                break
+                    if ml_bias != "Unknown":
+                        break
 
+            # Fallback: simple pattern
             if ml_bias == "Unknown":
-                m2 = re.search(r"ML\s*(BUY|SELL|HOLD)\s*(\d+\.?\d*)", coin_cot, re.IGNORECASE)
+                m2 = re.search(r"ML\s+(BUY|SELL|HOLD)\s+(\d+\.?\d*)", coin_cot, re.IGNORECASE)
                 if m2:
                     ml_bias = m2.group(1).upper()
                     ml_conf = float(m2.group(2))
@@ -277,16 +291,20 @@ def analyze_ml_vs_llm():
 
                 ml_bias = "Unknown"
 
+                # Use same comprehensive patterns
                 for pat in patterns:
                     m = re.search(pat, coin_cot, re.IGNORECASE)
                     if m:
-                        groups = [g for g in m.groups() if g and g.upper() in ["BUY", "SELL"]]
-                        if groups:
-                            ml_bias = groups[0].upper()
-                        break
+                        groups = m.groups()
+                        for g in groups:
+                            if g and isinstance(g, str) and g.upper() in ["BUY", "SELL"]:
+                                ml_bias = g.upper()
+                                break
+                        if ml_bias != "Unknown":
+                            break
 
                 if ml_bias == "Unknown":
-                    m2 = re.search(r"ML\s*(BUY|SELL)\s*(\d+\.?\d*)", coin_cot, re.IGNORECASE)
+                    m2 = re.search(r"ML\s+(BUY|SELL)\s+(\d+\.?\d*)", coin_cot, re.IGNORECASE)
                     if m2:
                         ml_bias = m2.group(1).upper()
 

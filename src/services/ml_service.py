@@ -5,6 +5,7 @@ from datetime import datetime, timedelta, timezone
 from typing import Any
 
 import joblib
+import numpy as np
 import pandas as pd
 import xgboost as xgb
 
@@ -178,8 +179,10 @@ class MLService:
                     by_coin[coin].append(p)
 
             for coin, preds in by_coin.items():
-                # Get labeled data for these timestamps
-                df_truth = engine.get_labeled_data(coin, "15m", lookahead_periods=5)
+                # Get labeled data for these timestamps using centralized lookahead
+                df_truth = engine.get_labeled_data(
+                    coin, "15m", lookahead_periods=constants.ML_LOOKAHEAD_PERIODS
+                )
                 if df_truth.empty:
                     continue
 

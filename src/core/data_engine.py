@@ -8,6 +8,7 @@ from typing import Any
 import numpy as np
 import pandas as pd
 import requests
+from src.core import constants
 
 
 # Configure logging
@@ -236,9 +237,13 @@ class DataEngine:
         self,
         coin: str,
         interval: str,
-        lookahead_periods: int = 3,  # Cerrahi müdahale: 5'ten 3'e düşürüldü (45 dk)
-        profit_threshold: float = 0.004,  # %0.4 kâr beklentisi
-        loss_threshold: float = -0.004,  # -%0.4 zarar eşiği
+        lookahead_periods: int = constants.ML_LOOKAHEAD_PERIODS,
+        profit_threshold: float = constants.ML_DEFAULT_PROFIT_THRESHOLD
+        if hasattr(constants, "ML_DEFAULT_PROFIT_THRESHOLD")
+        else 0.003,
+        loss_threshold: float = constants.ML_DEFAULT_LOSS_THRESHOLD
+        if hasattr(constants, "ML_DEFAULT_LOSS_THRESHOLD")
+        else -0.003,
         limit: int | None = None,
     ) -> pd.DataFrame:
         """Creates the ML targets (Labels) by looking ahead in time.
@@ -257,14 +262,19 @@ class DataEngine:
         df["future_close"] = df["close"].shift(-lookahead_periods)
         df["future_return"] = (df["future_close"] - df["close"]) / df["close"]
 
-        # === Perfection Phase: Dynamic Volatility (ATR) Based Thresholds ===
-        # Default fallback is 0.4% but it scales with 1.0x ATR_14 dynamically
-        tr = df["high"] - df["low"]
+        # === Dynamic Volatility (ATR) Based Thresholds ===
+        # True Range calculation (consistent with indicators.py:50-53)
+        tr0 = abs(df["high"] - df["low"])
+        tr1 = abs(df["high"] - df["close"].shift())
+        tr2 = abs(df["low"] - df["close"].shift())
+        tr = pd.concat([tr0, tr1, tr2], axis=1).max(axis=1)
         atr_14 = tr.ewm(span=14, adjust=False).mean()
-        atr_pct = (atr_14 / df["close"]).fillna(profit_threshold)
+        atr_pct = (atr_14 / df["close"]).fillna(constants.ML_ATR_LABEL_FLOOR)
 
-        # We ensure a minimum floor of 0.3% to avoid noise in dead markets
-        dynamic_profit = np.maximum(atr_pct * 1.0, 0.003)
+        # Scale ATR by multiplier with minimum floor
+        dynamic_profit = np.maximum(
+            atr_pct * constants.ML_ATR_LABEL_MULTIPLIER, constants.ML_ATR_LABEL_FLOOR
+        )
         dynamic_loss = -dynamic_profit
 
         # Apply labels using numpy.select for blazing fast vectorization
@@ -427,9 +437,7 @@ if __name__ == "__main__":
         time.sleep(1)  # Sleep to avoid rate limits
 
     print("\n[Test] Testing Labeling Logic (Faz 1.3)...")
-    df_labeled = engine.get_labeled_data(
-        "XRP", "15m", lookahead_periods=5, profit_threshold=0.005, loss_threshold=-0.005
-    )
+    df_labeled = engine.get_labeled_data("XRP", "15m")
 
     if not df_labeled.empty:
         print(f"[OK] Labeling complete. Extracted {len(df_labeled)} labeled rows.")

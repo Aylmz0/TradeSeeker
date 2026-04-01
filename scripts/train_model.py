@@ -14,6 +14,8 @@ from sklearn.metrics import accuracy_score, classification_report, confusion_mat
 from sklearn.preprocessing import StandardScaler
 from sklearn.utils.class_weight import compute_class_weight
 
+from src.core import constants
+
 from config.config import Config
 from src.core.data_engine import DataEngine
 from src.core.indicators import get_features_for_ml
@@ -31,7 +33,9 @@ def train_global_model(interval: str):
 
     for coin in target_coins:
         print(f"\n---> Processing {coin}...")
-        df_raw_labeled = engine.get_labeled_data(coin, interval, lookahead_periods=3)
+        df_raw_labeled = engine.get_labeled_data(
+            coin, interval, lookahead_periods=constants.ML_LOOKAHEAD_PERIODS
+        )
 
         if df_raw_labeled.empty:
             print(f"     [WARN] Not enough data for {coin}. Skipping.")
@@ -71,6 +75,26 @@ def train_global_model(interval: str):
         f"[INFO] Global Dataset Size: {len(df_global)} rows total across {len(all_features_list)} coins."
     )
 
+    # === LABEL DISTRIBUTION AUDIT ===
+    label_counts = df_global["target_label"].value_counts().sort_index()
+    total = len(df_global)
+    print("\n" + "=" * 50)
+    print("[AUDIT] LABEL DISTRIBUTION:")
+    print(f"  SELL (-1): {label_counts.get(-1, 0):>6} ({label_counts.get(-1, 0)/total*100:.1f}%)")
+    print(f"  HOLD ( 0): {label_counts.get( 0, 0):>6} ({label_counts.get( 0, 0)/total*100:.1f}%)")
+    print(f"  BUY  ( 1): {label_counts.get( 1, 0):>6} ({label_counts.get( 1, 0)/total*100:.1f}%)")
+    print("=" * 50)
+
+    hold_ratio = label_counts.get(0, 0) / total
+    if hold_ratio > constants.ML_HOLD_ABORT_RATIO:
+        print(
+            f"\n[FATAL] HOLD ratio {hold_ratio:.1%} exceeds {constants.ML_HOLD_ABORT_RATIO:.0%} abort threshold."
+        )
+        print(
+            "[INFO]  Reduce ML_ATR_LABEL_MULTIPLIER or increase ML_LOOKAHEAD_PERIODS in constants.py"
+        )
+        return
+
     drop_cols = ["timestamp", "target_label", "future_return", "source_coin"]
     feature_cols = [c for c in df_global.columns if c not in drop_cols]
 
@@ -105,13 +129,15 @@ def train_global_model(interval: str):
         objective="multi:softprob",
         num_class=3,
         eval_metric="mlogloss",
-        n_estimators=100,
-        learning_rate=0.05,
-        max_depth=4,  # Düşürüldü, overfitting engellemek için
+        n_estimators=200,
+        learning_rate=0.03,
+        max_depth=5,
         subsample=0.8,
         colsample_bytree=0.8,
         random_state=Config.REPLAY_SEED,
-        early_stopping_rounds=10,
+        early_stopping_rounds=25,
+        min_child_weight=3,
+        gamma=0.1,
     )
 
     # === Perfection Phase: Dynamic Class Weights ===
@@ -162,10 +188,23 @@ def train_global_model(interval: str):
     joblib.dump(scaler, "models/scaler.joblib")
     joblib.dump(feature_cols, "models/feature_cols.joblib")
 
+    # Classification Report as dict for deep metrics
+    report_dict = classification_report(
+        y_test, y_pred, target_names=class_names, output_dict=True, zero_division=0
+    )
+
     # Save metrics for Dashboard
     metrics = {
         "accuracy": round(float(accuracy_score(y_test, y_pred)), 4),
         "logloss": round(float(log_loss(y_test, y_prob)), 4),
+        "f1_buy": round(float(report_dict.get("BUY", {}).get("f1-score", 0)), 4),
+        "f1_sell": round(float(report_dict.get("SELL", {}).get("f1-score", 0)), 4),
+        "f1_hold": round(float(report_dict.get("HOLD", {}).get("f1-score", 0)), 4),
+        "label_distribution": {
+            "sell_pct": round(label_counts.get(-1, 0) / total * 100, 1),
+            "hold_pct": round(label_counts.get(0, 0) / total * 100, 1),
+            "buy_pct": round(label_counts.get(1, 0) / total * 100, 1),
+        },
         "last_train_ts": pd.Timestamp.now().isoformat(),
     }
     with open("models/model_metrics.json", "w") as f:

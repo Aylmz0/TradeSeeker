@@ -3,12 +3,13 @@
 SYSTEM FORENSIC AUDIT v2 - Deep Root Cause Analysis
 Analyzes: AI Reasoning, ML Impact, Close Reasons, Trade Duration, Entry Quality
 """
+
 import os
 import sys
 import re
 import pandas as pd
 import numpy as np
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from collections import Counter, defaultdict
 
 PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -243,7 +244,9 @@ class ForensicAuditEngine:
         with open(self.output_file, "w") as f:
             f.write("# 🕵️ TradeSeeker Forensic Post-Mortem Analysis v2\n")
             f.write(f"*Deep analysis of {len(df_trades)} trades across {len(df_cycles)} cycles*\n")
-            f.write(f"*Generated: {datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S')} UTC*\n\n")
+            f.write(
+                f"*Generated: {datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M:%S')} UTC*\n\n"
+            )
 
             # ---- CLOSE REASON ANALYSIS ----
             f.write("## 1. Exit Reason Breakdown (Why Trades Close)\n")
@@ -282,7 +285,7 @@ class ForensicAuditEngine:
             ]:
                 if not group.empty:
                     f.write(
-                        f"| {label} | {len(group)} | ${group['pnl'].sum():.2f} | ${group['pnl'].mean():.2f} | {(group['pnl'] > 0).mean()*100:.1f}% |\n"
+                        f"| {label} | {len(group)} | ${group['pnl'].sum():.2f} | ${group['pnl'].mean():.2f} | {(group['pnl'] > 0).mean() * 100:.1f}% |\n"
                     )
             f.write("\n")
 
@@ -381,7 +384,7 @@ class ForensicAuditEngine:
             ]:
                 if not group.empty:
                     f.write(
-                        f"| {label} | {len(group)} | ${group['pnl'].sum():.2f} | ${group['pnl'].mean():.2f} | {(group['pnl'] > 0).mean()*100:.1f}% |\n"
+                        f"| {label} | {len(group)} | ${group['pnl'].sum():.2f} | ${group['pnl'].mean():.2f} | {(group['pnl'] > 0).mean() * 100:.1f}% |\n"
                     )
             f.write("\n")
 
@@ -413,7 +416,7 @@ class ForensicAuditEngine:
                     ]
                     if not group.empty:
                         f.write(
-                            f"| {label} | {len(group)} | ${group['pnl'].sum():.2f} | ${group['pnl'].mean():.2f} | {(group['pnl'] > 0).mean()*100:.1f}% |\n"
+                            f"| {label} | {len(group)} | ${group['pnl'].sum():.2f} | ${group['pnl'].mean():.2f} | {(group['pnl'] > 0).mean() * 100:.1f}% |\n"
                         )
                 f.write("\n")
 
@@ -447,7 +450,7 @@ class ForensicAuditEngine:
             # Duration analysis
             if not short_lived.empty and len(short_lived) > len(df_trades) * 0.3:
                 verdicts.append(
-                    f"**Premature Exits**: {len(short_lived)} trades ({len(short_lived)/len(df_trades)*100:.0f}%) lasted <15 minutes. The bot is entering and immediately getting shaken out. This is the #1 problem — the entry timing is poor."
+                    f"**Premature Exits**: {len(short_lived)} trades ({len(short_lived) / len(df_trades) * 100:.0f}%) lasted <15 minutes. The bot is entering and immediately getting shaken out. This is the #1 problem — the entry timing is poor."
                 )
 
             # Volume violations
