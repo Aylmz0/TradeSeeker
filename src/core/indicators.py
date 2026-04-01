@@ -501,15 +501,54 @@ def get_features_for_ml(df: pd.DataFrame) -> pd.DataFrame:
     features["bb_bandwidth"] = (upper - lower) / middle
     features["bb_percent_b"] = (df["close"] - lower) / (upper - lower)
 
+    # 2.5 CATEGORY A: Directional Lags (DI Crossings)
+    features["plus_di_lag1"] = features["plus_di"].shift(1)
+    features["minus_di_lag1"] = features["minus_di"].shift(1)
+    features["di_cross"] = features["plus_di"] - features["minus_di"]
+    features["di_cross_lag1"] = features["di_cross"].shift(1)
+    features["adx_14_lag1"] = features["adx_14"].shift(1)
+    features["adx_growth"] = features["adx_14"] - features["adx_14_lag1"]
+
+    # 2.6 CATEGORY B: Momentum Lags (RSI History/Slope)
+    features["rsi_14_slope"] = features["rsi_14"] - features["rsi_14"].shift(1)
+    features["rsi_7_slope"] = features["rsi_7"] - features["rsi_7"].shift(1)
+
+    # 2.7 CATEGORY C: Structural Spacing (HTF Anchors)
+    features["ema_50_dist"] = (df["close"] - features["ema_50"]) / features["ema_50"]
+    features["ema_alignment"] = features["ema_20_dist"] - features["ema_50_dist"]
+
+    # 2.8 CATEGORY D: Enhanced Slopes
+    features["ema_20_slope"] = (features["ema_20"] - features["ema_20"].shift(1)) / features[
+        "ema_20"
+    ].shift(1)
+    features["ema_50_slope"] = (features["ema_50"] - features["ema_50"].shift(1)) / features[
+        "ema_50"
+    ].shift(1)
+    features["macd_hist_lag1"] = features["macd_hist"].shift(1)
+    features["macd_hist_lag2"] = features["macd_hist"].shift(2)
+    features["macd_slope"] = features["macd_hist"] - features["macd_hist_lag1"]
+
     # Momentum (Price Rate of Change)
     features["roc_10"] = df["close"].pct_change(periods=constants.INDICATOR_HISTORY_DEFAULT)
 
     # 3. Lag Features (Temporal History t-1, t-2)
     # XGBoost only sees one row at a time. It needs lag features to understand velocity.
-    cols_to_lag = ["return_1p", "return_vol", "rsi_14", "macd_hist", "bb_bandwidth"]
+    cols_to_lag = [
+        "return_1p",
+        "return_vol",
+        "rsi_14",
+        "rsi_7",
+        "macd_hist",
+        "bb_bandwidth",
+        "di_cross",
+        "adx_14",
+        "rsi_14_slope",
+    ]
     for col in cols_to_lag:
-        features[f"{col}_lag1"] = features[col].shift(1)
-        features[f"{col}_lag2"] = features[col].shift(2)
+        if f"{col}_lag1" not in features.columns:
+            features[f"{col}_lag1"] = features[col].shift(1)
+        if f"{col}_lag2" not in features.columns:
+            features[f"{col}_lag2"] = features[col].shift(2)
 
     # 4. Cleanup
     # Forward fill non-critical NaNs
