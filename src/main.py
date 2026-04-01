@@ -385,8 +385,8 @@ class AlphaArenaDeepSeek:
                     prompt = self.ai_service.generate_alpha_arena_prompt()
                 print("[INFO]  Prompt: " + prompt[:160] + "...")
 
-                # PHASE 10: AUTOMATED DATA COLLECTION
-                # Log indicators and market data fetched during prompt generation
+                # PHASE 10: AUTOMATED DATA COLLECTION (DEPRECATED - Moved to Bulk Sync in train_model.py)
+                """
                 try:
                     latest_indicators = getattr(self.ai_service, "latest_indicators", {})
                     for coin in self.market_data.available_coins:
@@ -403,6 +403,7 @@ class AlphaArenaDeepSeek:
                             )
                 except Exception as log_err:
                     print(f"[WARN]  Database logging failed: {log_err}")
+                """
 
                 # Check bot control before AI API call (can be slow in live mode)
                 control = self._read_bot_control()

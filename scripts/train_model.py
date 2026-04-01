@@ -21,12 +21,29 @@ from src.core.data_engine import DataEngine
 from src.core.indicators import get_features_for_ml
 
 
-def train_global_model(interval: str):
-    """Trains a single unified Global ML model using data from all active coins."""
+def train_global_model():
+    """Trains a global XGBoost model using data from all coins with Sync-on-Train logic."""
     engine = DataEngine()
-    target_coins = getattr(Config, "COINS", ["XRP", "DOGE", "ASTER", "TRX", "ETH", "SOL"])
+    interval = "15m"
+    target_coins = constants.ML_COINS
 
-    print(f"\n[INFO] Gathering data for Global Model Training (Interval: {interval})")
+    # === PHASE A: WIPE & SYNC (THE GREAT RESET) ===
+    print("\n" + "=" * 50)
+    print("[RESET] Wiping old fragmented data for a clean start...")
+    engine.wipe_market_data()
+
+    print("\n[SYNC] Fetching continuous historical data from Binance...")
+    for coin in target_coins:
+        # Sync 15m (Primary)
+        engine.sync_bulk_history(coin, "15m", target_count=constants.ML_SYNC_DEPTH_15M)
+        # Sync 1h (HTF Context)
+        engine.sync_bulk_history(coin, "1h", target_count=constants.ML_SYNC_DEPTH_1H)
+        # Sync 3m (Sensor)
+        engine.sync_bulk_history(coin, "3m", target_count=constants.ML_SYNC_DEPTH_3M)
+    print("=" * 50 + "\n")
+
+    # === PHASE B: DATA GATHERING (From SQLite) ===
+    print(f"[INFO] Gathering synced data for Global Model Training (Interval: {interval})")
     print(f"[INFO] Target Coins: {target_coins}")
 
     all_features_list = []
@@ -218,8 +235,4 @@ def train_global_model(interval: str):
 
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description="TradeSeeker Global XGBoost Factory")
-    parser.add_argument("--interval", type=str, default="15m", help="Kline interval to train on")
-    args = parser.parse_args()
-
-    train_global_model(args.interval)
+    train_global_model()

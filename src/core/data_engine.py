@@ -228,10 +228,111 @@ class DataEngine:
 
             if not df.empty:
                 df["timestamp"] = pd.to_datetime(df["timestamp"], unit="ms")
-
             return df
+        except Exception as e:
+            logger.error(f"[DataEngine] Error fetching raw data for {coin}: {e}")
+            return pd.DataFrame()
         finally:
             conn.close()
+
+    def wipe_market_data(self, coin: str | None = None, interval: str | None = None):
+        """Wipes the market_data and features tables. If coin/interval provided, only wipes matches."""
+        conn = self._get_connection()
+        try:
+            cursor = conn.cursor()
+            if coin and interval:
+                cursor.execute(
+                    "DELETE FROM market_data WHERE coin = ? AND interval = ?", (coin, interval)
+                )
+                cursor.execute(
+                    "DELETE FROM features WHERE coin = ? AND interval = ?", (coin, interval)
+                )
+                logger.info(f"[DataEngine] Wiped data for {coin} ({interval}).")
+            else:
+                cursor.execute("DELETE FROM market_data")
+                cursor.execute("DELETE FROM features")
+                logger.info("[DataEngine] Wiped ALL market data and features.")
+            conn.commit()
+        except Exception as e:
+            logger.error(f"[DataEngine] Wipe failed: {e}")
+            conn.rollback()
+        finally:
+            conn.close()
+
+    def sync_bulk_history(self, coin: str, interval: str, target_count: int = 5000):
+        """Fetches historical data from Binance with pagination and saves to DB."""
+        import time as _time_module
+
+        logger.info(
+            f"[DataEngine] Starting Sync for {coin} ({interval}) -> Target: {target_count} candles"
+        )
+
+        base_url = "https://api.binance.com/api/v3/klines"
+        symbol = f"{coin}USDT"
+        total_ingested = 0
+        end_time = None  # Start from current time
+
+        # We fetch in chunks of 1000
+        while total_ingested < target_count:
+            try:
+                params = {"symbol": symbol, "interval": interval, "limit": 1000}
+                if end_time:
+                    params["endTime"] = end_time - 1
+
+                response = requests.get(base_url, params=params, timeout=10)
+                response.raise_for_status()
+                data = response.json()
+
+                if not data:
+                    break
+
+                df = pd.DataFrame(
+                    data,
+                    columns=[
+                        "timestamp",
+                        "open",
+                        "high",
+                        "low",
+                        "close",
+                        "volume",
+                        "close_time",
+                        "quote_asset_volume",
+                        "number_of_trades",
+                        "taker_buy_base_asset_volume",
+                        "taker_buy_quote_asset_volume",
+                        "ignore",
+                    ],
+                )
+
+                # Check for empty or malformed response
+                if df.empty:
+                    break
+
+                # Update endTime for next iteration (earliest candle in this batch)
+                first_ts = int(df["timestamp"].iloc[0])
+                end_time = first_ts
+
+                # Log to DB
+                self._insert_klines_bulk(df, coin, interval)
+                total_ingested += len(df)
+
+                logger.info(
+                    f"[Sync] {coin} {interval}: Fetched batch of {len(df)}. Total: {total_ingested}/{target_count}"
+                )
+
+                if len(df) < 1000:
+                    # No more history available
+                    break
+
+                # Small sleep to avoid rate limits
+                _time_module.sleep(0.1)
+
+            except Exception as e:
+                logger.error(f"[Sync] Failed batch for {coin} {interval}: {e}")
+                break
+
+        logger.info(f"[Sync] Completed for {coin} {interval}. Total candles: {total_ingested}")
+        return total_ingested
 
     def get_labeled_data(
         self,

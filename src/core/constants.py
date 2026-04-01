@@ -125,6 +125,12 @@ ML_LOOKAHEAD_PERIODS = 5  # 5 bars * 15m = 75 min forward window
 ML_ATR_LABEL_MULTIPLIER = 0.7  # 0.7x ATR = softer threshold for more BUY/SELL labels
 ML_ATR_LABEL_FLOOR = 0.002  # Minimum 0.2% movement to avoid labeling noise
 ML_HOLD_ABORT_RATIO = 0.75  # Abort training if HOLD > 75%
+
+# ML Sync Settings (Bulk History Fetch)
+ML_COINS = ["XRP", "DOGE", "ASTER", "TRX", "ETH", "SOL"]
+ML_SYNC_DEPTH_15M = 5000  # Primary training window (~52 days)
+ML_SYNC_DEPTH_1H = 2000  # HTF Context window (~83 days)
+ML_SYNC_DEPTH_3M = 2000  # Sensor window (~4 days)
 MAX_POSITIONS_ALERT_THRESHOLD = 4
 HTTP_STATUS_ERROR_THRESHOLD = 400
 ACCURACY_DRIFT_THRESHOLD = 0.10
