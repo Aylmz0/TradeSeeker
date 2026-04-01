@@ -287,7 +287,7 @@ class PortfolioManager:
 
         """
         timestamp = datetime.now(timezone.utc).strftime("%Y%m%d_%H%M%S")
-        backup_dir = Path("history_backups") / f"{timestamp}_cycle_{cycle_number}"
+        backup_dir = Path("data/backups") / f"{timestamp}_cycle_{cycle_number}"
         files_to_backup = [
             (self.history_file, []),
             (self.full_history_file, []),

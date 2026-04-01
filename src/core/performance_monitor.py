@@ -686,22 +686,25 @@ class PerformanceMonitor:
         all_cycles = []
         all_performance = []
 
-        # 1. Scan history_backups directory
-        backup_dir = "history_backups"
-        if os.path.exists(backup_dir):
-            subdirs = sorted(glob.glob(os.path.join(backup_dir, "*_cycle_*")))
-            for subdir in subdirs:
-                # Load files from this backup
-                trades = safe_file_read(os.path.join(subdir, "trade_history.json"), [])
-                cycles = safe_file_read(os.path.join(subdir, "cycle_history.json"), [])
-                perf = safe_file_read(os.path.join(subdir, "performance_history.json"), [])
+        # Helper to scan a backup directory
+        def scan_backup_dir(backup_dir: str) -> None:
+            if os.path.exists(backup_dir):
+                subdirs = sorted(glob.glob(os.path.join(backup_dir, "*_cycle_*")))
+                for subdir in subdirs:
+                    trades = safe_file_read(os.path.join(subdir, "trade_history.json"), [])
+                    cycles = safe_file_read(os.path.join(subdir, "cycle_history.json"), [])
+                    perf = safe_file_read(os.path.join(subdir, "performance_history.json"), [])
 
-                if isinstance(trades, list):
-                    all_trades.extend(trades)
-                if isinstance(cycles, list):
-                    all_cycles.extend(cycles)
-                if isinstance(perf, list):
-                    all_performance.extend(perf)
+                    if isinstance(trades, list):
+                        all_trades.extend(trades)
+                    if isinstance(cycles, list):
+                        all_cycles.extend(cycles)
+                    if isinstance(perf, list):
+                        all_performance.extend(perf)
+
+        # 1. Scan both backup directories (new: data/backups, old: history_backups for backward compat)
+        scan_backup_dir("data/backups")
+        scan_backup_dir("history_backups")
 
         # 2. Add active data
         active_trades = safe_file_read(self.trade_history_file, [])
