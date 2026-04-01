@@ -281,6 +281,76 @@ def extract_semantic_features(prices: pd.Series, period: int = 24) -> dict[str, 
     }
 
 
+def calculate_slope_label(prices: pd.Series, period: int = 20) -> str:
+    """Calculate linear regression slope and return categorical label."""
+    if len(prices) < period:
+        return "FLAT"
+    subset = prices.iloc[-period:].values
+    x = np.arange(len(subset))
+    slope, _ = np.polyfit(x, subset, 1)
+    slope_pct = (slope / subset[0]) * 100
+
+    if slope_pct > 0.2:
+        return "AGGRESSIVE_ASCEND"
+    if slope_pct > 0.05:
+        return "MODERATE_ASCEND"
+    if slope_pct < -0.2:
+        return "AGGRESSIVE_DESCEND"
+    if slope_pct < -0.05:
+        return "MODERATE_DESCEND"
+    return "FLAT"
+
+
+def calculate_ema_stretch_label(current_price: float, ema20: float) -> str:
+    """Calculate how far price is from EMA20 and return categorical label."""
+    if not current_price or not ema20 or ema20 == 0:
+        return "NORMAL"
+    diff_pct = (current_price - ema20) / ema20 * 100
+
+    if abs(diff_pct) < 0.2:
+        return "TIGHT"
+    if diff_pct > 1.5:
+        return "OVEREXTENDED_UP"
+    if diff_pct < -1.5:
+        return "OVEREXTENDED_DOWN"
+    return "NORMAL"
+
+
+def calculate_rsi_divergence_label(prices: pd.Series, rsi: pd.Series, period: int = 20) -> str:
+    """Detect RSI-Price divergence using slope comparison (NumPy)."""
+    if len(prices) < period or len(rsi) < period:
+        return "NONE"
+
+    p_subset = prices.iloc[-period:].values
+    r_subset = rsi.iloc[-period:].values
+    x = np.arange(len(p_subset))
+
+    p_slope, _ = np.polyfit(x, p_subset, 1)
+    r_slope, _ = np.polyfit(x, r_subset, 1)
+
+    # Bullish Divergence: Price falling (neg slope) but RSI rising (pos slope)
+    if p_slope < -0.02 and r_slope > 0.5:
+        return "BULLISH_DIVERGENCE"
+    # Bearish Divergence: Price rising (pos slope) but RSI falling (neg slope)
+    if p_slope > 0.02 and r_slope < -0.5:
+        return "BEARISH_DIVERGENCE"
+
+    return "NONE"
+
+
+def calculate_volatility_pulse_label(atr_3: float, atr_14: float) -> str:
+    """Compare short-term vs long-term ATR to detect volatility expansion."""
+    if not atr_3 or not atr_14 or atr_14 == 0:
+        return "NORMAL"
+    ratio = atr_3 / atr_14
+
+    if ratio > 1.3:
+        return "STRETCHING"
+    if ratio < 0.7:
+        return "STAGNANT"
+    return "NORMAL"
+
+
 def generate_smart_sparkline(prices: pd.Series, period: int = 24) -> dict[str, Any]:
     """Generate Smart Sparkline v2.1 with key level, structure, and momentum using NumPy."""
     if len(prices) < period:

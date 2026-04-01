@@ -17,11 +17,15 @@ from src.core.indicators import (
     calculate_bollinger_bands,
     calculate_efficiency_ratio,
     calculate_ema_series,
+    calculate_ema_stretch_label,
     calculate_macd_series,
     calculate_obv,
     calculate_pivots,
+    calculate_rsi_divergence_label,
     calculate_rsi_series,
+    calculate_slope_label,
     calculate_supertrend,
+    calculate_volatility_pulse_label,
     calculate_vwap,
     generate_smart_sparkline,
     generate_tags,
@@ -478,6 +482,28 @@ class RealMarketData:
             st_line, st_direction = calculate_supertrend(df["high"], df["low"], close_prices)
             indicators["supertrend"] = st_line
             indicators["supertrend_direction"] = st_direction
+
+            # ==================== NEW READY-TO-EAT LABELS (v10.0) ====================
+
+            # 1. Price Momentum Slope (The "Angle")
+            indicators["price_slope_label"] = calculate_slope_label(close_prices)
+
+            # 2. RSI Divergence (The "Hidden Edge")
+            indicators["rsi_divergence_label"] = calculate_rsi_divergence_label(
+                close_prices, rsi_14_series
+            )
+
+            # 3. EMA Stretch (The "Elasticity") - Use pre-calculated indicators["ema_20"]
+            indicators["ema_stretch_label"] = calculate_ema_stretch_label(
+                current_price, indicators.get("ema_20")
+            )
+
+            # 4. Volatility Pulse (The "Expansion") - Depends on HTF ATRs
+            atr_3_val = indicators.get("atr_3")
+            atr_14_val = indicators.get("atr_14")
+            indicators["volatility_pulse_label"] = calculate_volatility_pulse_label(
+                atr_3_val, atr_14_val
+            )
 
             # ==================== END NEW INDICATORS ====================
 

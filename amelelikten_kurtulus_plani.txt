@@ -1,0 +1,61 @@
+# TradeSeeker: Amelelikten Hazır Yemeğe Dönüşüm Planı (TAM DETAY)
+
+HEDEF: AI üzerindeki matematiksel yükü (ameleliği) kaldırıp, yerelde (Python/NumPy) süzülmüş verileri "hazır tabak" (Verdict) olarak sunmak.
+
+----------------------------------------------------------------------
+1. AUDIT: MEVCUT DURUM ANALİZİ
+----------------------------------------------------------------------
+Gözlemlediğimiz 16k token faturasının ve AI kafa karışıklığının temel sebebi, AI'a her döngüde yolladığımız 100+ ham sayıdır.
+
+A. HAZIR YEMEK (Zaten Süzülmüş Olanlar):
+- Structure (HH_HL, LH_LL, RANGE) -> NumPy windowing ile Python'da çözülüyor.
+- Momentum (STRENGTHENING, WEAKENING) -> Velocity analiziyle Python'da çözülüyor.
+- Zone (UPPER_10, LOWER_10, MIDDLE) -> Percentile-in-range ile Python'da çözülüyor.
+
+B. AMELELİK (LLM'in Sırtındaki Ham Sayı Yükü):
+- Price Slope: AI son 20 fiyatın eğimini "gözle" tahmin etmeye çalışıyor.
+- EMA Stretch: Fiyatın EMA20'ye milimetrik yakınlığını sayılardan buluyor.
+- RSI Divergence: En büyük hata payı burada. RSI tepeleri ile Fiyat tepelerini manuel kıyaslıyor.
+- MACD Momentum: Histogramdaki sönümlenmeyi (decay) sayılardan okumaya çalışıyor.
+
+----------------------------------------------------------------------
+2. YENİ "HAZIR TABAK" (READY-TO-EAT) LOJİĞİ
+----------------------------------------------------------------------
+
+I. PRICE MOMENTUM SLOPE (EĞİM AÇISI)
+- Mantık: np.polyfit(1D_subset) ile lineer regresyon eğimi hesaplanacak.
+- Etiketler: FLAT (<0.05%), MODERATE_ASCEND (0.05-0.2%), AGGRESSIVE_ASCEND (>0.2%).
+- Yarar: AI'ın %0.05 ile %0.1 farkını anlamama riskini sıfıra indirir.
+
+II. EMA STRETCH (ELASTİSİTE)
+- Mantık: abs(price - ema20) / ema20 formülü kullanılacak.
+- Etiketler: TIGHT (<0.2%), NORMAL, OVEREXTENDED (>1.5%).
+- Yarar: "Top-buying" (Tepeden alma) hatasını teknik olarak engeller.
+
+III. SMART DIVERGENCE DETECTION (AKILLI UYUMSUZLUK)
+- Mantık: Fiyat Eğimi (Slope) ile RSI-14 Eğimi senkronize karşılaştırılacak.
+- Kural: Price_Slope > 0 VE RSI_Slope < 0 => BEARISH_DIVERGENCE.
+- Yarar: AI'ın en çok halüsinasyon gördüğü noktayı matematiksel kesinliğe bağlar.
+
+IV. VOLATILITY PULSE RATIO (VOLATİLİTE NABZI)
+- Mantık: ATR_3 (kısa) / ATR_14 (uzun) oranı hesaplanacak.
+- Etiketler: STRETCHING (>1.3x), NORMAL, STAGNANT (<0.7x).
+- Yarar: Volatilite patlamasını "sayı saymadan" AI'a söyler.
+
+----------------------------------------------------------------------
+3. TEKNİK KARAR: NEDEN NUMPY? (POLARS/PANDAS VS NUMPY)
+----------------------------------------------------------------------
+Polars mükemmel bir "Kamyon"dur (Büyük veri işleme). NumPy ise "Neşter"dir (Cerrahi Matematik).
+- Regresyon (Polyfit), Tep/Dip Tespiti ve 20 mumluk pencerede sinyal işleme için NumPy dünyanın en hızlı ve hafif kütüphanesidir.
+- LLM'i beslerken yapılacak bu mikro-matematik için Polars hantal kalır, NumPy cerrahi kesinlik sağlar.
+
+----------------------------------------------------------------------
+4. OPERASYON ADIMLARI (ONAY BEKLENİYOR)
+----------------------------------------------------------------------
+1. REMOVE: ai_service.py içindeki RSI, MACD ve EMA ham liste gönderimleri silinecek.
+2. INJECT: Yeni "Verdict" etiketleri (Slope, Divergence, Stretch) sisteme eklenecek.
+3. RETAIN: Sadece "Son Fiyat", "Son EMA" ve "Son RSI" referans sayı olarak kalacak.
+
+PLANIN SONUCU: 16k Token -> <8k Token. Daha hızlı karar, sıfır halüsinasyon.
+----------------------------------------------------------------------
+PLANI KAYNAK: Maestro'nun onayı ile "Gözlem Süresi" sonunda devreye alınacaktır.

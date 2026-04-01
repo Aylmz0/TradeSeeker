@@ -248,6 +248,12 @@ def build_coin_state_vector(
         "technical_summary": {
             "trend_alignment": _sv_trend_alignment(indicators_htf, indicators_15m, indicators_3m),
             "momentum": _sv_momentum(indicators_15m),
+            "price_slope": indicators_15m.get("price_slope_label", "FLAT"),
+            "ema_stretch": indicators_15m.get("ema_stretch_label", "NORMAL"),
+            "rsi_divergence": indicators_15m.get("rsi_divergence_label", "NONE"),
+            "volatility_pulse": indicators_htf.get("volatility_pulse_label", "NORMAL")
+            if indicators_htf
+            else "NORMAL",
             "volume_ratio": vol_ratio,
             "volume_support": _sv_volume_label(indicators_3m),
             "structure_15m": _sv_structure(indicators_15m),

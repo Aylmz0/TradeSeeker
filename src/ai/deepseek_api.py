@@ -117,6 +117,7 @@ class DeepSeekAPI:
                 num_retries=2,
                 timeout=60.0,  # Strict timeout to prevent hanging
             )
+            self.invocation_count = 0
 
     def _build_system_prompt(self) -> str:
         """Constructs the system prompt as a structured JSON object.
@@ -140,6 +141,25 @@ class DeepSeekAPI:
                     "min_confidence": Config.MIN_CONFIDENCE,
                     "discipline": "TACTICAL SCOUT: Identify opportunistic setups in neutral regimes while maintaining high precision. Be more active than Sniper Mode, but only with quantified technical edges.",
                     "commission_guard": f"Only enter if expected profit vs commission ratio exceeds {getattr(Config, 'COMMISSION_GUARD_RATIO', 5.0)}. High frequency does not mean low quality.",
+                },
+                "data_dictionary": {
+                    "price_slope": {
+                        "AGGRESSIVE_ASCEND/DESCEND": "High-velocity move. Strong trend conviction.",
+                        "MODERATE_ASCEND/DESCEND": "Steady trend. Standard entry conditions apply.",
+                        "FLAT": "No clear direction. High risk of choppy/sideways behavior.",
+                    },
+                    "ema_stretch": {
+                        "TIGHT": "Price is hugging the EMA-20. Safe for entry/continuation.",
+                        "OVEREXTENDED_UP/DOWN": "Price is significantly far from EMA-20 (Stretch > 1.5%). RISK of sharp mean-reversion. Avoid new entries in stretch direction.",
+                    },
+                    "rsi_divergence": {
+                        "BULLISH_DIVERGENCE": "Price making lower lows but RSI making higher lows. Strong reversal sign for LONG.",
+                        "BEARISH_DIVERGENCE": "Price making higher highs but RSI making lower highs. Strong reversal sign for SHORT.",
+                    },
+                    "volatility_pulse": {
+                        "STRETCHING": "Volatility is expanding (short-term > long-term). Expect breakout.",
+                        "STAGNANT": "Volatility is drying up. Expect range-bound or squeeze.",
+                    },
                 },
                 "risk_management": {
                     "risk_reward_ratio": "Maintain a positive risk/reward ratio.",
@@ -216,6 +236,14 @@ class DeepSeekAPI:
                             "for_LONG_entry": "GOOD counter-trend opportunity. Proceed with LONG if conditions align.",
                             "for_LONG_exit": "LONG is SAFE at LOWER_10. Continue holding - trend favorably exhausting.",
                         },
+                    },
+                    "divergence_execution_rule": {
+                        "BEARISH_DIVERGENCE": "If detected at UPPER_10 or with WEAKENING momentum, Treat as a HIGH-PRIORITY exit for LONGs and a STRONG entry signal for SHORTs.",
+                        "BULLISH_DIVERGENCE": "If detected at LOWER_10 or with WEAKENING momentum, Treat as a HIGH-PRIORITY exit for SHORTs and a STRONG entry signal for LONGs.",
+                    },
+                    "ema_stretch_safety_rule": {
+                        "OVEREXTENDED_UP": "Strictly block new LONG entries. Favour trailing stops or profit taking.",
+                        "OVEREXTENDED_DOWN": "Strictly block new SHORT entries. Favour trailing stops or profit taking.",
                     },
                     "zone_strengthening_combined_rule": {
                         "description": "Zone + STRENGTHENING = trend accelerating. Favor trend direction.",
@@ -384,6 +412,7 @@ class DeepSeekAPI:
             return self._get_simulation_response(prompt)
 
         try:
+            self.invocation_count += 1
             user_message_content = f"Analyze the following market data JSON and provide decisions based on the system rules:\n\n{prompt}"
 
             print(f"[INFO] Sending request to LiteLLM Router... Payload Size: {len(prompt)} chars")
@@ -417,12 +446,39 @@ class DeepSeekAPI:
             content = response.choices[0].message.content
 
             # LiteLLM makes token tracking easy
-            usage = response.usage
-            model_used = response.model
+            usage = getattr(response, "usage", None)
+            model_used = getattr(response, "model", "unknown")
+
+            # Calculate individual component sizes for transparency
+            sys_len = len(messages[0]["content"])
+            user_len = len(messages[1]["content"])
+            total_chars = sys_len + user_len
+
+            print(" [OK]")
+            print("-" * 70)
+            print(f"[AI TOKEN BILL - INV #{self.invocation_count}]")
+            print("-" * 70)
             if usage:
-                print(
-                    f"[INFO] Router Selected: {model_used} | Tokens: Prompt {usage.prompt_tokens}, Completion {usage.completion_tokens}"
-                )
+                prompt_tokens = usage.prompt_tokens
+                completion_tokens = usage.completion_tokens
+                total_tokens = usage.total_tokens
+
+                # Estimated split based on character ratios (since API gives total prompt)
+                sys_ratio = sys_len / total_chars if total_chars > 0 else 0.5
+                sys_tokens_est = int(prompt_tokens * sys_ratio)
+                user_tokens_est = prompt_tokens - sys_tokens_est
+
+                print(f"PROMPT TOKENS: {prompt_tokens:,} (~{total_chars:,} chars)")
+                print(f"  - System (Rules): ~{sys_tokens_est:,}")
+                print(f"  - Market (Data):  ~{user_tokens_est:,}")
+                print(f"COMPLETION TOKENS: {completion_tokens:,} (AI Response)")
+                print(f"TOTAL TOKENS: {total_tokens:,}")
+            else:
+                print(f"[WARN] Usage data missing from API response.")
+                print(f"Estimated Total: ~{total_chars // 4:,} Tokens (Based on char count)")
+
+            print(f"MODEL USED: {model_used}")
+            print("-" * 70)
 
             return self._extract_json_from_content(content)
 

@@ -532,13 +532,19 @@ REMEMBER: These are suggestions only. You make the final trading decisions based
                     )
                 )
 
-                output = f"{prefix}current_price = {format_num(indicators.get('current_price', 'N/A'))} (Zone: {zone})\n"
-                output += f"{prefix}Mid prices (last {len(indicators.get('price_series', []))}): {self.format_list(indicators.get('price_series', []))}\n"
-                output += f"{prefix}EMA indicators (20-period): {self.format_list(indicators.get('ema_20_series', []))}\n"
-                if "rsi_7_series" in indicators:
-                    output += f"{prefix}RSI indicators (7-Period): {self.format_list(indicators.get('rsi_7_series', []), precision=3)}\n"
-                output += f"{prefix}RSI indicators (14-Period): {self.format_list(indicators.get('rsi_14_series', []), precision=3)}\n"
-                output += f"{prefix}MACD indicators: {self.format_list(indicators.get('macd_series', []))}\n"
+                output = f"{prefix}Current Price: ${format_num(indicators.get('current_price', 'N/A'))} (Zone: {zone})\n"
+                output += (
+                    f"{prefix}Price Momentum Slope: {indicators.get('price_slope_label', 'FLAT')}\n"
+                )
+                output += f"{prefix}RSI-14: {format_num(indicators.get('rsi_14', 50), 2)} ({indicators.get('rsi_divergence_label', 'NONE')})\n"
+                if "rsi_7" in indicators:
+                    output += f"{prefix}RSI-7: {format_num(indicators.get('rsi_7', 50), 2)}\n"
+                output += f"{prefix}MACD Signal: {indicators.get('macd_histogram', 0):.6f}\n"
+                output += (
+                    f"{prefix}EMA-20 Deviation: {indicators.get('ema_stretch_label', 'NORMAL')}\n"
+                )
+                if "volatility_pulse_label" in indicators:
+                    output += f"{prefix}Volatility Pulse: {indicators.get('volatility_pulse_label', 'NORMAL')}\n"
                 atr_3 = indicators.get("atr_3")
                 atr_14 = indicators.get("atr_14")
                 atr_str = ""
