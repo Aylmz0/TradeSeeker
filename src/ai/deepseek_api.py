@@ -207,10 +207,10 @@ class DeepSeekAPI:
                         "strong_setup_confidence": 0.70,
                         "definition": f"Trade direction is OPPOSITE to {HTF_LABEL} trend.",
                         "scope": "risk_level applies ONLY when trading AGAINST 1h trend.",
-                        "condition": "Evaluate 'counter_trade_risk' in each coin's risk_profile.",
+                        "condition": "Evaluate 'counter_trade_risk' in each coin's risk_profile using 10 STRONG conditions: Divergence, EMA Stretch, Zone/Exhaustion, 15m Structure, 1h Structure, 1h Range/Volatility, VWAP Alignment, Bollinger Position, OBV Divergence, and ML Consensus Alignment.",
                         "risk_level_rules": {
-                            "LOW_RISK": "STRONG+4 OR MEDIUM+5 conditions. EXECUTE.",
-                            "MEDIUM_RISK": "STRONG+3 OR MEDIUM+4 conditions OR NONE+7 conditions. EXECUTE if high confidence.",
+                            "LOW_RISK": "STRONG+4 OR MEDIUM+6 conditions. (High structural confluence). EXECUTE.",
+                            "MEDIUM_RISK": "STRONG+3 OR MEDIUM+5 conditions OR NONE+7 conditions. EXECUTE if momentum confirms.",
                             "HIGH_RISK": "Counter-trend setup is too weak. Do NOT trade. (Wait for better alignment).",
                             "VERY_HIGH_RISK": "No alignment/conditions. Do NOT trade counter-trend. (Trend-Following unaffected).",
                         },
@@ -277,7 +277,7 @@ class DeepSeekAPI:
                     "reversal_warning": {
                         "applicability": "Applies ONLY to EXISTING positions. Do NOT use for entries.",
                         "definition": "Weighted scoring of signals AGAINST your current position.",
-                        "score_weights": "HTF(+3), 15m_structure(+3), 15m_momentum(+2), 3m(+1), RSI(+1), MACD(+1)",
+                        "score_weights": "HTF(+3), 15m_structure(+3), ML_Consensus(+2), 15m_momentum(+2), RSI(+1), MACD(+1)",
                         "action": "Consider closing based on strength level and PnL.",
                     },
                     "reversal_strength_definitions": {

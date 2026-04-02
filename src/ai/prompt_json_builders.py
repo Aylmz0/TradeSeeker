@@ -478,6 +478,16 @@ def build_counter_trade_json(
                     condition_9 = True  # Volume not confirming rally -> SHORT favorable
                 elif trend_htf == "BEARISH" and obv_div == "BULLISH":
                     condition_9 = True  # Volume accumulating in downtrend -> LONG favorable
+            # Condition 10: ML Consensus Alignment (Counter-Trend Confirmation)
+            # HTF BULLISH (Counter-SHORT) -> Favorable if ML is Sell-heavy (< 32%)
+            # HTF BEARISH (Counter-LONG) -> Favorable if ML is Buy-heavy (> 42%)
+            ml_consensus = sentiment.get("ml_consensus", 50.0)
+            condition_10 = False
+            if trend_htf == "BULLISH" and ml_consensus < 32:
+                condition_10 = True  # ML confirms counter-short pressure
+            elif trend_htf == "BEARISH" and ml_consensus > 42:
+                condition_10 = True  # ML confirms counter-long pressure
+
             # ==================== END NEW CONDITIONS ====================
 
             total_met = sum(
@@ -490,6 +500,7 @@ def build_counter_trade_json(
                     condition_7,
                     condition_8,
                     condition_9,
+                    condition_10,
                 ],
             )  # 8 conditions (EMA removed)
 

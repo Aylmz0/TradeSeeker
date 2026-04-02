@@ -499,6 +499,10 @@ REMEMBER: These are suggestions only. You make the final trading decisions based
             prompt += f"--- MARKET REGIME: {market_regime} ---\n"
 
             prompt += f"--- Market Sentiment for {coin} Perps ---\n"
+            ml_consensus = sentiment.get("ml_consensus", 50.0)
+            prompt += (
+                f"ML_Consensus: {ml_consensus}% [PRIMARY Technical Guard / Statistical Baseline]\n"
+            )
             prompt += (
                 f"Open Interest: Latest: {format_num(sentiment.get('open_interest', 'N/A'), 2)}\n"
             )
@@ -560,10 +564,10 @@ REMEMBER: These are suggestions only. You make the final trading decisions based
 
             # --- End inner function ---
 
-            prompt += "--- LIQUIDITY & MICRO-REACTION (3-Minute Noise Layer) ---\n"
-            prompt += "[CONTEXT] Use this section ONLY for identifying liquidity surges (Volume Ratio) or immediate exhaustion spikes. Do NOT use it as a primary trend gate.\n"
+            prompt += "--- 3-MINUTE NOISE LAYER [TIMING ONLY / LIQUIDITY SURGES] ---\n"
+            prompt += "[CONTEXT] Use this section ONLY for identifying liquidity surges or immediate exhaustion spikes. Do NOT use it for trend or exit decisions.\n"
             prompt += format_indicators(indicators_3m)
-            prompt += "\n--- Medium-term context (15-minute intervals) ---\n"
+            prompt += "\n--- 15-MINUTE STRUCTURAL CONTEXT [PRIMARY EXECUTION LAYER] ---\n"
             prompt += format_indicators(indicators_15m)
             prompt += f"\n--- Longer-term context ({HTF_LABEL} timeframe) ---\n"
             prompt += format_indicators(indicators_htf)
