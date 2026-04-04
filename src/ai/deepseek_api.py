@@ -277,15 +277,16 @@ class DeepSeekAPI:
                     "reversal_warning": {
                         "applicability": "Applies ONLY to EXISTING positions. Do NOT use for entries.",
                         "definition": "Weighted scoring of signals AGAINST your current position.",
-                        "score_weights": "HTF(+3), 15m_structure(+3), ML_Consensus(+2), 15m_momentum(+2), RSI(+1), MACD(+1)",
-                        "action": "Consider closing based on strength level and PnL.",
+                        "score_weights": "HTF(+3), 15m_structure(+5), ML_Consensus(+2), 15m_momentum(+1), RSI(+1), MACD(+1)",
+                        "action": "Consider closing based on strength level and PnL. EXIT MANDATORY on CRITICAL.",
+                        "discipline_note": "15m Structure is your Master Gate. Avoid closing positions solely on 3m noise or momentum dips if the 15m structure (HH_HL/LH_LL) hasn't reversed.",
                     },
                     "reversal_strength_definitions": {
                         "NONE": "No reversal signals (score 0). Continue normally.",
-                        "WEAK": "Minor signals (score 1-2). Informational only.",
-                        "MODERATE": "Notable signals (score 3-4). Monitor closely.",
-                        "STRONG": "Significant signals (score 5-7). Consider exit if PnL negative.",
-                        "CRITICAL": "Multiple strong signals (score 8+). Urgent exit review.",
+                        "WEAK": "Minor noise/momentum dips (score 1-3). INFORMATIONAL ONLY. Do NOT exit.",
+                        "MODERATE": "Notable signals (score 4-5). Monitor 15m structure closely. Do NOT exit on noise alone.",
+                        "STRONG": "Significant signals (score 6-9). Consider exit if 15m structure or ML consensus aligns against you.",
+                        "CRITICAL": "Structural Invalidation (score 10+). Execution mandatory - trend has fully reversed.",
                     },
                     "profit_erosion_rules": {
                         "description": "Rules for protecting profits based on peak_pnl erosion tracking",

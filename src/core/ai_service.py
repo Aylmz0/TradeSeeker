@@ -564,8 +564,8 @@ REMEMBER: These are suggestions only. You make the final trading decisions based
 
             # --- End inner function ---
 
-            prompt += "--- 3-MINUTE NOISE LAYER [TIMING ONLY / LIQUIDITY SURGES] ---\n"
-            prompt += "[CONTEXT] Use this section ONLY for identifying liquidity surges or immediate exhaustion spikes. Do NOT use it for trend or exit decisions.\n"
+            prompt += "--- 3-MINUTE NOISE LAYER [TIMING ONLY / SENSOR DATA] ---\n"
+            prompt += "[CRITICAL] This is high-noise data. Use ONLY for timing or identifying liquidity spikes. Do NOT use for exit or trend reversal decisions. Wait for 15m structural confirmation.\n"
             prompt += format_indicators(indicators_3m)
             prompt += "\n--- 15-MINUTE STRUCTURAL CONTEXT [PRIMARY EXECUTION LAYER] ---\n"
             prompt += format_indicators(indicators_15m)

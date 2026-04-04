@@ -27,7 +27,8 @@ def _sv_trend_alignment(
     indicators_15m: dict[str, Any],
     indicators_3m: dict[str, Any],
 ) -> str:
-    """Determine multi-timeframe trend alignment.
+    """Determine multi-timeframe trend alignment with focus on 1h and 15m.
+    3m is treated as a timing-only noise-shielded sensor.
     Returns: FULL_BULLISH | FULL_BEARISH | MIXED_BULLISH | MIXED_BEARISH | CONFLICTED
     """
 
@@ -44,22 +45,30 @@ def _sv_trend_alignment(
     t_15m = _trend(indicators_15m)
     t_3m = _trend(indicators_3m)
 
-    trends = [t for t in [t_htf, t_15m, t_3m] if t is not None]
-    if not trends:
+    # Core Trend is 1h + 15m only
+    core_trends = [t for t in [t_htf, t_15m] if t is not None]
+    if not core_trends:
         return "UNKNOWN"
 
-    bullish_count = trends.count("BULLISH")
-    bearish_count = trends.count("BEARISH")
+    bull_core = core_trends.count("BULLISH")
+    bear_core = core_trends.count("BEARISH")
 
-    if bullish_count == len(trends):
-        return "FULL_BULLISH"
-    if bearish_count == len(trends):
-        return "FULL_BEARISH"
-    if bullish_count > bearish_count:
-        return "MIXED_BULLISH"
-    if bearish_count > bullish_count:
-        return "MIXED_BEARISH"
-    return "CONFLICTED"
+    tag = ""
+    if bull_core == len(core_trends):
+        tag = "FULL_BULLISH"
+    elif bear_core == len(core_trends):
+        tag = "FULL_BEARISH"
+    elif bull_core > bear_core:
+        tag = "MIXED_BULLISH"
+    else:
+        tag = "MIXED_BEARISH"
+
+    # Add 3m noise/correction label without breaking the core 'FULL' status
+    # This prevents the AI from panic-closing based on the label change alone.
+    if t_3m and t_3m != ("BULLISH" if "BULLISH" in tag else "BEARISH"):
+        return f"{tag}_WITH_3M_CORRECTION"
+
+    return tag
 
 
 def _sv_momentum(indicators_15m: dict[str, Any]) -> str:
