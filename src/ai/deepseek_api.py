@@ -139,8 +139,8 @@ class DeepSeekAPI:
                         "rule": f"If you have {Config.SAME_DIRECTION_LIMIT} LONGs, you CANNOT open another LONG. Same for SHORTs.",
                     },
                     "min_confidence": Config.MIN_CONFIDENCE,
-                    "discipline": "TACTICAL SCOUT: Identify opportunistic setups in neutral regimes while maintaining high precision. Be more active than Sniper Mode, but only with quantified technical edges.",
-                    "commission_guard": f"Only enter if expected profit vs commission ratio exceeds {getattr(Config, 'COMMISSION_GUARD_RATIO', 5.0)}. High frequency does not mean low quality.",
+                    "discipline": "AGGRESSIVE SCALPER: Be AGGRESSIVE in seeking opportunities, but DISCIPLINED in execution. Your mission is to capture frequent, incremental profits while strictly adhering to volume and structure filters. Do NOT sacrifice quality for frequency. If indicators and ML align, EXECUTE decisively. Logic precedes decision.",
+                    "commission_guard": f"Only enter if expected profit vs commission ratio exceeds {getattr(Config, 'COMMISSION_GUARD_RATIO', 5.0)}. Aggressive but Disciplined.",
                 },
                 "data_dictionary": {
                     "price_slope": {
@@ -285,7 +285,7 @@ class DeepSeekAPI:
                         "NONE": "No reversal signals (score 0). Continue normally.",
                         "WEAK": "Minor noise/momentum dips (score 1-3). INFORMATIONAL ONLY. Do NOT exit.",
                         "MODERATE": "Notable signals (score 4-5). Monitor 15m structure closely. Do NOT exit on noise alone.",
-                        "STRONG": "Significant signals (score 6-9). Consider exit if 15m structure or ML consensus aligns against you.",
+                        "STRONG_OR_CT_ENTRY": "Score 6-9. [COUNTER-TREND ONLY]: Valid entry if ML bias and structural confluence align. Consider exit for trend positions.",
                         "CRITICAL": "Structural Invalidation (score 10+). Execution mandatory - trend has fully reversed.",
                     },
                     "profit_erosion_rules": {

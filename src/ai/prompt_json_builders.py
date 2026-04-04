@@ -487,15 +487,17 @@ def build_counter_trade_json(
                     condition_9 = True  # Volume not confirming rally -> SHORT favorable
                 elif trend_htf == "BEARISH" and obv_div == "BULLISH":
                     condition_9 = True  # Volume accumulating in downtrend -> LONG favorable
-            # Condition 10: ML Consensus Alignment (Counter-Trend Confirmation)
-            # HTF BULLISH (Counter-SHORT) -> Favorable if ML is Sell-heavy (< 32%)
-            # HTF BEARISH (Counter-LONG) -> Favorable if ML is Buy-heavy (> 42%)
+            # Condition 10: ML Consensus Alignment [COUNTER-TREND ONLY]
+            # ML > 40.0 is our universal "Confidence" threshold.
+            # For Counter-Trend: ML must lean strongly AGAINST the HTF trend.
             ml_consensus = sentiment.get("ml_consensus", 50.0)
             condition_10 = False
-            if trend_htf == "BULLISH" and ml_consensus < 32:
-                condition_10 = True  # ML confirms counter-short pressure
-            elif trend_htf == "BEARISH" and ml_consensus > 42:
-                condition_10 = True  # ML confirms counter-long pressure
+            if trend_htf == "BULLISH" and ml_consensus > 40.0:
+                # If 1h is Bullish, model leaning > 40% (Sell) is confident CT
+                condition_10 = True
+            elif trend_htf == "BEARISH" and ml_consensus > 40.0:
+                # If 1h is Bearish, model leaning > 40% (Buy) is confident CT
+                condition_10 = True
 
             # ==================== END NEW CONDITIONS ====================
 
