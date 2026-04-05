@@ -284,8 +284,8 @@ class DeepSeekAPI:
                         },
                     },
                     "volume_rule": {
-                        "threshold": "volume_ratio < 0.20 = LOW",
-                        "for_entry": "Do NOT enter with LOW volume. EXCEPTION: Significant divergence with 15m structure.",
+                        "threshold": "volume_ratio < 0.30 = LOW",
+                        "for_entry": "POOR volume is acceptable ONLY with strong structural confirmation (divergence + 15m structure, or counter-trend exhaustion).",
                         "for_exit": "LOW volume ≠ exit signal.",
                         "interpretation": "3m is your SENSOR. 15m is your ADVISOR. 1h is your BOSS. Do not let 3m noise block a structural 1h/15m setup.",
                         "labels": {
