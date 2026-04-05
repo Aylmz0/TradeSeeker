@@ -34,6 +34,9 @@ class Config:
     ZAI_THINKING_ENABLED: bool = os.getenv("ZAI_THINKING_ENABLED", "true").lower() == "true"
     OPENROUTER_API_KEY: str | None = os.getenv("OPENROUTER_API_KEY")
     OPENROUTER_MODEL: str = os.getenv("OPENROUTER_MODEL", "openrouter/free")
+    OPENROUTER_FALLBACK_MODEL: str = os.getenv(
+        "OPENROUTER_FALLBACK_MODEL", "google/gemini-2.0-flash-exp:free"
+    )
     OPENROUTER_REASONING_ENABLED: bool = (
         os.getenv("OPENROUTER_REASONING_ENABLED", "true").lower() == "true"
     )

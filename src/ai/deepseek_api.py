@@ -52,6 +52,29 @@ class DeepSeekAPI:
                 }
             )
 
+            # 1b. OpenRouter Fallback (Secondary OpenRouter model)
+            or_fallback_model = "openrouter/" + getattr(
+                Config, "OPENROUTER_FALLBACK_MODEL", "google/gemini-2.0-flash-exp:free"
+            )
+            or_fb_params = {
+                "model": or_fallback_model,
+                "api_key": Config.OPENROUTER_API_KEY,
+                "api_base": "https://openrouter.ai/api/v1",
+                "tpm": 100000,
+                "rpm": 100,
+            }
+            if self.thinking_enabled:
+                or_fb_params["extra_body"] = {"reasoning": {"enabled": True}}
+            else:
+                or_fb_params["response_format"] = {"type": "json_object"}
+
+            model_list.append(
+                {
+                    "model_name": or_fallback_model,
+                    "litellm_params": or_fb_params,
+                }
+            )
+
         # 2. Groq (Fast Fallback)
         if getattr(Config, "GROQ_API_KEY", None):
             groq_model = "groq/" + getattr(Config, "GROQ_MODEL", "llama-3.3-70b-versatile")
