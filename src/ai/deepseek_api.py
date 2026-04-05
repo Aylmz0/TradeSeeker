@@ -230,7 +230,7 @@ class DeepSeekAPI:
                         "strong_setup_confidence": 0.70,
                         "definition": f"Trade direction is OPPOSITE to {HTF_LABEL} trend.",
                         "scope": "risk_level applies ONLY when trading AGAINST 1h trend.",
-                        "condition": "Evaluate 'counter_trade_risk' in each coin's risk_profile using 10 STRONG conditions: Divergence, EMA Stretch, Zone/Exhaustion, 15m Structure, 1h Structure, 1h Range/Volatility, VWAP Alignment, Bollinger Position, OBV Divergence, and ML Consensus Alignment.",
+                        "condition": "Evaluate 'counter_trade_risk' in each coin's risk_profile using 12 STRONG conditions: Funding Rate, Volume Surge, RSI Extremes, MACD Divergence, Zone/Exhaustion, VWAP Alignment, Bollinger Position, OBV Divergence, ML Consensus, 15m Structure, 15m Momentum, and 1h Range/Volatility.",
                         "risk_level_rules": {
                             "LOW_RISK": "STRONG+4 OR MEDIUM+6 conditions. (High structural confluence). EXECUTE.",
                             "MEDIUM_RISK": "STRONG+3 OR MEDIUM+5 conditions OR NONE+7 conditions. EXECUTE if momentum confirms.",

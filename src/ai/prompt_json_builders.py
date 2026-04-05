@@ -419,7 +419,7 @@ def build_counter_trade_json(
                 (volume_3m or 0) / (avg_volume_3m or 1) > constants.COUNTER_TREND_VOL_THRESHOLD
                 if avg_volume_3m
                 else False
-            )  # 1.5x volume threshold for counter-trend
+            )  # 1.0x volume threshold for counter-trend (reduced from 1.5x)
             # Condition 3: Extreme RSI (Counter-trend)
             # If Bullish trend, we want to Short -> Need Overbought (>70)
             # If Bearish trend, we want to Long -> Need Oversold (<30)
@@ -499,6 +499,25 @@ def build_counter_trade_json(
                 # If 1h is Bearish, model leaning > 40% (Buy) is confident CT
                 condition_10 = True
 
+            # Condition 11: 15m Structure Against 1h Trend
+            # If BULLISH 1h but 15m shows LH_LL -> bearish structure favors SHORT counter-trade
+            # If BEARISH 1h but 15m shows HH_HL -> bullish structure favors LONG counter-trade
+            structure_15m = indicators_15m.get("structure", None) if has_15m else None
+            condition_11 = False
+            if structure_15m == "LH_LL" and trend_htf == "BULLISH":
+                condition_11 = True  # 15m bearish structure in 1h bull regime
+            elif structure_15m == "HH_HL" and trend_htf == "BEARISH":
+                condition_11 = True  # 15m bullish structure in 1h bear regime
+
+            # Condition 12: 15m Momentum Against 1h Trend
+            # If BULLISH 1h but 15m momentum WEAKENING -> favors SHORT counter-trade
+            # If BEARISH 1h but 15m momentum STRENGTHENING down -> favors LONG counter-trade
+            condition_12 = False
+            if momentum_15m == "WEAKENING" and trend_htf == "BULLISH":
+                condition_12 = True  # Bullish trend losing steam
+            elif momentum_15m == "STRENGTHENING" and trend_htf == "BEARISH":
+                condition_12 = True  # Bearish trend accelerating
+
             # ==================== END NEW CONDITIONS ====================
 
             total_met = sum(
@@ -512,8 +531,10 @@ def build_counter_trade_json(
                     condition_8,
                     condition_9,
                     condition_10,
+                    condition_11,
+                    condition_12,
                 ],
-            )  # 8 conditions (EMA removed)
+            )  # 10 conditions (EMA removed, 15m structure + momentum added)
 
             # Determine risk level (Updated Logic - User Request)
             # Counter-trade risk assessment based on alignment and conditions met
