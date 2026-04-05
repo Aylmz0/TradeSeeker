@@ -1047,12 +1047,12 @@ DIRECTIONAL PERFORMANCE SNAPSHOT (Last 20 trades max):
 
 [RULE] VOLUME-BASED EXECUTION:
 1. If "vol_ratio" < 0.30x: ENTRY IS HARD-BLOCKED. Propose HOLD.
-2. If "vol_ratio" < 0.70x and you are proposing a TREND-FOLLOWING trade: You MUST either (a) Reduce Leverage by 50% or (b) Require FULL_BULLISH/FULL_BEARISH alignment + STRENGTHENING momentum. Low volume trend-following is high risk.
+2. Volume labels (POOR/FAIR/GOOD/EXCELLENT) are informational. Use runtime hard-block (0.30x) as the only entry filter.
 
 {"=" * 20} MARKET STATE VECTORS {"=" * 20}
 
 Each coin below contains a State Vector with:
-- ml_consensus: XGBoost probability (>45% BUY/SELL = strong signal). Combine with your own analysis.
+- ml_consensus: XGBoost probability (>40% BUY/SELL = strong signal). Use alongside your technical analysis. When ML and technicals agree, confidence increases. When they disagree, weigh the evidence carefully.
 - ml_bias_label: Indicates if ML is currently deviating from the HTF trend (Trend-Averse status).
 - market_context: Regime, volatility state, price location labels.
 - technical_summary: Trend alignment, momentum, vol_ratio, structure labels.
@@ -1077,9 +1077,9 @@ Each coin below contains a State Vector with:
 
 [DIRECTIVE] STRATEGIC PRIORITY:
 1. Technical Confluence (HTF Trend + 15m Momentum + Volume) is your PRIMARY source of truth.
-2. ML Consensus is a statistical probability tool. If it shows "Trend-Averse" bias, DE-PRIORITIZE it and stick to the clear technical trend.
-3. STRICT TREND-FOLLOWING: Never force a trend-following entry into weak volume (< 0.70x) unless momentum is exceptionally strong.
-4. Only perform counter-trend trades if Counter-Trade Risk is LOW and price is at extreme exhaustion (RSI/BB).
+2. ML Consensus is ONE indicator among many (RSI, MACD, Volume, Structure). No special priority. HOLD < 40% = directional conviction exists; check which side dominates. BUY/SELL > 40% = strong statistical signal.
+3. STRICT TREND-FOLLOWING: Never force entries into hard-blocked volume (< 0.30x).
+4. Counter-trend trades allowed when Counter-Trade Risk is LOW or MEDIUM. Evaluate structural confluence (divergence, exhaustion, 15m structure) before entry.
 """
 
         # Validate JSON if enabled
