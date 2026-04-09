@@ -306,10 +306,9 @@ class DeepSeekAPI:
                     },
                     "reversal_strength_definitions": {
                         "NONE": "No reversal signals (score 0). Continue normally.",
-                        "WEAK": "Minor noise/momentum dips (score 1-3). INFORMATIONAL ONLY. Do NOT exit.",
-                        "MODERATE": "Notable signals (score 4-5). Monitor 15m structure closely. Do NOT exit on noise alone.",
-                        "STRONG_OR_CT_ENTRY": "Score 6-9. [COUNTER-TREND ONLY]: Valid entry if ML bias and structural confluence align. Consider exit for trend positions.",
-                        "CRITICAL": "Structural Invalidation (score 10+). Execution mandatory - trend has fully reversed.",
+                        "WEAK": "INFORMATIONAL ONLY. Do NOT exit under any circumstances.",
+                        "STRONG": "Consider exit ONLY if: (1) 15m structure reversed (LH_HL ↔ HH_HL), OR (2) erosion > 50%, OR (3) ML reverse signal (>40% opposite). Otherwise HOLD.",
+                        "CRITICAL": "Execution mandatory - close immediately. Structural invalidation confirmed.",
                     },
                     "profit_erosion_rules": {
                         "description": "Rules for protecting profits based on peak_pnl erosion tracking",
@@ -321,10 +320,9 @@ class DeepSeekAPI:
                         "actions": {
                             "NONE": "Normal fluctuation. Continue with existing exit plan.",
                             "MINOR": "Watch closely. Tighten mental stop if reversal signals appear.",
-                            "SIGNIFICANT": "Over 50% of peak profit eroded. Close if reversal_strength >= MEDIUM.",
-                            "CRITICAL": "Peak profit fully eroded or now losing. Close unless trend still strongly supports position.",
+                            "SIGNIFICANT": "Over 50% of peak profit eroded. Close if reversal_strength is STRONG or CRITICAL.",
+                            "CRITICAL": "Peak profit fully eroded or now losing. Close immediately.",
                         },
-                        "combined_decision": "Combine erosion_status with reversal_strength: SIGNIFICANT/CRITICAL + MEDIUM/STRONG reversal = close position.",
                     },
                 },
                 "startup_behavior": {

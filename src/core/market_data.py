@@ -917,14 +917,20 @@ class RealMarketData:
                 score += 1
                 signals.append("macd_bullish_cross(+1)")
 
-        # Determine strength from score
+        # 7. ML reverse signal (+2)
+        ml_consensus = sentiment.get("ml_consensus", {})
+        if position_direction == "long" and ml_consensus.get("SELL", 0) > 40:
+            score += 2
+            signals.append(f"ml_reverse_sell({ml_consensus.get('SELL', 0):.0f})(+2)")
+        elif position_direction == "short" and ml_consensus.get("BUY", 0) > 40:
+            score += 2
+            signals.append(f"ml_reverse_buy({ml_consensus.get('BUY', 0):.0f})(+2)")
+
         # Determine strength from score
         if score >= constants.REVERSAL_SCORE_CRITICAL:
             strength = "CRITICAL"
         elif score >= constants.REVERSAL_SCORE_STRONG:
             strength = "STRONG"
-        elif score >= constants.REVERSAL_SCORE_MODERATE:
-            strength = "MODERATE"
         elif score >= constants.REVERSAL_SCORE_WEAK:
             strength = "WEAK"
         else:
