@@ -569,7 +569,7 @@ class PortfolioManager:
                 f"[WARN]  Smart Cooldown (LOSS) ACTIVATED for {coin_symbol}: {Config.SMART_COOLDOWN_LOSS} cycles"
             )
 
-        if stats["consecutive_losses"] >= constants.REVERSAL_SCORE_MODERATE:
+        if stats["consecutive_losses"] >= constants.REVERSAL_SCORE_WEAK:
             stats["caution_active"] = True
             stats["caution_win_progress"] = 0
 
@@ -577,7 +577,7 @@ class PortfolioManager:
         loss_streak_usd = stats.get("loss_streak_loss_usd", 0.0)
         consecutive = stats["consecutive_losses"]
         should_activate = (
-            consecutive >= constants.REVERSAL_SCORE_MODERATE
+            consecutive >= constants.REVERSAL_SCORE_STRONG
             or loss_streak_usd >= constants.LOSS_STREAK_USD_THRESHOLD
         )
 
