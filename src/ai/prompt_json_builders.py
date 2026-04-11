@@ -397,7 +397,7 @@ def build_counter_trade_json(
             # Condition 1: Funding Rate Extreme (NEW - timeframe independent)
             # Negative funding = too many shorts = LONG counter-trend favored
             # Positive funding = too many longs = SHORT counter-trend favored
-            condition_1 = False
+            condition_1 = 0
             if market_data:
                 try:
                     funding_rate = market_data.get_funding_rate(coin)
@@ -411,27 +411,37 @@ def build_counter_trade_json(
                             trend_htf == "BULLISH"
                             and funding_rate > constants.FUNDING_RATE_THRESHOLD
                         ):  # -0.03%
-                            condition_1 = True
+                            condition_1 = 1
                 except Exception:
                     pass
 
             condition_2 = (
-                (volume_3m or 0) / (avg_volume_3m or 1) > constants.COUNTER_TREND_VOL_THRESHOLD
-                if avg_volume_3m
-                else False
+                1
+                if (
+                    (volume_3m or 0) / (avg_volume_3m or 1) > constants.COUNTER_TREND_VOL_THRESHOLD
+                    if avg_volume_3m
+                    else False
+                )
+                else 0
             )  # 1.0x volume threshold for counter-trend (reduced from 1.5x)
             # Condition 3: Extreme RSI (Counter-trend)
             # If Bullish trend, we want to Short -> Need Overbought (>70)
             # If Bearish trend, we want to Long -> Need Oversold (<30)
             condition_3 = (
-                trend_htf == "BULLISH" and (rsi_3m or 50) > Config.RSI_OVERBOUGHT_THRESHOLD
-            ) or (trend_htf == "BEARISH" and (rsi_3m or 50) < Config.RSI_OVERSOLD_THRESHOLD)
+                1
+                if (trend_htf == "BULLISH" and (rsi_3m or 50) > Config.RSI_OVERBOUGHT_THRESHOLD)
+                or (trend_htf == "BEARISH" and (rsi_3m or 50) < Config.RSI_OVERSOLD_THRESHOLD)
+                else 0
+            )
             # condition_4 (EMA Proximity) REMOVED - not a meaningful counter-trend signal
             # Condition 5: MACD divergence (Counter-trend)
             # If Bullish trend, we want to Short -> Need Bearish MACD (MACD < Signal)
             # If Bearish trend, we want to Long -> Need Bullish MACD (MACD > Signal)
-            condition_5 = (trend_htf == "BULLISH" and (macd_3m or 0) < (macd_signal_3m or 0)) or (
-                trend_htf == "BEARISH" and (macd_3m or 0) > (macd_signal_3m or 0)
+            condition_5 = (
+                1
+                if (trend_htf == "BULLISH" and (macd_3m or 0) < (macd_signal_3m or 0))
+                or (trend_htf == "BEARISH" and (macd_3m or 0) > (macd_signal_3m or 0))
+                else 0
             )
 
             # Condition 6: Zone + Weakening (Counter-trend favorable setup)
@@ -444,79 +454,84 @@ def build_counter_trade_json(
                 if isinstance(price_location_15m, dict)
                 else price_location_15m
             )
-            condition_6 = False
+            condition_6 = 0
             if momentum_15m == "WEAKENING":
                 if trend_htf == "BEARISH" and zone_15m == "LOWER_10":
-                    condition_6 = True  # Favorable for LONG counter-trade
+                    condition_6 = 1  # Favorable for LONG counter-trade
                 elif trend_htf == "BULLISH" and zone_15m == "UPPER_10":
-                    condition_6 = True  # Favorable for SHORT counter-trade
+                    condition_6 = 1  # Favorable for SHORT counter-trade
 
             # ==================== NEW CONDITIONS (v6.0) ====================
             # Condition 7: VWAP Reversion (Price extended from fair value)
             # If BULLISH trend and price > VWAP by 2% -> favorable for SHORT counter-trade
             # If BEARISH trend and price < VWAP by 2% -> favorable for LONG counter-trade
-            condition_7 = False
+            condition_7 = 0
             if has_15m and "vwap" in indicators_15m:
                 vwap = indicators_15m.get("vwap")
                 price = indicators_15m.get("current_price")
                 if vwap and price and vwap > 0:
                     vwap_dist = ((price - vwap) / vwap) * 100
                     if trend_htf == "BULLISH" and vwap_dist > constants.VWAP_DISTANCE_THRESHOLD:
-                        condition_7 = True  # Price expensive -> SHORT favorable
+                        condition_7 = 1  # Price expensive -> SHORT favorable
                     elif trend_htf == "BEARISH" and vwap_dist < -constants.VWAP_DISTANCE_THRESHOLD:
-                        condition_7 = True  # Price cheap -> LONG favorable
+                        condition_7 = 1  # Price cheap -> LONG favorable
 
             # Condition 8: BB Extreme (Price at band extremes)
             # If BULLISH trend and price at upper band -> favorable for SHORT counter-trade
             # If BEARISH trend and price at lower band -> favorable for LONG counter-trade
-            condition_8 = False
+            condition_8 = 0
             if has_15m and "bb_signal" in indicators_15m:
                 bb_signal = indicators_15m.get("bb_signal")
                 if trend_htf == "BULLISH" and bb_signal == "OVERBOUGHT":
-                    condition_8 = True  # Price at upper band -> SHORT favorable
+                    condition_8 = 1  # Price at upper band -> SHORT favorable
                 elif trend_htf == "BEARISH" and bb_signal == "OVERSOLD":
-                    condition_8 = True  # Price at lower band -> LONG favorable
+                    condition_8 = 1  # Price at lower band -> LONG favorable
 
             # Condition 9: OBV Divergence (Volume not confirming price)
             # If BULLISH trend but OBV BEARISH divergence -> favorable for SHORT counter-trade
             # If BEARISH trend but OBV BULLISH divergence -> favorable for LONG counter-trade
-            condition_9 = False
+            condition_9 = 0
             if has_15m and "obv_divergence" in indicators_15m:
                 obv_div = indicators_15m.get("obv_divergence")
                 if trend_htf == "BULLISH" and obv_div == "BEARISH":
-                    condition_9 = True  # Volume not confirming rally -> SHORT favorable
+                    condition_9 = 1  # Volume not confirming rally -> SHORT favorable
                 elif trend_htf == "BEARISH" and obv_div == "BULLISH":
-                    condition_9 = True  # Volume accumulating in downtrend -> LONG favorable
+                    condition_9 = 1  # Volume accumulating in downtrend -> LONG favorable
             # Condition 10: ML Consensus Alignment [COUNTER-TREND ONLY]
-            # ML > 40.0 is our universal "Confidence" threshold.
-            # For Counter-Trend: ML must lean strongly AGAINST the HTF trend.
+            # ML >= 40% = 1 puan (base condition)
+            # ML >= 50% = +1 bonus puan (CRITICAL - HIGH conviction)
+            # Total: ML >= 50% = 2 puan (1 base + 1 bonus)
             ml_consensus = sentiment.get("ml_consensus", 50.0)
-            condition_10 = False
-            if trend_htf == "BULLISH" and ml_consensus > 40.0:
-                # If 1h is Bullish, model leaning > 40% (Sell) is confident CT
-                condition_10 = True
-            elif trend_htf == "BEARISH" and ml_consensus > 40.0:
-                # If 1h is Bearish, model leaning > 40% (Buy) is confident CT
-                condition_10 = True
+            condition_10 = 0
+            if trend_htf == "BULLISH":
+                if ml_consensus >= 40.0:
+                    condition_10 += 1  # 1 puan
+                if ml_consensus >= 50.0:
+                    condition_10 += 1  # +1 bonus = 2 puan total
+            elif trend_htf == "BEARISH":
+                if ml_consensus >= 40.0:
+                    condition_10 += 1  # 1 puan
+                if ml_consensus >= 50.0:
+                    condition_10 += 1  # +1 bonus = 2 puan total
 
             # Condition 11: 15m Structure Against 1h Trend
             # If BULLISH 1h but 15m shows LH_LL -> bearish structure favors SHORT counter-trade
             # If BEARISH 1h but 15m shows HH_HL -> bullish structure favors LONG counter-trade
             structure_15m = indicators_15m.get("structure", None) if has_15m else None
-            condition_11 = False
+            condition_11 = 0
             if structure_15m == "LH_LL" and trend_htf == "BULLISH":
-                condition_11 = True  # 15m bearish structure in 1h bull regime
+                condition_11 = 1  # 15m bearish structure in 1h bull regime
             elif structure_15m == "HH_HL" and trend_htf == "BEARISH":
-                condition_11 = True  # 15m bullish structure in 1h bear regime
+                condition_11 = 1  # 15m bullish structure in 1h bear regime
 
             # Condition 12: 15m Momentum Against 1h Trend
             # If BULLISH 1h but 15m momentum WEAKENING -> favors SHORT counter-trade
             # If BEARISH 1h but 15m momentum STRENGTHENING down -> favors LONG counter-trade
-            condition_12 = False
+            condition_12 = 0
             if momentum_15m == "WEAKENING" and trend_htf == "BULLISH":
-                condition_12 = True  # Bullish trend losing steam
+                condition_12 = 1  # Bullish trend losing steam
             elif momentum_15m == "STRENGTHENING" and trend_htf == "BEARISH":
-                condition_12 = True  # Bearish trend accelerating
+                condition_12 = 1  # Bearish trend accelerating
 
             # ==================== END NEW CONDITIONS ====================
 
