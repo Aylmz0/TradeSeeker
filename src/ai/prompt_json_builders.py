@@ -129,19 +129,12 @@ def _sv_volatility_state(indicators_htf: dict[str, Any]) -> str:
     return "NORMAL"
 
 
-def _sv_volume_label(indicators_3m: dict[str, Any]) -> str:
+def _sv_volume_label_from_ratio(ratio: float) -> str:
     """Convert volume ratio to linguistic label with revised calibration (v3.1).
     Returns: EXCELLENT | GOOD | FAIR | NORMAL | POOR | LOW
     """
-    if not indicators_3m or "error" in indicators_3m:
+    if ratio is None or ratio <= 0:
         return "LOW"
-
-    # Use pre-calculated volume_ratio if available
-    ratio = indicators_3m.get("volume_ratio", 1.0)
-    if "volume_ratio" not in indicators_3m:
-        vol = indicators_3m.get("volume", 0)
-        avg_vol = indicators_3m.get("avg_volume", 1)
-        ratio = (vol or 0) / (avg_vol or 1) if avg_vol > 0 else 0.0
 
     if ratio >= 2.0:
         return "EXCELLENT"
@@ -154,6 +147,41 @@ def _sv_volume_label(indicators_3m: dict[str, Any]) -> str:
     if ratio >= 0.4:
         return "POOR"
     return "LOW"
+
+
+def _sv_volume_label(indicators_3m: dict[str, Any], indicators_15m: dict[str, Any] = None) -> str:
+    """Legacy function - calculates hybrid ratio then converts to label."""
+    # Calculate hybrid volume ratio (same as runtime)
+    ratio_3m = None
+    ratio_15m = None
+
+    if indicators_3m and "error" not in indicators_3m:
+        if "volume_ratio" in indicators_3m:
+            ratio_3m = indicators_3m["volume_ratio"]
+        else:
+            vol = indicators_3m.get("volume", 0)
+            avg_vol = indicators_3m.get("avg_volume", 1)
+            ratio_3m = (vol or 0) / (avg_vol or 1) if avg_vol > 0 else 0.0
+
+    if indicators_15m and "error" not in indicators_15m:
+        if "volume_ratio" in indicators_15m:
+            ratio_15m = indicators_15m["volume_ratio"]
+        else:
+            vol_15m = indicators_15m.get("volume", 0)
+            avg_vol_15m = indicators_15m.get("avg_volume", 1)
+            ratio_15m = (vol_15m or 0) / (avg_vol_15m or 1) if avg_vol_15m > 0 else 0.0
+
+    # Hybrid average
+    if ratio_3m is not None and ratio_15m is not None:
+        ratio = (ratio_3m + ratio_15m) / 2
+    elif ratio_3m is not None:
+        ratio = ratio_3m
+    elif ratio_15m is not None:
+        ratio = ratio_15m
+    else:
+        ratio = 0.0
+
+    return _sv_volume_label_from_ratio(ratio)
 
 
 def _sv_build_position(position: dict[str, Any]) -> dict[str, Any]:
@@ -226,16 +254,44 @@ def build_coin_state_vector(
         else 0.5
     )
 
-    # Volume ratio (numerical anchor for AI autonomy)
+    # Volume ratio (HYBRID: 3m + 15m average for consistency with runtime)
     vol_ratio = None
+    vol_ratio_3m = None
+    vol_ratio_15m = None
     if indicators_3m and "error" not in indicators_3m:
         if "volume_ratio" in indicators_3m:
-            vol_ratio = _sv_fmt(indicators_3m["volume_ratio"])
+            vol_ratio_3m = indicators_3m["volume_ratio"]
         else:
             vol = indicators_3m.get("volume", 0)
             avg_vol = indicators_3m.get("avg_volume", 1)
             if avg_vol and avg_vol > 0:
-                vol_ratio = _sv_fmt((vol or 0) / avg_vol)
+                vol_ratio_3m = (vol or 0) / avg_vol
+
+    if indicators_15m and "error" not in indicators_15m:
+        if "volume_ratio" in indicators_15m:
+            vol_ratio_15m = indicators_15m["volume_ratio"]
+        else:
+            vol_15m = indicators_15m.get("volume", 0)
+            avg_vol_15m = indicators_15m.get("avg_volume", 1)
+            if avg_vol_15m and avg_vol_15m > 0:
+                vol_ratio_15m = vol_15m / avg_vol_15m
+
+    # Hybrid: 3m + 15m average (same as runtime calculation)
+    if vol_ratio_3m is not None and vol_ratio_15m is not None:
+        vol_ratio = (vol_ratio_3m + vol_ratio_15m) / 2
+    elif vol_ratio_3m is not None:
+        vol_ratio = vol_ratio_3m
+    elif vol_ratio_15m is not None:
+        vol_ratio = vol_ratio_15m
+
+    # Calculate volume_support label using hybrid ratio (avoid recalculation)
+    vol_ratio_for_label = vol_ratio
+    if vol_ratio_for_label is None:
+        vol_ratio_for_label = 0.0
+    volume_support_label = _sv_volume_label_from_ratio(vol_ratio_for_label)
+
+    if vol_ratio is not None:
+        vol_ratio = _sv_fmt(vol_ratio)
 
     # Defaults for risk inputs - Refined for professional caution (HIGH_RISK instead of VERY_HIGH)
     ct = counter_trade_result or {"risk_level": "HIGH_RISK", "alignment_strength": "NONE"}
@@ -264,7 +320,7 @@ def build_coin_state_vector(
             if indicators_htf
             else "NORMAL",
             "volume_ratio": vol_ratio,
-            "volume_support": _sv_volume_label(indicators_3m),
+            "volume_support": volume_support_label,
             "structure_15m": _sv_structure(indicators_15m),
         },
         # Key Levels — numerical anchors for independent AI reasoning
