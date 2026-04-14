@@ -1188,8 +1188,15 @@ class PortfolioManager:
             pos["peak_pnl"] = current_pnl
             pos["peak_pnl_cycle"] = getattr(self, "current_cycle_number", None)
             peak_pnl = current_pnl
-        erosion_from_peak: float = peak_pnl - current_pnl if peak_pnl > 0 else 0.0
-        erosion_pct: float = (erosion_from_peak / peak_pnl * 100) if peak_pnl > 0 else 0.0
+
+        # Erosion sadece KARDAYKEN hesaplanır (zararda erosion yok)
+        if current_pnl > 0 and peak_pnl > 0:
+            erosion_from_peak = peak_pnl - current_pnl
+            erosion_pct = (erosion_from_peak / peak_pnl * 100) if peak_pnl > 0 else 0.0
+        else:
+            erosion_from_peak = 0.0
+            erosion_pct = 0.0
+
         pos["erosion_from_peak"] = round(erosion_from_peak, 4)
         pos["erosion_pct"] = round(erosion_pct, 2)
         zone: str = self._get_erosion_zone(coin, pos)
