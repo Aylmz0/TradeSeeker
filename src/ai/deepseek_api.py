@@ -137,8 +137,8 @@ class DeepSeekAPI:
                 model_list=model_list,
                 routing_strategy="latency-based-routing",
                 allowed_fails=1,
-                num_retries=2,
-                timeout=60.0,  # Strict timeout to prevent hanging
+                num_retries=0,  # FORCE 0 RETRIES: Instantly drop to Groq/MiMo on error
+                timeout=120.0,  # 2.0 minutes timeout to allow deep reasoning models to finish
             )
             self.invocation_count = 0
 
@@ -450,7 +450,7 @@ class DeepSeekAPI:
                 "temperature": 0.5,
                 "max_tokens": 20000,
                 "stream": False,  # Non-streaming provides greater stability against free tier drops
-                "timeout": 60,  # Force individual call timeout to allow Router fallbacks
+                "timeout": 240,  # 4 minutes: Give reasoning models plenty of time to think
             }
 
             # Fallbacks are automatically collected from the remaining configured models
