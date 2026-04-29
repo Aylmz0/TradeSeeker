@@ -202,9 +202,13 @@ class Config:
     FLASH_EXIT_RSI_DELTA_MIN: float = float(
         os.getenv("FLASH_EXIT_RSI_DELTA_MIN", "15.0"),
     )  # RSI spike threshold
+    FLASH_EXIT_RSI_SPIKE_THRESHOLD: float = FLASH_EXIT_RSI_DELTA_MIN  # Alias for compatibility
     FLASH_EXIT_VOLUME_SURGE_MIN: float = float(
         os.getenv("FLASH_EXIT_VOLUME_SURGE_MIN", "3.0"),
     )  # Volume surge multiplier
+    FLASH_EXIT_VOLUME_SURGE_THRESHOLD: float = (
+        FLASH_EXIT_VOLUME_SURGE_MIN  # Alias for compatibility
+    )
     FLASH_EXIT_LOSS_TRIGGER_MULTIPLIER: float = float(
         os.getenv("FLASH_EXIT_LOSS_TRIGGER_MULTIPLIER", "1.002"),
     )  # 0.2% loss trigger
