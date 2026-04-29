@@ -450,6 +450,7 @@ class DeepSeekAPI:
                 "temperature": 0.5,
                 "max_tokens": 10000,
                 "stream": False,  # Non-streaming provides greater stability against free tier drops
+                "timeout": 60,  # Force individual call timeout to allow Router fallbacks
             }
 
             # Fallbacks are automatically collected from the remaining configured models
