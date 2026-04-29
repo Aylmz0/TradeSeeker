@@ -503,7 +503,10 @@ class DeepSeekAPI:
             print(f"MODEL USED: {model_used}")
             print("-" * 70)
 
-            return self._extract_json_from_content(content)
+            # Capture hidden reasoning if available
+            reasoning = getattr(response.choices[0].message, "reasoning_content", None)
+
+            return {"content": content, "reasoning": reasoning}
 
         except litellm.ContextWindowExceededError as e:
             print(f"[ERR]   Context window exceeded: {e}")

@@ -1088,24 +1088,69 @@ Each coin below contains a State Vector with:
 
         return prompt
 
-    def parse_ai_response(self, response: str) -> dict[str, Any]:
-        """Parse AI response - expects clean JSON string from DeepSeekAPI"""
-        try:
-            parsed_json = json.loads(response)
-            if not isinstance(parsed_json, dict):
-                print(f"[ERR]   Parsed JSON not dict: {type(parsed_json)}")
-                return {"chain_of_thoughts": "Error: Parsed JSON not dict.", "decisions": {}}
+    def parse_ai_response(self, response: Any) -> dict[str, Any]:
+        """Robustly parse AI response - separates reasoning, text analysis and JSON decisions"""
+        if not response:
+            return {"chain_of_thoughts": "No response received.", "decisions": {}}
 
-            thoughts = parsed_json.get("CHAIN_OF_THOUGHTS", "No thoughts provided.")
-            decisions = parsed_json.get("DECISIONS", {})
-            decisions = self._clean_ai_decisions(decisions)
-            return {"chain_of_thoughts": thoughts, "decisions": decisions}
-        except json.JSONDecodeError as e:
-            print(f"[ERR]   JSON decode error: {e}")
-            return {"chain_of_thoughts": f"Error: JSON decode failed: {e}", "decisions": {}}
+        raw_content = ""
+        internal_reasoning = ""
+
+        # 1. Handle both dictionary (new) and string (legacy) inputs
+        if isinstance(response, dict):
+            raw_content = response.get("content", "")
+            internal_reasoning = response.get("reasoning", "")
+        else:
+            raw_content = str(response)
+
+        thoughts_list = []
+        if internal_reasoning:
+            thoughts_list.append(f"=== INTERNAL REASONING ===\n{internal_reasoning}")
+
+        decisions = {}
+
+        try:
+            # 2. Extract JSON block and explicit thoughts from the content
+            start_index = raw_content.find("{")
+            if start_index != -1:
+                # Text analysis before the JSON
+                explicit_analysis = raw_content[:start_index].strip()
+                if explicit_analysis:
+                    thoughts_list.append(f"=== STRATEGIC THOUGHTS ===\n{explicit_analysis}")
+
+                json_candidate = raw_content[start_index:]
+                try:
+                    import json
+
+                    decoder = json.JSONDecoder()
+                    parsed_json, end_pos = decoder.raw_decode(json_candidate)
+
+                    # If JSON has its own thoughts, append them
+                    json_thoughts = parsed_json.get("CHAIN_OF_THOUGHTS", "")
+                    if json_thoughts:
+                        thoughts_list.append(f"=== JSON THOUGHTS ===\n{json_thoughts}")
+
+                    decisions = self._clean_ai_decisions(parsed_json.get("DECISIONS", {}))
+                except Exception as je:
+                    print(f"[WARN]  JSON extraction failed: {je}")
+                    thoughts_list.append(f"\n[PARSING ERROR] JSON block is corrupted.")
+            else:
+                # No JSON found, treat everything as analysis
+                thoughts_list.append(f"=== RAW ANALYSIS (NO JSON FOUND) ===\n{raw_content}")
+
+            # 3. Combine all insights into one UI-friendly string
+            combined_thoughts = (
+                "\n\n".join(thoughts_list) if thoughts_list else "No explicit reasoning captured."
+            )
+
+            return {"chain_of_thoughts": combined_thoughts, "decisions": decisions}
+
         except Exception as e:
             print(f"[ERR]   General parse error: {e}")
-            return {"chain_of_thoughts": f"Error: {e}", "decisions": {}}
+            return {
+                "chain_of_thoughts": f"Error during parsing: {e}\nRaw preview: {raw_content[:200]}",
+                "decisions": {},
+            }
 
     def _clean_ai_decisions(self, decisions: dict) -> dict:
         """Clean up AI decisions - preserve position data for hold signals"""
