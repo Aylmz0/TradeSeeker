@@ -59,9 +59,6 @@ class AlphaArenaDeepSeek:
         self.latest_indicator_cache: dict[str, dict[str, dict[str, Any]]] = {}
         self.history_reset_interval = Config.HISTORY_RESET_INTERVAL
         self.auto_train_cycle_count = 0  # Track cycles for 3h automated retrain
-        from concurrent.futures import ThreadPoolExecutor
-
-        self.cycle_executor = ThreadPoolExecutor(max_workers=1)
 
     def _apply_directional_capacity_filter(
         self,
@@ -423,6 +420,14 @@ class AlphaArenaDeepSeek:
 
                 print("[AI]    Sending to API...")
                 ai_response = self.deepseek.get_ai_decision(prompt)
+
+                # ZOMBIE THREAD CHECK: If this thread woke up late and the main loop moved on, ABORT.
+                if self.current_cycle_number != cycle_number:
+                    print(
+                        f"\n[ZOMBIE ABORT] Cycle {cycle_number} woke up late! (Main loop is at {self.current_cycle_number}). Aborting trades to prevent corruption."
+                    )
+                    # Do NOT touch self.cycle_active here, as the new cycle might be using it.
+                    return
 
                 # Check bot control after AI API call (may have taken time in live mode)
                 control = self._read_bot_control()
@@ -1064,6 +1069,7 @@ class AlphaArenaDeepSeek:
                     break
 
                 current_cycle_number += 1
+                self.current_cycle_number = current_cycle_number
                 cycle_start_time = time.time()
 
                 # Check MAX_CYCLES limit - auto-stop at configured cycle number
@@ -1080,12 +1086,16 @@ class AlphaArenaDeepSeek:
                 )
 
                 # --- CYCLE WATCHDOG (Hard Kill) ---
-                # Use persistent executor to prevent single cycle hangs (e.g. AI API blocking)
+                # Use fresh executor for each cycle to prevent queuing behind hung tasks
                 # If cycle exceeds (interval - 10s), we force-abort and move to next cycle.
-                from concurrent.futures import TimeoutError as FuturesTimeoutError
+                from concurrent.futures import (
+                    ThreadPoolExecutor,
+                    TimeoutError as FuturesTimeoutError,
+                )
 
                 watchdog_timeout = max(dynamic_cycle_interval - 10, 30)  # Min 30s for safety
-                future = self.cycle_executor.submit(self.run_trading_cycle, current_cycle_number)
+                cycle_executor = ThreadPoolExecutor(max_workers=1)
+                future = cycle_executor.submit(self.run_trading_cycle, current_cycle_number)
 
                 try:
                     future.result(timeout=watchdog_timeout)
@@ -1097,11 +1107,16 @@ class AlphaArenaDeepSeek:
                     # Cleanup to allow next cycle and background monitoring to resume correctly
                     self.cycle_active = False
                     self.enhanced_exit_enabled = True
-                    # NOTE: We skip save_state() here to avoid deadlock if the hanging thread holds the portfolio lock
+                    # IMPORTANT: Shutdown without waiting to abandon the hung thread
+                    cycle_executor.shutdown(wait=False)
                 except Exception as cycle_e:
                     print(
                         f"[ERR]   Cycle {current_cycle_number} failed with internal error: {cycle_e}"
                     )
+                    cycle_executor.shutdown(wait=False)
+                else:
+                    # Normal completion - still shutdown without blocking
+                    cycle_executor.shutdown(wait=False)
                 # --- END WATCHDOG ---
 
                 if datetime.now(timezone.utc) >= end_time:
