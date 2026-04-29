@@ -148,7 +148,7 @@ class AIService:
 
     def _analyze_performance_trend(self, recent_cycles: list[dict]) -> str:
         """Analyze performance trend based on recent cycles"""
-        if len(recent_cycles) < constants.REVERSAL_SCORE_MODERATE:
+        if len(recent_cycles) < constants.REVERSAL_SCORE_WEAK:
             return "Insufficient data for trend analysis"
 
         # Analyze decision patterns
@@ -255,7 +255,7 @@ class AIService:
                 consecutive_losses = stats.get("consecutive_losses", 0)
                 loss_streak_usd = stats.get("loss_streak_loss_usd", 0.0)
                 reason = []
-                if consecutive_losses >= constants.REVERSAL_SCORE_MODERATE:
+                if consecutive_losses >= constants.REVERSAL_SCORE_STRONG:
                     reason.append(f"{consecutive_losses} consecutive losses")
                 if loss_streak_usd >= constants.REGIME_PERFORMANCE_THRESHOLD:
                     reason.append(f"${loss_streak_usd:.2f} total loss")
