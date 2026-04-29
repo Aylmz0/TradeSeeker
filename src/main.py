@@ -1085,27 +1085,33 @@ class AlphaArenaDeepSeek:
                 )
 
                 watchdog_timeout = max(dynamic_cycle_interval - 10, 30)  # Min 30s for safety
+                cycle_executor = ThreadPoolExecutor(max_workers=1)
+                future = cycle_executor.submit(self.run_trading_cycle, current_cycle_number)
 
-                with ThreadPoolExecutor(max_workers=1) as cycle_executor:
-                    future = cycle_executor.submit(self.run_trading_cycle, current_cycle_number)
+                try:
+                    future.result(timeout=watchdog_timeout)
+                except FuturesTimeoutError:
+                    print(
+                        f"\n[WATCHDOG] Cycle {current_cycle_number} timed out after {watchdog_timeout}s!"
+                    )
+                    print("[WATCHDOG] Force-closing cycle and preparing for next interval...")
+                    # Cleanup to allow next cycle and background monitoring to resume correctly
+                    self.cycle_active = False
+                    self.enhanced_exit_enabled = True
                     try:
-                        future.result(timeout=watchdog_timeout)
-                    except FuturesTimeoutError:
-                        print(
-                            f"\n[WATCHDOG] Cycle {current_cycle_number} timed out after {watchdog_timeout}s!"
-                        )
-                        print("[WATCHDOG] Force-closing cycle and preparing for next interval...")
-                        # Cleanup to allow next cycle and background monitoring to resume correctly
-                        self.cycle_active = False
-                        self.enhanced_exit_enabled = True
-                        try:
-                            self.portfolio.save_state()
-                        except Exception:
-                            pass
-                    except Exception as cycle_e:
-                        print(
-                            f"[ERR]   Cycle {current_cycle_number} failed with internal error: {cycle_e}"
-                        )
+                        self.portfolio.save_state()
+                    except Exception:
+                        pass
+                    # IMPORTANT: Don't wait for the hanging thread
+                    cycle_executor.shutdown(wait=False)
+                except Exception as cycle_e:
+                    print(
+                        f"[ERR]   Cycle {current_cycle_number} failed with internal error: {cycle_e}"
+                    )
+                    cycle_executor.shutdown(wait=False)
+                else:
+                    # Normal completion - still shutdown without blocking
+                    cycle_executor.shutdown(wait=False)
                 # --- END WATCHDOG ---
 
                 if datetime.now(timezone.utc) >= end_time:
