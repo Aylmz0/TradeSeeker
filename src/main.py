@@ -1085,38 +1085,45 @@ class AlphaArenaDeepSeek:
                     f"[INFO]  Cycle interval: {dynamic_cycle_interval}s ({dynamic_cycle_interval / 60:.1f} min)",
                 )
 
-                # --- CYCLE WATCHDOG (Hard Kill) ---
-                # Use fresh executor for each cycle to prevent queuing behind hung tasks
-                # If cycle exceeds (interval - 10s), we force-abort and move to next cycle.
-                from concurrent.futures import (
-                    ThreadPoolExecutor,
-                    TimeoutError as FuturesTimeoutError,
-                )
+                # --- CYCLE WATCHDOG (Hard Kill via Daemon Thread) ---
+                # Use a native daemon thread. Unlike ThreadPoolExecutor, daemon threads
+                # do NOT block the Python interpreter from exiting (Ctrl+C works perfectly).
+                import threading
 
                 watchdog_timeout = max(dynamic_cycle_interval - 10, 30)  # Min 30s for safety
-                cycle_executor = ThreadPoolExecutor(max_workers=1)
-                future = cycle_executor.submit(self.run_trading_cycle, current_cycle_number)
 
-                try:
-                    future.result(timeout=watchdog_timeout)
-                except FuturesTimeoutError:
+                class CycleTask:
+                    def __init__(self):
+                        self.error = None
+
+                    def run(self, instance, cycle_num):
+                        try:
+                            instance.run_trading_cycle(cycle_num)
+                        except Exception as e:
+                            self.error = e
+
+                task = CycleTask()
+                cycle_thread = threading.Thread(
+                    target=task.run, args=(self, current_cycle_number), daemon=True
+                )
+                cycle_thread.start()
+                cycle_thread.join(timeout=watchdog_timeout)
+
+                if cycle_thread.is_alive():
+                    # Thread is still running after timeout -> HUNG
                     print(
                         f"\n[WATCHDOG] Cycle {current_cycle_number} timed out after {watchdog_timeout}s!"
                     )
                     print("[WATCHDOG] Force-closing cycle and moving to next interval...")
-                    # Cleanup to allow next cycle and background monitoring to resume correctly
+                    # Cleanup to allow next cycle to resume cleanly
                     self.cycle_active = False
                     self.enhanced_exit_enabled = True
-                    # IMPORTANT: Shutdown without waiting to abandon the hung thread
-                    cycle_executor.shutdown(wait=False)
-                except Exception as cycle_e:
+                    # The thread is daemonized, so we just abandon it. It will die with the process.
+                elif task.error:
+                    # Thread finished with an error
                     print(
-                        f"[ERR]   Cycle {current_cycle_number} failed with internal error: {cycle_e}"
+                        f"[ERR]   Cycle {current_cycle_number} failed with internal error: {task.error}"
                     )
-                    cycle_executor.shutdown(wait=False)
-                else:
-                    # Normal completion - still shutdown without blocking
-                    cycle_executor.shutdown(wait=False)
                 # --- END WATCHDOG ---
 
                 if datetime.now(timezone.utc) >= end_time:
