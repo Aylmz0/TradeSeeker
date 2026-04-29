@@ -63,20 +63,21 @@ def safe_file_read_cached(file_path: str, default_data=None):
 def safe_file_read(file_path: str, default_data=None):
     """Safely read JSON file with error handling - handles empty files gracefully"""
     try:
-        if os.path.exists(file_path):
-            # Check if file is empty (0 bytes)
-            if os.path.getsize(file_path) == 0:
-                logger.info(f"[INFO] Empty file detected: {file_path} - returning default data")
-                return default_data if default_data is not None else []
-
-            with open(file_path, encoding="utf-8") as f:
-                content = f.read().strip()
-                # Check if file contains only whitespace
-                if not content:
-                    logger.info(f"[INFO] Empty content in {file_path} - returning default data")
+        with _file_lock:
+            if os.path.exists(file_path):
+                # Check if file is empty (0 bytes)
+                if os.path.getsize(file_path) == 0:
+                    logger.info(f"[INFO] Empty file detected: {file_path} - returning default data")
                     return default_data if default_data is not None else []
 
-                return json.loads(content)
+                with open(file_path, encoding="utf-8") as f:
+                    content = f.read().strip()
+                    # Check if file contains only whitespace
+                    if not content:
+                        logger.info(f"[INFO] Empty content in {file_path} - returning default data")
+                        return default_data if default_data is not None else []
+
+                    return json.loads(content)
     except json.JSONDecodeError as e:
         logger.warning(f"[WARN]  Invalid JSON in {file_path}: {e}")
     except Exception as e:

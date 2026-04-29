@@ -434,11 +434,12 @@ class PortfolioManager:
 
     def save_trade_history(self) -> None:
         """Save the most recent trade history to the active history file."""
-        history_to_save: list[dict[str, Any]] = self.trade_history[
-            -constants.MAX_TRADE_HISTORY_DISPLAY :
-        ]
-        safe_file_write(self.history_file, history_to_save)
-        print(f"[OK]    Saved {len(history_to_save)} trades.")
+        with self._lock:
+            history_to_save: list[dict[str, Any]] = self.trade_history[
+                -constants.MAX_TRADE_HISTORY_DISPLAY :
+            ]
+            safe_file_write(self.history_file, history_to_save)
+            print(f"[OK]    Saved {len(history_to_save)} trades.")
 
     def add_to_history(self, trade: dict[str, Any]) -> None:
         """Add a completed trade to both active and full history files.
@@ -448,42 +449,31 @@ class PortfolioManager:
             trade: The trade record to append.
 
         """
-        # FIX: Keep lock for state modifications to prevent race conditions
+        # CRITICAL: Keep lock for ALL updates (History + Bias + State) to ensure atomicity
         with self._lock:
+            # 1. Update memory state & active history
             self.trade_history.append(trade)
             self.trade_count = len(self.trade_history)
-        self.save_trade_history()
+            self.save_trade_history()  # Internal logic uses _lock if we add it
 
-        # Also append to full history with robustness check
-        full_history = safe_file_read(self.full_history_file, None)
+            # 2. Update full history file
+            full_history = safe_file_read(self.full_history_file, [])
 
-        if full_history is None:
-            # Read failed or file doesn't exist
-            path_obj = Path(self.full_history_file)
-            if path_obj.exists() and path_obj.stat().st_size > 0:
-                print(
-                    f"[WARN]  Warning: Could not read {self.full_history_file} (lock/error). Appending to memory only to prevent overwrite.",
-                )
-                # Ideally we should retry or abort, but for now let's try to append if possible or just log error
-                # If we write [trade] now, we lose history.
-                # Better strategy: Try to read again? Or just skip writing to full history this time (data gap is better than data wipe)
-                # But we want to persist.
-                # Let's try to read one more time with a small delay
-                time.sleep(constants.FILE_RETRY_DELAY)
-                full_history = safe_file_read(self.full_history_file, [])
-                if not full_history and path_obj.stat().st_size > 0:
-                    print(
-                        "[ERR]   Critical: Failed to read full history. Skipping write to prevent data loss.",
-                    )
-                    return
-            else:
-                full_history = []
+            # Robustness: If read failed but file is not empty, retry once
+            if not full_history:
+                path_obj = Path(self.full_history_file)
+                if path_obj.exists() and path_obj.stat().st_size > 0:
+                    time.sleep(0.1)
+                    full_history = safe_file_read(self.full_history_file, [])
 
-        full_history.append(trade)
-        safe_file_write(self.full_history_file, full_history)
+            full_history.append(trade)
 
-        self.update_directional_bias(trade)
-        self.save_state()
+            if not safe_file_write(self.full_history_file, full_history):
+                print(f"[ERR]   Failed to save full history for {trade.get('symbol')}")
+
+            # 3. Update directional bias & persistence (Must be INSIDE lock)
+            self.update_directional_bias(trade)
+            self.save_state()  # This also uses _lock (RLock handles it)
 
     def update_directional_bias(self, trade: dict[str, Any]) -> None:
         """Update directional bias based on trade outcome and logic."""
