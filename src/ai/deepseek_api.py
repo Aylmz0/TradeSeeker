@@ -448,7 +448,7 @@ class DeepSeekAPI:
                 "model": self.primary_model,
                 "messages": messages,
                 "temperature": 0.5,
-                "max_tokens": 10000,
+                "max_tokens": 20000,
                 "stream": False,  # Non-streaming provides greater stability against free tier drops
                 "timeout": 60,  # Force individual call timeout to allow Router fallbacks
             }
