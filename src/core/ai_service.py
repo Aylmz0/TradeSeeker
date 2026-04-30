@@ -25,6 +25,7 @@ class AIService:
         self.market_data = market_data
         self.strategy_analyzer = strategy_analyzer
         self.invocation_count = 0
+        self.latest_ml_consensus = {}  # Store ML predictions for the current cycle
 
     def _fetch_all_indicators_parallel(self) -> dict[str, dict[str, dict[str, Any]]]:
         """Fetch all indicators for all coins in parallel with smart caching."""
@@ -852,6 +853,7 @@ Current live positions & performance:"""
 
         # Boot ML Inference Service
         ml_service = MLService()
+        self.latest_ml_consensus = {}  # Reset for new cycle
 
         # Fetch all indicators in parallel (same as original)
         all_indicators, all_sentiment = self._fetch_all_indicators_parallel()
@@ -982,6 +984,10 @@ Current live positions & performance:"""
                     df_raw_15m = self.market_data.get_real_time_data(coin, "15m", limit=150)
                     if not df_raw_15m.empty:
                         ml_consensus = ml_service.predict(df_raw_15m, coin)
+
+            # Save ML Consensus for downstream confidence adjustments
+            if ml_consensus:
+                self.latest_ml_consensus[coin] = ml_consensus
 
             # Calculate Bias Deviation Score (BDS) - Professional Mitigation Layer
             ml_bias_label = "Neutral"
@@ -1187,6 +1193,11 @@ Each coin below contains a State Vector with:
                 cleaned_decisions[coin] = cleaned_trade
             else:
                 cleaned_decisions[coin] = trade
+
+            # Inject ML consensus if available for this coin
+            if coin in self.latest_ml_consensus and isinstance(cleaned_decisions.get(coin), dict):
+                cleaned_decisions[coin]["ml_consensus"] = self.latest_ml_consensus[coin]
+
         return cleaned_decisions
 
     # --- Formatting Methods (v1.2 Restoration) ---

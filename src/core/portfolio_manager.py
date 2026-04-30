@@ -774,6 +774,11 @@ class PortfolioManager:
         # 2. Trend & Side Multipliers
         confidence = self._apply_trend_bias_multipliers(confidence, side, current_trend)
 
+        # 3. ML Consensus Boost/Penalty
+        ml_consensus = bias_ctx.get("ml_consensus")
+        if ml_consensus:
+            confidence = self._apply_ml_consensus_boost(confidence, side, ml_consensus)
+
         # Minimum confidence floor
         min_floor = original_confidence * constants.CONFIDENCE_FLOOR_MULTIPLIER
         return max(confidence, min_floor, Config.MIN_CONFIDENCE)
@@ -837,6 +842,39 @@ class PortfolioManager:
                 confidence *= Config.DIRECTIONAL_BEARISH_LONG_MULTIPLIER
             elif side == "short":
                 confidence *= Config.DIRECTIONAL_BEARISH_SHORT_MULTIPLIER
+
+        return confidence
+
+    def _apply_ml_consensus_boost(
+        self, confidence: float, side: str, ml_consensus: dict[str, float]
+    ) -> float:
+        """Apply confidence multipliers based on ML prediction consensus.
+
+        Logic:
+        - ML BUY > 50%: Long x1.10, Short x0.90
+        - ML SELL > 50%: Short x1.10, Long x0.90
+        - ML HOLD > 50%: Any x0.95
+        """
+        ml_buy = ml_consensus.get("BUY", 0.0)
+        ml_sell = ml_consensus.get("SELL", 0.0)
+        ml_hold = ml_consensus.get("HOLD", 0.0)
+
+        # 1. HOLD Priority: If ML is indecisive (>50% HOLD), apply penalty regardless of side
+        if ml_hold > 0.50:
+            confidence *= 0.95
+            return confidence
+
+        # 2. Directional Alignment
+        if ml_buy > 0.50:
+            if side == "long":
+                confidence *= 1.10  # ML supports Long
+            else:
+                confidence *= 0.90  # ML contradicts Short
+        elif ml_sell > 0.50:
+            if side == "short":
+                confidence *= 1.10  # ML supports Short
+            else:
+                confidence *= 0.90  # ML contradicts Long
 
         return confidence
 
@@ -3428,6 +3466,7 @@ class PortfolioManager:
             "confidence": confidence,
             "bias_metrics": bias_metrics,
             "current_trend": current_trend,
+            "ml_consensus": trade.get("ml_consensus"),
         }
         confidence = self.apply_directional_bias(bias_ctx)
         if confidence != pre_bias_conf:
