@@ -866,52 +866,61 @@ class AccountService:
                         print(f"[WARN]  Failed to sync account after partial close: {sync_exc}")
                     continue
 
-                close_quantity = quantity * close_percent
+                # 1. Capture current state BEFORE mutation
+                current_qty = float(position["quantity"])
+                current_margin = float(position["margin_usd"])
+                current_notional = float(position["notional_usd"])
+                close_quantity = current_qty * close_percent
 
+                # 2. Calculate PnL and Commission
                 if direction == "long":
                     profit = (current_price - entry_price) * close_quantity
                 else:
                     profit = (entry_price - current_price) * close_quantity
 
-                # Deduct commission for simulation realism (entry commission for this portion + exit commission)
-                notional_closed = ((entry_price + current_price) / 2) * close_quantity
-                commission = notional_closed * Config.SIMULATION_COMMISSION_RATE * 2  # Round-trip
+                # Round-trip commission for this portion
+                notional_portion_cost = entry_price * close_quantity
+                notional_portion_exit = current_price * close_quantity
+                avg_notional = (notional_portion_cost + notional_portion_exit) / 2
+                commission = avg_notional * Config.SIMULATION_COMMISSION_RATE * 2
                 profit -= commission
 
-                # Update position quantity
-                position["quantity"] = quantity * (1 - close_percent)
-                position["margin_usd"] = margin_used * (1 - close_percent)
-                position["notional_usd"] = position["notional_usd"] * (1 - close_percent)
-                # BUG FIX: Adjust peak_pnl proportionally after partial close
-                if "peak_pnl" in position and position["peak_pnl"] > 0:
-                    old_peak = position["peak_pnl"]
-                    position["peak_pnl"] = position["peak_pnl"] * (1 - close_percent)
-                    print(
-                        f"   [INFO]  peak_pnl adjusted: ${format_num(old_peak, 2)} → ${format_num(position['peak_pnl'], 2)} (after {close_percent * 100:.0f}% close)",
-                    )
-
-                # Add profit to balance
-                self.pm.current_balance += margin_used * close_percent + profit
-
-                print(
-                    f"[ALERT] PARTIAL CLOSE {coin} ({direction}): {exit_decision['reason']} - Closed {close_percent * 100}% at price ${format_num(current_price, 4)}",
-                )
-                print(f"   Partial PnL: ${format_num(profit, 2)}")
-
+                # 3. Prepare History Entry BEFORE updating position (using original notional)
                 history_entry = {
                     "symbol": coin,
                     "direction": direction,
                     "entry_price": entry_price,
                     "exit_price": current_price,
                     "quantity": close_quantity,
-                    "notional_usd": position.get("notional_usd", "N/A") * close_percent,
+                    "notional_usd": notional_portion_cost,  # Use cost-based notional for accuracy
                     "pnl": profit,
                     "entry_time": position["entry_time"],
                     "exit_time": datetime.now(timezone.utc).isoformat(),
                     "leverage": position.get("leverage", "N/A"),
                     "close_reason": exit_decision["reason"],
                 }
+
+                # 4. Update position state (MUTATION)
+                position["quantity"] = current_qty - close_quantity
+                position["margin_usd"] = current_margin * (1 - close_percent)
+                position["notional_usd"] = current_notional * (1 - close_percent)
+
+                # Adjust peak_pnl proportionally
+                if "peak_pnl" in position and position["peak_pnl"] > 0:
+                    old_peak = position["peak_pnl"]
+                    position["peak_pnl"] = position["peak_pnl"] * (1 - close_percent)
+                    print(
+                        f"   [INFO]  peak_pnl adjusted: ${format_num(old_peak, 2)} → ${format_num(position['peak_pnl'], 2)}"
+                    )
+
+                # 5. Update global balance and history
+                self.pm.current_balance += (current_margin * close_percent) + profit
                 self.pm.add_to_history(history_entry)
+
+                print(
+                    f"[ALERT] PARTIAL CLOSE {coin} ({direction}): {exit_decision['reason']} - Closed {close_percent * 100:.0f}% at ${format_num(current_price, 4)}"
+                )
+                print(f"   Partial PnL: ${format_num(profit, 2)}")
                 state_changed = True
                 continue  # Continue with remaining position
 
@@ -1063,8 +1072,8 @@ class AccountService:
                 "level1": 0.008,  # %0.7
                 "level2": 0.009,  # %0.9
                 "level3": 0.01,  # %1.1
-                "take1": 0.25,  # 25% profit take
-                "take2": 0.50,  # 50% profit take
+                "take1": 0.35,  # 25% profit take
+                "take2": 0.60,  # 50% profit take
                 "take3": 0.75,  # 75% profit take
             }
         if notional_usd < constants.NOTIONAL_TIER_2:
@@ -1073,8 +1082,8 @@ class AccountService:
                 "level1": 0.007,  # %0.7
                 "level2": 0.008,  # %0.9
                 "level3": 0.009,  # %1.1
-                "take1": 0.20,
-                "take2": 0.45,
+                "take1": 0.30,
+                "take2": 0.55,
                 "take3": 0.75,  # 75% profit take
             }
         if notional_usd < constants.NOTIONAL_TIER_3:
@@ -1083,8 +1092,8 @@ class AccountService:
                 "level1": 0.006,  # %0.7
                 "level2": 0.007,  # %0.9
                 "level3": 0.008,  # %1.1
-                "take1": 0.18,
-                "take2": 0.42,
+                "take1": 0.25,
+                "take2": 0.50,
                 "take3": 0.75,  # 75% profit take
             }
         if notional_usd < constants.NOTIONAL_TIER_4:
@@ -1093,8 +1102,8 @@ class AccountService:
                 "level1": 0.005,  # %0.6
                 "level2": 0.006,  # %0.8
                 "level3": 0.007,  # %1.0
-                "take1": 0.15,
-                "take2": 0.40,
+                "take1": 0.20,
+                "take2": 0.45,
                 "take3": 0.75,  # 75% profit take
             }
         if notional_usd < constants.NOTIONAL_TIER_5:
@@ -1103,8 +1112,8 @@ class AccountService:
                 "level1": 0.004,  # %0.5
                 "level2": 0.005,  # %0.7
                 "level3": 0.006,  # %0.9
-                "take1": 0.12,
-                "take2": 0.35,
+                "take1": 0.18,
+                "take2": 0.40,
                 "take3": 0.75,  # 75% profit take
             }
         if notional_usd < constants.NOTIONAL_TIER_6:
@@ -1113,8 +1122,8 @@ class AccountService:
                 "level1": 0.003,  # %0.
                 "level2": 0.004,  # %0.6
                 "level3": 0.005,  # %0.8
-                "take1": 0.10,
-                "take2": 0.30,
+                "take1": 0.15,
+                "take2": 0.35,
                 "take3": 0.75,  # 75% profit take
             }
         # Very large positions: very conservative profit taking
