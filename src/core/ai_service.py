@@ -1098,10 +1098,11 @@ Each coin below contains a State Vector with:
 
         # 1. Handle both dictionary (new) and string (legacy) inputs
         if isinstance(response, dict):
-            raw_content = response.get("content", "")
-            internal_reasoning = response.get("reasoning", "")
+            # LiteLLM/OpenRouter can sometimes return {"content": None} on safety filters or timeouts
+            raw_content = response.get("content") or ""
+            internal_reasoning = response.get("reasoning") or ""
         else:
-            raw_content = str(response)
+            raw_content = str(response) if response is not None else ""
 
         thoughts_list = []
         if internal_reasoning:
@@ -1147,8 +1148,9 @@ Each coin below contains a State Vector with:
 
         except Exception as e:
             print(f"[ERR]   General parse error: {e}")
+            preview = (raw_content or "")[:200]
             return {
-                "chain_of_thoughts": f"Error during parsing: {e}\nRaw preview: {raw_content[:200]}",
+                "chain_of_thoughts": f"Error during parsing: {e}\nRaw preview: {preview}",
                 "decisions": {},
             }
 
