@@ -249,7 +249,7 @@ def build_coin_state_vector(
         "risk_level": "CT_HIGH_RISK",
         "alignment_strength": "CT_ALIGNMENT_NONE",
     }
-    rv = reversal_threat or {"strength": "RT_NONE"}
+    rv = reversal_result or {"strength": "RT_NONE"}
 
     return {
         "coin": coin,
