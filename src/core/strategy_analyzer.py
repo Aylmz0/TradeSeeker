@@ -570,48 +570,47 @@ class StrategyAnalyzer:
             else:
                 return "NEUTRAL"
 
-            # Get 3m trend
+            # Get 3m and 15m trends
             if indicators_3m is None:
                 indicators_3m = self.market_data.get_technical_indicators(coin, "3m")
             trend_3m = None
             if isinstance(indicators_3m, dict) and "error" not in indicators_3m:
-                price_3m = indicators_3m.get("current_price")
-                ema20_3m = indicators_3m.get("ema_20")
-                if (
-                    isinstance(price_3m, (int, float))
-                    and isinstance(ema20_3m, (int, float))
-                    and ema20_3m > 0
-                ):
-                    trend_3m = "bullish" if price_3m >= ema20_3m else "bearish"
+                p3m = indicators_3m.get("current_price")
+                e3m = indicators_3m.get("ema_20")
+                if p3m and e3m:
+                    trend_3m = "bullish" if p3m >= e3m else "bearish"
 
-            # Get 15m trend
             if indicators_15m is None:
                 indicators_15m = self.market_data.get_technical_indicators(coin, "15m")
             trend_15m = None
             if isinstance(indicators_15m, dict) and "error" not in indicators_15m:
-                price_15m = indicators_15m.get("current_price")
-                ema20_15m = indicators_15m.get("ema_20")
-                if (
-                    isinstance(price_15m, (int, float))
-                    and isinstance(ema20_15m, (int, float))
-                    and ema20_15m > 0
-                ):
-                    trend_15m = "bullish" if price_15m >= ema20_15m else "bearish"
+                p15m = indicators_15m.get("current_price")
+                e15m = indicators_15m.get("ema_20")
+                if p15m and e15m:
+                    trend_15m = "bullish" if p15m >= e15m else "bearish"
 
-            # Apply rule: 1h + (3m OR 15m) must align for BULLISH/BEARISH
+            # Layered Trend Detection Logic (LLM-Safe Unique Prefixes)
             if htf_trend == "bullish":
-                # For BULLISH: 1h bullish AND (3m bullish OR 15m bullish)
-                if trend_3m == "bullish" or trend_15m == "bullish":
-                    return "BULLISH"
-                # 1h bullish but shorter timeframes bearish = NEUTRAL (counter-trend opportunity)
-                return "NEUTRAL"
+                # STRONG: All 3 timeframes BULLISH
+                if trend_15m == "bullish" and trend_3m == "bullish":
+                    return "TF_STRONG_BULLISH"
+                # STABLE: 1h + 15m BULLISH (The ideal "Pullback" entry if 3m is bearish)
+                if trend_15m == "bullish":
+                    return "TF_STABLE_BULLISH"
+                # WEAK: Only 1h is BULLISH
+                return "TF_WEAK_BULLISH"
+
             if htf_trend == "bearish":
-                # For BEARISH: 1h bearish AND (3m bearish OR 15m bearish)
-                if trend_3m == "bearish" or trend_15m == "bearish":
-                    return "BEARISH"
-                # 1h bearish but shorter timeframes bullish = NEUTRAL (counter-trend opportunity)
-                return "NEUTRAL"
-            return "NEUTRAL"
+                # STRONG: All 3 timeframes BEARISH
+                if trend_15m == "bearish" and trend_3m == "bearish":
+                    return "TF_STRONG_BEARISH"
+                # STABLE: 1h + 15m BEARISH
+                if trend_15m == "bearish":
+                    return "TF_STABLE_BEARISH"
+                # WEAK: Only 1h is BEARISH
+                return "TF_WEAK_BEARISH"
+
+            return "TF_NEUTRAL"
 
         except Exception as e:
             print(f"[WARN]  Regime detection error for {coin}: {e}")

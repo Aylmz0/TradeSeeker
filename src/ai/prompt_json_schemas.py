@@ -44,13 +44,28 @@ def get_counter_trade_schema() -> dict[str, Any]:
             "properties": {
                 "risk_level": {
                     "type": "string",
-                    "enum": ["LOW_RISK", "MEDIUM_RISK", "HIGH_RISK", "VERY_HIGH_RISK"],
+                    "enum": [
+                        "CT_LOW_RISK",
+                        "CT_MEDIUM_RISK",
+                        "CT_HIGH_RISK",
+                        "CT_VERY_HIGH_RISK",
+                        "LOW_RISK",
+                        "MEDIUM_RISK",
+                        "HIGH_RISK",
+                        "VERY_HIGH_RISK",
+                    ],
                 },
                 "alignment_strength": {
                     "type": "string",
-                    "enum": ["STRONG", "MEDIUM", "NONE"],
+                    "enum": [
+                        "CT_ALIGNMENT_STRONG",
+                        "CT_ALIGNMENT_MEDIUM",
+                        "NONE",
+                        "STRONG",
+                        "MEDIUM",
+                    ],
                 },
-                "conditions_met": {"type": "integer", "minimum": 0, "maximum": 8},
+                "conditions_met": {"type": "integer", "minimum": 0, "maximum": 15},
             },
             "required": ["risk_level", "alignment_strength", "conditions_met"],
         },
@@ -66,7 +81,18 @@ def get_trend_reversal_schema() -> dict[str, Any]:
             "properties": {
                 "strength": {
                     "type": "string",
-                    "enum": ["NONE", "WEAK", "MODERATE", "STRONG", "CRITICAL"],
+                    "enum": [
+                        "RT_NONE",
+                        "RT_WEAK",
+                        "RT_MODERATE",
+                        "RT_STRONG",
+                        "RT_CRITICAL",
+                        "NONE",
+                        "WEAK",
+                        "MODERATE",
+                        "STRONG",
+                        "CRITICAL",
+                    ],
                 },
             },
             "required": ["strength"],
@@ -91,7 +117,21 @@ def get_state_vector_schema() -> dict[str, Any]:
             "market_context": {
                 "type": "object",
                 "properties": {
-                    "regime": {"type": "string", "enum": ["BULLISH", "BEARISH", "NEUTRAL"]},
+                    "regime": {
+                        "type": "string",
+                        "enum": [
+                            "TF_STRONG_BULLISH",
+                            "TF_STABLE_BULLISH",
+                            "TF_WEAK_BULLISH",
+                            "TF_STRONG_BEARISH",
+                            "TF_STABLE_BEARISH",
+                            "TF_WEAK_BEARISH",
+                            "TF_NEUTRAL",
+                            "BULLISH",
+                            "BEARISH",
+                            "NEUTRAL",
+                        ],
+                    },
                     "efficiency_ratio": {"type": ["number", "null"]},
                     "volatility_state": {
                         "type": "string",

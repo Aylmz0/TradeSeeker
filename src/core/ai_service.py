@@ -490,7 +490,7 @@ REMEMBER: These are suggestions only. You make the final trading decisions based
                     }
                     prompt += f"[LEVEL] Nearest Resistance: ${format_num(nearest_resistance)} ({key_level['distance_pct']}% distance)\n"
 
-            # Add market regime detection
+            # Add market regime detection (TF_ prefix indicates Trend Following strength)
             market_regime = self.strategy_analyzer.detect_market_regime(
                 coin,
                 indicators_htf=indicators_htf,

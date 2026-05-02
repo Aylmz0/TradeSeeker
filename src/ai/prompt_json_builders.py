@@ -293,9 +293,12 @@ def build_coin_state_vector(
     if vol_ratio is not None:
         vol_ratio = _sv_fmt(vol_ratio)
 
-    # Defaults for risk inputs - Refined for professional caution (HIGH_RISK instead of VERY_HIGH)
-    ct = counter_trade_result or {"risk_level": "HIGH_RISK", "alignment_strength": "NONE"}
-    rv = reversal_result or {"strength": "NONE"}
+    # Defaults for risk inputs - Refined for professional caution (CT_HIGH_RISK instead of VERY_HIGH)
+    ct = counter_trade_result or {
+        "risk_level": "CT_HIGH_RISK",
+        "alignment_strength": "CT_ALIGNMENT_NONE",
+    }
+    rv = reversal_threat or {"strength": "RT_NONE"}
 
     return {
         "coin": coin,
@@ -336,9 +339,11 @@ def build_coin_state_vector(
         },
         # Risk Profile — pre-computed risk labels
         "risk_profile": {
-            "counter_trade_risk": ct.get("risk_level", "VERY_HIGH_RISK"),
-            "alignment_strength": ct.get("alignment_strength", "NONE"),
-            "reversal_threat": rv.get("strength", "NONE"),
+            "counter_trade_risk": ct.get("risk_level", "CT_VERY_HIGH_RISK"),
+            "alignment_strength": ct.get("alignment_strength", "CT_ALIGNMENT_NONE"),
+            "reversal_threat": f"RT_{rv.get('strength', 'NONE')}"
+            if rv.get("strength")
+            else "RT_NONE",
         },
         # Sentiment — funding rate & open interest
         "sentiment": {
@@ -439,15 +444,19 @@ def build_counter_trade_json(
                 if trend_htf == "BULLISH":
                     # Counter-trend SHORT: 15m and 3m should be BEARISH
                     if trend_15m == "BEARISH" and trend_3m == "BEARISH":
-                        alignment_strength = "STRONG"  # 15m+3m both BEARISH (against 1h BULLISH)
+                        alignment_strength = (
+                            "CT_ALIGNMENT_STRONG"  # 15m+3m both BEARISH (against 1h BULLISH)
+                        )
                     elif trend_15m == "BEARISH" or trend_3m == "BEARISH":
-                        alignment_strength = "MEDIUM"  # 15m OR 3m BEARISH
+                        alignment_strength = "CT_ALIGNMENT_MEDIUM"  # 15m OR 3m BEARISH
                 elif trend_htf == "BEARISH":
                     # Counter-trend LONG: 15m and 3m should be BULLISH
                     if trend_15m == "BULLISH" and trend_3m == "BULLISH":
-                        alignment_strength = "STRONG"  # 15m+3m both BULLISH (against 1h BEARISH)
+                        alignment_strength = (
+                            "CT_ALIGNMENT_STRONG"  # 15m+3m both BULLISH (against 1h BEARISH)
+                        )
                     elif trend_15m == "BULLISH" or trend_3m == "BULLISH":
-                        alignment_strength = "MEDIUM"  # 15m OR 3m BULLISH
+                        alignment_strength = "CT_ALIGNMENT_MEDIUM"  # 15m OR 3m BULLISH
 
             # Evaluate 5 conditions
             # Condition 1: Funding Rate Extreme (NEW - timeframe independent)
@@ -560,14 +569,14 @@ def build_counter_trade_json(
             ml_consensus = sentiment.get("ml_consensus", 50.0)
             condition_10 = 0
             if trend_htf == "BULLISH":
-                if ml_consensus >= 40.0:
+                if ml_consensus >= 45.0:
                     condition_10 += 1  # 1 puan
-                if ml_consensus >= 50.0:
+                if ml_consensus >= 55.0:
                     condition_10 += 1  # +1 bonus = 2 puan total
             elif trend_htf == "BEARISH":
-                if ml_consensus >= 40.0:
+                if ml_consensus >= 45.0:
                     condition_10 += 1  # 1 puan
-                if ml_consensus >= 50.0:
+                if ml_consensus >= 55.0:
                     condition_10 += 1  # +1 bonus = 2 puan total
 
             # Condition 11: 15m Structure Against 1h Trend
@@ -609,22 +618,36 @@ def build_counter_trade_json(
 
             # Determine risk level (Updated Logic - User Request)
             # Counter-trade risk assessment based on alignment and conditions met
-            if alignment_strength == "STRONG" and total_met >= constants.ALIGNMENT_STRENGTH_L4:
-                risk_level = "LOW_RISK"  # STRONG + 4 or more conditions
-            elif alignment_strength == "STRONG" and total_met >= constants.ALIGNMENT_STRENGTH_L3:
-                risk_level = "MEDIUM_RISK"  # STRONG + 3 conditions
-            elif alignment_strength == "MEDIUM" and total_met >= constants.ALIGNMENT_STRENGTH_L5:
-                risk_level = "LOW_RISK"  # MEDIUM + 5 or more conditions
-            elif alignment_strength == "MEDIUM" and total_met >= constants.ALIGNMENT_STRENGTH_L4:
-                risk_level = "MEDIUM_RISK"  # MEDIUM + 4 conditions
-            elif alignment_strength == "MEDIUM":
-                risk_level = "HIGH_RISK"  # MEDIUM + less than 4 conditions
+            # Determine risk level (Updated Logic - User Request)
+            # Counter-trade risk assessment based on alignment and conditions met
+            if (
+                alignment_strength == "CT_ALIGNMENT_STRONG"
+                and total_met >= constants.ALIGNMENT_STRENGTH_L4
+            ):
+                risk_level = "CT_LOW_RISK"  # STRONG + 4 or more conditions
+            elif (
+                alignment_strength == "CT_ALIGNMENT_STRONG"
+                and total_met >= constants.ALIGNMENT_STRENGTH_L3
+            ):
+                risk_level = "CT_MEDIUM_RISK"  # STRONG + 3 conditions
+            elif (
+                alignment_strength == "CT_ALIGNMENT_MEDIUM"
+                and total_met >= constants.ALIGNMENT_STRENGTH_L5
+            ):
+                risk_level = "CT_LOW_RISK"  # MEDIUM + 5 or more conditions
+            elif (
+                alignment_strength == "CT_ALIGNMENT_MEDIUM"
+                and total_met >= constants.ALIGNMENT_STRENGTH_L4
+            ):
+                risk_level = "CT_MEDIUM_RISK"  # MEDIUM + 4 conditions
+            elif alignment_strength == "CT_ALIGNMENT_MEDIUM":
+                risk_level = "CT_HIGH_RISK"  # MEDIUM + less than 4 conditions
             elif alignment_strength == "NONE" and total_met >= constants.ALIGNMENT_STRENGTH_L8:
-                risk_level = "LOW_RISK"  # NONE + 8 conditions (All)
+                risk_level = "CT_LOW_RISK"  # NONE + 8 conditions (All)
             elif alignment_strength == "NONE" and total_met >= constants.ALIGNMENT_STRENGTH_L7:
-                risk_level = "MEDIUM_RISK"  # NONE + 7 conditions
+                risk_level = "CT_MEDIUM_RISK"  # NONE + 7 conditions
             else:
-                risk_level = "HIGH_RISK"  # Refined for tactical scout
+                risk_level = "CT_HIGH_RISK"  # Refined for tactical scout
 
             # NOTE: Zone + Weakening is now Condition 6 (calculated above)
             # No longer modifies risk level - it's counted as a condition instead

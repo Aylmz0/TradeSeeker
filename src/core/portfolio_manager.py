@@ -830,18 +830,33 @@ class PortfolioManager:
 
         trend_lower = current_trend.lower() if isinstance(current_trend, str) else "unknown"
 
-        if trend_lower == "neutral":
+        # 1. Trend Following (TF) Strength Selection
+        # Logic: We reward confirmed trends (STRONG) and penalize unconfirmed noise (WEAK).
+        strength_multiplier = 1.0
+        if "tf_strong" in trend_lower:
+            strength_multiplier = 1.15
+        elif "tf_stable" in trend_lower:
+            strength_multiplier = 1.00
+        elif "tf_weak" in trend_lower:
+            strength_multiplier = 0.70  # Heavy penalty for unconfirmed noise (15m not aligned)
+
+        # 2. Directional Alignment Multipliers
+        if "neutral" in trend_lower:
             confidence *= Config.DIRECTIONAL_NEUTRAL_MULTIPLIER
-        elif trend_lower == "bullish":
+        elif "bullish" in trend_lower:
             if side == "long":
-                confidence *= Config.DIRECTIONAL_BULLISH_LONG_MULTIPLIER
+                confidence *= Config.DIRECTIONAL_BULLISH_LONG_MULTIPLIER * strength_multiplier
             elif side == "short":
-                confidence *= Config.DIRECTIONAL_BULLISH_SHORT_MULTIPLIER
-        elif trend_lower == "bearish":
+                # Counter-trend short in bullish regime is riskier if trend is strong
+                confidence *= Config.DIRECTIONAL_BULLISH_SHORT_MULTIPLIER * (
+                    1 / strength_multiplier
+                )
+        elif "bearish" in trend_lower:
             if side == "long":
-                confidence *= Config.DIRECTIONAL_BEARISH_LONG_MULTIPLIER
+                # Counter-trend long in bearish regime is riskier if trend is strong
+                confidence *= Config.DIRECTIONAL_BEARISH_LONG_MULTIPLIER * (1 / strength_multiplier)
             elif side == "short":
-                confidence *= Config.DIRECTIONAL_BEARISH_SHORT_MULTIPLIER
+                confidence *= Config.DIRECTIONAL_BEARISH_SHORT_MULTIPLIER * strength_multiplier
 
         return confidence
 
