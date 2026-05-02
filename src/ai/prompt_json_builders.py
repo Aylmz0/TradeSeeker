@@ -260,6 +260,10 @@ def build_coin_state_vector(
         "market_context": {
             "regime": market_regime,
             "efficiency_ratio": _sv_fmt(efficiency_ratio),
+            "adx": _sv_fmt(indicators_htf.get("adx")) if indicators_htf else None,
+            "trend_strength_adx": indicators_htf.get("trend_strength_adx", "UNKNOWN")
+            if indicators_htf
+            else "UNKNOWN",
             "volatility_state": _sv_volatility_state(indicators_htf),
             "price_location": _sv_price_location(indicators_15m),
         },

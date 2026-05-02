@@ -183,19 +183,19 @@ class EnhancedContextProvider:
         total_bias = overall_bull + overall_bear
         strength = 0
         if coin_count == 0 or total_bias == 0:
-            current_regime = "TF_NEUTRAL"
+            current_regime = "NEUTRAL"
         else:
             dominant = max(overall_bull, overall_bear)
             strength = round(dominant / coin_count, 2)
             neutral_majority = neutral_count >= constants.NEUTRAL_MAJORITY_THRESHOLD
             if strength < Config.GLOBAL_NEUTRAL_STRENGTH_THRESHOLD or neutral_majority:
-                current_regime = "TF_NEUTRAL"
+                current_regime = "NEUTRAL"
             elif overall_bull > overall_bear:
-                current_regime = "TF_BULLISH"
+                current_regime = "BULLISH"
             elif overall_bear > overall_bull:
-                current_regime = "TF_BEARISH"
+                current_regime = "BEARISH"
             else:
-                current_regime = "TF_NEUTRAL"
+                current_regime = "NEUTRAL"
 
         return {
             "current_regime": current_regime,

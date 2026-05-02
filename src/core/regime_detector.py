@@ -34,23 +34,23 @@ class RegimeDetector:
 
             # 3. Trending vs Neutral (ADX)
             if adx < getattr(Config, "ADX_TREND_LEVEL", 25):
-                return "TF_NEUTRAL"
+                return "NEUTRAL"
 
             # 4. Trend Direction
             if price > ema20:
-                return "TF_BULLISH"
-            return "TF_BEARISH"
+                return "BULLISH"
+            return "BEARISH"
 
         except Exception as e:
             logger.warning(f"Regime classification error: {e}")
-            return "TF_NEUTRAL"
+            return "NEUTRAL"
 
     @classmethod
     def detect_overall_regime(cls, coin_indicators: dict[str, dict[str, Any]]) -> str:
         """Detects the global market regime by aggregating coin-level regimes."""
         regimes = [cls.classify_coin_regime(ind) for ind in coin_indicators.values()]
         if not regimes:
-            return "TF_NEUTRAL"
+            return "NEUTRAL"
 
         # Count occurrences
         counts = {r: regimes.count(r) for r in set(regimes)}
@@ -58,12 +58,12 @@ class RegimeDetector:
         # Priority logic
         if counts.get("CHOPPY", 0) >= constants.CHOPPY_THRESHOLD_COUNT:
             return "CHOPPY"
-        if counts.get("TF_BULLISH", 0) >= constants.TRENDING_THRESHOLD_COUNT:
-            return "TF_BULLISH"
-        if counts.get("TF_BEARISH", 0) >= constants.TRENDING_THRESHOLD_COUNT:
-            return "TF_BEARISH"
+        if counts.get("BULLISH", 0) >= constants.TRENDING_THRESHOLD_COUNT:
+            return "BULLISH"
+        if counts.get("BEARISH", 0) >= constants.TRENDING_THRESHOLD_COUNT:
+            return "BEARISH"
 
-        return "TF_NEUTRAL"
+        return "NEUTRAL"
 
     @classmethod
     def calculate_regime_strength(cls, coin_indicators: dict[str, dict[str, Any]]) -> float:

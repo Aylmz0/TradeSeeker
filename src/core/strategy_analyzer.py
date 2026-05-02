@@ -561,6 +561,11 @@ class StrategyAnalyzer:
             ):
                 return "UNCLEAR"
 
+            # 0. Choppy Veto (Prioritize market noise over price position)
+            er_htf = indicators_htf.get("efficiency_ratio", 1.0)
+            if er_htf < getattr(Config, "CHOPPY_ER_THRESHOLD", 0.35):
+                return "CHOPPY"
+
             # Determine 1h trend
             delta_htf = (price_htf - ema20_htf) / ema20_htf
             price_neutral = abs(delta_htf) <= Config.EMA_NEUTRAL_BAND_PCT

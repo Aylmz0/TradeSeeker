@@ -155,16 +155,16 @@ class Config:
         os.getenv("DIRECTIONAL_NEUTRAL_MULTIPLIER", "0.95"),
     )  # Neutral trend = slight confidence reduction
     MARKET_REGIME_MULTIPLIERS: dict = {
-        "TF_BULLISH": 1.0,
-        "TF_BEARISH": 1.0,
-        "TF_NEUTRAL": 0.9,
+        "BULLISH": 1.0,
+        "BEARISH": 1.0,
+        "NEUTRAL": 0.9,
         "CHOPPY": 0.8,  # Reduced risk for choppy/sideways markets
     }
 
     # Choppy Regime Detection Settings
     CHOPPY_ER_THRESHOLD: float = float(
-        os.getenv("CHOPPY_ER_THRESHOLD", "0.30"),
-    )  # ER < 0.30 = Choppy
+        os.getenv("CHOPPY_ER_THRESHOLD", "0.35"),
+    )  # ER < 0.35 = Choppy
     CHOPPY_COIN_RATIO_MIN: float = float(
         os.getenv("CHOPPY_COIN_RATIO_MIN", "0.5"),
     )  # >50% coins choppy

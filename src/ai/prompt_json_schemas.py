@@ -131,6 +131,11 @@ def get_state_vector_schema() -> dict[str, Any]:
                         ],
                     },
                     "efficiency_ratio": {"type": ["number", "null"]},
+                    "adx": {"type": ["number", "null"]},
+                    "trend_strength_adx": {
+                        "type": "string",
+                        "enum": ["STRONG", "MODERATE", "WEAK", "NO_TREND", "UNKNOWN"],
+                    },
                     "volatility_state": {
                         "type": "string",
                         "enum": ["SQUEEZE", "EXPANDING", "NORMAL"],
