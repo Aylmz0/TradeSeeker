@@ -22,55 +22,6 @@ def _sv_fmt(value) -> float | int | None:
     return format_number_for_json(value)
 
 
-def _sv_trend_alignment(
-    indicators_htf: dict[str, Any],
-    indicators_15m: dict[str, Any],
-    indicators_3m: dict[str, Any],
-) -> str:
-    """Determine multi-timeframe trend alignment with focus on 1h and 15m.
-    3m is treated as a timing-only noise-shielded sensor.
-    Returns: FULL_BULLISH | FULL_BEARISH | MIXED_BULLISH | MIXED_BEARISH | CONFLICTED
-    """
-
-    def _trend(ind: dict[str, Any]) -> str | None:
-        if not ind or "error" in ind:
-            return None
-        price = ind.get("current_price")
-        ema = ind.get("ema_20")
-        if price is None or ema is None:
-            return None
-        return "BULLISH" if price > ema else "BEARISH"
-
-    t_htf = _trend(indicators_htf)
-    t_15m = _trend(indicators_15m)
-    t_3m = _trend(indicators_3m)
-
-    # Core Trend is 1h + 15m only
-    core_trends = [t for t in [t_htf, t_15m] if t is not None]
-    if not core_trends:
-        return "UNKNOWN"
-
-    bull_core = core_trends.count("BULLISH")
-    bear_core = core_trends.count("BEARISH")
-
-    tag = ""
-    if bull_core == len(core_trends):
-        tag = "FULL_BULLISH"
-    elif bear_core == len(core_trends):
-        tag = "FULL_BEARISH"
-    elif bull_core > bear_core:
-        tag = "MIXED_BULLISH"
-    else:
-        tag = "MIXED_BEARISH"
-
-    # Add 3m noise/correction label without breaking the core 'FULL' status
-    # This prevents the AI from panic-closing based on the label change alone.
-    if t_3m and t_3m != ("BULLISH" if "BULLISH" in tag else "BEARISH"):
-        return f"{tag}_WITH_3M_CORRECTION"
-
-    return tag
-
-
 def _sv_momentum(indicators_15m: dict[str, Any]) -> str:
     """Extract momentum from 15m smart_sparkline.
     Returns: STRENGTHENING | STABLE | WEAKENING | UNKNOWN
@@ -314,7 +265,6 @@ def build_coin_state_vector(
         },
         # Technical Summary — processed labels for fast orientation
         "technical_summary": {
-            "trend_alignment": _sv_trend_alignment(indicators_htf, indicators_15m, indicators_3m),
             "momentum": _sv_momentum(indicators_15m),
             "price_slope": indicators_15m.get("price_slope_label", "FLAT"),
             "ema_stretch": indicators_15m.get("ema_stretch_label", "NORMAL"),

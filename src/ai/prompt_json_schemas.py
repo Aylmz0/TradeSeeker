@@ -127,9 +127,6 @@ def get_state_vector_schema() -> dict[str, Any]:
                             "TF_STABLE_BEARISH",
                             "TF_WEAK_BEARISH",
                             "TF_NEUTRAL",
-                            "BULLISH",
-                            "BEARISH",
-                            "NEUTRAL",
                         ],
                     },
                     "efficiency_ratio": {"type": ["number", "null"]},
@@ -146,7 +143,6 @@ def get_state_vector_schema() -> dict[str, Any]:
             "technical_summary": {
                 "type": "object",
                 "properties": {
-                    "trend_alignment": {"type": "string"},
                     "momentum": {"type": "string"},
                     "volume_ratio": {"type": ["number", "null"]},
                     "volume_support": {"type": "string"},

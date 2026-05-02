@@ -101,10 +101,6 @@ class EnhancedContextProvider:
                 if stop_loss != entry_price
                 else 0,
                 "direction": direction,
-                "trend_alignment": position.get(
-                    "trend_alignment",
-                    position.get("trend_context", {}).get("alignment", "unknown"),
-                ),
                 "trend_context": position.get("trend_context", {}),
                 "confidence": position.get("confidence"),
             }
