@@ -369,7 +369,7 @@ class DeepSeekAPI:
                     },
                     "usage": "Use ML as you would any other indicator (RSI, MACD, Volume). Consider it alongside your technical analysis. When ML and technicals agree, confidence increases. When they disagree, weigh the evidence. Interpretation: HOLD < 40% = Model has directional conviction (BUY+SELL > 60%); check which side dominates. HOLD > 50% = Model is uncertain; proceed with caution. BUY/SELL > 40% = Model favors that direction.",
                 },
-                "market_context": "regime (TF_STRONG_BULLISH/TF_STABLE_BULLISH/TF_WEAK_BULLISH/TF_STRONG_BEARISH/TF_STABLE_BEARISH/TF_WEAK_BEARISH/TF_NEUTRAL), efficiency_ratio, volatility_state (SQUEEZE/EXPANDING/NORMAL), price_location (UPPER_10/LOWER_10/MIDDLE)",
+                "market_context": "regime (TF_STRONG_BULLISH/TF_STABLE_BULLISH/TF_WEAK_BULLISH/TF_STRONG_BEARISH/TF_STABLE_BEARISH/TF_WEAK_BEARISH/TF_NEUTRAL/CHOPPY), efficiency_ratio, volatility_state (SQUEEZE/EXPANDING/NORMAL), price_location (UPPER_10/LOWER_10/MIDDLE). NOTE: CHOPPY (low efficiency) is a high-risk/low-conviction environment—prefer HOLDing or extreme caution.",
                 "technical_summary": "momentum (STRENGTHENING/STABLE/WEAKENING), volume_ratio (numeric), volume_support (EXCELLENT/GOOD/FAIR/POOR/LOW), structure_15m (HH_HL/LH_LL/RANGE/UNCLEAR)",
                 "key_levels": "price, ema20_htf, rsi_15m, atr_htf — raw numerical anchors for your independent reasoning and cross-validation of labels.",
                 "risk_profile": "counter_trade_risk (CT_LOW_RISK/CT_MEDIUM_RISK/CT_HIGH_RISK/CT_VERY_HIGH_RISK), alignment_strength (CT_ALIGNMENT_STRONG/CT_ALIGNMENT_MEDIUM/CT_ALIGNMENT_NONE), reversal_threat (RT_NONE/RT_WEAK/RT_MODERATE/RT_STRONG/RT_CRITICAL)",

@@ -127,6 +127,7 @@ def get_state_vector_schema() -> dict[str, Any]:
                             "TF_STABLE_BEARISH",
                             "TF_WEAK_BEARISH",
                             "TF_NEUTRAL",
+                            "CHOPPY",
                         ],
                     },
                     "efficiency_ratio": {"type": ["number", "null"]},

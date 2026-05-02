@@ -839,6 +839,8 @@ class PortfolioManager:
             strength_multiplier = 1.00
         elif "tf_weak" in trend_lower:
             strength_multiplier = 0.70  # Heavy penalty for unconfirmed noise (15m not aligned)
+        elif "choppy" in trend_lower:
+            strength_multiplier = 0.40  # SEVERE penalty for choppy/noise markets
 
         # 2. Directional Alignment Multipliers
         if "neutral" in trend_lower:
@@ -1622,9 +1624,9 @@ class PortfolioManager:
         confidence_multiplier = confidence
 
         # Market regime factor
-        if market_regime == "BULLISH":
+        if market_regime == "TF_BULLISH":
             regime_multiplier = 1.2
-        elif market_regime == "BEARISH":
+        elif market_regime == "TF_BEARISH":
             regime_multiplier = 0.8
         else:
             regime_multiplier = 1.0
@@ -3896,7 +3898,7 @@ class PortfolioManager:
         # Market Regime & Scout Multipliers
         regime_mult = Config.MARKET_REGIME_MULTIPLIERS.get(market_regime, 1.0)
         current_mult = regime_mult
-        if Config.SCOUT_MODE_ENABLED and market_regime == "NEUTRAL":
+        if Config.SCOUT_MODE_ENABLED and market_regime == "TF_NEUTRAL":
             current_mult *= getattr(Config, "SCOUT_LEVERAGE_MULT", 0.5)
 
         calculated_margin *= current_mult

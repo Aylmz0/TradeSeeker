@@ -155,9 +155,9 @@ class Config:
         os.getenv("DIRECTIONAL_NEUTRAL_MULTIPLIER", "0.95"),
     )  # Neutral trend = slight confidence reduction
     MARKET_REGIME_MULTIPLIERS: dict = {
-        "BULLISH": 1.0,
-        "BEARISH": 1.0,
-        "NEUTRAL": 0.9,
+        "TF_BULLISH": 1.0,
+        "TF_BEARISH": 1.0,
+        "TF_NEUTRAL": 0.9,
         "CHOPPY": 0.8,  # Reduced risk for choppy/sideways markets
     }
 

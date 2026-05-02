@@ -28,48 +28,42 @@ class RegimeDetector:
             ema20 = indicators.get("ema_20", 0)
             er = indicators.get("efficiency_ratio", 1.0)
 
-            # 1. Volatility Check
-            if price > 0 and (atr / price) > getattr(Config, "VOLATILITY_LIMIT_PCT", 0.02):
-                return "VOLATILE"
-
-            # 2. Choppy Check (Efficiency Ratio)
-            if er < getattr(Config, "CHOPPY_ER_THRESHOLD", 0.3):
+            # 1. Choppy Check (Efficiency Ratio)
+            if er < getattr(Config, "CHOPPY_ER_THRESHOLD", 0.35):
                 return "CHOPPY"
 
             # 3. Trending vs Neutral (ADX)
             if adx < getattr(Config, "ADX_TREND_LEVEL", 25):
-                return "NEUTRAL"
+                return "TF_NEUTRAL"
 
             # 4. Trend Direction
             if price > ema20:
-                return "BULLISH"
-            return "BEARISH"
+                return "TF_BULLISH"
+            return "TF_BEARISH"
 
         except Exception as e:
             logger.warning(f"Regime classification error: {e}")
-            return "NEUTRAL"
+            return "TF_NEUTRAL"
 
     @classmethod
     def detect_overall_regime(cls, coin_indicators: dict[str, dict[str, Any]]) -> str:
         """Detects the global market regime by aggregating coin-level regimes."""
         regimes = [cls.classify_coin_regime(ind) for ind in coin_indicators.values()]
         if not regimes:
-            return "NEUTRAL"
+            return "TF_NEUTRAL"
 
         # Count occurrences
         counts = {r: regimes.count(r) for r in set(regimes)}
 
         # Priority logic
-        if counts.get("VOLATILE", 0) >= constants.VOLATILE_THRESHOLD_COUNT:
-            return "VOLATILE"
         if counts.get("CHOPPY", 0) >= constants.CHOPPY_THRESHOLD_COUNT:
             return "CHOPPY"
-        if counts.get("BULLISH", 0) >= constants.TRENDING_THRESHOLD_COUNT:
-            return "BULLISH"
-        if counts.get("BEARISH", 0) >= constants.TRENDING_THRESHOLD_COUNT:
-            return "BEARISH"
+        if counts.get("TF_BULLISH", 0) >= constants.TRENDING_THRESHOLD_COUNT:
+            return "TF_BULLISH"
+        if counts.get("TF_BEARISH", 0) >= constants.TRENDING_THRESHOLD_COUNT:
+            return "TF_BEARISH"
 
-        return "NEUTRAL"
+        return "TF_NEUTRAL"
 
     @classmethod
     def calculate_regime_strength(cls, coin_indicators: dict[str, dict[str, Any]]) -> float:
