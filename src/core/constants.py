@@ -118,7 +118,8 @@ MOCK_INITIAL_BALANCE = 1000.0
 # System & Monitoring
 ML_MIN_DATA_POINTS_READY = 100
 MIN_ML_LOG_LINES = 10
-AUTO_TRAIN_CYCLE_INTERVAL = 12
+AUTO_TRAIN_CYCLE_INTERVAL = 24  # Retrain every 6 hours (4 cycles/hr * 6)
+
 
 # ML Labeling Configuration
 ML_LOOKAHEAD_PERIODS = 5  # 5 bars * 15m = 75 min forward window

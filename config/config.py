@@ -62,6 +62,9 @@ class Config:
     MIN_CONFIDENCE: float = float(
         os.getenv("MIN_CONFIDENCE", "0.60"),
     )  # Sniper mode: only high confidence trades
+    CHOPPY_ER_THRESHOLD: float = float(
+        os.getenv("CHOPPY_ER_THRESHOLD", "0.30"),
+    )  # Efficiency Ratio below this is considered choppy/high-risk
     ML_CONFIDENCE_THRESHOLD: float = float(
         os.getenv("ML_CONFIDENCE_THRESHOLD", "40.0"),
     )  # Threshold for ML consensus confirmation (40% = directional conviction)

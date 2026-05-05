@@ -2781,8 +2781,11 @@ class PortfolioManager:
             )
             leverage = constants.LEVERAGE_MAX_OP
 
-        if not (0 <= confidence <= 1):
-            confidence = 0.5
+        if confidence < Config.MIN_CONFIDENCE:
+            print(
+                f"[BLOCK] LOW CONFIDENCE: {coin} trade confidence {confidence:.2f} < {Config.MIN_CONFIDENCE}. Skipping."
+            )
+            return {"proceed": False}
 
         return {"proceed": True, "confidence": confidence, "leverage": leverage}
 
@@ -3404,7 +3407,9 @@ class PortfolioManager:
             original_conf = confidence
             confidence = max(confidence * 0.92, confidence - 0.05)
             min_floor = original_conf * 0.85
-            confidence = max(confidence, min_floor, Config.MIN_CONFIDENCE)
+            confidence = max(
+                confidence, min_floor
+            )  # Removed Config.MIN_CONFIDENCE floor to allow blocking low-vol trades
             log_func(
                 "volume",
                 f"[INFO] LOW VOLUME PENALTY (HYBRID): {coin} 3m ratio {volume_ratio_3m:.2f}x, 15m ratio {volume_ratio_15m:.2f}x. Confidence {original_conf:.2f} -> {confidence:.2f}",

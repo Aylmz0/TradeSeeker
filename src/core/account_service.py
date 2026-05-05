@@ -1173,11 +1173,24 @@ class AccountService:
             )
             return {"action": "close_position", "reason": reason}
 
-        # --- GRADUATED LOSS CUTTING MECHANISM (Margin-based) ---
-        # Relaxed for Volatility Sizing: Acts as "Disaster Stop" only.
-        # Primary risk is controlled by Position Sizing ($3 risk).
-        loss_multiplier = self.pm.get_graduated_loss_multiplier(margin_used)
+        # --- 1. HARD STOP LOSS ENFORCEMENT ---
+        primary_sl = exit_plan.get("stop_loss")
+        if primary_sl and isinstance(primary_sl, (int, float)) and primary_sl > 0:
+            sl_hit = False
+            if direction == "long" and current_price <= primary_sl:
+                sl_hit = True
+            elif direction == "short" and current_price >= primary_sl:
+                sl_hit = True
 
+            if sl_hit:
+                reason = f"Stop Loss (${primary_sl:.6f}) hit at ${current_price:.6f}"
+                print(
+                    f"[ALERT] STOP LOSS HIT: {position['symbol']} {direction} closed at ${current_price:.6f} ({reason})"
+                )
+                return {"action": "close_position", "reason": reason}
+
+        # --- 2. GRADUATED LOSS CUTTING MECHANISM (Margin-based) ---
+        loss_multiplier = self.pm.get_graduated_loss_multiplier(margin_used)
         loss_threshold_usd = margin_used * loss_multiplier
 
         if direction == "long":
