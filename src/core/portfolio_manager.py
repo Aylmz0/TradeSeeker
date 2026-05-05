@@ -2785,6 +2785,17 @@ class PortfolioManager:
             print(
                 f"[BLOCK] LOW CONFIDENCE: {coin} trade confidence {confidence:.2f} < {Config.MIN_CONFIDENCE}. Skipping."
             )
+            execution_report = signal_ctx.get("report", {})
+            if execution_report is not None:
+                execution_report["blocked"].append(
+                    {
+                        "coin": coin,
+                        "reason": "low_confidence",
+                        "confidence": confidence,
+                        "threshold": Config.MIN_CONFIDENCE,
+                    }
+                )
+            trade["runtime_decision"] = "blocked_low_confidence"
             return {"proceed": False}
 
         return {"proceed": True, "confidence": confidence, "leverage": leverage}
@@ -2873,6 +2884,19 @@ class PortfolioManager:
                             "adjustments": adjustments,
                             "final_confidence": confidence,
                         },
+                    )
+                    # Also record in debug_logs for persistent history analysis
+                    if "debug_logs" not in execution_report:
+                        execution_report["debug_logs"] = []
+
+                    execution_report["debug_logs"].append(
+                        {
+                            "coin": coin,
+                            "type": "confidence_adjustment",
+                            "base": signal_ctx.get("confidence", 0.5),
+                            "adjustments": adjustments,
+                            "final": confidence,
+                        }
                     )
         except (KeyError, AttributeError, ValueError):
             pass
@@ -3759,6 +3783,7 @@ class PortfolioManager:
                 if guard_cycles_since_flip == 0:
                     confidence = max(orig_conf * 0.97, orig_conf - 0.02, orig_conf * 0.95)
                     partial_margin_factor = min(partial_margin_factor, 0.7)
+                    note = f"flip_guard_cycle_0({orig_conf:.2f}->{confidence:.2f})"
                     log_func(
                         "sizing",
                         f"[WATCH] Trend flip guard (trend-following): {coin} confidence {orig_conf:.2f} → {confidence:.2f} & sizing 50% immediately after flip.",
@@ -3766,6 +3791,7 @@ class PortfolioManager:
                 elif guard_cycles_since_flip == 1:
                     confidence = max(orig_conf * 0.98, orig_conf - 0.01, orig_conf * 0.97)
                     partial_margin_factor = min(partial_margin_factor, 0.8)
+                    note = f"flip_guard_cycle_1({orig_conf:.2f}->{confidence:.2f})"
                     log_func(
                         "sizing",
                         f"[WATCH] Trend flip guard (trend-following): {coin} confidence {orig_conf:.2f} → {confidence:.2f} & sizing 70% {constants.ALIGNMENT_STRENGTH_L1} cycle after flip.",
@@ -3773,10 +3799,28 @@ class PortfolioManager:
                 elif guard_cycles_since_flip == constants.TREND_FLIP_COOLDOWN_DEFAULT:
                     confidence = max(orig_conf * 0.99, orig_conf * 0.98)
                     partial_margin_factor = min(partial_margin_factor, 0.90)
+                    note = f"flip_guard_cycle_{constants.TREND_FLIP_COOLDOWN_DEFAULT}({orig_conf:.2f}->{confidence:.2f})"
                     log_func(
                         "sizing",
                         f"[WATCH] Trend flip guard (trend-following): {coin} confidence {orig_conf:.2f} → {confidence:.2f} & sizing 85% {constants.TREND_FLIP_COOLDOWN_DEFAULT} cycles after flip.",
                     )
+                else:
+                    note = None
+
+                if note:
+                    execution_report = guard_ctx.get("report", {})
+                    if execution_report is not None:
+                        if "debug_logs" not in execution_report:
+                            execution_report["debug_logs"] = []
+                        execution_report["debug_logs"].append(
+                            {
+                                "coin": coin,
+                                "type": "flip_guard_adjustment",
+                                "before": orig_conf,
+                                "after": confidence,
+                                "note": note,
+                            }
+                        )
 
         trade["confidence"] = confidence
         return confidence, partial_margin_factor
