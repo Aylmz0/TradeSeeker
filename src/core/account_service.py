@@ -1064,77 +1064,119 @@ class AccountService:
 
         return len(closed_positions) > 0  # Indicate if any positions were closed
 
-    def get_profit_levels_by_notional(self, notional_usd: float) -> dict[str, float]:
-        """Get dynamic profit levels based on notional size"""
+    def get_dynamic_exit_tiers(self, notional_usd: float) -> dict[str, float]:
+        """Get dynamic exit tiers (profit/loss) based on notional size"""
         if notional_usd < constants.NOTIONAL_TIER_1:
-            # Small positions: aggressive profit taking
+            # Small positions: aggressive
             return {
-                "level1": 0.008,  # %0.7
-                "level2": 0.009,  # %0.9
-                "level3": 0.01,  # %1.1
-                "take1": 0.35,  # 25% profit take
-                "take2": 0.60,  # 50% profit take
-                "take3": 0.75,  # 75% profit take
+                "level1": 0.008,
+                "level2": 0.009,
+                "level3": 0.01,
+                "take1": 0.35,
+                "take2": 0.60,
+                "take3": 0.75,
             }
         if notional_usd < constants.NOTIONAL_TIER_2:
-            # Medium positions: balanced profit taking
+            # Medium positions: balanced
             return {
-                "level1": 0.007,  # %0.7
-                "level2": 0.008,  # %0.9
-                "level3": 0.009,  # %1.1
+                "level1": 0.007,
+                "level2": 0.008,
+                "level3": 0.009,
                 "take1": 0.30,
                 "take2": 0.55,
-                "take3": 0.75,  # 75% profit take
+                "take3": 0.75,
             }
         if notional_usd < constants.NOTIONAL_TIER_3:
-            # Medium positions: balanced profit taking
             return {
-                "level1": 0.006,  # %0.7
-                "level2": 0.007,  # %0.9
-                "level3": 0.008,  # %1.1
+                "level1": 0.006,
+                "level2": 0.007,
+                "level3": 0.008,
                 "take1": 0.25,
                 "take2": 0.50,
-                "take3": 0.75,  # 75% profit take
+                "take3": 0.75,
             }
         if notional_usd < constants.NOTIONAL_TIER_4:
-            # Large positions: conservative profit taking
+            # Large positions: conservative
             return {
-                "level1": 0.005,  # %0.6
-                "level2": 0.006,  # %0.8
-                "level3": 0.007,  # %1.0
+                "level1": 0.005,
+                "level2": 0.006,
+                "level3": 0.007,
                 "take1": 0.20,
                 "take2": 0.45,
-                "take3": 0.75,  # 75% profit take
+                "take3": 0.75,
             }
         if notional_usd < constants.NOTIONAL_TIER_5:
-            # xLarge positions: conservative profit taking
             return {
-                "level1": 0.004,  # %0.5
-                "level2": 0.005,  # %0.7
-                "level3": 0.006,  # %0.9
+                "level1": 0.004,
+                "level2": 0.005,
+                "level3": 0.006,
                 "take1": 0.18,
                 "take2": 0.40,
-                "take3": 0.75,  # 75% profit take
+                "take3": 0.75,
             }
         if notional_usd < constants.NOTIONAL_TIER_6:
-            # xxLarge positions: conservative profit taking
             return {
-                "level1": 0.003,  # %0.
-                "level2": 0.004,  # %0.6
-                "level3": 0.005,  # %0.8
+                "level1": 0.003,
+                "level2": 0.004,
+                "level3": 0.005,
                 "take1": 0.15,
                 "take2": 0.35,
-                "take3": 0.75,  # 75% profit take
+                "take3": 0.75,
             }
-        # Very large positions: very conservative profit taking
+        # Very large positions: very conservative
         return {
-            "level1": 0.002,  # %0.3
-            "level2": 0.003,  # %0.5
-            "level3": 0.004,  # %0.7
-            "take1": 0.25,  # 25% profit take
-            "take2": 0.50,  # 50% profit take
-            "take3": 0.75,  # 75% profit take
+            "level1": 0.002,
+            "level2": 0.003,
+            "level3": 0.004,
+            "take1": 0.25,
+            "take2": 0.50,
+            "take3": 0.75,
         }
+
+    def _process_partial_exit_logic(
+        self, position: dict, pnl_pct: float, tiers: dict
+    ) -> dict[str, Any] | None:
+        """Unified processor for partial profit and partial loss exits."""
+        abs_pnl = abs(pnl_pct)
+        is_profit = pnl_pct > 0
+
+        # Determine labels and limit adjustment methods
+        type_label = "Profit taking" if is_profit else "Loss mitigation"
+        # For profit, we respect Max Limit. For loss, we check Min Limit (remaining margin).
+        adj_func = (
+            self.pm._adjust_partial_sale_for_max_limit
+            if is_profit
+            else self.pm._adjust_partial_sale_for_min_limit
+        )
+
+        # Check tiers from highest (Level 3) to lowest (Level 1)
+        for i in range(3, 0, -1):
+            level_key = f"level{i}"
+            take_key = f"take{i}"
+
+            if abs_pnl >= tiers[level_key]:
+                # Avoid repeat execution for the same level in the same direction (especially for loss mitigation)
+                executed_flag = f"{type_label.lower().replace(' ', '_')}_L{i}_active"
+                if position.get(executed_flag):
+                    continue
+
+                take_percent = tiers[take_key]
+                adjusted_percent, force_close, reason = adj_func(position, take_percent)
+
+                if force_close:
+                    return {
+                        "action": "close_position",
+                        "reason": reason or f"Hard limit reached during {type_label}",
+                    }
+
+                if adjusted_percent > 0:
+                    position[executed_flag] = True
+                    return {
+                        "action": "partial_close",
+                        "percent": adjusted_percent,
+                        "reason": f"{type_label} at {tiers[level_key] * 100:.1f}% {'gain' if is_profit else 'loss'} ({adjusted_percent * 100:.0f}%)",
+                    }
+        return None
 
     def enhanced_exit_strategy(self, position: dict, current_price: float) -> dict[str, Any]:
         """Enhanced exit strategy with dynamic profit taking and KADEMELİ loss cutting"""
@@ -1207,168 +1249,37 @@ class AccountService:
                 "reason": f"Margin-based loss cut ${unrealized_loss_usd:.2f} >= ${loss_threshold_usd:.2f}",
             }
 
-        # Get dynamic profit levels based on notional size
-        profit_levels = self.get_profit_levels_by_notional(notional_usd)
-        level1 = profit_levels["level1"]
-        level2 = profit_levels["level2"]
-        level3 = profit_levels["level3"]
-        take1 = profit_levels["take1"]
-        take2 = profit_levels["take2"]
-        take3 = profit_levels["take3"]
+        # Get dynamic exit tiers based on notional size
+        exit_tiers = self.get_dynamic_exit_tiers(notional_usd)
 
-        print(
-            f"[INFO]  Dynamic profit levels for ${notional_usd:.2f} notional: {level1 * 100:.1f}%/{level2 * 100:.1f}%/{level3 * 100:.1f}%",
+        # Calculate PnL percent
+        unrealized_pnl_percent = (unrealized_pnl / notional_usd) if notional_usd else 0.0
+
+        # FIRST: Always evaluate and update trailing stop when in profit
+        if unrealized_pnl_percent > 0:
+            trailing_action = self._evaluate_trailing_stop(
+                position=position,
+                current_price=current_price,
+                profit_target=profit_target,
+                direction=direction,
+                entry_price=entry_price,
+                unrealized_pnl_percent=unrealized_pnl_percent,
+                profit_levels=exit_tiers,
+            )
+        else:
+            trailing_action = None
+
+        # CENTRAL PARTIAL EXIT ENGINE (Profit and Loss)
+        partial_exit_decision = self._process_partial_exit_logic(
+            position, unrealized_pnl_percent, exit_tiers
         )
 
-        if direction == "long":
-            unrealized_pnl_usd = max(0.0, (current_price - entry_price) * position["quantity"])
-            unrealized_pnl_percent = (unrealized_pnl_usd / notional_usd) if notional_usd else 0.0
+        if partial_exit_decision:
+            return partial_exit_decision
 
-            # FIRST: Always evaluate and update trailing stop when in profit
-            # This ensures stop loss is tightened even when partial take happens
-            trailing_action = self._evaluate_trailing_stop(
-                position=position,
-                current_price=current_price,
-                profit_target=profit_target,
-                direction=direction,
-                entry_price=entry_price,
-                unrealized_pnl_percent=unrealized_pnl_percent,
-                profit_levels=profit_levels,
-            )
-            # If trailing stop updated, the new stop is already saved in position['exit_plan']
-            # We don't return here - continue to check partial take
-
-            # Dynamic Profit Taking Levels based on notional size
-            if unrealized_pnl_percent >= level3:  # Level 3 profit - take 75%
-                take_profit_percent = take3
-                adjusted_percent, force_close, reason = self.pm._adjust_partial_sale_for_max_limit(
-                    position,
-                    take_profit_percent,
-                )
-                if force_close:
-                    return {
-                        "action": "close_position",
-                        "reason": reason or "Maximum limit reached during profit taking",
-                    }
-                if adjusted_percent > 0:
-                    return {
-                        "action": "partial_close",
-                        "percent": adjusted_percent,
-                        "reason": f"Profit taking at {level3 * 100:.1f}% gain ({adjusted_percent * 100:.0f}%)",
-                    }
-            elif unrealized_pnl_percent >= level2:  # Level 2 profit - take 50%
-                take_profit_percent = take2
-                adjusted_percent, force_close, reason = self.pm._adjust_partial_sale_for_max_limit(
-                    position,
-                    take_profit_percent,
-                )
-                if force_close:
-                    return {
-                        "action": "close_position",
-                        "reason": reason or "Maximum limit reached during profit taking",
-                    }
-                if adjusted_percent > 0:
-                    return {
-                        "action": "partial_close",
-                        "percent": adjusted_percent,
-                        "reason": f"Profit taking at {level2 * 100:.1f}% gain ({adjusted_percent * 100:.0f}%)",
-                    }
-            elif unrealized_pnl_percent >= level1:  # Level 1 profit - take 25%
-                take_profit_percent = take1
-                adjusted_percent, force_close, reason = self.pm._adjust_partial_sale_for_max_limit(
-                    position,
-                    take_profit_percent,
-                )
-                if force_close:
-                    return {
-                        "action": "close_position",
-                        "reason": reason or "Maximum limit reached during profit taking",
-                    }
-                if adjusted_percent > 0:
-                    return {
-                        "action": "partial_close",
-                        "percent": adjusted_percent,
-                        "reason": f"Profit taking at {level1 * 100:.1f}% gain ({adjusted_percent * 100:.0f}%)",
-                    }
-
-            # If trailing stop was updated but no partial take, return the trailing action
-            if trailing_action:
-                return trailing_action
-
-        elif direction == "short":
-            unrealized_pnl_usd = max(0.0, (entry_price - current_price) * position["quantity"])
-            unrealized_pnl_percent = (unrealized_pnl_usd / notional_usd) if notional_usd else 0.0
-
-            # FIRST: Always evaluate and update trailing stop when in profit
-            # This ensures stop loss is tightened even when partial take happens
-            trailing_action = self._evaluate_trailing_stop(
-                position=position,
-                current_price=current_price,
-                profit_target=profit_target,
-                direction=direction,
-                entry_price=entry_price,
-                unrealized_pnl_percent=unrealized_pnl_percent,
-                profit_levels=profit_levels,
-            )
-            # If trailing stop updated, the new stop is already saved in position['exit_plan']
-            # We don't return here - continue to check partial take
-
-            # Dynamic Profit Taking Levels for shorts based on notional size
-            if unrealized_pnl_percent >= level3:  # Level 3 profit - take 75%
-                take_profit_percent = take3
-                adjusted_percent, force_close, reason = self.pm._adjust_partial_sale_for_max_limit(
-                    position,
-                    take_profit_percent,
-                )
-                if force_close:
-                    return {
-                        "action": "close_position",
-                        "reason": reason or "Maximum limit reached during profit taking",
-                    }
-                if adjusted_percent > 0:
-                    return {
-                        "action": "partial_close",
-                        "percent": adjusted_percent,
-                        "reason": f"Profit taking at {level3 * 100:.1f}% gain ({adjusted_percent * 100:.0f}%)",
-                    }
-            elif unrealized_pnl_percent >= level2:  # Level 2 profit - take 50%
-                take_profit_percent = take2
-                adjusted_percent, force_close, reason = self.pm._adjust_partial_sale_for_max_limit(
-                    position,
-                    take_profit_percent,
-                )
-                if force_close:
-                    return {
-                        "action": "close_position",
-                        "reason": reason or "Maximum limit reached during profit taking",
-                    }
-                if adjusted_percent > 0:
-                    return {
-                        "action": "partial_close",
-                        "percent": adjusted_percent,
-                        "reason": f"Profit taking at {level2 * 100:.1f}% gain ({adjusted_percent * 100:.0f}%)",
-                    }
-            elif unrealized_pnl_percent >= level1:  # Level 1 profit - take 25%
-                take_profit_percent = take1
-                adjusted_percent, force_close, reason = self.pm._adjust_partial_sale_for_max_limit(
-                    position,
-                    take_profit_percent,
-                )
-                if force_close:
-                    return {
-                        "action": "close_position",
-                        "reason": reason or "Maximum limit reached during profit taking",
-                    }
-                if adjusted_percent > 0:
-                    return {
-                        "action": "partial_close",
-                        "percent": adjusted_percent,
-                        "reason": f"Profit taking at {level1 * 100:.1f}% gain ({adjusted_percent * 100:.0f}%)",
-                    }
-
-            # If trailing stop was updated but no partial take, return the trailing action
-            if trailing_action:
-                return trailing_action
+        # If no partial exit but trailing stop was updated, return trailing action
+        if trailing_action:
+            return trailing_action
 
         return exit_decision
 
