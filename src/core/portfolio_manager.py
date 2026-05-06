@@ -1874,8 +1874,10 @@ class PortfolioManager:
         return adjusted_percent, False, None
 
     def _adjust_partial_sale_for_min_limit(
-        self, position: dict[str, Any], proposed_percent: float
-    ) -> float:
+        self,
+        position: dict[str, Any],
+        proposed_percent: float,
+    ) -> tuple[float, bool, str | None]:
         """Adjust partial sale percentage to respect the minimum margin limit.
 
         Args:
@@ -1885,42 +1887,44 @@ class PortfolioManager:
 
         Returns:
         -------
-            The adjusted sale percentage.
+            A tuple of (adjusted_percent, should_close_entirely, reason).
 
         """
         current_margin = position.get("margin_usd", 0)
         if current_margin <= 0:
-            # Fallback: Calculate from notional/leverage if margin_usd is missing/zero
             notional = position.get("notional_usd", 0)
             leverage = position.get("leverage", 1)
             if notional > 0 and leverage > 0:
                 current_margin = notional / leverage
-            elif position.get("entry_price", 0) > 0 and position.get("quantity", 0) > 0:
-                current_margin = (position["entry_price"] * position["quantity"]) / position.get(
-                    "leverage",
-                    10,
-                )
 
-        # Calculate dynamic minimum limit: $10 fixed OR 10% of available cash, whichever is larger (from Config)
+        # Calculate dynamic minimum limit
         min_remaining = self._calculate_dynamic_minimum_limit()
 
-        if current_margin <= min_remaining:
-            # Position already at or below minimum, don't sell
-            print(
-                f"🛑 Partial sale blocked: Position margin ${current_margin:.2f} <= minimum limit ${min_remaining:.2f}",
+        # If current margin is already very close to or below minimum, force close
+        # This prevents leaving "dust" during loss mitigation
+        if current_margin < (min_remaining * 1.1):
+            return (
+                0.0,
+                True,
+                f"Position margin ${current_margin:.2f} near or below minimum ${min_remaining:.2f}",
             )
-            return 0.0
 
         # Calculate remaining margin after proposed sale
         remaining_after_proposed = current_margin * (1 - proposed_percent)
 
         if remaining_after_proposed >= min_remaining:
             # Proposed sale keeps us above minimum, use as-is
-            return proposed_percent
+            return proposed_percent, False, None
+
         # Adjust sale to leave exactly min_remaining margin
         adjusted_sale_amount = current_margin - min_remaining
-        # FIX: Division by zero protection
         adjusted_percent = adjusted_sale_amount / current_margin if current_margin > 0 else 0.0
+
+        # If the adjustment makes the sale tiny (e.g., < 5%), just don't do partial sale
+        if adjusted_percent < 0.05:
+            return 0.0, False, "Adjusted sale percentage too small"
+
+        return adjusted_percent, False, f"Adjusted to maintain minimum margin ${min_remaining:.2f}"
 
         print(
             f"[INFO]  Adjusted partial sale: {proposed_percent * 100:.0f}% → {adjusted_percent * 100:.0f}% to maintain ${min_remaining:.2f} minimum limit",
