@@ -165,9 +165,6 @@ class Config:
     }
 
     # Choppy Regime Detection Settings
-    CHOPPY_ER_THRESHOLD: float = float(
-        os.getenv("CHOPPY_ER_THRESHOLD", "0.35"),
-    )  # ER < 0.35 = Choppy
     CHOPPY_COIN_RATIO_MIN: float = float(
         os.getenv("CHOPPY_COIN_RATIO_MIN", "0.5"),
     )  # >50% coins choppy

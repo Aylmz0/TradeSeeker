@@ -1231,7 +1231,20 @@ class AccountService:
                 )
                 return {"action": "close_position", "reason": reason}
 
-        # --- 2. GRADUATED LOSS CUTTING MECHANISM (Margin-based) ---
+        # Get dynamic exit tiers based on notional size
+        exit_tiers = self.get_dynamic_exit_tiers(notional_usd)
+
+        # Calculate PnL percent
+        unrealized_pnl_percent = (unrealized_pnl / notional_usd) if notional_usd else 0.0
+
+        # --- 2. CENTRAL PARTIAL EXIT ENGINE (Evaluated BEFORE Graduated Loss Cut) ---
+        partial_exit_decision = self._process_partial_exit_logic(
+            position, unrealized_pnl_percent, exit_tiers
+        )
+        if partial_exit_decision:
+            return partial_exit_decision
+
+        # --- 3. GRADUATED LOSS CUTTING MECHANISM (Margin-based - Final Defense) ---
         loss_multiplier = self.pm.get_graduated_loss_multiplier(margin_used)
         loss_threshold_usd = margin_used * loss_multiplier
 
@@ -1249,12 +1262,6 @@ class AccountService:
                 "reason": f"Margin-based loss cut ${unrealized_loss_usd:.2f} >= ${loss_threshold_usd:.2f}",
             }
 
-        # Get dynamic exit tiers based on notional size
-        exit_tiers = self.get_dynamic_exit_tiers(notional_usd)
-
-        # Calculate PnL percent
-        unrealized_pnl_percent = (unrealized_pnl / notional_usd) if notional_usd else 0.0
-
         # FIRST: Always evaluate and update trailing stop when in profit
         if unrealized_pnl_percent > 0:
             trailing_action = self._evaluate_trailing_stop(
@@ -1268,14 +1275,6 @@ class AccountService:
             )
         else:
             trailing_action = None
-
-        # CENTRAL PARTIAL EXIT ENGINE (Profit and Loss)
-        partial_exit_decision = self._process_partial_exit_logic(
-            position, unrealized_pnl_percent, exit_tiers
-        )
-
-        if partial_exit_decision:
-            return partial_exit_decision
 
         # If no partial exit but trailing stop was updated, return trailing action
         if trailing_action:
