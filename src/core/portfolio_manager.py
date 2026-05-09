@@ -3266,6 +3266,32 @@ class PortfolioManager:
         # 4. Classification & Bias
         is_ct = self._is_counter_trend_trade(coin, signal, inds_3m, inds_htf)
         classification = "counter_trend" if is_ct else "trend_following"
+
+        # --- CT Risk Confidence Multiplier ---
+        # Counter-trend entries are structurally riskier (HIGH_RISK). Apply a soft penalty
+        # so they need a higher base confidence to clear MIN_CONFIDENCE threshold.
+        # Trend-following entries (LOW_RISK) get a small reward for alignment quality.
+        pre_ct_conf = signal_ctx["confidence"]
+        if is_ct:
+            ct_multiplier = 0.90
+            ct_label = "CT_HIGH_RISK"
+        else:
+            ct_multiplier = 1.10
+            ct_label = "CT_LOW_RISK"
+
+        signal_ctx["confidence"] = min(1.0, pre_ct_conf * ct_multiplier)
+        log_func(
+            "confidence",
+            f"[INFO] CT Risk Multiplier: {coin} {ct_label} → {pre_ct_conf:.3f} × {ct_multiplier} = {signal_ctx['confidence']:.3f}",
+            {
+                "coin": coin,
+                "ct_label": ct_label,
+                "pre_ct_confidence": round(pre_ct_conf, 4),
+                "ct_multiplier": ct_multiplier,
+                "post_ct_confidence": round(signal_ctx["confidence"], 4),
+            },
+        )
+
         # Clash/Bias refinement
         conf = self._handle_trend_clash_and_bias(signal_ctx, curr_trend)
         trade["classification"] = classification

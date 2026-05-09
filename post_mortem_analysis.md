@@ -1,6 +1,6 @@
 # 🕵️ TradeSeeker Forensic Post-Mortem Analysis v2
-*Deep analysis of 29 trades across 522 cycles*
-*Generated: 2026-05-05 20:36:27 UTC*
+*Deep analysis of 62 trades across 920 cycles*
+*Generated: 2026-05-09 07:08:30 UTC*
 
 ## 1. Exit Reason Breakdown (Why Trades Close)
 > [!IMPORTANT]
@@ -8,30 +8,31 @@
 
 | Close Category | Trades | Total PnL | Avg PnL | Win Rate |
 | :--- | :---: | :---: | :---: | :---: |
-| Margin Loss Cut | 4 | $-18.77 | $-4.69 | 0.0% |
-| AI Signal | 13 | $-6.42 | $-0.49 | 46.2% |
-| Extended Loss Timer | 3 | $-4.06 | $-1.35 | 0.0% |
-| Take Profit | 4 | $1.38 | $0.35 | 75.0% |
-| Other | 5 | $4.44 | $0.89 | 100.0% |
+| Extended Loss Timer | 10 | $-9.06 | $-0.91 | 0.0% |
+| AI Signal | 23 | $-8.04 | $-0.35 | 30.4% |
+| Margin Loss Cut | 1 | $-3.87 | $-3.87 | 0.0% |
+| Other | 10 | $0.08 | $0.01 | 60.0% |
+| Stop Loss | 7 | $5.48 | $0.78 | 100.0% |
+| Take Profit | 11 | $7.92 | $0.72 | 100.0% |
 
 ### Raw Close Reasons (Top 15)
 | Reason | Count |
 | :--- | :---: |
-| AI close_position signal | 13 |
-| Position negative for 20 cycles | 3 |
-| Position margin $14.09 <= maximum limit $15.01 | 1 |
-| Position margin $14.10 <= maximum limit $15.21 | 1 |
-| Margin-based loss cut $4.67 >= $4.60 | 1 |
-| Taking profit after 20 profitable cycles (PnL $0.45) | 1 |
-| Position margin $11.53 <= maximum limit $11.90 | 1 |
-| Taking profit after 20 profitable cycles (PnL $0.97) | 1 |
-| Position margin $10.00 <= maximum limit $12.55 | 1 |
-| Taking profit after 20 profitable cycles (PnL $0.60) | 1 |
-| Margin-based loss cut $3.64 >= $3.49 | 1 |
-| Margin-based loss cut $4.63 >= $3.81 | 1 |
-| Margin-based loss cut $3.86 >= $3.81 | 1 |
-| Position margin $11.47 <= maximum limit $11.52 | 1 |
-| Taking profit after 20 profitable cycles (PnL $0.17) | 1 |
+| AI close_position signal | 23 |
+| Position negative for 20 cycles | 10 |
+| Taking profit after 20 profitable cycles (PnL $1.34) | 1 |
+| Stop Loss ($88.937796) hit at $88.930000 | 1 |
+| Taking profit after 20 profitable cycles (PnL $1.20) | 1 |
+| Taking profit after 20 profitable cycles (PnL $0.98) | 1 |
+| Margin-based loss cut $3.45 >= $3.34 | 1 |
+| Stop Loss ($2342.162592) hit at $2347.030000 | 1 |
+| Stop Loss ($0.112308) hit at $0.112320 | 1 |
+| Taking profit after 20 profitable cycles (PnL $1.03) | 1 |
+| Stop Loss ($0.110888) hit at $0.110930 | 1 |
+| Position margin $10.00 <= maximum limit $12.36 | 1 |
+| Taking profit after 20 profitable cycles (PnL $0.51) | 1 |
+| Position margin $10.00 near or below minimum $17.51 | 1 |
+| Position margin $15.74 near or below minimum $18.95 | 1 |
 
 ## 2. Trade Duration Analysis (Premature Exits?)
 > [!WARNING]
@@ -39,154 +40,170 @@
 
 | Duration | Trades | Total PnL | Avg PnL | Win Rate |
 | :--- | :---: | :---: | :---: | :---: |
-| < 15 min | 1 | $-4.34 | $-4.34 | 0.0% |
-| 15-60 min | 9 | $-1.11 | $-0.12 | 55.6% |
-| > 60 min | 19 | $-17.97 | $-0.95 | 47.4% |
+| < 15 min | 3 | $0.33 | $0.11 | 66.7% |
+| 15-60 min | 16 | $-1.33 | $-0.08 | 43.8% |
+| > 60 min | 43 | $-6.49 | $-0.15 | 51.2% |
 
-- **Average Trade Duration**: 114.9 minutes
-- **Median Trade Duration**: 114.6 minutes
+- **Average Trade Duration**: 112.2 minutes
+- **Median Trade Duration**: 104.7 minutes
 
 ## 3. AI Reasoning Pattern Analysis (CoT Mining)
 > [!IMPORTANT]
 > This section reveals the AI's thought process at the moment of entry. We look for patterns where the AI ignored its own warnings.
 
-**Matched 12 trades to their AI reasoning cycles.**
+**Matched 24 trades to their AI reasoning cycles.**
 
 ### Entry Quality Flags
 | Flag | Trades | PnL | Win Rate | Verdict |
 | :--- | :---: | :---: | :---: | :--- |
-| Entered w/ POOR Volume | 7 | $-10.25 | 14.3% | ⚠️ Problem |
-| Entered w/ WEAKENING Momentum | 12 | $-7.31 | 41.7% | ✅ Acceptable |
-| ML Said SELL (but bot went long/short) | 8 | $-5.82 | 25.0% | ⚠️ Problem |
-| ML Said BUY | 7 | $-3.32 | 42.9% | ✅ Acceptable |
-| HIGH_RISK Counter-Trend | 12 | $-7.31 | 41.7% | ✅ Acceptable |
-| Counter-Trend Strategy | 12 | $-7.31 | 41.7% | ✅ Acceptable |
+| Entered w/ POOR Volume | 10 | $0.06 | 50.0% | ✅ Acceptable |
+| Entered w/ WEAKENING Momentum | 23 | $-1.53 | 47.8% | ✅ Acceptable |
+| ML Said SELL (but bot went long/short) | 13 | $-0.13 | 46.2% | ✅ Acceptable |
+| ML Said BUY | 15 | $0.22 | 53.3% | ✅ Acceptable |
+| HIGH_RISK Counter-Trend | 24 | $-1.88 | 45.8% | ✅ Acceptable |
+| Counter-Trend Strategy | 21 | $-1.08 | 47.6% | ✅ Acceptable |
 | Safe Mode / API Error | 0 | $0.00 | N/A | - |
 
 ### Worst 10 Trades - AI Reasoning Deep Dive
-#### #1. ETH LONG — PnL: $-2.93
-- **Entry**: 2026-05-03 23:25:56.813861+00:00
-- **Duration**: 42 min
-- **Close Reason**: AI Signal — `AI close_position signal`
-- **Strategy**: unknown | **Confidence**: 0
-- **Red Flags at Entry**: ⚠️POOR_VOL ⚠️WEAKENING 🔴ML_SELL 🚫HIGH_RISK ↩️COUNTER
+#### #1. SOL LONG — PnL: $-1.71
+- **Entry**: 2026-05-09 04:13:10.413176+00:00
+- **Duration**: 47 min
+- **Close Reason**: Other — `Position margin $18.34 near or below minimum $18.85`
+- **Strategy**: unknown | **Confidence**: 0.0
+- **Red Flags at Entry**: ⚠️POOR_VOL ⚠️WEAKENING 🔴ML_SELL 🚫HIGH_RISK
 - **AI Reasoning**: `=== INTERNAL REASONING ===
-Got it, let's tackle this step by step, following all the rules provided. First, I need to go through each coin one by one, using the analysis process outlined, check all constraints, then make decisions.
+Let me analyze this systematically according to the system rules.
 
-First, let's list out the key constraints we need to remember upfro`
+**Current State:**
+- 1 open position: XRP LONG (unrealized PnL: $0.83, confidence: 0.73)
+- Total positions: 1/4 max
+- Long slots used: 1, available: 1
+- Short slots available: 2
+- Invoked 6 times (cycles 4+`
 
-#### #2. SOL LONG — PnL: $-2.85
-- **Entry**: 2026-05-03 20:10:57.190800+00:00
-- **Duration**: 98 min
-- **Close Reason**: AI Signal — `AI close_position signal`
-- **Strategy**: unknown | **Confidence**: 0
-- **Red Flags at Entry**: ⚠️POOR_VOL ⚠️WEAKENING 🚫HIGH_RISK ↩️COUNTER
-- **AI Reasoning**: `=== INTERNAL REASONING ===
-Got it, let's tackle this step by step. First, I need to follow the system rules exactly, analyze each coin one by one using the High-Density Hybrid Analysis structure, then make decisions based on all the constraints.
-
-First, let's list out all the key constraints I need `
-
-#### #3. SOL LONG — PnL: $-2.09
-- **Entry**: 2026-05-02 22:02:15.751569+00:00
-- **Duration**: 137 min
+#### #2. ETH SHORT — PnL: $-1.30
+- **Entry**: 2026-05-08 06:44:00.954826+00:00
+- **Duration**: 152 min
 - **Close Reason**: Extended Loss Timer — `Position negative for 20 cycles`
-- **Strategy**: unknown | **Confidence**: 0
-- **Red Flags at Entry**: ⚠️POOR_VOL ⚠️WEAKENING 🔴ML_SELL 🚫HIGH_RISK ↩️COUNTER
+- **Strategy**: unknown | **Confidence**: 0.0
+- **Red Flags at Entry**: ⚠️WEAKENING 🚫HIGH_RISK ↩️COUNTER
 - **AI Reasoning**: `=== INTERNAL REASONING ===
-Got it, let's tackle this step by step, following the system rules exactly. First, I need to go through each coin one by one, analyze their state vectors, check all constraints, then make decisions. Let's start with the overview of current state first:
+Got it, let's tackle this step by step, following the system rules exactly. First, I need to go through each coin one by one, using the analysis process outlined, then check all constraints, then form the CHAIN_OF_THOUGHTS and DECISIONS.
 
-First, check global`
+First, let's list out all the coin`
 
-#### #4. DOGE SHORT — PnL: $-1.20
-- **Entry**: 2026-05-03 03:01:42.223293+00:00
-- **Duration**: 188 min
-- **Close Reason**: Extended Loss Timer — `Position negative for 20 cycles`
-- **Strategy**: unknown | **Confidence**: 0
-- **Red Flags at Entry**: ⚠️POOR_VOL ⚠️WEAKENING 🔴ML_SELL 🚫HIGH_RISK ↩️COUNTER
-- **AI Reasoning**: `=== INTERNAL REASONING ===
-Got it, let's tackle this step by step, following the system rules exactly. First, let's start with the CHAIN_OF_THOUGHTS, which needs to analyze each coin individually: 1h regime, 15m technicals, 3m timing, ML consensus, risk profile, then decision. Also, check all constr`
-
-#### #5. SOL LONG — PnL: $-0.72
-- **Entry**: 2026-05-03 23:25:56.814770+00:00
-- **Duration**: 21 min
+#### #3. SOL LONG — PnL: $-1.26
+- **Entry**: 2026-05-07 00:28:16.961944+00:00
+- **Duration**: 15 min
 - **Close Reason**: AI Signal — `AI close_position signal`
-- **Strategy**: unknown | **Confidence**: 0
-- **Red Flags at Entry**: ⚠️POOR_VOL ⚠️WEAKENING 🔴ML_SELL 🚫HIGH_RISK ↩️COUNTER
+- **Strategy**: unknown | **Confidence**: 0.0
+- **Red Flags at Entry**: ⚠️WEAKENING 🚫HIGH_RISK ↩️COUNTER
 - **AI Reasoning**: `=== INTERNAL REASONING ===
-Got it, let's tackle this step by step, following all the rules provided. First, I need to go through each coin one by one, using the analysis process outlined, check all constraints, then make decisions.
+Got it, let's tackle this step by step, following the system rules exactly. First, I need to go through each coin one by one, apply all the rules, check constraints, then structure the CHAIN_OF_THOUGHTS and DECISIONS correctly.
 
-First, let's list out the key constraints we need to remember upfro`
+First, let's list out all the constraints we`
 
-#### #6. ASTER SHORT — PnL: $-0.55
-- **Entry**: 2026-05-03 21:21:03.696942+00:00
-- **Duration**: 60 min
-- **Close Reason**: AI Signal — `AI close_position signal`
-- **Strategy**: unknown | **Confidence**: 0
-- **Red Flags at Entry**: ⚠️POOR_VOL ⚠️WEAKENING 🔴ML_SELL 🚫HIGH_RISK ↩️COUNTER
-- **AI Reasoning**: `=== INTERNAL REASONING ===
-Got it, let's tackle this step by step, following all the system rules. First, I need to go through each coin one by one, check all the constraints, then make decisions. Let's start with the basics: first, check position slots. The POSITION_SLOTS say long_slots_used is 2, `
-
-#### #7. SOL LONG — PnL: $-0.04
-- **Entry**: 2026-05-04 03:07:00.132482+00:00
-- **Duration**: 147 min
-- **Close Reason**: Take Profit — `Taking profit after 20 profitable cycles (PnL $0.17)`
-- **Strategy**: unknown | **Confidence**: 0
+#### #4. XRP SHORT — PnL: $-0.81
+- **Entry**: 2026-05-07 03:32:54.505176+00:00
+- **Duration**: 118 min
+- **Close Reason**: Other — `Position margin $10.00 near or below minimum $17.51`
+- **Strategy**: unknown | **Confidence**: 0.0
 - **Red Flags at Entry**: ⚠️WEAKENING 🔴ML_SELL 🚫HIGH_RISK ↩️COUNTER
 - **AI Reasoning**: `=== INTERNAL REASONING ===
-Got it, let's tackle this step by step, following the system rules exactly. First, I need to go through each coin one by one, apply all the constraints, check the state vectors, then make decisions. Let's start with the overall context first: we're at cycle 24, so startup `
+Got it, let's tackle this step by step, following the system rules exactly. First, I need to go through each coin one by one, check all the constraints, then make decisions. Let's start with the basics: current state first.
 
-#### #8. ETH LONG — PnL: $0.07
-- **Entry**: 2026-05-03 17:51:30.342497+00:00
-- **Duration**: 120 min
+First, note the time: 435 minutes since start, 1`
+
+#### #5. SOL LONG — PnL: $-0.78
+- **Entry**: 2026-05-07 10:03:22.558927+00:00
+- **Duration**: 45 min
 - **Close Reason**: AI Signal — `AI close_position signal`
-- **Strategy**: unknown | **Confidence**: 0
-- **Red Flags at Entry**: ⚠️POOR_VOL ⚠️WEAKENING 🚫HIGH_RISK ↩️COUNTER
+- **Strategy**: unknown | **Confidence**: 0.0
+- **Red Flags at Entry**: ⚠️POOR_VOL ⚠️WEAKENING 🔴ML_SELL 🚫HIGH_RISK ↩️COUNTER
 - **AI Reasoning**: `=== INTERNAL REASONING ===
-Got it, let's tackle this step by step, following all the system rules. First, I need to process each coin individually, starting with the existing position (SOL) first, then the others. Let's start with the CHAIN_OF_THOUGHTS structure, making sure to cover 1h, 15m, 3m, ML`
+Got it, let's tackle this step by step. First, I need to follow the system rules exactly, analyze each coin individually using the High-Density Hybrid Analysis structure, then make decisions based on all the constraints.
 
-#### #9. SOL LONG — PnL: $0.63
-- **Entry**: 2026-05-04 10:17:08.144678+00:00
-- **Duration**: 50 min
-- **Close Reason**: AI Signal — `AI close_position signal`
-- **Strategy**: unknown | **Confidence**: 0
+First, let's list out all the coins: XRP, DOGE, AST`
+
+#### #6. SOL SHORT — PnL: $-0.78
+- **Entry**: 2026-05-07 22:22:53.776258+00:00
+- **Duration**: 138 min
+- **Close Reason**: Extended Loss Timer — `Position negative for 20 cycles`
+- **Strategy**: unknown | **Confidence**: 0.0
 - **Red Flags at Entry**: ⚠️WEAKENING 🚫HIGH_RISK ↩️COUNTER
 - **AI Reasoning**: `=== INTERNAL REASONING ===
-Got it, let's tackle this step by step, following the system rules exactly. First, I need to go through each coin one by one, apply all the constraints, check the state vectors, then make decisions. Let's start with the setup first: current time is cycle 5? Wait no, the us`
+Got it, let's tackle this step by step, following all the system rules. First, I need to go through each coin one by one, check all the constraints, then make decisions. Let's start with the basics first: check cooldowns, position slots, volume rules, then each coin's data`
 
-#### #10. ASTER SHORT — PnL: $0.64
-- **Entry**: 2026-05-03 11:35:52.222134+00:00
-- **Duration**: 113 min
-- **Close Reason**: Other — `Position margin $10.00 <= maximum limit $12.55`
-- **Strategy**: unknown | **Confidence**: 0
-- **Red Flags at Entry**: ⚠️WEAKENING 🚫HIGH_RISK ↩️COUNTER
+#### #7. TRX LONG — PnL: $-0.73
+- **Entry**: 2026-05-06 16:40:42.387408+00:00
+- **Duration**: 277 min
+- **Close Reason**: AI Signal — `AI close_position signal`
+- **Strategy**: unknown | **Confidence**: 0.0
+- **Red Flags at Entry**: ⚠️POOR_VOL ⚠️WEAKENING 🔴ML_SELL 🚫HIGH_RISK ↩️COUNTER
 - **AI Reasoning**: `=== INTERNAL REASONING ===
-Got it, let's tackle this step by step, following the system rules exactly. First, I need to go through each coin one by one, analyze their state vectors, check all constraints, then make decisions. Let's start with the basics: we're at cycle 13, so startup caution (cycles`
+Got it, let's tackle this step by step, following all the system rules. First, I need to go through each coin one by one, apply the analysis process, check all constraints, then structure the CHAIN_OF_THOUGHTS and DECISIONS correctly.
+
+First, let's list out all the constra`
+
+#### #8. ETH SHORT — PnL: $-0.41
+- **Entry**: 2026-05-07 14:58:41.042338+00:00
+- **Duration**: 201 min
+- **Close Reason**: AI Signal — `AI close_position signal`
+- **Strategy**: unknown | **Confidence**: 0.0
+- **Red Flags at Entry**: ⚠️WEAKENING 🔴ML_SELL 🚫HIGH_RISK ↩️COUNTER
+- **AI Reasoning**: `=== INTERNAL REASONING ===
+Got it, let's tackle this step by step, following the system rules exactly. First, I need to go through each coin one by one, analyze all the required timeframes (1h regime, 15m technicals, 3m timing, ML consensus, risk profile, volume, etc.), then make decisions based on `
+
+#### #9. SOL LONG — PnL: $-0.36
+- **Entry**: 2026-05-08 10:53:35.445261+00:00
+- **Duration**: 108 min
+- **Close Reason**: Extended Loss Timer — `Position negative for 20 cycles`
+- **Strategy**: unknown | **Confidence**: 0.0
+- **Red Flags at Entry**: 🔴ML_SELL 🚫HIGH_RISK ↩️COUNTER
+- **AI Reasoning**: `=== INTERNAL REASONING ===
+Got it, let's tackle this step by step, following the system rules exactly. First, let's start with the CHAIN_OF_THOUGHTS part, where I need to analyze each coin individually: 1h (market_context.regime, efficiency_ratio, adx, price_location), 15m (technical_summary: moment`
+
+#### #10. DOGE LONG — PnL: $-0.31
+- **Entry**: 2026-05-08 11:04:01.111193+00:00
+- **Duration**: 45 min
+- **Close Reason**: AI Signal — `AI close_position signal`
+- **Strategy**: unknown | **Confidence**: 0.0
+- **Red Flags at Entry**: ⚠️POOR_VOL ⚠️WEAKENING 🔴ML_SELL 🚫HIGH_RISK ↩️COUNTER
+- **AI Reasoning**: `=== INTERNAL REASONING ===
+Got it, let's tackle this step by step, following all the system rules. First, I need to go through each coin one by one, apply the analysis process, check all constraints, then structure the CHAIN_OF_THOUGHTS and DECISIONS correctly.
+
+First, let's list out all the key sys`
 
 ## 4. ML Model Impact Analysis
 > [!CAUTION]
-> ML model accuracy from model_metrics.json: **48.30%**.
+> ML model accuracy from model_metrics.json: **42.70%**.
 
 | ML Context | Trades | Total PnL | Avg PnL | Win Rate |
 | :--- | :---: | :---: | :---: | :---: |
-| ML Said SELL | 8 | $-5.82 | $-0.73 | 25.0% |
-| ML Said BUY | 7 | $-3.32 | $-0.47 | 42.9% |
-| ML Neutral/Unknown | 2 | $-2.77 | $-1.39 | 50.0% |
+| ML Said SELL | 13 | $-0.13 | $-0.01 | 46.2% |
+| ML Said BUY | 15 | $0.22 | $0.01 | 53.3% |
+| ML Neutral/Unknown | 6 | $-0.81 | $-0.14 | 33.3% |
 
 ## 5. Strategy Performance
 | Strategy | Trades | Total PnL | Avg PnL | Win Rate |
 | :--- | :---: | :---: | :---: | :---: |
-| unknown | 12 | $-7.31 | $-0.61 | 41.7% |
+| unknown | 24 | $-1.88 | $-0.08 | 45.8% |
 
 ## 6. Confidence Score Analysis
 | Confidence Range | Trades | Total PnL | Avg PnL | Win Rate |
 | :--- | :---: | :---: | :---: | :---: |
-| Very Low (0-0.5) | 12 | $-7.31 | $-0.61 | 41.7% |
+| Very Low (0-0.5) | 23 | $-2.48 | $-0.11 | 43.5% |
+| Medium (0.65-0.75) | 1 | $0.60 | $0.60 | 100.0% |
 
 ## 🔬 DIAGNOSTIC VERDICT
 
-1. **Volume Blind Entries**: 7 trades entered despite AI noting POOR/LOW volume. Combined PnL: $-10.25, Win Rate: 14.3%. Volume quality IS checked by the runtime, but the AI ignores the signal when other factors look 'good enough'.
+1. **Extended Loss Timer**: 10 trades were force-closed after 15 negative cycles (EXTENDED_LOSS_CYCLES=15). These trades lost $-9.06. This timer is working correctly as a safety net.
 
-2. **ML Confusion**: When ML said SELL, total trade PnL was $-5.82. The ML model's 48.30% accuracy can be noise. The AI treats ML as a 'tie-breaker' per the prompt, but since ML is often unreliable, it's actually a 'wrong-breaker'.
+2. **Stop Loss Hits**: 7 trades hit stop loss for $5.48. Stop losses are functioning.
+
+3. **Volume Blind Entries**: 10 trades entered despite AI noting POOR/LOW volume. Combined PnL: $0.06, Win Rate: 50.0%. Volume quality IS checked by the runtime, but the AI ignores the signal when other factors look 'good enough'.
+
+4. **ML Confusion**: When ML said SELL, total trade PnL was $-0.13. The ML model's 42.70% accuracy can be noise. The AI treats ML as a 'tie-breaker' per the prompt, but since ML is often unreliable, it's actually a 'wrong-breaker'.
 
 ## 🎯 EVIDENCE-BASED RECOMMENDATIONS
 
@@ -194,7 +211,7 @@ Based on the data above, these are the **provable** fixes:
 
 1. **FIX: AI Premature Close Signal** — The AI closes positions too early (especially profitable ones that dip temporarily). Recommendation: Add a 'minimum hold period' (e.g., 3 cycles / ~12 min) before AI can issue close_position, UNLESS stop loss is hit.
 
-2. **FIX: ML Weight Reduction** — The XGBoost model at 48.30% accuracy can be problematic if recall is low. Either retrain with more data + better features, or reduce ML's influence in the prompt from 'tie-breaker' to 'informational only'.
+2. **FIX: ML Weight Reduction** — The XGBoost model at 42.70% accuracy can be problematic if recall is low. Either retrain with more data + better features, or reduce ML's influence in the prompt from 'tie-breaker' to 'informational only'.
 
 3. **FIX: Confidence Threshold** — Raise MIN_CONFIDENCE from 0.60 to at least 0.70. Data shows low-confidence entries have worse outcomes.
 
