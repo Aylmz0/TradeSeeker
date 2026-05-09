@@ -234,8 +234,8 @@ class DeepSeekAPI:
                         "risk_level_rules": {
                             "CT_LOW_RISK": "CT_ALIGNMENT_STRONG+5 OR CT_ALIGNMENT_MEDIUM+7 conditions. (High structural confluence). EXECUTE.",
                             "CT_MEDIUM_RISK": "CT_ALIGNMENT_STRONG+4 OR CT_ALIGNMENT_MEDIUM+6 OR NONE+8 conditions. EXECUTE if momentum confirms.",
-                            "CT_HIGH_RISK": "Counter-trend setup is too weak. Do NOT trade. (Wait for better alignment).",
-                            "CT_VERY_HIGH_RISK": "No alignment/conditions. Do NOT trade counter-trend. (Trend-Following unaffected).",
+                            "CT_HIGH_RISK": "Weak counter-trend setup. Entry requires ALL THREE of the following: (1) 15m structure has reversed against the 1h trend (LH_LL in bullish, HH_HL in bearish), (2) ML consensus supports counter-direction at ≥40%, (3) Zone exhaustion confirmed (UPPER_10 or LOWER_10) with WEAKENING momentum. Missing even one = HOLD.",
+                            "CT_VERY_HIGH_RISK": "No alignment/conditions. Do NOT trade counter-trend under any circumstances. (Trend-Following unaffected).",
                         },
                     },
                     # NOTE: Volume filtering is handled by runtime code - removed from prompt to avoid AI confusion
@@ -284,24 +284,24 @@ class DeepSeekAPI:
                         },
                     },
                     "volume_rule": {
-                        "threshold": "volume_ratio < 0.30 = LOW",
-                        "for_entry": "POOR volume is acceptable ONLY with strong structural confirmation (divergence + 15m structure, or counter-trend exhaustion).",
-                        "for_exit": "LOW volume ≠ exit signal.",
-                        "interpretation": "3m is your SENSOR. 15m is your ADVISOR. 1h is your BOSS. Do not let 3m noise block a structural 1h/15m setup.",
+                        "note": "LOW (volume_support=LOW) data IS visible to you in the state vector. However, LOW volume entries are hard-blocked by the runtime engine regardless of your decision. Do NOT signal entry on LOW volume.",
+                        "for_entry": "POOR (volume_support=POOR, ratio 0.30-0.7x) is acceptable ONLY with strong structural confirmation: 15m structure clearly reversed + divergence present, or confirmed zone exhaustion for counter-trend. FAIR and above: no restriction.",
+                        "for_exit": "Low volume is never an exit signal.",
+                        "interpretation": "3m is your SENSOR. 15m is your ADVISOR. 1h is your BOSS. Do not let 3m noise override a clear 1h/15m structural setup.",
                         "labels": {
-                            "excellent": "> 2.5x",
-                            "good": "> 1.8x",
-                            "fair": "> 1.2x",
-                            "poor": "< 0.7x",
+                            "EXCELLENT": "> 2.5x — Strong conviction, no restrictions.",
+                            "GOOD": "> 1.8x — Normal entry conditions.",
+                            "FAIR": "> 1.2x — Normal entry conditions.",
+                            "POOR": "0.30-0.7x — Entry only with strong structural confluence (see above).",
+                            "LOW": "< 0.30x — Runtime-blocked. Will not appear in your data.",
                         },
                     },
                 },
                 "exit_logic": {
                     "reversal_warning": {
                         "applicability": "Applies ONLY to EXISTING positions. Do NOT use for entries.",
-                        "definition": "Weighted scoring of signals AGAINST your current position.",
-                        "score_weights": "HTF(+3), 15m_structure(+5), ML_Consensus(+2), 15m_momentum(+1), RSI(+1), MACD(+1)",
-                        "action": "Consider closing based on strength level and PnL. EXIT MANDATORY on CRITICAL.",
+                        "definition": "Pre-computed multi-signal threat assessment AGAINST your current position. Provided as a label (RT_NONE/RT_WEAK/RT_STRONG/RT_CRITICAL) — interpret and act accordingly.",
+                        "action": "Consider closing based on strength label and current PnL. EXIT MANDATORY on RT_CRITICAL.",
                         "discipline_note": "15m Structure is your Master Gate. Avoid closing positions solely on 3m noise or momentum dips if the 15m structure (HH_HL/LH_LL) hasn't reversed.",
                     },
                     "reversal_strength_definitions": {
@@ -361,13 +361,19 @@ class DeepSeekAPI:
             },
             "state_vector_schema": {
                 "ml_consensus": {
-                    "description": "2026 XGBoost Model probabilities for next 15m-1h direction",
+                    "description": "2026 XGBoost Model probabilities for the next 45-minute price direction",
                     "fields": {
-                        "BUY": "Probability of price increase (0.0-1.0)",
-                        "SELL": "Probability of price decrease (0.0-1.0)",
-                        "HOLD": "Probability of ranging/neutral or Model Uncertainty (0.0-1.0)",
+                        "BUY": "Probability of upward move (0.0-1.0)",
+                        "SELL": "Probability of downward move (0.0-1.0)",
+                        "HOLD": "Probability of sideways/uncertain (0.0-1.0)",
                     },
-                    "usage": "Use ML as you would any other indicator (RSI, MACD, Volume). Consider it alongside your technical analysis. When ML and technicals agree, confidence increases. When they disagree, weigh the evidence. Interpretation: HOLD < 40% = Model has directional conviction (BUY+SELL > 60%); check which side dominates. HOLD > 50% = Model is uncertain; proceed with caution. BUY/SELL > 40% = Model favors that direction.",
+                    "role": "Conviction Amplifier — NOT a standalone entry signal. ML alone cannot justify an entry.",
+                    "usage": {
+                        "aligned": "When ML direction matches your technical analysis: treat as additional confirmation. Increases entry conviction.",
+                        "conflicting": "When ML opposes your technical analysis (opposite signal > 40%): treat as a caution flag. Reduce confidence or wait for stronger structural confirmation. Does NOT block entry alone.",
+                        "uncertain": "HOLD > 50%: Model is uncertain. Fall back to pure technical analysis (1h regime + 15m structure).",
+                        "reading": "HOLD < 40% = Directional conviction present (BUY+SELL > 60%), check dominant side. BUY or SELL > 40% = Model favors that direction.",
+                    },
                 },
                 "market_context": "regime (TF_STRONG_BULLISH/TF_STABLE_BULLISH/TF_WEAK_BULLISH/TF_STRONG_BEARISH/TF_STABLE_BEARISH/TF_WEAK_BEARISH/TF_NEUTRAL/CHOPPY), efficiency_ratio (ER < 0.30 = Choppy), adx, trend_strength_adx (STRONG/MODERATE/WEAK/NO_TREND), volatility_state (SQUEEZE/EXPANDING/NORMAL), price_location (UPPER_10/LOWER_10/MIDDLE). NOTE: CHOPPY (low efficiency) is a high-risk/low-conviction environment—prefer HOLDing or extreme caution.",
                 "technical_summary": "momentum (STRENGTHENING/STABLE/WEAKENING), volume_ratio (numeric), volume_support (EXCELLENT/GOOD/FAIR/POOR/LOW), structure_15m (HH_HL/LH_LL/RANGE/UNCLEAR)",
@@ -601,6 +607,14 @@ class DeepSeekAPI:
             if not cached_cycles:
                 return self.get_safe_hold_decisions()
 
+            # Load current open positions to prevent ghost entries
+            current_positions = set()
+            try:
+                portfolio_state = safe_file_read("data/portfolio_state.json", default_data={})
+                current_positions = set(portfolio_state.get("positions", {}).keys())
+            except Exception:
+                pass
+
             for cycle in reversed(cached_cycles[-5:]):  # Last 5 cycles
                 decisions = cycle.get("decisions", {})
                 if decisions and isinstance(decisions, dict):
@@ -612,9 +626,27 @@ class DeepSeekAPI:
                     ]
                     if valid_signals:
                         print("[INFO] Using cached decisions from recent successful cycle")
+                        # Neutralize entry signals for coins that already have an open position
+                        # to prevent ghost entries (double-open on same coin)
+                        safe_decisions = {}
+                        for coin, dec in decisions.items():
+                            if (
+                                isinstance(dec, dict)
+                                and dec.get("signal") in ["buy_to_enter", "sell_to_enter"]
+                                and coin in current_positions
+                            ):
+                                safe_decisions[coin] = {
+                                    "signal": "hold",
+                                    "justification": "Cache fallback: position already open, neutralized to avoid ghost entry.",
+                                }
+                                print(
+                                    f"[SHIELD] Cache ghost entry blocked for {coin} (position already open)."
+                                )
+                            else:
+                                safe_decisions[coin] = dec
                         fallback_response = {
                             "CHAIN_OF_THOUGHTS": "API Error - Using cached decisions from recent successful cycle. Continuing with established strategy.",
-                            "DECISIONS": decisions,
+                            "DECISIONS": safe_decisions,
                         }
                         return json.dumps(fallback_response, indent=2)
 

@@ -621,9 +621,9 @@ def build_counter_trade_json(
     for coin in available_coins:
         if coin not in analysis_list:
             analysis_list[coin] = {
-                "risk_level": "HIGH_RISK",
-                "alignment_strength": "NONE",
-                "conditions_met": ["DATA_MISSING"],
+                "risk_level": "CT_VERY_HIGH_RISK",
+                "alignment_strength": "CT_ALIGNMENT_NONE",
+                "conditions_met": 0,
             }
 
     return analysis_list
@@ -732,7 +732,7 @@ def build_position_slot_json(
         "available_slots": max_positions - total_open,
         "weakest_position": weakest_position,
         "constraint_mode": constraint_mode,
-        "constraint_instruction": "If a direction is FULL, do NOT force trades in the other direction unless they are LOW_RISK or MEDIUM_RISK (High Confidence alone is NOT enough).",
+        "constraint_instruction": "If a direction slot is FULL (e.g., long_slots_available=0), do NOT open a new position in that SAME direction. Do not game the system by opening a position in the other direction just because slots are free — only open the opposite direction if it represents a genuinely independent, high-quality setup on its own merits.",
     }
 
 
@@ -797,7 +797,6 @@ def build_risk_status_json(portfolio: Any, max_positions: int = 5) -> dict[str, 
         "trading_limits": {
             "min_position": Config.MIN_POSITION_MARGIN_USD,
             "max_positions": max_positions,
-            "available_cash_protection": format_number_for_json(available_cash * 0.10),
             "position_sizing_pct": 40.0,  # Up to 40% of available cash
         },
     }
