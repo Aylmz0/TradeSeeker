@@ -3237,6 +3237,7 @@ class PortfolioManager:
         indicator_cache = signal_ctx.get("indicator_cache")
         execution_report = signal_ctx["report"]
         trade = signal_ctx["trade"]
+        log_func = signal_ctx["log_func"]
         direction = "long" if signal == "buy_to_enter" else "short"
 
         # 1. Snapshot
