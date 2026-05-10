@@ -562,8 +562,15 @@ class StrategyAnalyzer:
                 return "UNCLEAR"
 
             # 0. Choppy Veto (Prioritize market noise over price position)
-            er_htf = indicators_htf.get("efficiency_ratio", 1.0)
-            if er_htf < getattr(Config, "CHOPPY_ER_THRESHOLD", 0.20):
+            # Use 15m ER if available for responsiveness, fallback to HTF
+            er_source = (
+                indicators_15m
+                if indicators_15m and "efficiency_ratio" in indicators_15m
+                else indicators_htf
+            )
+            er_val = er_source.get("efficiency_ratio", 1.0)
+
+            if er_val < getattr(Config, "CHOPPY_ER_THRESHOLD", 0.20):
                 return "CHOPPY"
 
             # Determine 1h trend
