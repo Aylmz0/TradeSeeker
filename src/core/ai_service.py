@@ -1160,13 +1160,47 @@ Each coin below contains a State Vector with:
                 "decisions": {},
             }
 
+    def _normalize_decision_schema(self, coin: str, trade: dict) -> dict:
+        """Normalize LLM decision schema deviations before processing.
+
+        Fixes two known Ring LLM output patterns:
+        1. signal/confidence buried inside ml_consensus instead of top-level.
+        2. confidence given as percentage (0-100) instead of float (0.0-1.0).
+        """
+        trade = dict(trade)  # always work on a copy
+
+        # Pattern 1: signal missing at top-level (LLM embedded it in runtime_decision)
+        if "signal" not in trade:
+            inferred = trade.get("runtime_decision", "hold")
+            if inferred not in {"buy_to_enter", "sell_to_enter", "close_position", "hold"}:
+                inferred = "hold"
+            print(
+                f"[NORM]  {coin}: Missing top-level 'signal'. Inferred='{inferred}' from runtime_decision."
+            )
+            trade["signal"] = inferred
+
+        # Pattern 2: confidence is percentage (e.g. 77.62 → 0.78)
+        raw_conf = trade.get("confidence")
+        if isinstance(raw_conf, (int, float)) and raw_conf > 1.5:
+            normalized = round(raw_conf / 100.0, 4)
+            print(
+                f"[NORM]  {coin}: Confidence {raw_conf:.2f} is a percentage → normalized to {normalized}"
+            )
+            trade["confidence"] = normalized
+
+        return trade
+
     def _clean_ai_decisions(self, decisions: dict) -> dict:
-        """Clean up AI decisions - preserve position data for hold signals"""
+        """Clean up AI decisions - normalize schema deviations and preserve position data."""
         cleaned_decisions = {}
         for coin, trade in decisions.items():
             if not isinstance(trade, dict):
                 cleaned_decisions[coin] = trade
                 continue
+
+            # Normalize schema deviations (missing signal, percentage confidence, etc.)
+            trade = self._normalize_decision_schema(coin, trade)
+
             signal = trade.get("signal")
             if signal == "hold":
                 cleaned_trade = {"signal": "hold"}
@@ -1194,7 +1228,7 @@ Each coin below contains a State Vector with:
             else:
                 cleaned_decisions[coin] = trade
 
-            # Inject ML consensus if available for this coin
+            # Inject ML consensus if available (inside loop — applied to all coins)
             if coin in self.latest_ml_consensus and isinstance(cleaned_decisions.get(coin), dict):
                 cleaned_decisions[coin]["ml_consensus"] = self.latest_ml_consensus[coin]
 

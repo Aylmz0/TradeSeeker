@@ -199,12 +199,12 @@ def build_coin_state_vector(
 
     """
     # Efficiency ratio for choppy detection.
-    # Source: 1h (HTF) — same timeframe as the regime label.
-    # 10 periods × 1h = 10-hour session window, consistent with the 1h "Boss" regime system.
-    # Using 3m (30-min window) was architecturally mismatched — regime comes from 1h, so must ER.
+    # Source: 15m — 10 periods × 15m = 150-minute (2.5-hour) lookback window.
+    # More responsive than 1h (10-hour window was too stale/broad for short-term trading),
+    # while still being stable enough to avoid the noise of the 3m (30-min) source.
     efficiency_ratio = (
-        indicators_htf.get("efficiency_ratio", 0.5)
-        if indicators_htf and "error" not in indicators_htf
+        indicators_15m.get("efficiency_ratio", 0.5)
+        if indicators_15m and "error" not in indicators_15m
         else 0.5
     )
 
