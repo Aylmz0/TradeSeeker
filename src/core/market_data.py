@@ -414,10 +414,10 @@ class RealMarketData:
             indicators["volume_ratio"] = last_closed_vol / indicators["avg_volume"]
 
             # Efficiency Ratio (ER) Calculation for Choppy Regime Detection
-            # Using 10 periods (30 mins for 3m interval)
+            # Using 20 periods (60 mins for 3m interval)
             indicators["efficiency_ratio"] = calculate_efficiency_ratio(
                 close_prices,
-                period=10,
+                period=20,
             )
 
             # ==================== NEW INDICATORS (v5.0) ====================

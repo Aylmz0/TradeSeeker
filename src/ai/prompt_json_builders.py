@@ -203,8 +203,8 @@ def build_coin_state_vector(
     # More responsive than 1h (10-hour window was too stale/broad for short-term trading),
     # while still being stable enough to avoid the noise of the 3m (30-min) source.
     efficiency_ratio = (
-        indicators_15m.get("efficiency_ratio", 0.5)
-        if indicators_15m and "error" not in indicators_15m
+        indicators_3m.get("efficiency_ratio", 0.5)
+        if indicators_3m and "error" not in indicators_3m
         else 0.5
     )
 
