@@ -734,12 +734,10 @@ class PerformanceMonitor:
         for c in all_cycles:
             if not isinstance(c, dict):
                 continue
-            cycle_num = c.get("cycle_number", c.get("cycle"))  # Try both keys
+            cycle_num = c.get("cycle")  # Standard key written by add_to_cycle_history
             if cycle_num is not None:
                 unique_cycles[cycle_num] = c
-        sorted_cycles = sorted(
-            unique_cycles.values(), key=lambda x: x.get("cycle_number", x.get("cycle", 0))
-        )
+        sorted_cycles = sorted(unique_cycles.values(), key=lambda x: x.get("cycle", 0))
 
         # 5. De-duplicate Performance History (by cycle number)
         unique_perf = {}

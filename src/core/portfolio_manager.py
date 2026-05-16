@@ -294,6 +294,7 @@ class PortfolioManager:
             (self.cycle_history_file, []),
             ("data/performance_history.json", []),
             ("data/performance_report.json", []),
+            ("data/reset_log.json", []),
         ]
 
         try:
@@ -350,27 +351,21 @@ class PortfolioManager:
         safe_file_write(self.history_file, [])
         safe_file_write(self.cycle_history_file, [])
         safe_file_write("data/performance_history.json", [])
-        # Preserve existing performance reports, just add a reset marker
-        existing_reports = safe_file_read("data/performance_report.json", [])
-        if isinstance(existing_reports, dict):
-            # Old format - convert to array
-            existing_reports = [existing_reports] if "reset_reason" not in existing_reports else []
-        elif not isinstance(existing_reports, list):
-            existing_reports = []
-
-        # Add reset marker
+        # Write reset marker to dedicated reset_log.json — keeps performance_report.json
+        # clean (only real performance reports, no heterogeneous marker objects).
         reset_marker = {
             "reset_reason": "periodic_bias_control",
             "reset_at_cycle": cycle_number,
             "timestamp": datetime.now(timezone.utc).isoformat(),
         }
-        existing_reports.append(reset_marker)
-
-        # Keep only last MAX_REPORT_ENTRIES entries
-        if len(existing_reports) > constants.MAX_REPORT_ENTRIES:
-            existing_reports = existing_reports[-constants.MAX_REPORT_ENTRIES :]
-
-        safe_file_write("data/performance_report.json", existing_reports)
+        existing_reset_log = safe_file_read("data/reset_log.json", [])
+        if not isinstance(existing_reset_log, list):
+            existing_reset_log = []
+        existing_reset_log.append(reset_marker)
+        # Keep only last MAX_REPORT_ENTRIES reset entries
+        if len(existing_reset_log) > constants.MAX_REPORT_ENTRIES:
+            existing_reset_log = existing_reset_log[-constants.MAX_REPORT_ENTRIES :]
+        safe_file_write("data/reset_log.json", existing_reset_log)
         self.portfolio_values_history = [self.total_value]
         for pos in self.positions.values():
             pos["loss_cycle_count"] = 0
@@ -1142,8 +1137,7 @@ class PortfolioManager:
         decisions = history_ctx["decisions"]
         status = history_ctx.get("status", "ai_decision")
         metadata = history_ctx.get("metadata")
-        with self._lock:
-            prompt_summary = "N/A"
+        prompt_summary = "N/A"
         if isinstance(prompt, str) and prompt not in (None, "N/A"):
             # For JSON prompts, try to extract a meaningful summary
             # Check for all JSON sections
@@ -1210,8 +1204,10 @@ class PortfolioManager:
         }
         if metadata:
             cycle_data["metadata"] = metadata
-        self.cycle_history.append(cycle_data)
-        self.cycle_history = self.cycle_history[-constants.MAX_CYCLE_HISTORY :]
+        with self._lock:
+            self.cycle_history.append(cycle_data)
+            self.cycle_history = self.cycle_history[-constants.MAX_CYCLE_HISTORY :]
+        # safe_file_write is internally thread-safe (uses its own global lock + atomic replace)
         safe_file_write(self.cycle_history_file, self.cycle_history)
         print(f"[OK]    Saved cycle {cycle_number} (Total: {len(self.cycle_history)})")
 

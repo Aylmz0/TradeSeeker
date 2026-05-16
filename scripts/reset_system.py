@@ -14,6 +14,7 @@ target_files = [
     "data/performance_report.json",
     "data/performance_history.json",
     "data/bot_control.json",
+    "data/reset_log.json",
 ]
 
 

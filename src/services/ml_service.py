@@ -230,7 +230,11 @@ class MLService:
             return {"status": "error", "message": str(e)}
 
     def _log_prediction(self, result: dict[str, Any], coin: str, interval: str = "15m") -> None:
-        """Append prediction to JSONL log file (one JSON object per line)."""
+        """Append prediction to JSONL log file (one JSON object per line).
+
+        Automatically rotates the file when it exceeds ML_PREDICTION_LOG_MAX_BYTES,
+        retaining the latest ML_PREDICTION_LOG_KEEP_LINES lines.
+        """
         try:
             os.makedirs(os.path.dirname(self.prediction_log_path), exist_ok=True)
             log_entry = {
@@ -245,10 +249,37 @@ class MLService:
                     "BUY": result["BUY"],
                 },
             }
-            with open(self.prediction_log_path, "a") as f:
+            with open(self.prediction_log_path, "a", encoding="utf-8") as f:
                 f.write(json.dumps(log_entry) + "\n")
+
+            # Rotation check: O(1) stat call — negligible overhead on the hot path.
+            if os.path.getsize(self.prediction_log_path) > constants.ML_PREDICTION_LOG_MAX_BYTES:
+                self._rotate_prediction_log()
+
         except Exception as e:
             logger.warning(f"[MLService] Failed to log prediction: {e}")
+
+    def _rotate_prediction_log(self) -> None:
+        """Retain the latest ML_PREDICTION_LOG_KEEP_LINES lines, discard the rest.
+
+        Uses a temp-file + atomic os.replace so there is no window of data loss.
+        """
+        try:
+            with open(self.prediction_log_path, encoding="utf-8") as f:
+                lines = f.readlines()
+
+            kept = lines[-constants.ML_PREDICTION_LOG_KEEP_LINES :]
+
+            temp_path = self.prediction_log_path + ".rotate.tmp"
+            with open(temp_path, "w", encoding="utf-8") as f:
+                f.writelines(kept)
+            os.replace(temp_path, self.prediction_log_path)
+
+            logger.info(
+                f"[MLService] Prediction log rotated: {len(lines)} → {len(kept)} lines retained."
+            )
+        except Exception as e:
+            logger.warning(f"[MLService] Log rotation failed (non-critical): {e}")
 
 
 if __name__ == "__main__":

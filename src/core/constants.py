@@ -258,3 +258,10 @@ PROMPT_SUMMARY_MAX_SECTIONS = 3
 MIN_BINANCE_RECV_WINDOW = 1000
 MIN_JSON_SERIES_LENGTH = 10
 API_KEY_MIN_LENGTH = 8
+
+# ML Prediction Log Rotation
+# Trigger: rotate when the JSONL file exceeds 5 MB on disk.
+# Retain: keep the latest 10_000 lines (~17 days at current prediction rate).
+# get_model_health() only evaluates the last 200 predictions, so 10k is ample headroom.
+ML_PREDICTION_LOG_MAX_BYTES = 5 * 1024 * 1024  # 5 MB
+ML_PREDICTION_LOG_KEEP_LINES = 10_000  # Lines to retain after rotation
