@@ -223,6 +223,7 @@ class DeepSeekAPI:
                         "priority": "High",
                         "condition": f"Price aligns with {HTF_LABEL} EMA20 + Volume support",
                         "strong_signal": f"{HTF_LABEL} + 15m + 3m all align in same direction",
+                        "rsi_exhaustion_warning": "In TREND-FOLLOWING, extreme RSI is a zone of severe trend exhaustion. Exercise extreme caution and strongly prefer HOLDing rather than opening new entries if RSI < 30 (downward exhaustion) or RSI > 70 (upward exhaustion).",
                     },
                     "counter_trend": {
                         "priority": "Conditional",
@@ -231,6 +232,7 @@ class DeepSeekAPI:
                         "definition": f"Trade direction is OPPOSITE to {HTF_LABEL} trend.",
                         "scope": "risk_level applies ONLY when trading AGAINST 1h trend.",
                         "condition": "Evaluate 'counter_trade_risk' in each coin's risk_profile using 12 STRONG conditions: Funding Rate, Volume Surge, RSI Extremes, MACD Divergence, Zone/Exhaustion, VWAP Alignment, Bollinger Position, OBV Divergence, ML Consensus, 15m Structure, 15m Momentum, and 1h Range/Volatility.",
+                        "rsi_opportunity_rule": "In COUNTER-TREND, extreme RSI (< 30 or > 70) is a highly favorable condition indicating potential mean reversion.",
                         "risk_level_rules": {
                             "CT_LOW_RISK": "CT_ALIGNMENT_STRONG+5 OR CT_ALIGNMENT_MEDIUM+7 conditions. (High structural confluence). EXECUTE.",
                             "CT_MEDIUM_RISK": "CT_ALIGNMENT_STRONG+4 OR CT_ALIGNMENT_MEDIUM+6 OR NONE+8 conditions. EXECUTE if momentum confirms.",
@@ -241,7 +243,7 @@ class DeepSeekAPI:
                     # NOTE: Volume filtering is handled by runtime code - removed from prompt to avoid AI confusion
                     "momentum_conviction_rule": {
                         "description": "How 15m momentum quality affects entry timing",
-                        "STRENGTHENING": "Trend accelerating. Proceed with entry normally.",
+                        "STRENGTHENING": "Trend is accelerating in its primary direction. In a BEARISH trend, downward pressure is increasing (favorable for shorts). In a BULLISH trend, upward pressure is increasing (favorable for longs). Avoid interpreting this as a reversal.",
                         "STABLE": "Trend steady. Proceed with entry normally.",
                         "WEAKENING": "Trend slowing but not reversing. For ENTRY: wait for 3m alignment. For EXIT: WEAKENING alone is NOT an exit signal - require structure reversal confirmation.",
                     },
@@ -303,6 +305,7 @@ class DeepSeekAPI:
                         "definition": "Pre-computed multi-signal threat assessment AGAINST your current position. Provided as a label (RT_NONE/RT_WEAK/RT_STRONG/RT_CRITICAL) — interpret and act accordingly.",
                         "action": "Consider closing based on strength label and current PnL. EXIT MANDATORY on RT_CRITICAL.",
                         "discipline_note": "15m Structure is your Master Gate. Avoid closing positions solely on 3m noise or momentum dips if the 15m structure (HH_HL/LH_LL) hasn't reversed.",
+                        "regime_change_rule": "A shift to CHOPPY or NEUTRAL is a warning, not an automatic exit trigger. Evaluate 15m structure and profit erosion. Hold if structure is intact; consider exiting if structure breaks or profit erosion becomes significant.",
                     },
                     "reversal_strength_definitions": {
                         "NONE": "No reversal signals (score 0). Continue normally.",
