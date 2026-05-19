@@ -1230,10 +1230,14 @@ class PortfolioManager:
             pos["peak_pnl_cycle"] = getattr(self, "current_cycle_number", None)
             peak_pnl = current_pnl
 
-        # Erosion sadece KARDAYKEN hesaplanır (zararda erosion yok)
+        # Erosion sadece KARDAYKEN hesaplanır veya KARDAN ZARARA DÖNDÜĞÜNDE (100% erozyon)
         if current_pnl > 0 and peak_pnl > 0:
             erosion_from_peak = peak_pnl - current_pnl
             erosion_pct = (erosion_from_peak / peak_pnl * 100) if peak_pnl > 0 else 0.0
+        elif current_pnl <= 0 and peak_pnl > 0:
+            # Kârdan zarara düşmüşse: Kâr tamamen erimiştir (100% erozyon)
+            erosion_from_peak = peak_pnl - current_pnl
+            erosion_pct = 100.0
         else:
             erosion_from_peak = 0.0
             erosion_pct = 0.0
