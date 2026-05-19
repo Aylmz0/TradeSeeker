@@ -234,10 +234,10 @@ class DeepSeekAPI:
                         "condition": "Evaluate 'counter_trade_risk' in each coin's risk_profile using 12 STRONG conditions: Funding Rate, Volume Surge, RSI Extremes, MACD Divergence, Zone/Exhaustion, VWAP Alignment, Bollinger Position, OBV Divergence, ML Consensus, 15m Structure, 15m Momentum, and 1h Range/Volatility.",
                         "rsi_opportunity_rule": "In COUNTER-TREND, extreme RSI (< 30 or > 70) is a highly favorable condition indicating potential mean reversion.",
                         "risk_level_rules": {
-                            "CT_LOW_RISK": "CT_ALIGNMENT_STRONG+5 OR CT_ALIGNMENT_MEDIUM+7 conditions. (High structural confluence). EXECUTE.",
-                            "CT_MEDIUM_RISK": "CT_ALIGNMENT_STRONG+4 OR CT_ALIGNMENT_MEDIUM+6 OR NONE+8 conditions. EXECUTE if momentum confirms.",
-                            "CT_HIGH_RISK": "Weak counter-trend setup. Entry requires ALL THREE of the following: (1) 15m structure has reversed against the 1h trend (LH_LL in bullish, HH_HL in bearish), (2) ML consensus supports counter-direction at ≥40%, (3) Zone exhaustion confirmed (UPPER_10 or LOWER_10) with WEAKENING momentum. Missing even one = HOLD.",
-                            "CT_VERY_HIGH_RISK": "No alignment/conditions. Do NOT trade counter-trend under any circumstances. (Trend-Following unaffected).",
+                            "CT_LOW_RISK": "Highly favorable mean-reversion setup with extreme structural and indicator confluence. Reversal is highly probable.",
+                            "CT_MEDIUM_RISK": "Moderate mean-reversion setup. Reversal conditions are developing but not fully matured.",
+                            "CT_HIGH_RISK": "Weak or premature counter-trend setup. Primary trend remains dominant with high risk of continuation.",
+                            "CT_VERY_HIGH_RISK": "Runaway trend with zero exhaustion. Counter-trend entry is strictly blocked.",
                         },
                     },
                     # NOTE: Volume filtering is handled by runtime code - removed from prompt to avoid AI confusion

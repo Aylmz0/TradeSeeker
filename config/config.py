@@ -339,14 +339,14 @@ class Config:
     # Erosion = (peak_pnl - current_pnl) / peak_pnl
     # min_meaningful_profit = margin_usd * erosion_rate
     EROSION_RATE_EXTREME: float = float(
-        os.getenv("EROSION_RATE_EXTREME", "0.012"),
-    )  # More sensitive at price extremes (UPPER_10/LOWER_10)
+        os.getenv("EROSION_RATE_EXTREME", "0.04"),
+    )  # 4% of margin (approx 0.4% price move at 10x leverage)
     EROSION_RATE_NORMAL: float = float(
-        os.getenv("EROSION_RATE_NORMAL", "0.02"),
-    )  # Normal sensitivity in MIDDLE zone
+        os.getenv("EROSION_RATE_NORMAL", "0.06"),
+    )  # 6% of margin (approx 0.6% price move at 10x leverage)
     EROSION_MIN_PROFIT_USD: float = float(
-        os.getenv("EROSION_MIN_PROFIT_USD", "0.15"),
-    )  # Minimum $0.15 to trigger erosion tracking
+        os.getenv("EROSION_MIN_PROFIT_USD", "1.00"),
+    )  # Minimum $1.00 to trigger erosion tracking (ignoring commission-level noise)
 
     # TACTICAL SCOUT (v1.2) - Protocol Constants
     SCOUT_MODE_ENABLED: bool = os.getenv("SCOUT_MODE_ENABLED", "false").lower() == "true"
