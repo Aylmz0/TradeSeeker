@@ -333,6 +333,7 @@ def build_counter_trade_json(
     available_coins: list[str],
     htf_interval: str,
     market_data=None,  # NEW: market_data parameter for Funding Rate
+    ml_consensus_dict: dict[str, dict[str, Any]] | None = None,  # Inject ML consensus dict
 ) -> list[dict[str, Any]]:
     """Build counter-trade analysis JSON from text analysis or indicators.
 
@@ -520,20 +521,24 @@ def build_counter_trade_json(
                 elif trend_htf == "BEARISH" and obv_div == "BULLISH":
                     condition_9 = 1  # Volume accumulating in downtrend -> LONG favorable
             # Condition 10: ML Consensus Alignment [COUNTER-TREND ONLY]
-            # ML >= 40% = 1 puan (base condition)
-            # ML >= 50% = +1 bonus puan (CRITICAL - HIGH conviction)
-            # Total: ML >= 50% = 2 puan (1 base + 1 bonus)
-            ml_consensus = sentiment.get("ml_consensus", 50.0)
+            # ML >= 45% = 1 puan (base condition)
+            # ML >= 55% = +1 bonus puan (CRITICAL - HIGH conviction)
+            # Total: ML >= 55% = 2 puan (1 base + 1 bonus)
+            ml_data = ml_consensus_dict.get(coin) if ml_consensus_dict else None
+            ml_buy = ml_data.get("BUY", 0.0) if ml_data else 0.0
+            ml_sell = ml_data.get("SELL", 0.0) if ml_data else 0.0
             condition_10 = 0
             if trend_htf == "BULLISH":
-                if ml_consensus >= 45.0:
+                # For BULLISH trend, counter-trend is SHORT. We look for ML SELL signal.
+                if ml_sell >= 45.0:
                     condition_10 += 1  # 1 puan
-                if ml_consensus >= 55.0:
+                if ml_sell >= 55.0:
                     condition_10 += 1  # +1 bonus = 2 puan total
             elif trend_htf == "BEARISH":
-                if ml_consensus >= 45.0:
+                # For BEARISH trend, counter-trend is LONG. We look for ML BUY signal.
+                if ml_buy >= 45.0:
                     condition_10 += 1  # 1 puan
-                if ml_consensus >= 55.0:
+                if ml_buy >= 55.0:
                     condition_10 += 1  # +1 bonus = 2 puan total
 
             # Condition 11: 15m Structure Against 1h Trend

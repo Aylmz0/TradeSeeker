@@ -916,6 +916,20 @@ Current live positions & performance:"""
                 f"[INFO]  Prompt optimization: Skipped cooldown coins (no position): {skipped_cooldown_coins}",
             )
 
+        # Pre-compute ML predictions for analyzed coins to use in counter-trade analysis
+        ml_consensus_dict = {}
+        if ml_service.is_ready:
+            for coin in coins_to_analyze:
+                df_raw_15m = self.market_data.get_cached_raw_dataframe(coin, "15m")
+                if df_raw_15m is not None and not df_raw_15m.empty:
+                    ml_pred = ml_service.predict(df_raw_15m, coin)
+                else:
+                    df_raw_15m = self.market_data.get_real_time_data(coin, "15m", limit=150)
+                    ml_pred = ml_service.predict(df_raw_15m, coin) if not df_raw_15m.empty else None
+                if ml_pred:
+                    ml_consensus_dict[coin] = ml_pred
+                    self.latest_ml_consensus[coin] = ml_pred
+
         # Metadata
         build_metadata_json(minutes_running, current_time, self.invocation_count)
 
@@ -926,6 +940,7 @@ Current live positions & performance:"""
             coins_to_analyze,  # Filtered list
             HTF_INTERVAL,
             self.market_data,  # INFO: Integrated for Funding Rate calculation
+            ml_consensus_dict=ml_consensus_dict,
         )
 
         # Trend reversal threats (compact dict: {coin: {strength}})
@@ -972,22 +987,8 @@ Current live positions & performance:"""
             # Get position if exists
             position = self.portfolio.positions.get(coin)
 
-            # Get ML Consensus for Hybridization
-            ml_consensus = None
-            if ml_service.is_ready:
-                # Reuse already-fetched 15m data from this cycle (no redundant API call)
-                df_raw_15m = self.market_data.get_cached_raw_dataframe(coin, "15m")
-                if df_raw_15m is not None and not df_raw_15m.empty:
-                    ml_consensus = ml_service.predict(df_raw_15m, coin)
-                else:
-                    # Fallback: fetch fresh if cache miss (safety net)
-                    df_raw_15m = self.market_data.get_real_time_data(coin, "15m", limit=150)
-                    if not df_raw_15m.empty:
-                        ml_consensus = ml_service.predict(df_raw_15m, coin)
-
-            # Save ML Consensus for downstream confidence adjustments
-            if ml_consensus:
-                self.latest_ml_consensus[coin] = ml_consensus
+            # Get ML Consensus for Hybridization (retrieve pre-computed predictions)
+            ml_consensus = self.latest_ml_consensus.get(coin)
 
             # Calculate Bias Deviation Score (BDS) - Professional Mitigation Layer
             ml_bias_label = "Neutral"
