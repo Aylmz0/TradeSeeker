@@ -417,7 +417,7 @@ class RealMarketData:
             # Using 20 periods (60 mins for 3m interval)
             indicators["efficiency_ratio"] = calculate_efficiency_ratio(
                 close_prices,
-                period=20,
+                period=10,
             )
 
             # ==================== NEW INDICATORS (v5.0) ====================
