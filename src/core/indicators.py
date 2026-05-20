@@ -428,10 +428,19 @@ def generate_smart_sparkline(prices: pd.Series, period: int = 24) -> dict[str, A
                 structure = "RANGE"
 
     mid = len(subset) // 2
-    first_half_change = abs(subset[mid] - subset[0]) / subset[0] if subset[0] != 0 else 0
-    second_half_change = abs(subset[-1] - subset[mid]) / subset[mid] if subset[mid] != 0 else 0
+    raw_first_change = (subset[mid] - subset[0]) / subset[0] if subset[0] != 0 else 0
+    raw_second_change = (subset[-1] - subset[mid]) / subset[mid] if subset[mid] != 0 else 0
 
-    if (
+    first_half_change = abs(raw_first_change)
+    second_half_change = abs(raw_second_change)
+
+    # Check if direction changed (signs are opposite)
+    direction_changed = (raw_first_change * raw_second_change) < 0
+
+    if direction_changed:
+        # Direction reversal means trend momentum is weakening
+        momentum = "WEAKENING"
+    elif (
         first_half_change > 0
         and second_half_change > first_half_change * constants.MOMENTUM_ACCELERATION_THRESHOLD
     ):
