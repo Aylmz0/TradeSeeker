@@ -2322,43 +2322,6 @@ class PortfolioManager:
             print(f"[WARN]  Exit validation error: {e}")
             return True  # Fail safe: allow exit
 
-    def _verify_technical_reversal(self, coin: str, direction: str) -> bool:
-        """Verify if technical indicators support a reversal claim to prevent premature exit.
-
-        Args:
-        ----
-            coin: The cryptocurrency symbol.
-            direction: The position direction ('long' or 'short').
-
-        Returns:
-        -------
-            True if technical indicators support the reversal, False otherwise.
-
-        """
-        try:
-            indicators_3m = self.market_data.get_technical_indicators(coin, "3m")
-            if "error" in indicators_3m:
-                return True  # Fail-safe: allow exit if data is missing
-
-            price_3m = indicators_3m.get("current_price")
-            ema20_3m = indicators_3m.get("ema_20")
-
-            if not price_3m or not ema20_3m:
-                return True
-
-            # Threshold for strict validation (0.1% buffer)
-            if direction == "long":
-                # Long is still valid if price is not significantly below EMA20
-                is_invalid = price_3m < (ema20_3m * 0.999)
-            else:
-                # Short is still valid if price is not significantly above EMA20
-                is_invalid = price_3m > (ema20_3m * 1.001)
-
-            return is_invalid
-        except Exception as e:
-            print(f"[WARN] Error in _verify_technical_reversal: {e}")
-            return True
-
     def _get_signal_priority(self, item: tuple[str, Any]) -> tuple[int, float]:
         """Determine the execution priority for a trade signal based on confidence.
 
@@ -2451,32 +2414,6 @@ class PortfolioManager:
             )
             trade["runtime_decision"] = "skipped_no_position"
             return
-
-        justification = trade.get("justification", "")
-        if "reversal" in justification or "invalidation" in justification:
-            # Treat Take Profit, Stop Loss or PnL justifications as hard exits
-            is_pnl_exit = any(
-                word in justification.lower() for word in ["take profit", "stop loss", "pnl"]
-            )
-
-            if not is_pnl_exit:
-                # 5.1 Surgical Invalidation Check
-                direction = position.get("direction", "long")
-                strong_reversal = self._verify_technical_reversal(coin, direction)
-
-                if not strong_reversal:
-                    print(
-                        f"[BLOCK] Exit Desensitization: {coin} close blocked. Technicals still support {direction.upper()}."
-                    )
-                    execution_report["holds"].append(
-                        {
-                            "coin": coin,
-                            "reason": "exit_desensitization_blocked",
-                            "justification": justification,
-                        },
-                    )
-                    trade["runtime_decision"] = "blocked_exit_desensitization"
-                    return
 
         if self.is_live_trading:
             live_result = self.execute_live_close(
