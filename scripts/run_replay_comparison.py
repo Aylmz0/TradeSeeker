@@ -20,7 +20,17 @@ import os
 import sqlite3
 from datetime import datetime, timezone
 
-import pandas as pd
+import polars as pl
+
+
+def _query_to_df(conn, query, params=None):
+    """SQLite -> polars bridge."""
+    cur = conn.execute(query, params) if params else conn.execute(query)
+    rows = cur.fetchall()
+    cols = [desc[0] for desc in cur.description]
+    if not rows:
+        return pl.DataFrame(schema=cols)
+    return pl.DataFrame(rows, schema=cols)
 
 
 # Ensure project root is in path
@@ -48,7 +58,7 @@ def run_replay(db_path: str, coins: list[str], initial_balance: float = 1000.0):
     # 3. Get all unique timestamps for the 1h (HTF) interval to simulate cycles
     placeholders = ",".join(["?"] * len(coins))
     query = f"SELECT DISTINCT timestamp FROM market_data WHERE coin IN ({placeholders}) AND interval = '1h' ORDER BY timestamp ASC"
-    all_timestamps = pd.read_sql_query(query, conn, params=coins)["timestamp"].tolist()
+    all_timestamps = _query_to_df(conn, query, coins)["timestamp"].to_list()
 
     if not all_timestamps:
         print("[!] No data found in database for specified coins/interval.")
@@ -62,7 +72,7 @@ def run_replay(db_path: str, coins: list[str], initial_balance: float = 1000.0):
         # Update mock executor with "current" prices for this timestamp
         placeholders = ",".join(["?"] * len(coins))
         price_query = f"SELECT coin, close FROM market_data WHERE timestamp = ? AND interval = '1h' AND coin IN ({placeholders})"
-        prices_df = pd.read_sql_query(price_query, conn, params=[ts, *coins])
+        prices_df = _query_to_df(conn, price_query, [ts, *coins])
         price_map = dict(zip(prices_df["coin"], prices_df["close"], strict=False))
 
         mock_executor.update_mock_prices(price_map)

@@ -2,16 +2,16 @@ import glob
 import json
 import os
 import re
-from datetime import datetime
+from datetime import datetime, timedelta
 
-import pandas as pd
+import polars as pl
 
 
 PROJECT_ROOT = "/home/yilmaz/projects/TradeSeeker"
-df_trades = pd.read_csv(os.path.join(PROJECT_ROOT, "data/reconstructed_trade_logs.csv"))
+df_trades = pl.read_csv(os.path.join(PROJECT_ROOT, "data/reconstructed_trade_logs.csv"))
 
 # We want to load the cycle records and find the computed risk level for each trade
-ct_trades = df_trades[df_trades["trend_alignment"] == "counter_trend"].copy()
+ct_trades = df_trades.filter(pl.col("trend_alignment") == "counter_trend").clone()
 
 # Load all cycles
 all_cycles = []
@@ -43,7 +43,7 @@ for c in all_cycles:
         cycles_map[ts[:16]] = c  # Match by minute
 
 results = []
-for idx, row in ct_trades.iterrows():
+for row in ct_trades.iter_rows(named=True):
     entry_time_str = row["entry_time"]
     coin = row["symbol"]
     direction = row["direction"]
@@ -57,9 +57,9 @@ for idx, row in ct_trades.iterrows():
 
     # If not found, try to look at cycles +/- 5 minutes
     if not matched_c:
-        dt = pd.to_datetime(entry_time_str)
+        dt = datetime.fromisoformat(entry_time_str.replace("Z", "+00:00"))
         for i in range(-5, 6):
-            check_min = (dt + pd.Timedelta(minutes=i)).strftime("%Y-%m-%dT%H:%M")
+            check_min = (dt + timedelta(minutes=i)).strftime("%Y-%m-%dT%H:%M")
             if check_min in cycles_map:
                 matched_c = cycles_map[check_min]
                 break
@@ -107,9 +107,9 @@ for idx, row in ct_trades.iterrows():
         }
     )
 
-df_res = pd.DataFrame(results)
+df_res = pl.DataFrame(results)
 print("\nCounter-Trend Trades Risk Level and Confidence Breakdown:")
-print(df_res.to_string(index=False))
+print(df_res)
 
 print("\nSummary of Risk Levels:")
-print(df_res["RiskLevel"].value_counts())
+print(df_res.get_column("RiskLevel").value_counts())

@@ -1,11 +1,9 @@
 import json
 import os
 import sqlite3
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timezone
 
-import numpy as np
-import pandas as pd
-
+import polars as pl
 
 PROJECT_ROOT = "/home/yilmaz/projects/TradeSeeker"
 TRADE_HISTORY_FILE = os.path.join(PROJECT_ROOT, "data/full_trade_history.json")
@@ -14,31 +12,38 @@ DB_FILE = os.path.join(PROJECT_ROOT, "data/market_data.db")
 from src.core import constants
 from src.core.indicators import (
     calculate_adx,
-    calculate_atr_series,
     calculate_efficiency_ratio,
     calculate_ema_series,
-    calculate_macd_series,
     calculate_rsi_series,
 )
+
+
+def _query_to_df(conn, query, params=None):
+    cur = conn.execute(query, params) if params else conn.execute(query)
+    rows = cur.fetchall()
+    cols = [d[0] for d in cur.description]
+    if not rows:
+        return pl.DataFrame(schema=cols)
+    return pl.DataFrame(rows, schema=cols)
 
 
 def parse_iso(ts_str):
     if not ts_str:
         return None
     try:
-        return pd.to_datetime(ts_str, format="ISO8601", utc=True)
-    except:
+        return pl.Series([ts_str]).str.to_datetime(format="ISO8601", time_zone="UTC")[0]
+    except Exception:
         return None
 
 
 def to_md_table(df):
-    if df.empty:
+    if df.is_empty():
         return "No data"
     cols = list(df.columns)
     header = "| " + " | ".join(cols) + " |\n"
     separator = "| " + " | ".join(["---"] * len(cols)) + " |\n"
     rows = []
-    for _, row in df.iterrows():
+    for row in df.iter_rows(named=True):
         row_str = "| " + " | ".join(str(row[c]) for c in cols) + " |"
         rows.append(row_str)
     return header + separator + "\n".join(rows)
@@ -63,11 +68,13 @@ def main():
     with open(TRADE_HISTORY_FILE) as f:
         trades = json.load(f)
 
-    df_trades = pd.DataFrame(trades)
-    df_trades["entry_dt"] = df_trades["entry_time"].apply(parse_iso)
-    df_trades["exit_dt"] = df_trades["exit_time"].apply(parse_iso)
-    df_trades["pnl"] = pd.to_numeric(df_trades["pnl"], errors="coerce")
-    df_trades["notional_usd"] = pd.to_numeric(df_trades["notional_usd"], errors="coerce")
+    df_trades = pl.DataFrame(trades)
+    df_trades = df_trades.with_columns(
+        pl.col("entry_time").map_elements(parse_iso, return_dtype=pl.Datetime(time_zone="UTC")).alias("entry_dt"),
+        pl.col("exit_time").map_elements(parse_iso, return_dtype=pl.Datetime(time_zone="UTC")).alias("exit_dt"),
+        pl.col("pnl").cast(pl.Float64, strict=False),
+        pl.col("notional_usd").cast(pl.Float64, strict=False),
+    )
 
     print(f"[DATA] Loaded {len(df_trades)} unique trades.")
 
@@ -76,7 +83,7 @@ def main():
 
     analyzed_trades = []
 
-    for idx, row in df_trades.iterrows():
+    for row in df_trades.iter_rows(named=True):
         coin = row["symbol"]
         direction = row["direction"].upper()
         entry_time_dt = row["entry_dt"]
@@ -88,7 +95,7 @@ def main():
             WHERE coin = '{coin}' AND interval = '1h' AND timestamp <= {entry_ts_ms}
             ORDER BY timestamp DESC LIMIT 100
         """
-        df_1h = pd.read_sql_query(q_1h, conn)
+        df_1h = _query_to_df(conn, q_1h)
 
         # 2. Fetch 15m candles up to entry_time to detect 15m Indicators (15m Advisor)
         q_15m = f"""
@@ -96,7 +103,7 @@ def main():
             WHERE coin = '{coin}' AND interval = '15m' AND timestamp <= {entry_ts_ms}
             ORDER BY timestamp DESC LIMIT 100
         """
-        df_15m = pd.read_sql_query(q_15m, conn)
+        df_15m = _query_to_df(conn, q_15m)
 
         # Default values if not enough data
         regime = "NEUTRAL"
@@ -109,15 +116,15 @@ def main():
         trend_alignment = "trend_following"
 
         # Process 1h (Boss)
-        if not df_1h.empty and len(df_1h) >= 30:
-            df_1h = df_1h.sort_values("timestamp").reset_index(drop=True)
+        if not df_1h.is_empty() and len(df_1h) >= 30:
+            df_1h = df_1h.sort("timestamp")
             close_1h = df_1h["close"]
             high_1h = df_1h["high"]
             low_1h = df_1h["low"]
 
             # Calculate EMA20 on 1h (period 21)
             ema20_1h_series = calculate_ema_series(close_1h, constants.FIB_21)
-            ema20_1h = ema20_1h_series.iloc[-1]
+            ema20_1h = ema20_1h_series[-1]
 
             # Calculate ADX on 1h
             adx_val, _, _ = calculate_adx(high_1h, low_1h, close_1h, period=14)
@@ -127,7 +134,7 @@ def main():
             er_1h = calculate_efficiency_ratio(close_1h, period=10)
 
             # Classify regime
-            last_price_1h = close_1h.iloc[-1]
+            last_price_1h = close_1h[-1]
             regime = classify_regime(last_price_1h, ema20_1h, adx_1h, er_1h)
 
             # Determine trend alignment: counter_trend if entry direction is opposite to 1h trend direction
@@ -137,22 +144,22 @@ def main():
                 trend_alignment = "counter_trend"
 
         # Process 15m (Advisor)
-        if not df_15m.empty and len(df_15m) >= 30:
-            df_15m = df_15m.sort_values("timestamp").reset_index(drop=True)
+        if not df_15m.is_empty() and len(df_15m) >= 30:
+            df_15m = df_15m.sort("timestamp")
             close_15m = df_15m["close"]
             volume_15m = df_15m["volume"]
 
             # Calculate RSI15m (period 13)
             rsi_15m_series = calculate_rsi_series(close_15m, constants.FIB_13)
-            rsi_15m = rsi_15m_series.iloc[-1]
+            rsi_15m = rsi_15m_series[-1]
 
             # Calculate EMA20 on 15m
             ema20_15m_series = calculate_ema_series(close_15m, constants.FIB_21)
-            ema20_15m = ema20_15m_series.iloc[-1]
+            ema20_15m = ema20_15m_series[-1]
 
             # Calculate Volume Ratio = current volume / 20-period average volume
-            avg_vol_20 = volume_15m.iloc[-21:-1].mean() if len(volume_15m) > 20 else 1.0
-            volume_ratio = volume_15m.iloc[-1] / (avg_vol_20 if avg_vol_20 > 0 else 1.0)
+            avg_vol_20 = volume_15m[-21:-1].mean() if len(volume_15m) > 20 else 1.0
+            volume_ratio = volume_15m[-1] / (avg_vol_20 if avg_vol_20 > 0 else 1.0)
 
         analyzed_trades.append(
             {
@@ -174,17 +181,17 @@ def main():
 
     conn.close()
 
-    df_matched = pd.DataFrame(analyzed_trades)
+    df_matched = pl.DataFrame(analyzed_trades)
 
     # Save the reconstructed trade logs as a CSV for backup and inspection
-    df_matched.to_csv(os.path.join(PROJECT_ROOT, "data/reconstructed_trade_logs.csv"), index=False)
+    df_matched.write_csv(os.path.join(PROJECT_ROOT, "data/reconstructed_trade_logs.csv"))
     print(
         f"[OK] Reconstructed {len(df_matched)} trades and saved to data/reconstructed_trade_logs.csv"
     )
 
     # 4. Generate Aggregated Report
     def get_stats(df):
-        if df.empty:
+        if df.is_empty():
             return {
                 "Trades": 0,
                 "WinRate": "0%",
@@ -193,7 +200,7 @@ def main():
                 "WinCount": 0,
             }
         trades_count = len(df)
-        wins = df[df["pnl"] > 0]
+        wins = df.filter(pl.col("pnl") > 0)
         win_rate = len(wins) / trades_count * 100
         total_pnl = df["pnl"].sum()
         avg_pnl = df["pnl"].mean()
@@ -207,35 +214,35 @@ def main():
 
     # Group by Regime
     regime_groups = []
-    for name, group in df_matched.groupby("regime"):
+    for name, group in df_matched.group_by("regime"):
         stats = get_stats(group)
         stats["Regime"] = name
         regime_groups.append(stats)
-    df_regime = pd.DataFrame(regime_groups)
+    df_regime = pl.DataFrame(regime_groups)
 
     # Group by Coin
     coin_groups = []
-    for name, group in df_matched.groupby("symbol"):
+    for name, group in df_matched.group_by("symbol"):
         stats = get_stats(group)
         stats["Coin"] = name
         coin_groups.append(stats)
-    df_coin = pd.DataFrame(coin_groups).sort_values("Trades", ascending=False)
+    df_coin = pl.DataFrame(coin_groups).sort("Trades", descending=True)
 
     # Group by Direction
     direction_groups = []
-    for name, group in df_matched.groupby("direction"):
+    for name, group in df_matched.group_by("direction"):
         stats = get_stats(group)
         stats["Direction"] = name
         direction_groups.append(stats)
-    df_direction = pd.DataFrame(direction_groups)
+    df_direction = pl.DataFrame(direction_groups)
 
     # Group by Trend Alignment
     alignment_groups = []
-    for name, group in df_matched.groupby("trend_alignment"):
+    for name, group in df_matched.group_by("trend_alignment"):
         stats = get_stats(group)
         stats["Alignment"] = name
         alignment_groups.append(stats)
-    df_alignment = pd.DataFrame(alignment_groups)
+    df_alignment = pl.DataFrame(alignment_groups)
 
     # Group by Close Reason Category
     def cat_reason(r):
@@ -252,13 +259,15 @@ def main():
             return "Extended Loss Timeout"
         return "Other"
 
-    df_matched["close_category"] = df_matched["close_reason"].apply(cat_reason)
+    df_matched = df_matched.with_columns(
+        pl.col("close_reason").map_elements(cat_reason, return_dtype=pl.Utf8).alias("close_category")
+    )
     reason_groups = []
-    for name, group in df_matched.groupby("close_category"):
+    for name, group in df_matched.group_by("close_category"):
         stats = get_stats(group)
         stats["ReasonCategory"] = name
         reason_groups.append(stats)
-    df_reason = pd.DataFrame(reason_groups).sort_values("Trades", ascending=False)
+    df_reason = pl.DataFrame(reason_groups).sort("Trades", descending=True)
 
     # Group by Volume Quality
     def cat_vol(v):
@@ -276,13 +285,15 @@ def main():
         except:
             return "UNKNOWN"
 
-    df_matched["vol_cat"] = df_matched["volume_ratio"].apply(cat_vol)
+    df_matched = df_matched.with_columns(
+        pl.col("volume_ratio").map_elements(cat_vol, return_dtype=pl.Utf8).alias("vol_cat")
+    )
     vol_groups = []
-    for name, group in df_matched.groupby("vol_cat"):
+    for name, group in df_matched.group_by("vol_cat"):
         stats = get_stats(group)
         stats["VolumeRatio"] = name
         vol_groups.append(stats)
-    df_vol = pd.DataFrame(vol_groups)
+    df_vol = pl.DataFrame(vol_groups)
 
     # Write Markdown Report
     output_report = os.path.join(PROJECT_ROOT, "global_analysis_results.md")
@@ -351,8 +362,8 @@ def main():
         insights = []
 
         # 1. Regimes
-        choppy_reg = df_matched[df_matched["regime"] == "CHOPPY"]
-        if not choppy_reg.empty:
+        choppy_reg = df_matched.filter(pl.col("regime") == "CHOPPY")
+        if not choppy_reg.is_empty():
             choppy_pnl = choppy_reg["pnl"].sum()
             if choppy_pnl < 0:
                 insights.append(
@@ -360,8 +371,8 @@ def main():
                 )
 
         # 2. Counter-Trend
-        ct_trades = df_matched[df_matched["trend_alignment"] == "counter_trend"]
-        if not ct_trades.empty:
+        ct_trades = df_matched.filter(pl.col("trend_alignment") == "counter_trend")
+        if not ct_trades.is_empty():
             ct_pnl = ct_trades["pnl"].sum()
             ct_wr = (ct_trades["pnl"] > 0).mean() * 100
             insights.append(
@@ -369,8 +380,8 @@ def main():
             )
 
         # 3. AI Close signals
-        ai_close = df_matched[df_matched["close_category"] == "AI Close Signal"]
-        if not ai_close.empty:
+        ai_close = df_matched.filter(pl.col("close_category") == "AI Close Signal")
+        if not ai_close.is_empty():
             ai_pnl = ai_close["pnl"].sum()
             ai_wr = (ai_close["pnl"] > 0).mean() * 100
             insights.append(
@@ -378,8 +389,8 @@ def main():
             )
 
         # 4. Volume filtering
-        weak_vol = df_matched[df_matched["vol_cat"].isin(["POOR (0.7x-1.2x)", "WEAK (<0.7x)"])]
-        if not weak_vol.empty:
+        weak_vol = df_matched.filter(pl.col("vol_cat").is_in(["POOR (0.7x-1.2x)", "WEAK (<0.7x)"]))
+        if not weak_vol.is_empty():
             wv_pnl = weak_vol["pnl"].sum()
             insights.append(
                 f"- **[WARNING] Low-Volume Squeeze**: Low-volume entries (POOR and WEAK volume ratio) accounted for **${wv_pnl:.2f}** in PnL. Entering during low liquidity is highly unprofitable because the setups lack institutional flow support."

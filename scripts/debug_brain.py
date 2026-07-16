@@ -1,9 +1,9 @@
 import sys
 import os
-import pandas as pd
-import numpy as np
+import random
 import joblib
 import xgboost as xgb
+import polars as pl
 from datetime import datetime, timedelta
 
 # Add project root to sys.path
@@ -38,10 +38,10 @@ def create_mock_data(regime="neutral", length=150):
     else:
         # Neutral / Squeeze
         for i in range(1, length):
-            prices.append(prices[-1] * (1 + np.random.uniform(-0.0005, 0.0005)))
-            volumes.append(volumes[-1] * (1 + np.random.uniform(-0.01, 0.01)))
+            prices.append(prices[-1] * (1 + random.uniform(-0.0005, 0.0005)))
+            volumes.append(volumes[-1] * (1 + random.uniform(-0.01, 0.01)))
 
-    df = pd.DataFrame(
+    df = pl.DataFrame(
         {
             "timestamp": timestamps,
             "open": prices,
@@ -64,7 +64,7 @@ def test_model():
         return
 
     print("\n" + "=" * 50)
-    print("🧠 ML BRAIN VALIDATION TEST")
+    print("ML BRAIN VALIDATION TEST")
     print("=" * 50)
 
     # Load artifacts
@@ -80,11 +80,11 @@ def test_model():
         df_raw = create_mock_data(regime=regime)
         df_features = get_features_for_ml(df_raw)
 
-        if df_features.empty:
+        if df_features.is_empty():
             print(f"     [FAIL] Feature extraction returned empty for {regime}")
             continue
 
-        latest_features = df_features.iloc[[-1]][feature_cols]
+        latest_features = df_features.select(feature_cols).tail(1).to_numpy()
         scaled_features = scaler.transform(latest_features)
 
         probs = model.predict_proba(scaled_features)[0]

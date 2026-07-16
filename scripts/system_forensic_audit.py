@@ -7,8 +7,8 @@ Analyzes: AI Reasoning, ML Impact, Close Reasons, Trade Duration, Entry Quality
 import os
 import sys
 import re
-import pandas as pd
-import numpy as np
+import math
+import polars as pl
 from datetime import datetime, timedelta, timezone
 from collections import Counter, defaultdict
 
@@ -48,18 +48,20 @@ class ForensicAuditEngine:
             print("[ERR] Insufficient data.")
             return
 
-        df_trades = pd.DataFrame(trades)
-        df_cycles = pd.DataFrame(cycles)
+        df_trades = pl.DataFrame(trades)
+        df_cycles = pl.DataFrame(cycles)
 
         # Parse timestamps
-        df_trades["entry_time"] = pd.to_datetime(
-            df_trades["entry_time"], format="ISO8601", utc=True
+        df_trades = df_trades.with_columns(
+            pl.col("entry_time").str.to_datetime(format="ISO8601", time_zone="UTC")
         )
         if "exit_time" in df_trades.columns:
-            df_trades["exit_time"] = pd.to_datetime(
-                df_trades["exit_time"], format="ISO8601", utc=True
+            df_trades = df_trades.with_columns(
+                pl.col("exit_time").str.to_datetime(format="ISO8601", time_zone="UTC")
             )
-        df_cycles["timestamp"] = pd.to_datetime(df_cycles["timestamp"], format="ISO8601", utc=True)
+        df_cycles = df_cycles.with_columns(
+            pl.col("timestamp").str.to_datetime(format="ISO8601", time_zone="UTC")
+        )
 
         print(f"[DATA] {len(df_trades)} trades, {len(df_cycles)} cycles loaded.")
 
@@ -68,14 +70,14 @@ class ForensicAuditEngine:
         # ============================================================
         print("[AUDIT 1/6] Analyzing close reasons...")
         close_reasons = (
-            df_trades["close_reason"].value_counts()
+            df_trades.get_column("close_reason").value_counts()
             if "close_reason" in df_trades.columns
-            else pd.Series()
+            else pl.DataFrame()
         )
 
         # Categorize close reasons
         def categorize_close(reason):
-            if pd.isna(reason):
+            if reason is None or (isinstance(reason, float) and math.isnan(reason)):
                 return "Unknown"
             r = str(reason).lower()
             if "ai close_position" in r:
@@ -97,19 +99,23 @@ class ForensicAuditEngine:
             return "Other"
 
         if "close_reason" in df_trades.columns:
-            df_trades["close_category"] = df_trades["close_reason"].apply(categorize_close)
+            df_trades = df_trades.with_columns(
+                pl.col("close_reason")
+                .map_elements(categorize_close, return_dtype=pl.Utf8)
+                .alias("close_category")
+            )
         else:
-            df_trades["close_category"] = "Unknown"
+            df_trades = df_trades.with_columns(pl.lit("Unknown").alias("close_category"))
 
         close_cat_stats = (
-            df_trades.groupby("close_category")
+            df_trades.group_by("close_category")
             .agg(
-                count=("pnl", "count"),
-                total_pnl=("pnl", "sum"),
-                avg_pnl=("pnl", "mean"),
-                win_rate=("pnl", lambda x: (x > 0).mean() * 100),
+                pl.len().alias("count"),
+                pl.col("pnl").sum().alias("total_pnl"),
+                pl.col("pnl").mean().alias("avg_pnl"),
+                ((pl.col("pnl") > 0).mean() * 100).alias("win_rate"),
             )
-            .sort_values("total_pnl")
+            .sort("total_pnl")
         )
 
         # ============================================================
@@ -117,18 +123,20 @@ class ForensicAuditEngine:
         # ============================================================
         print("[AUDIT 2/6] Analyzing trade durations...")
         if "exit_time" in df_trades.columns:
-            df_trades["duration_minutes"] = (
-                df_trades["exit_time"] - df_trades["entry_time"]
-            ).dt.total_seconds() / 60
+            df_trades = df_trades.with_columns(
+                (pl.col("exit_time") - pl.col("entry_time"))
+                .dt.total_seconds()
+                .alias("duration_seconds")
+            ).with_columns((pl.col("duration_seconds") / 60).alias("duration_minutes"))
         else:
-            df_trades["duration_minutes"] = 0
+            df_trades = df_trades.with_columns(pl.lit(0.0).alias("duration_minutes"))
 
         # Short-lived trades (< 15 min)
-        short_lived = df_trades[df_trades["duration_minutes"] < 15]
-        medium_lived = df_trades[
-            (df_trades["duration_minutes"] >= 15) & (df_trades["duration_minutes"] < 60)
-        ]
-        long_lived = df_trades[df_trades["duration_minutes"] >= 60]
+        short_lived = df_trades.filter(pl.col("duration_minutes") < 15)
+        medium_lived = df_trades.filter(
+            (pl.col("duration_minutes") >= 15) & (pl.col("duration_minutes") < 60)
+        )
+        long_lived = df_trades.filter(pl.col("duration_minutes") >= 60)
 
         # ============================================================
         # SECTION 3: AI Reasoning Pattern Analysis (CoT Mining)
@@ -137,16 +145,16 @@ class ForensicAuditEngine:
 
         # Match trades to their trigger cycles
         forensic_matches = []
-        for idx, trade in df_trades.iterrows():
+        for trade in df_trades.iter_rows(named=True):
             trade_time = trade["entry_time"]
             coin = trade["symbol"]
             mask = (df_cycles["timestamp"] <= trade_time) & (
                 df_cycles["timestamp"] >= (trade_time - timedelta(minutes=5))
             )
-            potential = df_cycles[mask]
-            if potential.empty:
+            potential = df_cycles.filter(mask)
+            if potential.is_empty():
                 continue
-            trigger = potential.iloc[-1]
+            trigger = potential.row(-1, named=True)
             cot = trigger.get("chain_of_thoughts", "")
             decisions = trigger.get("decisions", {})
             decision = decisions.get(coin, {}) if isinstance(decisions, dict) else {}
@@ -189,7 +197,7 @@ class ForensicAuditEngine:
                 }
             )
 
-        df_forensic = pd.DataFrame(forensic_matches) if forensic_matches else pd.DataFrame()
+        df_forensic = pl.DataFrame(forensic_matches) if forensic_matches else pl.DataFrame()
 
         # ============================================================
         # SECTION 4: ML Signal vs Outcome Cross-Reference
@@ -197,32 +205,36 @@ class ForensicAuditEngine:
         print("[AUDIT 4/6] Cross-referencing ML signals with outcomes...")
 
         ml_sell_trades = (
-            df_forensic[df_forensic["has_ml_sell"]] if not df_forensic.empty else pd.DataFrame()
+            df_forensic.filter(pl.col("has_ml_sell"))
+            if not df_forensic.is_empty()
+            else pl.DataFrame()
         )
         ml_buy_trades = (
-            df_forensic[df_forensic["has_ml_buy"]] if not df_forensic.empty else pd.DataFrame()
+            df_forensic.filter(pl.col("has_ml_buy"))
+            if not df_forensic.is_empty()
+            else pl.DataFrame()
         )
         ml_neutral = (
-            df_forensic[~df_forensic["has_ml_sell"] & ~df_forensic["has_ml_buy"]]
-            if not df_forensic.empty
-            else pd.DataFrame()
+            df_forensic.filter(~pl.col("has_ml_sell") & ~pl.col("has_ml_buy"))
+            if not df_forensic.is_empty()
+            else pl.DataFrame()
         )
 
         # ============================================================
         # SECTION 5: Strategy Performance Breakdown
         # ============================================================
         print("[AUDIT 5/6] Analyzing strategy performance...")
-        strategy_stats = pd.DataFrame()
-        if not df_forensic.empty and "strategy" in df_forensic.columns:
+        strategy_stats = pl.DataFrame()
+        if not df_forensic.is_empty() and "strategy" in df_forensic.columns:
             strategy_stats = (
-                df_forensic.groupby("strategy")
+                df_forensic.group_by("strategy")
                 .agg(
-                    count=("pnl", "count"),
-                    total_pnl=("pnl", "sum"),
-                    avg_pnl=("pnl", "mean"),
-                    win_rate=("pnl", lambda x: (x > 0).mean() * 100),
+                    pl.len().alias("count"),
+                    pl.col("pnl").sum().alias("total_pnl"),
+                    pl.col("pnl").mean().alias("avg_pnl"),
+                    ((pl.col("pnl") > 0).mean() * 100).alias("win_rate"),
                 )
-                .sort_values("total_pnl")
+                .sort("total_pnl")
             )
 
         # ============================================================
@@ -230,10 +242,14 @@ class ForensicAuditEngine:
         # ============================================================
         print("[AUDIT 6/6] Checking volume/momentum warning violations...")
         poor_vol_entries = (
-            df_forensic[df_forensic["has_poor_volume"]] if not df_forensic.empty else pd.DataFrame()
+            df_forensic.filter(pl.col("has_poor_volume"))
+            if not df_forensic.is_empty()
+            else pl.DataFrame()
         )
         weakening_entries = (
-            df_forensic[df_forensic["has_weakening"]] if not df_forensic.empty else pd.DataFrame()
+            df_forensic.filter(pl.col("has_weakening"))
+            if not df_forensic.is_empty()
+            else pl.DataFrame()
         )
 
         # ============================================================
@@ -256,7 +272,8 @@ class ForensicAuditEngine:
             )
             f.write("| Close Category | Trades | Total PnL | Avg PnL | Win Rate |\n")
             f.write("| :--- | :---: | :---: | :---: | :---: |\n")
-            for cat, row in close_cat_stats.iterrows():
+            for row in close_cat_stats.iter_rows(named=True):
+                cat = row["close_category"]
                 f.write(
                     f"| {cat} | {int(row['count'])} | ${row['total_pnl']:.2f} | ${row['avg_pnl']:.2f} | {row['win_rate']:.1f}% |\n"
                 )
@@ -266,7 +283,9 @@ class ForensicAuditEngine:
             f.write("### Raw Close Reasons (Top 15)\n")
             f.write("| Reason | Count |\n")
             f.write("| :--- | :---: |\n")
-            for reason, count in close_reasons.head(15).items():
+            for row in close_reasons.head(15).iter_rows(named=True):
+                reason = row["close_reason"]
+                count = row["count"]
                 f.write(f"| {reason} | {count} |\n")
             f.write("\n")
 
@@ -283,7 +302,7 @@ class ForensicAuditEngine:
                 ("15-60 min", medium_lived),
                 ("> 60 min", long_lived),
             ]:
-                if not group.empty:
+                if not group.is_empty():
                     f.write(
                         f"| {label} | {len(group)} | ${group['pnl'].sum():.2f} | ${group['pnl'].mean():.2f} | {(group['pnl'] > 0).mean() * 100:.1f}% |\n"
                     )
@@ -301,7 +320,7 @@ class ForensicAuditEngine:
                 "> This section reveals the AI's thought process at the moment of entry. We look for patterns where the AI ignored its own warnings.\n\n"
             )
 
-            if not df_forensic.empty:
+            if not df_forensic.is_empty():
                 total_matched = len(df_forensic)
                 f.write(f"**Matched {total_matched} trades to their AI reasoning cycles.**\n\n")
 
@@ -330,8 +349,8 @@ class ForensicAuditEngine:
                     ("Counter-Trend Strategy", "has_counter_trend", "Trade was counter-trend"),
                     ("Safe Mode / API Error", "has_safe_mode", "API error triggered safe mode"),
                 ]:
-                    flagged = df_forensic[df_forensic[flag_col]]
-                    if not flagged.empty:
+                    flagged = df_forensic.filter(pl.col(flag_col))
+                    if not flagged.is_empty():
                         wr = (flagged["pnl"] > 0).mean() * 100
                         verdict = "⚠️ Problem" if wr < 40 else "✅ Acceptable"
                         f.write(
@@ -343,8 +362,8 @@ class ForensicAuditEngine:
 
                 # ---- Worst 10 Trades Deep Dive ----
                 f.write("### Worst 10 Trades - AI Reasoning Deep Dive\n")
-                worst_10 = df_forensic.sort_values("pnl").head(10)
-                for i, (_, t) in enumerate(worst_10.iterrows(), 1):
+                worst_10 = df_forensic.sort("pnl").head(10)
+                for i, t in enumerate(worst_10.iter_rows(named=True), 1):
                     f.write(
                         f"#### #{i}. {t['symbol']} {t['direction'].upper()} — PnL: ${t['pnl']:.2f}\n"
                     )
@@ -382,7 +401,7 @@ class ForensicAuditEngine:
                 ("ML Said BUY", ml_buy_trades),
                 ("ML Neutral/Unknown", ml_neutral),
             ]:
-                if not group.empty:
+                if not group.is_empty():
                     f.write(
                         f"| {label} | {len(group)} | ${group['pnl'].sum():.2f} | ${group['pnl'].mean():.2f} | {(group['pnl'] > 0).mean() * 100:.1f}% |\n"
                     )
@@ -390,10 +409,11 @@ class ForensicAuditEngine:
 
             # ---- STRATEGY PERF ----
             f.write("## 5. Strategy Performance\n")
-            if not strategy_stats.empty:
+            if not strategy_stats.is_empty():
                 f.write("| Strategy | Trades | Total PnL | Avg PnL | Win Rate |\n")
                 f.write("| :--- | :---: | :---: | :---: | :---: |\n")
-                for strat, row in strategy_stats.iterrows():
+                for row in strategy_stats.iter_rows(named=True):
+                    strat = row["strategy"]
                     f.write(
                         f"| {strat} | {int(row['count'])} | ${row['total_pnl']:.2f} | ${row['avg_pnl']:.2f} | {row['win_rate']:.1f}% |\n"
                     )
@@ -401,7 +421,7 @@ class ForensicAuditEngine:
 
             # ---- CONFIDENCE ANALYSIS ----
             f.write("## 6. Confidence Score Analysis\n")
-            if not df_forensic.empty:
+            if not df_forensic.is_empty():
                 conf_bins = [
                     (0, 0.5, "Very Low (0-0.5)"),
                     (0.5, 0.65, "Low (0.5-0.65)"),
@@ -411,10 +431,10 @@ class ForensicAuditEngine:
                 f.write("| Confidence Range | Trades | Total PnL | Avg PnL | Win Rate |\n")
                 f.write("| :--- | :---: | :---: | :---: | :---: |\n")
                 for low, high, label in conf_bins:
-                    group = df_forensic[
-                        (df_forensic["confidence"] >= low) & (df_forensic["confidence"] < high)
-                    ]
-                    if not group.empty:
+                    group = df_forensic.filter(
+                        (pl.col("confidence") >= low) & (pl.col("confidence") < high)
+                    )
+                    if not group.is_empty():
                         f.write(
                             f"| {label} | {len(group)} | ${group['pnl'].sum():.2f} | ${group['pnl'].mean():.2f} | {(group['pnl'] > 0).mean() * 100:.1f}% |\n"
                         )
@@ -426,35 +446,40 @@ class ForensicAuditEngine:
             # Dynamically generate verdicts based on actual data
             verdicts = []
 
+            # Build a lookup of close category stats
+            cat_lookup = {
+                row["close_category"]: row for row in close_cat_stats.iter_rows(named=True)
+            }
+
             # Check close reason patterns
-            if "AI Signal" in close_cat_stats.index:
-                ai_close = close_cat_stats.loc["AI Signal"]
+            if "AI Signal" in cat_lookup:
+                ai_close = cat_lookup["AI Signal"]
                 if ai_close["total_pnl"] < -10:
                     verdicts.append(
                         f"**AI Close Signal Losses**: AI's own 'close_position' signal caused ${ai_close['total_pnl']:.2f} in losses across {int(ai_close['count'])} trades. The AI is closing positions too early before they can recover."
                     )
 
-            if "Extended Loss Timer" in close_cat_stats.index:
-                ext_loss = close_cat_stats.loc["Extended Loss Timer"]
+            if "Extended Loss Timer" in cat_lookup:
+                ext_loss = cat_lookup["Extended Loss Timer"]
                 if ext_loss["count"] > 5:
                     verdicts.append(
                         f"**Extended Loss Timer**: {int(ext_loss['count'])} trades were force-closed after {15} negative cycles (EXTENDED_LOSS_CYCLES=15). These trades lost ${ext_loss['total_pnl']:.2f}. This timer is working correctly as a safety net."
                     )
 
-            if "Stop Loss" in close_cat_stats.index:
-                sl = close_cat_stats.loc["Stop Loss"]
+            if "Stop Loss" in cat_lookup:
+                sl = cat_lookup["Stop Loss"]
                 verdicts.append(
                     f"**Stop Loss Hits**: {int(sl['count'])} trades hit stop loss for ${sl['total_pnl']:.2f}. Stop losses are functioning."
                 )
 
             # Duration analysis
-            if not short_lived.empty and len(short_lived) > len(df_trades) * 0.3:
+            if not short_lived.is_empty() and len(short_lived) > len(df_trades) * 0.3:
                 verdicts.append(
                     f"**Premature Exits**: {len(short_lived)} trades ({len(short_lived) / len(df_trades) * 100:.0f}%) lasted <15 minutes. The bot is entering and immediately getting shaken out. This is the #1 problem — the entry timing is poor."
                 )
 
             # Volume violations
-            if not poor_vol_entries.empty:
+            if not poor_vol_entries.is_empty():
                 pv_pnl = poor_vol_entries["pnl"].sum()
                 pv_wr = (poor_vol_entries["pnl"] > 0).mean() * 100
                 verdicts.append(
@@ -462,7 +487,7 @@ class ForensicAuditEngine:
                 )
 
             # ML impact
-            if not ml_sell_trades.empty:
+            if not ml_sell_trades.is_empty():
                 ml_sell_pnl = ml_sell_trades["pnl"].sum()
                 verdicts.append(
                     f"**ML Confusion**: When ML said SELL, total trade PnL was ${ml_sell_pnl:.2f}. The ML model's {ml_accuracy} accuracy can be noise. The AI treats ML as a 'tie-breaker' per the prompt, but since ML is often unreliable, it's actually a 'wrong-breaker'."

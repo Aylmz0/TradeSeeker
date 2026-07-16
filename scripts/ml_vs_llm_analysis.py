@@ -2,7 +2,7 @@
 import json
 import os
 import sys
-import pandas as pd
+import polars as pl
 from datetime import datetime, timezone
 import re
 import glob
@@ -16,8 +16,8 @@ def parse_iso(ts_str):
     if not ts_str:
         return None
     try:
-        return pd.to_datetime(ts_str, format="ISO8601", utc=True)
-    except:
+        return pl.Series([ts_str]).str.to_datetime(format="ISO8601", time_zone="UTC")[0]
+    except Exception:
         return None
 
 
@@ -200,28 +200,30 @@ def analyze_ml_vs_llm():
                 }
             )
 
-    df = pd.DataFrame(results)
-    if df.empty:
+    df = pl.DataFrame(results)
+    if df.is_empty():
         print("No matches found in 200 cycles, script failed.")
         return
 
     print("\n" + "=" * 80)
-    print(" 🤖 ML vs LLM DIVERGENCE ANALYSIS (DEEP DATA)")
+    print(" ML vs LLM DIVERGENCE ANALYSIS (DEEP DATA)")
     print("=" * 80)
 
-    df_display = df[
+    df_display = df.select(
         ["Coin", "EntryTime", "LLM_Dir", "ML_Bias", "ML_Conf", "Conflict", "WhoRight", "PnL"]
-    ]
-    print(df_display.to_string(index=False))
+    )
+    print(df_display)
 
     print("\n" + "=" * 80)
     print(" 📊 SUMMARY STATISTICS ")
     print("=" * 80)
 
     total_trades = len(df)
-    conflicts = df[df["Conflict"] == True]
-    agreements = df[(df["Conflict"] == False) & (df["ML_Bias"].isin(["BUY", "SELL"]))]
-    neutral_ml = df[df["ML_Bias"].isin(["HOLD", "Unknown"])]
+    conflicts = df.filter(pl.col("Conflict") == True)
+    agreements = df.filter(
+        (pl.col("Conflict") == False) & (pl.col("ML_Bias").is_in(["BUY", "SELL"]))
+    )
+    neutral_ml = df.filter(pl.col("ML_Bias").is_in(["HOLD", "Unknown"]))
 
     print(f"Total Evaluated Trades: {total_trades}")
     print(f"Trades where ML Disagreed with LLM (Conflict): {len(conflicts)}")
@@ -229,8 +231,8 @@ def analyze_ml_vs_llm():
     print(f"Trades where ML was Neutral/Hold: {len(neutral_ml)}")
 
     if len(conflicts) > 0:
-        ml_wins = len(conflicts[conflicts["WhoRight"].str.startswith("ML")])
-        llm_wins = len(conflicts[conflicts["WhoRight"].str.startswith("LLM")])
+        ml_wins = len(conflicts.filter(pl.col("WhoRight").str.starts_with("ML")))
+        llm_wins = len(conflicts.filter(pl.col("WhoRight").str.starts_with("LLM")))
 
         print(f"\nIn {len(conflicts)} conflicting trades:")
         print(
@@ -241,15 +243,15 @@ def analyze_ml_vs_llm():
         )
 
         loss_pnl = (
-            conflicts[conflicts["WhoRight"].str.startswith("ML")]["PnL"]
+            conflicts.filter(pl.col("WhoRight").str.starts_with("ML"))["PnL"]
             .str.replace("$", "")
-            .astype(float)
+            .cast(pl.Float64)
             .sum()
         )
         win_pnl = (
-            conflicts[conflicts["WhoRight"].str.startswith("LLM")]["PnL"]
+            conflicts.filter(pl.col("WhoRight").str.starts_with("LLM"))["PnL"]
             .str.replace("$", "")
-            .astype(float)
+            .cast(pl.Float64)
             .sum()
         )
 
@@ -260,7 +262,7 @@ def analyze_ml_vs_llm():
     print("\n" + "=" * 80)
     print(" 🔎 DEEP DIVE ON CONFLICTS (Why did LLM ignore ML?)")
     print("=" * 80)
-    for _, row in conflicts.iterrows():
+    for row in conflicts.iter_rows(named=True):
         print(
             f"\n[{row['EntryTime']}] {row['Coin']} | LLM went {row['LLM_Dir']} | ML said {row['ML_Bias']} ({row['ML_Conf']}) | Result: {row['PnL']}"
         )

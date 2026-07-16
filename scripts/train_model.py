@@ -1,14 +1,14 @@
 import argparse
 import os
 import sys
+from datetime import datetime
 
 
 # Add project root to sys.path
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 import joblib
-import numpy as np
-import pandas as pd
+import polars as pl
 import xgboost as xgb
 from sklearn.metrics import accuracy_score, classification_report, confusion_matrix, log_loss
 from sklearn.preprocessing import StandardScaler
@@ -66,13 +66,12 @@ def train_global_model():
             continue
 
         # Merge Features and Labels (Inner join on timestamp to match rows exactly)
-        df_merged = pd.merge(
-            df_features,
-            df_raw_labeled[["timestamp", "target_label", "future_return"]],
+        df_merged = df_features.join(
+            df_raw_labeled.select(["timestamp", "target_label", "future_return"]),
             on="timestamp",
             how="inner",
         )
-        df_merged["source_coin"] = coin  # Track origin for debugging if needed
+        df_merged = df_merged.with_columns(pl.lit(coin).alias("source_coin"))
 
         all_features_list.append(df_merged)
         print(f"     [OK] Added {len(df_merged)} rows from {coin}.")
@@ -83,26 +82,33 @@ def train_global_model():
 
     # Combine all coin data into one massive global dataset
     print("\n[INFO] Concatenating global dataset...")
-    df_global = pd.concat(all_features_list, ignore_index=True)
+    df_global = pl.concat(all_features_list, how="vertical_relaxed")
 
     # Sort chronologically to prevent data leakage during time-series split
-    df_global = df_global.sort_values("timestamp").reset_index(drop=True)
+    df_global = df_global.sort("timestamp")
 
     print(
         f"[INFO] Global Dataset Size: {len(df_global)} rows total across {len(all_features_list)} coins."
     )
 
     # === LABEL DISTRIBUTION AUDIT ===
-    label_counts = df_global["target_label"].value_counts().sort_index()
+    label_counts = df_global.get_column("target_label").value_counts().sort("target_label")
+    label_count_map = dict(zip(label_counts["target_label"], label_counts["count"]))
     total = len(df_global)
     print("\n" + "=" * 50)
     print("[AUDIT] LABEL DISTRIBUTION:")
-    print(f"  SELL (-1): {label_counts.get(-1, 0):>6} ({label_counts.get(-1, 0)/total*100:.1f}%)")
-    print(f"  HOLD ( 0): {label_counts.get( 0, 0):>6} ({label_counts.get( 0, 0)/total*100:.1f}%)")
-    print(f"  BUY  ( 1): {label_counts.get( 1, 0):>6} ({label_counts.get( 1, 0)/total*100:.1f}%)")
+    print(
+        f"  SELL (-1): {label_count_map.get(-1, 0):>6} ({label_count_map.get(-1, 0)/total*100:.1f}%)"
+    )
+    print(
+        f"  HOLD ( 0): {label_count_map.get( 0, 0):>6} ({label_count_map.get( 0, 0)/total*100:.1f}%)"
+    )
+    print(
+        f"  BUY  ( 1): {label_count_map.get( 1, 0):>6} ({label_count_map.get( 1, 0)/total*100:.1f}%)"
+    )
     print("=" * 50)
 
-    hold_ratio = label_counts.get(0, 0) / total
+    hold_ratio = label_count_map.get(0, 0) / total
     if hold_ratio > constants.ML_HOLD_ABORT_RATIO:
         print(
             f"\n[FATAL] HOLD ratio {hold_ratio:.1%} exceeds {constants.ML_HOLD_ABORT_RATIO:.0%} abort threshold."
@@ -115,28 +121,41 @@ def train_global_model():
     drop_cols = ["timestamp", "target_label", "future_return", "source_coin"]
     feature_cols = [c for c in df_global.columns if c not in drop_cols]
 
-    X = df_global[feature_cols]
-    y = df_global["target_label"]
+    X = df_global.select(feature_cols)
+    y = df_global.get_column("target_label")
 
     # Remap labels to [0, 1, 2] for XGBoost multi-class
     # -1 (SELL) -> 0
     # 0 (HOLD) -> 1
     # 1 (BUY) -> 2
-    y_mapped = y.map({-1: 0, 0: 1, 1: 2})
+    y_mapped = (
+        y.to_frame("target_label")
+        .select(
+            pl.when(pl.col("target_label") == -1)
+            .then(0)
+            .when(pl.col("target_label") == 0)
+            .then(1)
+            .when(pl.col("target_label") == 1)
+            .then(2)
+            .otherwise(None)
+            .alias("y")
+        )
+        .to_series()
+    )
 
     # ChronOLOGICAL Time-Series Split (80% Train, 20% Test) WITHOUT shuffling!
     # Because we sorted by timestamp, this effectively simulates training on the past and testing on the recent future across all coins.
     split_idx = int(len(df_global) * 0.8)
-    X_train, X_test = X.iloc[:split_idx], X.iloc[split_idx:]
-    y_train, y_test = y_mapped.iloc[:split_idx], y_mapped.iloc[split_idx:]
+    X_train, X_test = X.head(split_idx), X.tail(len(X) - split_idx)
+    y_train, y_test = y_mapped.head(split_idx), y_mapped.tail(len(y_mapped) - split_idx)
 
     print(f"[INFO] Split complete: {len(X_train)} Train, {len(X_test)} Test")
 
     # Normalization (StandardScaler)
     # FIT ONLY ON TRAIN to prevent target/data leakage!
     scaler = StandardScaler()
-    X_train_scaled = scaler.fit_transform(X_train)
-    X_test_scaled = scaler.transform(X_test)
+    X_train_scaled = scaler.fit_transform(X_train.to_numpy())
+    X_test_scaled = scaler.transform(X_test.to_numpy())
 
     # Model Factory (XGBoost)
     print(
@@ -159,8 +178,8 @@ def train_global_model():
 
     # === Perfection Phase: Dynamic Class Weights ===
     # Calculate mathematically balanced weights based on actual class frequencies
-    unique_classes = np.unique(y_train)
-    weights_auto = compute_class_weight("balanced", classes=unique_classes, y=y_train)
+    unique_classes = y_train.unique().to_numpy()
+    weights_auto = compute_class_weight("balanced", classes=unique_classes, y=y_train.to_numpy())
     weight_dict = dict(zip(unique_classes, weights_auto))
 
     # Cap weights at max 5.0x to prevent explosive gradients for ultra-rare classes
@@ -168,13 +187,15 @@ def train_global_model():
     capped_weight_dict = {k: min(v, max_weight_multiplier) for k, v in weight_dict.items()}
 
     print(f"[INFO] Applied Dynamic Capped Class Weights: {capped_weight_dict}")
-    train_weights = np.array([capped_weight_dict[c] for c in y_train])
+    train_weights = pl.Series(
+        [capped_weight_dict.get(c, 1.0) for c in y_train.to_numpy()]
+    ).to_numpy()
 
     model.fit(
         X_train_scaled,
-        y_train,
+        y_train.to_numpy(),
         sample_weight=train_weights,
-        eval_set=[(X_train_scaled, y_train), (X_test_scaled, y_test)],
+        eval_set=[(X_train_scaled, y_train.to_numpy()), (X_test_scaled, y_test.to_numpy())],
         verbose=10,
     )
 
@@ -183,19 +204,23 @@ def train_global_model():
 
     print("\n[EVAL] Global Model Performance Evaluation:")
     print("-" * 50)
-    print(f"Accuracy: {accuracy_score(y_test, y_pred):.3f}")
-    print(f"LogLoss : {log_loss(y_test, y_prob):.3f}")
+    print(f"Accuracy: {accuracy_score(y_test.to_numpy(), y_pred):.3f}")
+    print(f"LogLoss : {log_loss(y_test.to_numpy(), y_prob):.3f}")
 
     class_names = ["SELL", "HOLD", "BUY"]
     print("\nConfusion Matrix:")
-    print(confusion_matrix(y_test, y_pred))
+    print(confusion_matrix(y_test.to_numpy(), y_pred))
 
     print("\nClassification Report:")
-    print(classification_report(y_test, y_pred, target_names=class_names, zero_division=0))
+    print(
+        classification_report(y_test.to_numpy(), y_pred, target_names=class_names, zero_division=0)
+    )
 
     # Feature Importance Audit
     importances = model.feature_importances_
-    feat_imp = pd.Series(importances, index=feature_cols).sort_values(ascending=False)
+    feat_imp = pl.DataFrame({"feature": feature_cols, "importance": importances}).sort(
+        "importance", descending=True
+    )
     print("\nTop 5 Important Features:")
     print(feat_imp.head(5))
 
@@ -207,22 +232,22 @@ def train_global_model():
 
     # Classification Report as dict for deep metrics
     report_dict = classification_report(
-        y_test, y_pred, target_names=class_names, output_dict=True, zero_division=0
+        y_test.to_numpy(), y_pred, target_names=class_names, output_dict=True, zero_division=0
     )
 
     # Save metrics for Dashboard
     metrics = {
-        "accuracy": round(float(accuracy_score(y_test, y_pred)), 4),
-        "logloss": round(float(log_loss(y_test, y_prob)), 4),
+        "accuracy": round(float(accuracy_score(y_test.to_numpy(), y_pred)), 4),
+        "logloss": round(float(log_loss(y_test.to_numpy(), y_prob)), 4),
         "f1_buy": round(float(report_dict.get("BUY", {}).get("f1-score", 0)), 4),
         "f1_sell": round(float(report_dict.get("SELL", {}).get("f1-score", 0)), 4),
         "f1_hold": round(float(report_dict.get("HOLD", {}).get("f1-score", 0)), 4),
         "label_distribution": {
-            "sell_pct": round(label_counts.get(-1, 0) / total * 100, 1),
-            "hold_pct": round(label_counts.get(0, 0) / total * 100, 1),
-            "buy_pct": round(label_counts.get(1, 0) / total * 100, 1),
+            "sell_pct": round(label_count_map.get(-1, 0) / total * 100, 1),
+            "hold_pct": round(label_count_map.get(0, 0) / total * 100, 1),
+            "buy_pct": round(label_count_map.get(1, 0) / total * 100, 1),
         },
-        "last_train_ts": pd.Timestamp.now().isoformat(),
+        "last_train_ts": datetime.now().isoformat(),
     }
     with open("models/model_metrics.json", "w") as f:
         import json
