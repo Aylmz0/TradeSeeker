@@ -1,61 +1,98 @@
 from typing import Any
 
-import numpy as np
-import pandas as pd
+import polars as pl
 
 from src.core import constants
 
 
-def calculate_ema_series(prices: pd.Series, period: int) -> pd.Series:
-    return prices.ewm(span=period, adjust=False).mean()
+def _linear_slope(x: list[float], y: list[float]) -> float:
+    n = len(x)
+    if n < 2:
+        return 0.0
+    sum_x = sum(x)
+    sum_y = sum(y)
+    sum_xy = sum(xi * yi for xi, yi in zip(x, y))
+    sum_x2 = sum(xi * xi for xi in x)
+    denominator = n * sum_x2 - sum_x * sum_x
+    if denominator == 0:
+        return 0.0
+    return (n * sum_xy - sum_x * sum_y) / denominator
 
 
-def calculate_rsi_series(prices: pd.Series, period: int = 14) -> pd.Series:
+def _sign(x: float) -> int:
+    return 1 if x > 0 else (-1 if x < 0 else 0)
+
+
+def calculate_ema_series(prices: pl.Series, period: int) -> pl.Series:
+    return prices.ewm_mean(span=period, adjust=False)
+
+
+def calculate_rsi_series(prices: pl.Series, period: int = 14) -> pl.Series:
     if len(prices) < period + 1:
-        return pd.Series([np.nan] * len(prices))
-    delta = prices.diff()
-    gain = delta.where(delta > 0, 0)
-    loss = -delta.where(delta < 0, 0)
-    avg_gain = gain.ewm(com=period - 1, adjust=False).mean()
-    avg_loss = loss.ewm(com=period - 1, adjust=False).mean()
-    rs = avg_gain / avg_loss.replace(0, np.nan)
-    rsi = 100 - (100 / (1 + rs))
-    rsi = rsi.fillna(100)
-    rsi.loc[avg_gain == 0] = 0
-    return rsi
+        return pl.Series([float("nan")] * len(prices))
+
+    df = pl.DataFrame({"close": prices})
+    df = df.with_columns(pl.col("close").diff().alias("delta"))
+
+    df = df.with_columns(
+        [
+            pl.when(pl.col("delta") > 0).then(pl.col("delta")).otherwise(0.0).alias("gain"),
+            pl.when(pl.col("delta") < 0).then(-pl.col("delta")).otherwise(0.0).alias("loss"),
+        ]
+    )
+
+    df = df.with_columns(
+        [
+            pl.col("gain").ewm_mean(com=period - 1, adjust=False).alias("avg_gain"),
+            pl.col("loss").ewm_mean(com=period - 1, adjust=False).alias("avg_loss"),
+        ]
+    )
+
+    df = df.with_columns(
+        (pl.col("avg_gain") / pl.col("avg_loss").replace(0, float("nan"))).alias("rs")
+    )
+    df = df.with_columns((100 - (100 / (1 + pl.col("rs")))).alias("rsi_raw"))
+    df = df.with_columns(pl.col("rsi_raw").fill_nan(100).alias("rsi"))
+    df = df.with_columns(
+        pl.when(pl.col("avg_gain") == 0).then(0.0).otherwise(pl.col("rsi")).alias("rsi")
+    )
+
+    return df["rsi"]
 
 
 def calculate_macd_series(
-    prices: pd.Series, fast: int = 12, slow: int = 26, signal: int = 9
-) -> tuple[pd.Series, pd.Series, pd.Series]:
+    prices: pl.Series, fast: int = 12, slow: int = 26, signal: int = 9
+) -> tuple[pl.Series, pl.Series, pl.Series]:
     if len(prices) < slow:
-        return (
-            pd.Series([np.nan] * len(prices)),
-            pd.Series([np.nan] * len(prices)),
-            pd.Series([np.nan] * len(prices)),
-        )
-    ema_fast = prices.ewm(span=fast, adjust=False).mean()
-    ema_slow = prices.ewm(span=slow, adjust=False).mean()
+        nan_series = pl.Series([float("nan")] * len(prices))
+        return nan_series, nan_series, nan_series
+
+    ema_fast = prices.ewm_mean(span=fast, adjust=False)
+    ema_slow = prices.ewm_mean(span=slow, adjust=False)
     macd_line = ema_fast - ema_slow
-    macd_signal = macd_line.ewm(span=signal, adjust=False).mean()
+    macd_signal = macd_line.ewm_mean(span=signal, adjust=False)
     macd_histogram = macd_line - macd_signal
     return macd_line, macd_signal, macd_histogram
 
 
 def calculate_atr_series(
-    df_high: pd.Series, df_low: pd.Series, df_close: pd.Series, period: int = 14
-) -> pd.Series:
+    df_high: pl.Series, df_low: pl.Series, df_close: pl.Series, period: int = 14
+) -> pl.Series:
     if len(df_close) < period + 1:
-        return pd.Series([np.nan] * len(df_close))
-    tr0 = abs(df_high - df_low)
-    tr1 = abs(df_high - df_close.shift())
-    tr2 = abs(df_low - df_close.shift())
-    tr = pd.concat([tr0, tr1, tr2], axis=1).max(axis=1)
-    return tr.ewm(com=period - 1, adjust=False).mean()
+        return pl.Series([float("nan")] * len(df_close))
+
+    tr0 = (df_high - df_low).abs()
+    tr1 = (df_high - df_close.shift()).abs()
+    tr2 = (df_low - df_close.shift()).abs()
+
+    temp_df = pl.DataFrame({"tr0": tr0, "tr1": tr1, "tr2": tr2})
+    tr = temp_df.select(pl.max_horizontal("tr0", "tr1", "tr2")).to_series()
+
+    return tr.ewm_mean(com=period - 1, adjust=False)
 
 
 def calculate_adx(
-    high: pd.Series, low: pd.Series, close: pd.Series, period: int = 14
+    high: pl.Series, low: pl.Series, close: pl.Series, period: int = 14
 ) -> tuple[float, float, float]:
     """Calculate ADX (Average Directional Index) and DI values.
     Returns: (adx, plus_di, minus_di)
@@ -63,98 +100,173 @@ def calculate_adx(
     if len(close) < period + 1:
         return 0.0, 0.0, 0.0
 
-    tr1 = high - low
-    tr2 = abs(high - close.shift(1))
-    tr3 = abs(low - close.shift(1))
-    tr = pd.concat([tr1, tr2, tr3], axis=1).max(axis=1)
+    df = pl.DataFrame({"high": high, "low": low, "close": close})
 
-    up_move = high - high.shift(1)
-    down_move = low.shift(1) - low
+    tr1 = pl.col("high") - pl.col("low")
+    tr2 = (pl.col("high") - pl.col("close").shift(1)).abs()
+    tr3 = (pl.col("low") - pl.col("close").shift(1)).abs()
 
-    plus_dm = up_move.where((up_move > down_move) & (up_move > 0), 0.0)
-    minus_dm = down_move.where((down_move > up_move) & (down_move > 0), 0.0)
+    df = df.with_columns(pl.max_horizontal(tr1, tr2, tr3).alias("tr"))
 
-    atr = tr.ewm(span=period, adjust=False).mean()
-    plus_dm_smooth = plus_dm.ewm(span=period, adjust=False).mean()
-    minus_dm_smooth = minus_dm.ewm(span=period, adjust=False).mean()
+    df = df.with_columns(
+        [
+            (pl.col("high") - pl.col("high").shift(1)).alias("up_move"),
+            (pl.col("low").shift(1) - pl.col("low")).alias("down_move"),
+        ]
+    )
 
-    plus_di = 100 * (plus_dm_smooth / atr.replace(0, np.nan)).fillna(0)
-    minus_di = 100 * (minus_dm_smooth / atr.replace(0, np.nan)).fillna(0)
+    df = df.with_columns(
+        [
+            pl.when((pl.col("up_move") > pl.col("down_move")) & (pl.col("up_move") > 0))
+            .then(pl.col("up_move"))
+            .otherwise(0.0)
+            .alias("plus_dm"),
+            pl.when((pl.col("down_move") > pl.col("up_move")) & (pl.col("down_move") > 0))
+            .then(pl.col("down_move"))
+            .otherwise(0.0)
+            .alias("minus_dm"),
+        ]
+    )
 
-    di_sum = plus_di + minus_di
-    di_diff = abs(plus_di - minus_di)
-    dx = 100 * (di_diff / di_sum.replace(0, np.nan)).fillna(0)
-    adx = dx.ewm(span=period, adjust=False).mean()
+    df = df.with_columns(
+        [
+            pl.col("tr").ewm_mean(span=period, adjust=False).alias("atr"),
+            pl.col("plus_dm").ewm_mean(span=period, adjust=False).alias("plus_dm_smooth"),
+            pl.col("minus_dm").ewm_mean(span=period, adjust=False).alias("minus_dm_smooth"),
+        ]
+    )
 
-    return float(adx.iloc[-1]), float(plus_di.iloc[-1]), float(minus_di.iloc[-1])
+    df = df.with_columns(
+        [
+            (100 * (pl.col("plus_dm_smooth") / pl.col("atr").replace(0, float("nan")))).alias(
+                "plus_di"
+            ),
+            (100 * (pl.col("minus_dm_smooth") / pl.col("atr").replace(0, float("nan")))).alias(
+                "minus_di"
+            ),
+        ]
+    )
+
+    df = df.with_columns(
+        [
+            pl.col("plus_di").fill_nan(0).alias("plus_di"),
+            pl.col("minus_di").fill_nan(0).alias("minus_di"),
+        ]
+    )
+
+    df = df.with_columns(
+        [
+            (pl.col("plus_di") + pl.col("minus_di")).alias("di_sum"),
+            (pl.col("plus_di") - pl.col("minus_di")).abs().alias("di_diff"),
+        ]
+    )
+
+    df = df.with_columns(
+        (100 * (pl.col("di_diff") / pl.col("di_sum").replace(0, float("nan")))).alias("dx")
+    )
+    df = df.with_columns(pl.col("dx").fill_nan(0).alias("adx_raw"))
+    df = df.with_columns(pl.col("adx_raw").ewm_mean(span=period, adjust=False).alias("adx"))
+
+    return float(df["adx"][-1]), float(df["plus_di"][-1]), float(df["minus_di"][-1])
 
 
 def calculate_vwap(
-    high: pd.Series, low: pd.Series, close: pd.Series, volume: pd.Series, period: int = 60
+    high: pl.Series, low: pl.Series, close: pl.Series, volume: pl.Series, period: int = 60
 ) -> float:
     """Calculate Rolling VWAP (Volume Weighted Average Price)."""
     if len(close) < period:
-        return float(close.iloc[-1]) if len(close) > 0 else 0.0
+        return float(close[-1]) if len(close) > 0 else 0.0
 
     typical_price = (high + low + close) / 3
     tp_volume = typical_price * volume
-    rolling_tp_vol = tp_volume.rolling(window=period).sum()
-    rolling_vol = volume.rolling(window=period).sum()
 
-    vwap = rolling_tp_vol / rolling_vol.replace(0, np.nan)
-    return float(vwap.iloc[-1]) if pd.notna(vwap.iloc[-1]) else float(close.iloc[-1])
+    df = pl.DataFrame({"tp_vol": tp_volume, "vol": volume})
+    df = df.with_columns(
+        [
+            pl.col("tp_vol").rolling_sum(window_size=period).alias("rolling_tp_vol"),
+            pl.col("vol").rolling_sum(window_size=period).alias("rolling_vol"),
+        ]
+    )
+
+    vwap = df.select(
+        (pl.col("rolling_tp_vol") / pl.col("rolling_vol").replace(0, float("nan"))).alias("vwap")
+    )["vwap"]
+
+    last_val = vwap[-1]
+    if last_val is not None and last_val == last_val:  # NaN check
+        return float(last_val)
+    return float(close[-1])
 
 
 def calculate_bollinger_bands(
-    close: pd.Series, period: int = 20, std_dev: float = 2.0
+    close: pl.Series, period: int = 20, std_dev: float = 2.0
 ) -> tuple[float, float, float, float, float]:
     """Calculate Bollinger Bands.
     Returns: (upper_band, middle_band, lower_band, bandwidth, percent_b)
     """
     if len(close) < period:
-        price = float(close.iloc[-1]) if len(close) > 0 else 0.0
+        price = float(close[-1]) if len(close) > 0 else 0.0
         return price, price, price, 0.0, 0.5
 
-    middle = close.rolling(window=period).mean()
-    std = close.rolling(window=period).std()
-    upper = middle + (std_dev * std)
-    lower = middle - (std_dev * std)
-    bandwidth = ((upper - lower) / middle).fillna(0)
-    band_range = upper - lower
-    percent_b = ((close - lower) / band_range.replace(0, np.nan)).fillna(0.5)
+    df = pl.DataFrame({"close": close})
+    df = df.with_columns(
+        [
+            pl.col("close").rolling_mean(window_size=period).alias("middle"),
+            pl.col("close").rolling_std(window_size=period).alias("std"),
+        ]
+    )
+
+    df = df.with_columns(
+        [
+            (pl.col("middle") + (std_dev * pl.col("std"))).alias("upper"),
+            (pl.col("middle") - (std_dev * pl.col("std"))).alias("lower"),
+        ]
+    )
+
+    df = df.with_columns(
+        [
+            ((pl.col("upper") - pl.col("lower")) / pl.col("middle")).fill_nan(0).alias("bandwidth"),
+            (
+                (pl.col("close") - pl.col("lower"))
+                / (pl.col("upper") - pl.col("lower")).replace(0, float("nan"))
+            )
+            .fill_nan(0.5)
+            .alias("percent_b"),
+        ]
+    )
 
     return (
-        float(upper.iloc[-1]),
-        float(middle.iloc[-1]),
-        float(lower.iloc[-1]),
-        float(bandwidth.iloc[-1]),
-        float(percent_b.iloc[-1]),
+        float(df["upper"][-1]),
+        float(df["middle"][-1]),
+        float(df["lower"][-1]),
+        float(df["bandwidth"][-1]),
+        float(df["percent_b"][-1]),
     )
 
 
-def calculate_obv(close: pd.Series, volume: pd.Series) -> tuple[float, str, str]:
+def calculate_obv(close: pl.Series, volume: pl.Series) -> tuple[float, str, str]:
     """Calculate On Balance Volume and its trend using vectorized operations.
     Returns: (obv, obv_trend, obv_divergence)
     """
     if len(close) < constants.INDICATOR_HISTORY_DEFAULT:
         return 0.0, "FLAT", "NONE"
 
-    # Vectorized direction calculation: 1 if up, -1 if down, 0 if flat
-    direction = np.sign(close.diff().fillna(0))
-    # Fill the first element with 1 to match legacy behavior where OBV starts at 0 + volume[1]
-    # actually, legacy behavior starts obv at 0. Let's just cumsum the volume adjusted by direction.
-    direction.iloc[0] = 0
+    df = pl.DataFrame({"close": close, "volume": volume})
+    df = df.with_columns(pl.col("close").diff().fill_null(0).alias("delta"))
 
-    # Vectorized OBV calculation
-    obv_series = (volume * direction).cumsum()
-    current_obv = float(obv_series.iloc[-1])
+    direction = df["delta"].map_elements(_sign, return_dtype=pl.Int64).cast(pl.Float64)
+    direction = direction.fill_null(0.0)
+    direction[0] = 0.0
 
-    # Trend calculation
-    obv_change = obv_series.iloc[-1] - obv_series.iloc[-constants.INDICATOR_HISTORY_DEFAULT]
+    df = df.with_columns((pl.col("volume") * pl.lit(direction)).cum_sum().alias("obv"))
+
+    current_obv = float(df["obv"][-1])
+
+    hist_len = constants.INDICATOR_HISTORY_DEFAULT
+    obv_change = float(df["obv"][-1]) - float(df["obv"][-hist_len])
     obv_trend = "RISING" if obv_change > 0 else ("FALLING" if obv_change < 0 else "FLAT")
 
-    # Divergence calculation
-    price_change = close.iloc[-1] - close.iloc[-constants.INDICATOR_HISTORY_DEFAULT]
+    price_change = float(close[-1]) - float(close[-hist_len])
     divergence = "NONE"
     if price_change > 0 and obv_change < 0:
         divergence = "BEARISH"
@@ -165,41 +277,38 @@ def calculate_obv(close: pd.Series, volume: pd.Series) -> tuple[float, str, str]
 
 
 def calculate_supertrend(
-    high: pd.Series, low: pd.Series, close: pd.Series, period: int = 10, multiplier: float = 3.0
+    high: pl.Series, low: pl.Series, close: pl.Series, period: int = 10, multiplier: float = 3.0
 ) -> tuple[float, str]:
     """Calculate SuperTrend indicator using optimized vectorization.
     Returns: (supertrend_line, direction)
     """
     if len(close) < period + 1:
-        return float(close.iloc[-1]) if len(close) > 0 else 0.0, "UP"
+        return float(close[-1]) if len(close) > 0 else 0.0, "UP"
 
-    # Vectorized True Range and ATR
     tr1 = high - low
-    tr2 = abs(high - close.shift(1))
-    tr3 = abs(low - close.shift(1))
-    tr = pd.concat([tr1, tr2, tr3], axis=1).max(axis=1)
-    atr = tr.ewm(span=period, adjust=False).mean()
+    tr2 = (high - close.shift(1)).abs()
+    tr3 = (low - close.shift(1)).abs()
+
+    temp_df = pl.DataFrame({"tr0": tr1, "tr1": tr2, "tr2": tr3})
+    tr = temp_df.select(pl.max_horizontal("tr0", "tr1", "tr2")).to_series()
+    atr = tr.ewm_mean(span=period, adjust=False)
 
     hl2 = (high + low) / 2
     upper_band = hl2 + (multiplier * atr)
     lower_band = hl2 - (multiplier * atr)
 
-    # Initialize tracking arrays
-    supertrend = np.zeros(len(close))
-    direction = np.zeros(len(close), dtype=int)
+    n = len(close)
+    supertrend = [0.0] * n
+    direction = [0] * n
 
-    close_vals = close.values
-    ub_vals = upper_band.values
-    lb_vals = lower_band.values
+    close_vals = close.to_list()
+    ub_vals = upper_band.to_list()
+    lb_vals = lower_band.to_list()
 
     supertrend[0] = ub_vals[0]
     direction[0] = 1
 
-    # Numba-style loop over arrays is significantly faster than pandas series access
-    # Given the recursive nature of supertrend (depends on previous step),
-    # a pure pandas vectorized form is complex, but numpy array iteration
-    # provides near C-speed execution over O(N).
-    for i in range(1, len(close_vals)):
+    for i in range(1, n):
         st_prev = supertrend[i - 1]
         if close_vals[i] > st_prev:
             supertrend[i] = (
@@ -210,19 +319,19 @@ def calculate_supertrend(
             supertrend[i] = ub_vals[i] if ub_vals[i] < st_prev or direction[i - 1] == 1 else st_prev
             direction[i] = -1
 
-    current_st = float(supertrend[-1])
+    current_st = supertrend[-1]
     current_dir = "UP" if direction[-1] == 1 else "DOWN"
 
     return current_st, current_dir
 
 
-def calculate_efficiency_ratio(prices: pd.Series, period: int = 10) -> float:
+def calculate_efficiency_ratio(prices: pl.Series, period: int = 10) -> float:
     """Calculate Kaufman Efficiency Ratio (ER) to detect Choppy vs Trending markets."""
     if len(prices) < period + 1:
         return 0.5
 
-    change = abs(prices.iloc[-1] - prices.iloc[-period - 1])
-    volatility = prices.diff().abs().iloc[-period:].sum()
+    change = abs(float(prices[-1]) - float(prices[-period - 1]))
+    volatility = prices.diff().abs()[-period:].sum()
 
     if volatility == 0:
         return 1.0
@@ -230,16 +339,17 @@ def calculate_efficiency_ratio(prices: pd.Series, period: int = 10) -> float:
     return change / volatility
 
 
-def extract_semantic_features(prices: pd.Series, period: int = 24) -> dict[str, Any]:
-    """Extract semantic features from price series using numpy"""
+def extract_semantic_features(prices: pl.Series, period: int = 24) -> dict[str, Any]:
+    """Extract semantic features from price series."""
     if len(prices) < period:
         return {}
 
-    subset = prices.iloc[-period:].values
+    subset = prices[-period:].to_list()
+    current_price = subset[-1]
 
-    x = np.arange(len(subset))
-    slope, _ = np.polyfit(x, subset, 1)
-    slope_pct = (slope / subset[0]) * 100
+    x = list(range(len(subset)))
+    slope = _linear_slope(x, subset)
+    slope_pct = (slope / subset[0]) * 100 if subset[0] != 0 else 0
 
     peaks = []
     valleys = []
@@ -249,9 +359,9 @@ def extract_semantic_features(prices: pd.Series, period: int = 24) -> dict[str, 
         elif subset[i] < subset[i - 1] and subset[i] < subset[i + 1]:
             valleys.append(float(subset[i]))
 
-    std_dev = np.std(subset)
-    mean_price = np.mean(subset)
-    volatility_ratio = std_dev / mean_price
+    std_dev = prices[-period:].std()
+    mean_price = prices[-period:].mean()
+    volatility_ratio = std_dev / mean_price if mean_price != 0 else 0
 
     volatility_state = "STABLE"
     if volatility_ratio > constants.VOLATILITY_THRESHOLD:
@@ -281,14 +391,14 @@ def extract_semantic_features(prices: pd.Series, period: int = 24) -> dict[str, 
     }
 
 
-def calculate_slope_label(prices: pd.Series, period: int = 20) -> str:
+def calculate_slope_label(prices: pl.Series, period: int = 20) -> str:
     """Calculate linear regression slope and return categorical label."""
     if len(prices) < period:
         return "FLAT"
-    subset = prices.iloc[-period:].values
-    x = np.arange(len(subset))
-    slope, _ = np.polyfit(x, subset, 1)
-    slope_pct = (slope / subset[0]) * 100
+    subset = prices[-period:].to_list()
+    x = list(range(len(subset)))
+    slope = _linear_slope(x, subset)
+    slope_pct = (slope / subset[0]) * 100 if subset[0] != 0 else 0
 
     if slope_pct > 0.2:
         return "AGGRESSIVE_ASCEND"
@@ -316,22 +426,20 @@ def calculate_ema_stretch_label(current_price: float, ema20: float) -> str:
     return "NORMAL"
 
 
-def calculate_rsi_divergence_label(prices: pd.Series, rsi: pd.Series, period: int = 20) -> str:
-    """Detect RSI-Price divergence using slope comparison (NumPy)."""
+def calculate_rsi_divergence_label(prices: pl.Series, rsi: pl.Series, period: int = 20) -> str:
+    """Detect RSI-Price divergence using slope comparison."""
     if len(prices) < period or len(rsi) < period:
         return "NONE"
 
-    p_subset = prices.iloc[-period:].values
-    r_subset = rsi.iloc[-period:].values
-    x = np.arange(len(p_subset))
+    p_subset = prices[-period:].to_list()
+    r_subset = rsi[-period:].to_list()
+    x = list(range(len(p_subset)))
 
-    p_slope, _ = np.polyfit(x, p_subset, 1)
-    r_slope, _ = np.polyfit(x, r_subset, 1)
+    p_slope = _linear_slope(x, p_subset)
+    r_slope = _linear_slope(x, r_subset)
 
-    # Bullish Divergence: Price falling (neg slope) but RSI rising (pos slope)
     if p_slope < -0.02 and r_slope > 0.5:
         return "BULLISH_DIVERGENCE"
-    # Bearish Divergence: Price rising (pos slope) but RSI falling (neg slope)
     if p_slope > 0.02 and r_slope < -0.5:
         return "BEARISH_DIVERGENCE"
 
@@ -351,33 +459,33 @@ def calculate_volatility_pulse_label(atr_3: float, atr_14: float) -> str:
     return "NORMAL"
 
 
-def generate_smart_sparkline(prices: pd.Series, period: int = 24) -> dict[str, Any]:
-    """Generate Smart Sparkline v2.1 with key level, structure, and momentum using NumPy."""
+def generate_smart_sparkline(prices: pl.Series, period: int = 24) -> dict[str, Any]:
+    """Generate Smart Sparkline v2.1 with key level, structure, and momentum."""
     if len(prices) < period:
         return {"key_level": None, "structure": "UNCLEAR", "momentum": "STABLE"}
 
-    subset = prices.iloc[-period:].values
-    current_price = float(subset[-1])
+    subset = prices[-period:].to_list()
+    current_price = subset[-1]
     tolerance_pct = constants.SPARKLINE_TOLERANCE
 
-    # Peak/Valley detection via SciPy concepts (numpy rolling comparisons)
-    # Finding local maxima/minima with a window of 5 (2 before, 2 after)
-    idx = np.arange(2, len(subset) - 2)
-    is_peak = (
-        (subset[idx] > subset[idx - 1])
-        & (subset[idx] > subset[idx - 2])
-        & (subset[idx] > subset[idx + 1])
-        & (subset[idx] > subset[idx + 2])
-    )
-    is_valley = (
-        (subset[idx] < subset[idx - 1])
-        & (subset[idx] < subset[idx - 2])
-        & (subset[idx] < subset[idx + 1])
-        & (subset[idx] < subset[idx + 2])
-    )
-
-    peaks = subset[idx][is_peak].tolist()
-    valleys = subset[idx][is_valley].tolist()
+    idx = list(range(2, len(subset) - 2))
+    peaks = []
+    valleys = []
+    for i in idx:
+        if (
+            subset[i] > subset[i - 1]
+            and subset[i] > subset[i - 2]
+            and subset[i] > subset[i + 1]
+            and subset[i] > subset[i + 2]
+        ):
+            peaks.append(float(subset[i]))
+        elif (
+            subset[i] < subset[i - 1]
+            and subset[i] < subset[i - 2]
+            and subset[i] < subset[i + 1]
+            and subset[i] < subset[i + 2]
+        ):
+            valleys.append(float(subset[i]))
 
     key_level = None
     supports = [v for v in valleys if v < current_price]
@@ -423,7 +531,7 @@ def generate_smart_sparkline(prices: pd.Series, period: int = 24) -> dict[str, A
         elif last_peaks[1] < last_peaks[0] and last_valleys[1] < last_valleys[0]:
             structure = "LH_LL"
         else:
-            price_range_val = np.ptp(subset)  # Peak-to-peak (max - min)
+            price_range_val = max(subset) - min(subset)
             if price_range_val / current_price < constants.RANGE_STRICT_THRESHOLD:
                 structure = "RANGE"
 
@@ -434,11 +542,9 @@ def generate_smart_sparkline(prices: pd.Series, period: int = 24) -> dict[str, A
     first_half_change = abs(raw_first_change)
     second_half_change = abs(raw_second_change)
 
-    # Check if direction changed (signs are opposite)
     direction_changed = (raw_first_change * raw_second_change) < 0
 
     if direction_changed:
-        # Direction reversal means trend momentum is weakening
         momentum = "WEAKENING"
     elif (
         first_half_change > 0
@@ -453,8 +559,8 @@ def generate_smart_sparkline(prices: pd.Series, period: int = 24) -> dict[str, A
     else:
         momentum = "STABLE"
 
-    period_high = np.max(subset)
-    period_low = np.min(subset)
+    period_high = max(subset)
+    period_low = min(subset)
     price_range = period_high - period_low
 
     percentile = ((current_price - period_low) / price_range) * 100 if price_range > 0 else 50
@@ -472,16 +578,16 @@ def generate_smart_sparkline(prices: pd.Series, period: int = 24) -> dict[str, A
     }
 
 
-def calculate_pivots(df: pd.DataFrame, periods: int = 24) -> dict[str, float]:
-    """Calculate High/Low pivots over N periods"""
+def calculate_pivots(df: pl.DataFrame, periods: int = 24) -> dict[str, float]:
+    """Calculate High/Low pivots over N periods."""
     if len(df) < periods:
         return {}
-    subset = df.iloc[-periods:]
+    subset = df.tail(periods)
     return {"high": float(subset["high"].max()), "low": float(subset["low"].min())}
 
 
 def generate_tags(indicators: dict[str, Any]) -> list[str]:
-    """Generate analytical tags based on indicators"""
+    """Generate analytical tags based on indicators."""
     tags = []
 
     if indicators.get("volume_ratio", 0) > constants.VOLUME_RATIO_HIGH:
@@ -515,103 +621,211 @@ def generate_tags(indicators: dict[str, Any]) -> list[str]:
     return tags
 
 
-def get_features_for_ml(df: pd.DataFrame) -> pd.DataFrame:
-    """Convert raw OHLCV Dataframe into an ML-ready Feature Matrix.
-    Calculates technical indicators, applies stationarity (pct_change),
-    and adds lag features to capture temporal dependencies (t-1, t-2).
-    """
+def get_features_for_ml(df: pl.DataFrame) -> pl.DataFrame:
+    """Convert raw OHLCV DataFrame into an ML-ready Feature Matrix."""
     if len(df) < constants.MIN_KLINE_DATA_POINTS:
-        return pd.DataFrame()
+        return pl.DataFrame()
 
-    features = pd.DataFrame(index=df.index)
-    features["timestamp"] = df["timestamp"]
+    features = pl.DataFrame({"timestamp": df["timestamp"]})
 
-    # 1. Base Prices & Stationarity (Return over previous bar)
-    features["return_1p"] = df["close"].pct_change()
-    features["return_vol"] = df["volume"].pct_change()
+    features = features.with_columns(
+        [
+            df["close"].pct_change().alias("return_1p"),
+            df["volume"].pct_change().alias("return_vol"),
+        ]
+    )
 
-    # 2. Technical Indicators (Vectorized across the entire DataFrame)
-    features["rsi_14"] = calculate_rsi_series(df["close"], constants.ATR_PERIOD_DEFAULT)
-    features["rsi_7"] = calculate_rsi_series(df["close"], constants.FIB_8)
+    features = features.with_columns(
+        [
+            calculate_rsi_series(df["close"], constants.ATR_PERIOD_DEFAULT).alias("rsi_14"),
+            calculate_rsi_series(df["close"], constants.FIB_8).alias("rsi_7"),
+        ]
+    )
 
     macd_line, _macd_signal, macd_hist = calculate_macd_series(df["close"])
-    features["macd_hist"] = macd_hist
-    features["macd_line"] = macd_line
-
-    features["atr_14"] = calculate_atr_series(
-        df["high"], df["low"], df["close"], constants.ATR_PERIOD_DEFAULT
+    features = features.with_columns(
+        [
+            macd_hist.alias("macd_hist"),
+            macd_line.alias("macd_line"),
+        ]
     )
-    features["atr_ratio"] = features["atr_14"] / df["close"]  # Normalize ATR by price
 
-    features["ema_20"] = calculate_ema_series(df["close"], constants.EMA_FAST)
-    features["ema_50"] = calculate_ema_series(df["close"], constants.EMA_MEDIUM)
-    features["ema_20_dist"] = (df["close"] - features["ema_20"]) / features["ema_20"]
+    features = features.with_columns(
+        [
+            calculate_atr_series(
+                df["high"], df["low"], df["close"], constants.ATR_PERIOD_DEFAULT
+            ).alias("atr_14"),
+        ]
+    )
+    features = features.with_columns((pl.col("atr_14") / df["close"]).alias("atr_ratio"))
 
-    # ADX and DI
-    tr1 = df["high"] - df["low"]
-    tr2 = abs(df["high"] - df["close"].shift(1))
-    tr3 = abs(df["low"] - df["close"].shift(1))
-    tr = pd.concat([tr1, tr2, tr3], axis=1).max(axis=1)
-    up_move = df["high"] - df["high"].shift(1)
-    down_move = df["low"].shift(1) - df["low"]
-    plus_dm = up_move.where((up_move > down_move) & (up_move > 0), 0.0)
-    minus_dm = down_move.where((down_move > up_move) & (down_move > 0), 0.0)
+    features = features.with_columns(
+        [
+            calculate_ema_series(df["close"], constants.EMA_FAST).alias("ema_20"),
+            calculate_ema_series(df["close"], constants.EMA_MEDIUM).alias("ema_50"),
+        ]
+    )
+    features = features.with_columns(
+        ((df["close"] - pl.col("ema_20")) / pl.col("ema_20")).alias("ema_20_dist")
+    )
 
-    atr_14_ewm = tr.ewm(span=14, adjust=False).mean()
-    # Avoid div by zero which causes Inf -> NaN
-    atr_14_ewm_safe = atr_14_ewm.replace(0, np.nan)
+    adx_df = pl.DataFrame(
+        {
+            "high": df["high"],
+            "low": df["low"],
+            "close": df["close"],
+        }
+    )
 
-    plus_di = 100 * (plus_dm.ewm(span=14, adjust=False).mean() / atr_14_ewm_safe)
-    minus_di = 100 * (minus_dm.ewm(span=14, adjust=False).mean() / atr_14_ewm_safe)
+    tr1 = pl.col("high") - pl.col("low")
+    tr2 = (pl.col("high") - pl.col("close").shift(1)).abs()
+    tr3 = (pl.col("low") - pl.col("close").shift(1)).abs()
 
-    di_sum = plus_di + minus_di
-    di_diff_safe = abs(plus_di - minus_di)
-    dx = 100 * (di_diff_safe / di_sum.replace(0, np.nan))
+    adx_df = adx_df.with_columns(pl.max_horizontal(tr1, tr2, tr3).alias("tr"))
 
-    features["adx_14"] = dx.ewm(span=constants.ATR_PERIOD_DEFAULT, adjust=False).mean().fillna(0)
-    features["plus_di"] = plus_di.fillna(0)
-    features["minus_di"] = minus_di.fillna(0)
+    adx_df = adx_df.with_columns(
+        [
+            (pl.col("high") - pl.col("high").shift(1)).alias("up_move"),
+            (pl.col("low").shift(1) - pl.col("low")).alias("down_move"),
+        ]
+    )
 
-    # Volatility / Bollinger Bandwidth
-    middle = df["close"].rolling(window=constants.EMA_FAST).mean()
-    std = df["close"].rolling(window=constants.EMA_FAST).std()
-    upper = middle + (constants.BB_STD_DEV_NORMAL * std)
-    lower = middle - (constants.BB_STD_DEV_NORMAL * std)
-    features["bb_bandwidth"] = (upper - lower) / middle
-    features["bb_percent_b"] = (df["close"] - lower) / (upper - lower)
+    adx_df = adx_df.with_columns(
+        [
+            pl.when((pl.col("up_move") > pl.col("down_move")) & (pl.col("up_move") > 0))
+            .then(pl.col("up_move"))
+            .otherwise(0.0)
+            .alias("plus_dm"),
+            pl.when((pl.col("down_move") > pl.col("up_move")) & (pl.col("down_move") > 0))
+            .then(pl.col("down_move"))
+            .otherwise(0.0)
+            .alias("minus_dm"),
+        ]
+    )
 
-    # 2.5 CATEGORY A: Directional Lags (DI Crossings)
-    features["plus_di_lag1"] = features["plus_di"].shift(1)
-    features["minus_di_lag1"] = features["minus_di"].shift(1)
-    features["di_cross"] = features["plus_di"] - features["minus_di"]
-    features["di_cross_lag1"] = features["di_cross"].shift(1)
-    features["adx_14_lag1"] = features["adx_14"].shift(1)
-    features["adx_growth"] = features["adx_14"] - features["adx_14_lag1"]
+    adx_df = adx_df.with_columns(pl.col("tr").ewm_mean(span=14, adjust=False).alias("atr_14_ewm"))
+    adx_df = adx_df.with_columns(
+        pl.col("atr_14_ewm").replace(0, float("nan")).alias("atr_14_ewm_safe")
+    )
 
-    # 2.6 CATEGORY B: Momentum Lags (RSI History/Slope)
-    features["rsi_14_slope"] = features["rsi_14"] - features["rsi_14"].shift(1)
-    features["rsi_7_slope"] = features["rsi_7"] - features["rsi_7"].shift(1)
+    adx_df = adx_df.with_columns(
+        [
+            (
+                100
+                * (pl.col("plus_dm").ewm_mean(span=14, adjust=False) / pl.col("atr_14_ewm_safe"))
+            ).alias("plus_di"),
+            (
+                100
+                * (pl.col("minus_dm").ewm_mean(span=14, adjust=False) / pl.col("atr_14_ewm_safe"))
+            ).alias("minus_di"),
+        ]
+    )
 
-    # 2.7 CATEGORY C: Structural Spacing (HTF Anchors)
-    features["ema_50_dist"] = (df["close"] - features["ema_50"]) / features["ema_50"]
-    features["ema_alignment"] = features["ema_20_dist"] - features["ema_50_dist"]
+    adx_df = adx_df.with_columns(
+        [
+            (pl.col("plus_di") + pl.col("minus_di")).alias("di_sum"),
+            (pl.col("plus_di") - pl.col("minus_di")).abs().alias("di_diff_safe"),
+        ]
+    )
 
-    # 2.8 CATEGORY D: Enhanced Slopes
-    features["ema_20_slope"] = (features["ema_20"] - features["ema_20"].shift(1)) / features[
-        "ema_20"
-    ].shift(1)
-    features["ema_50_slope"] = (features["ema_50"] - features["ema_50"].shift(1)) / features[
-        "ema_50"
-    ].shift(1)
-    features["macd_hist_lag1"] = features["macd_hist"].shift(1)
-    features["macd_hist_lag2"] = features["macd_hist"].shift(2)
-    features["macd_slope"] = features["macd_hist"] - features["macd_hist_lag1"]
+    adx_df = adx_df.with_columns(
+        (100 * (pl.col("di_diff_safe") / pl.col("di_sum").replace(0, float("nan")))).alias("dx")
+    )
 
-    # Momentum (Price Rate of Change)
-    features["roc_10"] = df["close"].pct_change(periods=constants.INDICATOR_HISTORY_DEFAULT)
+    adx_series = adx_df["dx"].fill_nan(0).ewm_mean(span=constants.ATR_PERIOD_DEFAULT, adjust=False)
+    plus_di_series = adx_df["plus_di"].fill_nan(0)
+    minus_di_series = adx_df["minus_di"].fill_nan(0)
 
-    # 3. Lag Features (Temporal History t-1, t-2)
-    # XGBoost only sees one row at a time. It needs lag features to understand velocity.
+    features = features.with_columns(
+        [
+            adx_series.alias("adx_14"),
+            plus_di_series.alias("plus_di"),
+            minus_di_series.alias("minus_di"),
+        ]
+    )
+
+    bb_df = pl.DataFrame({"close": df["close"]})
+    bb_df = bb_df.with_columns(
+        [
+            pl.col("close").rolling_mean(window_size=constants.EMA_FAST).alias("bb_middle"),
+            pl.col("close").rolling_std(window_size=constants.EMA_FAST).alias("bb_std"),
+        ]
+    )
+    bb_df = bb_df.with_columns(
+        [
+            (pl.col("bb_middle") + (constants.BB_STD_DEV_NORMAL * pl.col("bb_std"))).alias(
+                "bb_upper"
+            ),
+            (pl.col("bb_middle") - (constants.BB_STD_DEV_NORMAL * pl.col("bb_std"))).alias(
+                "bb_lower"
+            ),
+        ]
+    )
+
+    features = features.with_columns(
+        [
+            ((bb_df["bb_upper"] - bb_df["bb_lower"]) / bb_df["bb_middle"])
+            .fill_nan(0)
+            .alias("bb_bandwidth"),
+            ((df["close"] - bb_df["bb_lower"]) / (bb_df["bb_upper"] - bb_df["bb_lower"]))
+            .fill_nan(0)
+            .alias("bb_percent_b"),
+        ]
+    )
+
+    features = features.with_columns(
+        [
+            pl.col("plus_di").shift(1).alias("plus_di_lag1"),
+            pl.col("minus_di").shift(1).alias("minus_di_lag1"),
+        ]
+    )
+    features = features.with_columns((pl.col("plus_di") - pl.col("minus_di")).alias("di_cross"))
+    features = features.with_columns(
+        [
+            pl.col("di_cross").shift(1).alias("di_cross_lag1"),
+            pl.col("adx_14").shift(1).alias("adx_14_lag1"),
+        ]
+    )
+    features = features.with_columns((pl.col("adx_14") - pl.col("adx_14_lag1")).alias("adx_growth"))
+
+    features = features.with_columns(
+        [
+            (pl.col("rsi_14") - pl.col("rsi_14").shift(1)).alias("rsi_14_slope"),
+            (pl.col("rsi_7") - pl.col("rsi_7").shift(1)).alias("rsi_7_slope"),
+        ]
+    )
+
+    features = features.with_columns(
+        [
+            ((df["close"] - pl.col("ema_50")) / pl.col("ema_50")).alias("ema_50_dist"),
+        ]
+    )
+    features = features.with_columns(
+        (pl.col("ema_20_dist") - pl.col("ema_50_dist")).alias("ema_alignment")
+    )
+
+    features = features.with_columns(
+        [
+            ((pl.col("ema_20") - pl.col("ema_20").shift(1)) / pl.col("ema_20").shift(1)).alias(
+                "ema_20_slope"
+            ),
+            ((pl.col("ema_50") - pl.col("ema_50").shift(1)) / pl.col("ema_50").shift(1)).alias(
+                "ema_50_slope"
+            ),
+            pl.col("macd_hist").shift(1).alias("macd_hist_lag1"),
+            pl.col("macd_hist").shift(2).alias("macd_hist_lag2"),
+        ]
+    )
+    features = features.with_columns(
+        (pl.col("macd_hist") - pl.col("macd_hist_lag1")).alias("macd_slope")
+    )
+
+    features = features.with_columns(
+        [
+            df["close"].pct_change(periods=constants.INDICATOR_HISTORY_DEFAULT).alias("roc_10"),
+        ]
+    )
+
     cols_to_lag = [
         "return_1p",
         "return_vol",
@@ -625,18 +839,13 @@ def get_features_for_ml(df: pd.DataFrame) -> pd.DataFrame:
     ]
     for col in cols_to_lag:
         if f"{col}_lag1" not in features.columns:
-            features[f"{col}_lag1"] = features[col].shift(1)
+            features = features.with_columns(pl.col(col).shift(1).alias(f"{col}_lag1"))
         if f"{col}_lag2" not in features.columns:
-            features[f"{col}_lag2"] = features[col].shift(2)
+            features = features.with_columns(pl.col(col).shift(2).alias(f"{col}_lag2"))
 
-    # 4. Cleanup
-    # Forward fill non-critical NaNs
-    features.ffill(inplace=True)
-    features.replace([np.inf, -np.inf], np.nan, inplace=True)
-
-    # Drop rows that have NaNs due to lookback periods (e.g. at the start of the data)
-    # Usually the first 50 rows will have some missing data (EMA_50 needs 50 bars)
-    features.dropna(inplace=True)
+    features = features.forward_fill()
+    features = features.with_columns(pl.all().map_batches(lambda x: x.fill_nan(None)))
+    features = features.drop_nulls()
 
     return features
 
@@ -647,22 +856,27 @@ if __name__ == "__main__":
     print("\n--- Testing ML Feature Extraction ---")
     try:
         conn = sqlite3.connect("data/market_data.db")
-        # Direct query to avoid import deadlocks from DataEngine/RealMarketData
         query = "SELECT * FROM market_data WHERE coin='XRP' AND interval='15m' ORDER BY timestamp DESC LIMIT 500"
-        df_raw = pd.read_sql_query(query, conn)
-        df_raw = df_raw.sort_values("timestamp").reset_index(drop=True)
-        df_raw["timestamp"] = pd.to_datetime(df_raw["timestamp"], unit="ms")
+        cursor = conn.execute(query)
+        columns = [desc[0] for desc in cursor.description]
+        rows = cursor.fetchall()
         conn.close()
 
-        if df_raw.empty:
+        if not rows:
             print("[FAIL] No raw data in DB. Run Phase 1.2 first.")
         else:
+            df_raw = pl.DataFrame(rows, schema=columns)
+            df_raw = df_raw.sort("timestamp").with_row_index()
+            df_raw = df_raw.drop("index")
+            df_raw = df_raw.with_columns(
+                pl.col("timestamp").cast(pl.Datetime(time_unit="ms")).alias("timestamp")
+            )
+
             df_features = get_features_for_ml(df_raw)
             print(f"[OK] Extracted features from {len(df_raw)} raw candles.")
-            print(f"[INFO] Generated {len(df_features)} ML rows.")
+            print(f"[INFO] Generated {df_features.height} ML rows.")
             print(f"[INFO] Feature Count: {len(df_features.columns)}")
             print("\nLast Row Sample:")
-            pd.set_option("display.max_columns", None)
             print(df_features.tail(1))
     except Exception as e:
         print(f"[FAIL] Test Failed: {e}")
