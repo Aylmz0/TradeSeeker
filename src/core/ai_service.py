@@ -12,6 +12,7 @@ from src.ai.enhanced_context_provider import EnhancedContextProvider
 from src.core import constants
 from src.core.cache_manager import fetch_all_indicators_parallel, fetch_all_indicators_with_cache
 from src.core.performance_monitor import PerformanceMonitor
+from src.schemas.ai import AIDecision
 from src.services.ml_service import MLService
 from src.utils import format_num
 
