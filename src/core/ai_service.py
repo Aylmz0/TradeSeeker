@@ -1227,6 +1227,48 @@ Each coin below contains a State Vector with:
                     )
                 cleaned_decisions[coin] = cleaned_trade
             else:
+                # FIX: Validate non-hold AI decisions before passing to execution.
+                # LLMs can return invalid signals, out-of-range leverage, negative margin, etc.
+                valid_signals = {"buy_to_enter", "sell_to_enter", "close_position", "hold"}
+                signal = trade.get("signal")
+                if signal not in valid_signals:
+                    print(
+                        f"[WARN]  {coin}: Invalid signal '{signal}' → converted to 'hold'",
+                    )
+                    trade["signal"] = "hold"
+
+                # Leverage bounds check
+                leverage = trade.get("leverage")
+                if isinstance(leverage, (int, float)):
+                    max_lev = getattr(Config, "MAX_LEVERAGE", 20)
+                    default_lev = getattr(Config, "BINANCE_DEFAULT_LEVERAGE", 10)
+                    if leverage < 1 or leverage > max_lev:
+                        print(
+                            f"[WARN]  {coin}: Leverage {leverage} out of [1, {max_lev}] → reset to {default_lev}",
+                        )
+                        trade["leverage"] = default_lev
+                elif leverage is not None:
+                    trade["leverage"] = getattr(Config, "BINANCE_DEFAULT_LEVERAGE", 10)
+
+                # Confidence bounds check
+                confidence = trade.get("confidence")
+                if isinstance(confidence, (int, float)):
+                    if confidence < 0.0 or confidence > 1.0:
+                        print(
+                            f"[WARN]  {coin}: Confidence {confidence:.4f} out of [0, 1] → clamped",
+                        )
+                        trade["confidence"] = max(0.0, min(1.0, confidence))
+
+                # Margin / quantity_usd must be positive
+                for key in ("margin_usd", "quantity_usd"):
+                    val = trade.get(key)
+                    if isinstance(val, (int, float)) and val <= 0:
+                        print(
+                            f"[WARN]  {coin}: {key}={val} is not positive → converted to hold",
+                        )
+                        trade["signal"] = "hold"
+                        break
+
                 cleaned_decisions[coin] = trade
 
             # Inject ML consensus if available (inside loop — applied to all coins)

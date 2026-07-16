@@ -339,7 +339,8 @@ class PortfolioManager:
             cycle_number: The current cycle number at which reset occurs.
 
         """
-        # FIX: Keep lock for entire state modification to prevent race conditions
+        # FIX: Single lock block covers in-memory state + file writes + position resets.
+        # This prevents TOCTOU race where TP/SL thread reads partially-reset data.
         with self._lock:
             self._backup_historical_files(cycle_number)
             print(f"[CLEANUP] HISTORY RESET: Clearing logs at cycle {cycle_number}")
@@ -348,28 +349,26 @@ class PortfolioManager:
             self.directional_bias = self._init_directional_bias()
             self.trend_state = {}
             self.cycle_history = []
-        # File writes outside lock - they're thread-safe themselves
-        safe_file_write(self.history_file, [])
-        safe_file_write(self.cycle_history_file, [])
-        safe_file_write("data/performance_history.json", [])
-        # Write reset marker to dedicated reset_log.json — keeps performance_report.json
-        # clean (only real performance reports, no heterogeneous marker objects).
-        reset_marker = {
-            "reset_reason": "periodic_bias_control",
-            "reset_at_cycle": cycle_number,
-            "timestamp": datetime.now(timezone.utc).isoformat(),
-        }
-        existing_reset_log = safe_file_read("data/reset_log.json", [])
-        if not isinstance(existing_reset_log, list):
-            existing_reset_log = []
-        existing_reset_log.append(reset_marker)
-        # Keep only last MAX_REPORT_ENTRIES reset entries
-        if len(existing_reset_log) > constants.MAX_REPORT_ENTRIES:
-            existing_reset_log = existing_reset_log[-constants.MAX_REPORT_ENTRIES :]
-        safe_file_write("data/reset_log.json", existing_reset_log)
-        # FIX: Hold lock for position counter resets and state updates to prevent
-        # TP/SL thread from reading partially-reset position data.
-        with self._lock:
+
+            # File writes (inside lock — RLock is re-entrant, safe during I/O)
+            safe_file_write(self.history_file, [])
+            safe_file_write(self.cycle_history_file, [])
+            safe_file_write("data/performance_history.json", [])
+            # Write reset marker to dedicated reset_log.json
+            reset_marker = {
+                "reset_reason": "periodic_bias_control",
+                "reset_at_cycle": cycle_number,
+                "timestamp": datetime.now(timezone.utc).isoformat(),
+            }
+            existing_reset_log = safe_file_read("data/reset_log.json", [])
+            if not isinstance(existing_reset_log, list):
+                existing_reset_log = []
+            existing_reset_log.append(reset_marker)
+            if len(existing_reset_log) > constants.MAX_REPORT_ENTRIES:
+                existing_reset_log = existing_reset_log[-constants.MAX_REPORT_ENTRIES :]
+            safe_file_write("data/reset_log.json", existing_reset_log)
+
+            # Position counter resets + state updates (same lock)
             self.portfolio_values_history = [self.total_value]
             for pos in self.positions.values():
                 pos["loss_cycle_count"] = 0
@@ -377,7 +376,7 @@ class PortfolioManager:
             self.last_history_reset_cycle = cycle_number
             self.cycles_since_history_reset = 0
             self.directional_cooldowns = {"long": 0, "short": 0}
-            self.coin_cooldowns = {}  # Also reset coin-based cooldowns
+            self.coin_cooldowns = {}
             self.counter_trend_cooldown = 0
             self.counter_trend_consecutive_losses = 0
             self.relaxed_countertrend_cycles = 0
@@ -418,17 +417,6 @@ class PortfolioManager:
         """
         history: list[dict[str, Any]] = safe_file_read(self.history_file, default_data=[])
         print(f"[OK]    Loaded {len(history)} trades.")
-        return history
-
-    def load_cycle_history(self) -> list[dict[str, Any]]:
-        """Load cycle-by-cycle performance history records.
-
-        Returns
-        -------
-            List of cycle history contexts.
-
-        """
-        history: list[dict[str, Any]] = safe_file_read(self.cycle_history_file, default_data=[])
         return history
 
     def save_trade_history(self) -> None:

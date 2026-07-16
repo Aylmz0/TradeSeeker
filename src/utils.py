@@ -127,6 +127,33 @@ def safe_file_write(file_path: str, data):
         return False
 
 
+def cleanup_stale_temp_files() -> int:
+    """Remove orphaned .tmp files left behind by crashed safe_file_write calls.
+
+    Temp files follow the pattern: {filename}.{pid}.{tid}.tmp
+    Called once on startup before the main loop begins.
+    Returns the number of files cleaned up.
+    """
+    cleaned = 0
+    data_dir = os.path.join(os.getcwd(), "data")
+    for directory in (data_dir, os.getcwd()):
+        if not os.path.isdir(directory):
+            continue
+        try:
+            for entry in os.scandir(directory):
+                if entry.is_file() and entry.name.endswith(".tmp"):
+                    try:
+                        os.remove(entry.path)
+                        cleaned += 1
+                    except OSError:
+                        pass  # File still in use — skip
+        except OSError:
+            pass
+    if cleaned:
+        logger.info(f"[OK]    Cleaned up {cleaned} orphaned temp file(s)")
+    return cleaned
+
+
 def format_num(num: float, precision: int = 2) -> str:
     """Format number with specific precision, handling None/NaN"""
     if num is None or (isinstance(num, float) and np.isnan(num)):

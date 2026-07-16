@@ -25,6 +25,7 @@ from src.core.market_data import RealMarketData
 from src.core.portfolio_manager import PortfolioManager
 from src.core.strategy_analyzer import StrategyAnalyzer
 from src.utils import (
+    cleanup_stale_temp_files,
     format_num,
     safe_file_read,
     safe_file_read_cached,
@@ -1317,6 +1318,7 @@ VERSION = "9 - Auto TP/SL, Dynamic Size, Prompt Eng"
 def main():
     """Main application entry point"""
     try:
+        cleanup_stale_temp_files()
         api_key = os.getenv("DEEPSEEK_API_KEY")
         if not api_key:
             print("[WARN]  No DEEPSEEK_API_KEY found. Running simulation mode...")
