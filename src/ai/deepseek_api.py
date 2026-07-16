@@ -1,4 +1,5 @@
 import json
+from typing import Any
 
 from loguru import logger
 import re
@@ -436,7 +437,7 @@ class DeepSeekAPI:
         }
         return json.dumps(system_structure)
 
-    def get_ai_decision(self, prompt: str) -> str:
+    def get_ai_decision(self, prompt: str) -> dict[str, Any] | str:
         """Get trading decision from AI API natively via LiteLLM Router"""
         if not hasattr(self, "router"):
             return self._get_simulation_response(prompt)
@@ -516,7 +517,7 @@ class DeepSeekAPI:
             # Capture hidden reasoning if available
             reasoning = getattr(response.choices[0].message, "reasoning_content", None)
 
-            return json.dumps({"content": content, "reasoning": reasoning})
+            return {"content": content, "reasoning": reasoning}
 
         except litellm.ContextWindowExceededError as e:
             logger.error("Context window exceeded: {}", e)

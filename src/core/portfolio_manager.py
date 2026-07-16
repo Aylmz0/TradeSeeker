@@ -65,7 +65,7 @@ class PortfolioManager:
     max_cycle_history: int
     maintenance_margin_rate: float
     current_balance: float
-    positions: dict[str, Any]
+    positions: dict[str, Position]
     directional_bias: dict[str, dict[str, Any]]
     trend_state: dict[str, dict[str, Any]]
     trend_flip_cooldown: int
@@ -215,10 +215,10 @@ class PortfolioManager:
         data: dict[str, Any] = safe_file_read_cached(self.state_file, default_data={})
         self.current_balance = data.get("current_balance", self.initial_balance)
         raw_positions = data.get("positions", {})
-        validated_positions: dict[str, dict] = {}
+        validated_positions: dict[str, Position] = {}
         for sym, pos_data in raw_positions.items():
             try:
-                validated_positions[sym] = Position.model_validate(pos_data).model_dump()
+                validated_positions[sym] = Position.model_validate(pos_data)
             except Exception:
                 logger.warning("Invalid position data for {}, skipping", sym)
                 continue
@@ -271,7 +271,7 @@ class PortfolioManager:
         with self._lock:
             data: dict[str, Any] = {
                 "current_balance": self.current_balance,
-                "positions": self.positions,
+                "positions": {sym: pos.model_dump() for sym, pos in self.positions.items()},
                 "total_value": self.total_value,
                 "total_return": self.total_return,
                 "initial_balance": self.initial_balance,
@@ -386,9 +386,10 @@ class PortfolioManager:
 
             # Position counter resets + state updates (same lock)
             self.portfolio_values_history = [self.total_value]
-            for pos in self.positions.values():
-                pos["loss_cycle_count"] = 0
-                pos["profit_cycle_count"] = 0
+            for coin, pos in self.positions.items():
+                self.positions[coin] = pos.model_copy(
+                    update={"loss_cycle_count": 0, "profit_cycle_count": 0}
+                )
             self.last_history_reset_cycle = cycle_number
             self.cycles_since_history_reset = 0
             self.directional_cooldowns = {"long": 0, "short": 0}
@@ -604,7 +605,7 @@ class PortfolioManager:
         """
         counts = {"long": 0, "short": 0}
         for pos in self.positions.values():
-            direction = pos.get("direction")
+            direction = pos.direction
             if direction in counts:
                 counts[direction] += 1
         return counts
@@ -1241,24 +1242,25 @@ class PortfolioManager:
         safe_file_write(self.cycle_history_file, self.cycle_history)
         logger.info("Saved cycle {} (Total: {})", cycle_number, len(self.cycle_history))
 
-    def _update_peak_pnl_tracking(self, coin: str, pos: dict[str, Any]) -> None:
+    def _update_peak_pnl_tracking(self, coin: str, pos: Position) -> Position:
         """Track peak PnL and calculate profit erosion for a single position.
 
         Args:
         ----
             coin: The cryptocurrency symbol.
-            pos: The position dictionary to update.
+            pos: The position to update.
+
+        Returns:
+        -------
+            The updated position instance.
 
         """
-        current_pnl: float = pos.get("unrealized_pnl", 0.0)
-        if "peak_pnl" not in pos:
-            pos["peak_pnl"] = 0.0
-            pos["peak_pnl_cycle"] = None
-        peak_pnl: float = pos.get("peak_pnl", 0.0)
+        current_pnl: float = pos.unrealized_pnl
+        peak_pnl: float = pos.peak_pnl
+        peak_pnl_cycle = pos.peak_pnl_cycle
         if current_pnl > peak_pnl and current_pnl > 0:
-            pos["peak_pnl"] = current_pnl
-            pos["peak_pnl_cycle"] = getattr(self, "current_cycle_number", None)
             peak_pnl = current_pnl
+            peak_pnl_cycle = getattr(self, "current_cycle_number", None)
 
         # Erosion sadece KARDAYKEN hesaplanır veya KARDAN ZARARA DÖNDÜĞÜNDE (100% erozyon)
         if current_pnl > 0 and peak_pnl > 0:
@@ -1272,10 +1274,17 @@ class PortfolioManager:
             erosion_from_peak = 0.0
             erosion_pct = 0.0
 
-        pos["erosion_from_peak"] = round(erosion_from_peak, 4)
-        pos["erosion_pct"] = round(erosion_pct, 2)
         zone: str = self._get_erosion_zone(coin, pos)
-        self._apply_erosion_status(pos, erosion_pct, zone, peak_pnl)
+        status = self._apply_erosion_status(pos, erosion_pct, zone, peak_pnl)
+        return pos.model_copy(
+            update={
+                "peak_pnl": peak_pnl,
+                "peak_pnl_cycle": peak_pnl_cycle,
+                "erosion_from_peak": round(erosion_from_peak, 4),
+                "erosion_pct": round(erosion_pct, 2),
+                "erosion_status": status,
+            }
+        )
 
     def _get_erosion_zone(self, coin: str, pos: dict[str, Any]) -> str:
         """Determine price location zone for erosion sensitivity analysis.
@@ -1291,7 +1300,7 @@ class PortfolioManager:
 
         """
         try:
-            symbol = pos.get("symbol", "")
+            symbol = pos.symbol
             coin_name = symbol.replace("USDT", "") if symbol else coin
             from config.config import Config
 
@@ -1315,16 +1324,20 @@ class PortfolioManager:
         return "MIDDLE"
 
     def _apply_erosion_status(
-        self, pos: dict[str, Any], erosion_pct: float, zone: str, peak_pnl: float
-    ) -> None:
+        self, pos: Position, erosion_pct: float, zone: str, peak_pnl: float
+    ) -> str:
         """Apply erosion status based on thresholds and market zone.
 
         Args:
         ----
-            pos: The position dictionary to update.
+            pos: The position to update.
             erosion_pct: Percentage of profit eroded from peak.
             zone: Current price location zone.
             peak_pnl: Highest PnL reached for this position.
+
+        Returns:
+        -------
+            The erosion status string.
 
         """
         from config.config import Config
@@ -1334,7 +1347,7 @@ class PortfolioManager:
             if zone in ("UPPER_10", "LOWER_10")
             else Config.EROSION_RATE_NORMAL
         )
-        margin_usd = pos.get("margin_usd", 0.0)
+        margin_usd = pos.margin_usd
         if isinstance(margin_usd, str):
             margin_usd = 0.0
         min_meaningful = max(margin_usd * erosion_rate, Config.EROSION_MIN_PROFIT_USD)
@@ -1346,7 +1359,7 @@ class PortfolioManager:
                 status = "SIGNIFICANT"
             elif erosion_pct >= constants.EROSION_THRESHOLD_MINOR:
                 status = "MINOR"
-        pos["erosion_status"] = status
+        return status
 
     def update_prices(
         self, new_prices: dict[str, float], increment_loss_counters: bool = True
@@ -1367,17 +1380,19 @@ class PortfolioManager:
             for coin, price in new_prices.items():
                 if coin in self.positions and isinstance(price, (int, float)) and price > 0:
                     pos = self.positions[coin]
-                    self._sync_runtime_price(pos, price)
+                    pos = self._sync_runtime_price(pos, price)
 
                     pnl = self._update_position_pnl(pos, price)
-                    pos["unrealized_pnl"] = pnl
+                    pos = pos.model_copy(update={"unrealized_pnl": pnl})
                     total_unrealized_pnl += pnl
 
                     # Track peak PnL and calculate erosion
-                    self._update_peak_pnl_tracking(coin, pos)
+                    pos = self._update_peak_pnl_tracking(coin, pos)
 
                     if increment_loss_counters:
-                        self._update_price_counters(coin, pos, pnl)
+                        pos = self._update_price_counters(coin, pos, pnl)
+
+                    self.positions[coin] = pos
                 elif coin in self.positions:
                     logger.warning("Invalid price for {}: {}. PnL skip.", coin, price)
 
@@ -1405,46 +1420,53 @@ class PortfolioManager:
             # Save updated state with Sharpe ratio
             self.save_state()
 
-    def _sync_runtime_price(self, pos: dict[str, Any], price: float) -> None:
+    def _sync_runtime_price(self, pos: Position, price: float) -> Position:
         """Sync position price with market price, preferring mark price in live mode.
 
         Args:
         ----
-            pos: The position dictionary to update.
+            pos: The position to update.
             price: Current spot market price.
+
+        Returns:
+        -------
+            The updated position instance.
 
         """
         if self.is_live_trading:
             # In live mode, prefer keeping Binance markPrice if available
-            existing_price = pos.get("current_price", 0)
+            existing_price = pos.current_price
             if existing_price > 0:
                 # Keep Binance markPrice, but update if Spot price is significantly different (>0.1%)
                 price_diff_pct = abs(price - existing_price) / existing_price
                 if price_diff_pct > constants.EMA_BAND_SENSITIVITY:
                     # Use Spot price as fallback if markPrice seems stale
-                    pos["current_price"] = price
+                    return pos.model_copy(update={"current_price": price})
             else:
                 # No existing price, use Spot price
-                pos["current_price"] = price
+                return pos.model_copy(update={"current_price": price})
         else:
             # Simulation mode: always use Spot price
-            pos["current_price"] = price
+            return pos.model_copy(update={"current_price": price})
+        return pos
 
-    def _update_price_counters(self, coin: str, pos: dict[str, Any], pnl: float) -> None:
+    def _update_price_counters(self, coin: str, pos: Position, pnl: float) -> Position:
         """Update loss and profit cycle counters for a specific position.
 
         Args:
         ----
             coin: The cryptocurrency symbol.
-            pos: The position dictionary to update.
+            pos: The position to update.
             pnl: Current unrealized PnL in USD.
 
+        Returns:
+        -------
+            The updated position instance.
+
         """
-        direction = pos.get("direction", "unknown")
+        direction = pos.direction
         if pnl <= 0:
-            pos["loss_cycle_count"] = pos.get("loss_cycle_count", 0) + 1
-            pos["profit_cycle_count"] = 0  # Reset profit counter when negative
-            new_count = pos["loss_cycle_count"]
+            new_count = pos.loss_cycle_count + 1
             if new_count in constants.WATCH_CYCLES_LIST:
                 logger.info(
                     "LOSS CYCLE WATCH: {} {} negative for {} cycles (PnL ${:.2f}).",
@@ -1453,10 +1475,9 @@ class PortfolioManager:
                     new_count,
                     pnl,
                 )
+            return pos.model_copy(update={"loss_cycle_count": new_count, "profit_cycle_count": 0})
         else:
-            pos["loss_cycle_count"] = 0
-            pos["profit_cycle_count"] = pos.get("profit_cycle_count", 0) + 1
-            new_profit_count = pos["profit_cycle_count"]
+            new_profit_count = pos.profit_cycle_count + 1
             if new_profit_count in constants.PROFIT_WATCH_CYCLES_LIST:
                 logger.info(
                     "PROFIT CYCLE WATCH: {} {} profitable for {} cycles (PnL ${:.2f}).",
@@ -1465,6 +1486,9 @@ class PortfolioManager:
                     new_profit_count,
                     pnl,
                 )
+            return pos.model_copy(
+                update={"loss_cycle_count": 0, "profit_cycle_count": new_profit_count}
+            )
 
     def _calculate_total_portfolio_value(self) -> None:
         """Calculate total portfolio value based on balance, margin, and PnL."""
@@ -1476,15 +1500,15 @@ class PortfolioManager:
         total_unrealized_pnl = 0.0
 
         for pos in self.positions.values():
-            pnl = pos.get("unrealized_pnl", 0.0)
+            pnl = pos.unrealized_pnl
             if isinstance(pnl, (int, float)):
                 total_unrealized_pnl += pnl
 
             # Calculate margin (for cross margin, handle potentially missing margin_usd)
-            margin = pos.get("margin_usd", 0.0)
+            margin = pos.margin_usd
             if margin <= 0:
-                notional = pos.get("notional_usd", 0.0)
-                leverage = pos.get("leverage", 1)
+                notional = pos.notional_usd
+                leverage = pos.leverage
                 if notional > 0 and leverage > 0:
                     margin = notional / leverage
             if isinstance(margin, (int, float)) and margin > 0:
@@ -1495,14 +1519,14 @@ class PortfolioManager:
     def execute_live_close(
         self,
         coin: str,
-        position: dict[str, Any],
+        position: Position,
         current_price: float,
         reason: str | None = None,
     ) -> dict[str, Any]:
         if not self.is_live_trading or not self.order_executor:
             return {"success": False, "error": "live_trading_disabled"}
-        direction = position.get("direction", "long")
-        quantity = float(position.get("quantity", 0.0) or 0.0)
+        direction = position.direction
+        quantity = float(position.quantity or 0.0)
         if quantity <= 0:
             return {"success": False, "error": "invalid_quantity"}
         try:
@@ -1514,7 +1538,7 @@ class PortfolioManager:
             )
             executed_qty = float(order.get("executedQty", 0.0))
             avg_price = float(order.get("avgPriceComputed", order.get("avgPrice", 0.0)))
-            pnl = (avg_price - float(position.get("entry_price", 0.0))) * executed_qty
+            pnl = (avg_price - float(position.entry_price)) * executed_qty
             if direction == "short":
                 pnl = -pnl
             return {
@@ -1524,7 +1548,7 @@ class PortfolioManager:
                 "history_entry": {
                     "symbol": coin,
                     "direction": direction,
-                    "entry_price": float(position.get("entry_price", 0.0)),
+                    "entry_price": float(position.entry_price),
                     "exit_price": avg_price,
                     "quantity": executed_qty,
                     "pnl": pnl,
@@ -1945,7 +1969,7 @@ class PortfolioManager:
 
     def _adjust_partial_sale_for_max_limit(
         self,
-        position: dict[str, Any],
+        position: Position,
         proposed_percent: float,
     ) -> tuple[float, bool, str | None]:
         """Adjust partial sale percentage to respect the maximum limit.
@@ -1960,17 +1984,16 @@ class PortfolioManager:
             A tuple of (adjusted_percent, should_close_entirely, block_reason).
 
         """
-        current_margin = position.get("margin_usd", 0)
+        current_margin = position.margin_usd
         if current_margin <= 0:
             # Fallback: Calculate from notional/leverage if margin_usd is missing/zero
-            notional = position.get("notional_usd", 0)
-            leverage = position.get("leverage", 1)
+            notional = position.notional_usd
+            leverage = position.leverage
             if notional > 0 and leverage > 0:
                 current_margin = notional / leverage
-            elif position.get("entry_price", 0) > 0 and position.get("quantity", 0) > 0:
-                current_margin = (position["entry_price"] * position["quantity"]) / position.get(
-                    "leverage",
-                    10,
+            elif position.entry_price > 0 and position.quantity > 0:
+                current_margin = (position.entry_price * position.quantity) / (
+                    position.leverage if position.leverage else 10
                 )
 
         # Calculate maximum limit: $10 fixed OR 15% of available cash, whichever is larger (from Config)
@@ -2010,7 +2033,7 @@ class PortfolioManager:
 
     def _adjust_partial_sale_for_min_limit(
         self,
-        position: dict[str, Any],
+        position: Position,
         proposed_percent: float,
     ) -> tuple[float, bool, str | None]:
         """Adjust partial sale percentage to respect the minimum margin limit.
@@ -2025,10 +2048,10 @@ class PortfolioManager:
             A tuple of (adjusted_percent, should_close_entirely, reason).
 
         """
-        current_margin = position.get("margin_usd", 0)
+        current_margin = position.margin_usd
         if current_margin <= 0:
-            notional = position.get("notional_usd", 0)
-            leverage = position.get("leverage", 1)
+            notional = position.notional_usd
+            leverage = position.leverage
             if notional > 0 and leverage > 0:
                 current_margin = notional / leverage
 
@@ -2329,7 +2352,7 @@ class PortfolioManager:
             logger.warning("Volume quality score calculation error for {}: {}", coin, e)
         return score
 
-    def check_flash_exit_conditions(self, coin: str, position: dict[str, Any]) -> bool:
+    def check_flash_exit_conditions(self, coin: str, position: Position) -> bool:
         """Check for flash exit conditions including price, RSI, and volume surge.
 
         Args:
@@ -2349,8 +2372,8 @@ class PortfolioManager:
         try:
             inds = self.market_data.get_technical_indicators(coin, "3m")
             if "error" not in inds:
-                direction = position.get("direction")
-                entry = position.get("entry_price")
+                direction = position.direction
+                entry = position.entry_price
                 price = inds.get("current_price")
                 # 1. Price Check
                 trig = Config.FLASH_EXIT_LOSS_TRIGGER_MULTIPLIER
@@ -2385,7 +2408,7 @@ class PortfolioManager:
         return getattr(Config, "SAME_DIRECTION_LIMIT", 2)
 
     def validate_exit_signal(
-        self, coin: str, position: dict[str, Any], indicators_3m: dict[str, Any]
+        self, coin: str, position: Position, indicators_3m: dict[str, Any]
     ) -> bool:
         """Validate if an exit signal should be executed based on PnL and technicals.
 
@@ -2403,9 +2426,9 @@ class PortfolioManager:
         try:
             # 1. PnL Check (Profit Protection / Stop Loss)
             current_price = indicators_3m.get("current_price")
-            entry_price = position.get("entry_price")
-            quantity = position.get("quantity")
-            direction = position.get("direction")
+            entry_price = position.entry_price
+            quantity = position.quantity
+            direction = position.direction
 
             if not all(isinstance(x, (int, float)) for x in [current_price, entry_price, quantity]):
                 return True  # Default to allow exit if data missing
@@ -2415,7 +2438,7 @@ class PortfolioManager:
                 if direction == "long"
                 else (entry_price - current_price) * quantity
             )
-            margin = position.get("margin_usd", 1.0)
+            margin = position.margin_usd or 1.0
             pnl_pct = (pnl_usd / margin) * 100 if margin > 0 else 0
 
             # Allow exit if PnL is good (>2%) or bad (<-1.5%)
@@ -2533,7 +2556,7 @@ class PortfolioManager:
         coin: str,
         trade: dict[str, Any],
         current_price: float,
-        position: dict[str, Any] | None,
+        position: Position | None,
         execution_report: dict[str, Any],
     ) -> None:
         """Process an exit signal including verification and execution steps.
@@ -2578,7 +2601,7 @@ class PortfolioManager:
                         "coin": coin,
                         "signal": "close_position",
                         "pnl": live_result.get("pnl"),
-                        "direction": position.get("direction"),
+                        "direction": position.direction,
                         "mode": "live",
                         "order_id": live_result.get("order", {}).get("orderId"),
                     },
@@ -2586,13 +2609,10 @@ class PortfolioManager:
                 trade["runtime_decision"] = "executed_live"
             return
 
-        sell_quantity = position["quantity"]
-        direction = position.get("direction", "long")
-        entry_price = position["entry_price"]
-        margin_used = position.get(
-            "margin_usd",
-            position.get("notional_usd", 0) / position.get("leverage", 1),
-        )
+        sell_quantity = position.quantity
+        direction = position.direction
+        entry_price = position.entry_price
+        margin_used = position.margin_usd or (position.notional_usd / position.leverage)
 
         profit = (
             (current_price - entry_price) * sell_quantity
@@ -2624,12 +2644,12 @@ class PortfolioManager:
             "direction": direction,
             "entry_price": entry_price,
             "exit_price": current_price,
-            "quantity": position["quantity"],
-            "notional_usd": position.get("notional_usd", 0.0),
+            "quantity": position.quantity,
+            "notional_usd": position.notional_usd,
             "pnl": profit,
-            "entry_time": position["entry_time"],
+            "entry_time": position.entry_time,
             "exit_time": datetime.now(timezone.utc).isoformat(),
-            "leverage": position.get("leverage", 10),
+            "leverage": position.leverage,
             "close_reason": f"AI Decision: {trade.get('justification', 'N/A')}",
         }
         self.add_to_history(TradeHistoryEntry.model_validate(history_entry).model_dump())
@@ -4335,7 +4355,7 @@ class PortfolioManager:
                 "entry_oid": -1,
                 "wait_for_fill": False,
             }
-            self.positions[coin] = Position.model_validate(position_data).model_dump()
+            self.positions[coin] = Position.model_validate(position_data)
         logger.info(
             "{}: Opened {} {} ({} @ ${} / Notional ${} / Margin ${})",
             signal.upper(),
@@ -4573,7 +4593,7 @@ class PortfolioManager:
     def _handle_hold_signal(
         self,
         coin: str,
-        position: dict[str, Any] | None,
+        position: Position | None,
         report: dict[str, Any],
         trade: dict[str, Any],
     ) -> None:
@@ -4588,18 +4608,18 @@ class PortfolioManager:
 
         """
         if position:
-            logger.info("HOLD: Holding {} {} position.", position.get("direction", "long"), coin)
+            logger.info("HOLD: Holding {} {} position.", position.direction, coin)
         else:
             logger.info("HOLD: Staying cash in {}.", coin)
         report["holds"].append({"coin": coin, "has_position": bool(position)})
         trade["runtime_decision"] = "hold"
 
-    def _update_position_pnl(self, pos: dict[str, Any], price: float) -> float:
+    def _update_position_pnl(self, pos: Position, price: float) -> float:
         """Calculate unrealized PnL for a position, honoring live values if available.
 
         Args:
         ----
-            pos: The position dictionary.
+            pos: The position.
             price: Current market price.
 
         Returns:
@@ -4609,17 +4629,17 @@ class PortfolioManager:
         """
         if self.is_live_trading:
             # Live mode: Keep Binance unrealized_pnl if available (includes funding fees)
-            existing_pnl = pos.get("unrealized_pnl", 0.0)
+            existing_pnl = pos.unrealized_pnl
             if isinstance(existing_pnl, (int, float)) and existing_pnl != 0:
                 return existing_pnl
 
             # Fallback for live mode
-            entry = pos["entry_price"]
-            qty = pos["quantity"]
-            direction = pos.get("direction", "long")
+            entry = pos.entry_price
+            qty = pos.quantity
+            direction = pos.direction
             return (price - entry) * qty if direction == "long" else (entry - price) * qty
         # Simulation mode: calculate manually
-        entry = pos["entry_price"]
-        qty = pos["quantity"]
-        direction = pos.get("direction", "long")
+        entry = pos.entry_price
+        qty = pos.quantity
+        direction = pos.direction
         return (price - entry) * qty if direction == "long" else (entry - price) * qty

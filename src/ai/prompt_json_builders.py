@@ -135,29 +135,30 @@ def _sv_volume_label(
     return _sv_volume_label_from_ratio(ratio)
 
 
-def _sv_build_position(position: dict[str, Any]) -> dict[str, Any]:
+def _sv_build_position(position: Any) -> dict[str, Any]:
     """Build compact position data for state vector."""
     pos = {
-        "direction": position.get("direction", "long"),
-        "entry_price": _sv_fmt(position.get("entry_price", 0)),
-        "current_price": _sv_fmt(position.get("current_price", 0)),
-        "unrealized_pnl": _sv_fmt(position.get("unrealized_pnl", 0)),
-        "leverage": position.get("leverage", 1),
-        "confidence": _sv_fmt(position.get("confidence", 0.5)),
-        "exit_plan": {
-            "profit_target": _sv_fmt(position.get("exit_plan", {}).get("profit_target")),
-            "stop_loss": _sv_fmt(position.get("exit_plan", {}).get("stop_loss")),
-            "invalidation_condition": position.get("exit_plan", {}).get(
-                "invalidation_condition",
-            ),
-        },
+        "direction": getattr(position, "direction", "long"),
+        "entry_price": _sv_fmt(getattr(position, "entry_price", 0)),
+        "current_price": _sv_fmt(getattr(position, "current_price", 0)),
+        "unrealized_pnl": _sv_fmt(getattr(position, "unrealized_pnl", 0)),
+        "leverage": getattr(position, "leverage", 1),
+        "confidence": _sv_fmt(getattr(position, "confidence", 0.5)),
+        "exit_plan": {},
     }
+    ep = getattr(position, "exit_plan", None)
+    if ep is not None:
+        pos["exit_plan"] = {
+            "profit_target": _sv_fmt(getattr(ep, "profit_target", None)),
+            "stop_loss": _sv_fmt(getattr(ep, "stop_loss", None)),
+            "invalidation_condition": getattr(ep, "invalidation_condition", None),
+        }
     # Profit erosion tracking — only include if meaningful
-    erosion_status = position.get("erosion_status", "NONE")
+    erosion_status = getattr(position, "erosion_status", "NONE")
     pos["erosion_status"] = erosion_status
     if erosion_status != "NONE":
-        pos["peak_pnl"] = _sv_fmt(position.get("peak_pnl", 0))
-        pos["erosion_pct"] = _sv_fmt(position.get("erosion_pct", 0))
+        pos["peak_pnl"] = _sv_fmt(getattr(position, "peak_pnl", 0))
+        pos["erosion_pct"] = _sv_fmt(getattr(position, "erosion_pct", 0))
     return pos
 
 
@@ -168,7 +169,7 @@ def build_coin_state_vector(
     indicators_3m: dict[str, Any],
     indicators_15m: dict[str, Any],
     indicators_htf: dict[str, Any],
-    position: dict[str, Any] | None = None,
+    position: Any | None = None,
     ml_consensus: dict[str, Any] | None = None,
     ml_bias_label: str = "Neutral",
     counter_trade_result: dict[str, Any] | None = None,
@@ -694,10 +695,14 @@ def build_position_slot_json(
     total_open = len(portfolio_positions)
     # Fix: Check direction without default value to avoid logic error
     long_slots = sum(
-        1 for p in portfolio_positions.values() if str(p.get("direction", "")).lower() == "long"
+        1
+        for p in portfolio_positions.values()
+        if str(getattr(p, "direction", "")).lower() == "long"
     )
     short_slots = sum(
-        1 for p in portfolio_positions.values() if str(p.get("direction", "")).lower() == "short"
+        1
+        for p in portfolio_positions.values()
+        if str(getattr(p, "direction", "")).lower() == "short"
     )
 
     # Get same direction limit from config if not provided
@@ -712,12 +717,12 @@ def build_position_slot_json(
     if portfolio_positions:
         weakest = min(
             portfolio_positions.items(),
-            key=lambda x: x[1].get("unrealized_pnl", float("inf")),
+            key=lambda x: getattr(x[1], "unrealized_pnl", float("inf")),
         )
         weakest_position = {
             "coin": weakest[0],
-            "unrealized_pnl": format_number_for_json(weakest[1].get("unrealized_pnl", 0)),
-            "confidence": format_number_for_json(weakest[1].get("confidence", 0)),
+            "unrealized_pnl": format_number_for_json(getattr(weakest[1], "unrealized_pnl", 0)),
+            "confidence": format_number_for_json(getattr(weakest[1], "confidence", 0)),
         }
 
     # Check for forced rotation/constraint conditions
@@ -762,13 +767,13 @@ def build_portfolio_json(portfolio: Any) -> dict[str, Any]:
             positions_list.append(
                 {
                     "symbol": coin,
-                    "direction": pos.get("direction", "long"),  # [INFO] Added
-                    "quantity": format_number_for_json(pos.get("quantity", 0)),
-                    "entry_price": format_number_for_json(pos.get("entry_price", 0)),
-                    "current_price": format_number_for_json(pos.get("current_price", 0)),
-                    "unrealized_pnl": format_number_for_json(pos.get("unrealized_pnl", 0)),
-                    "leverage": pos.get("leverage", 1),
-                    "confidence": format_number_for_json(pos.get("confidence", 0.5)),
+                    "direction": getattr(pos, "direction", "long"),
+                    "quantity": format_number_for_json(getattr(pos, "quantity", 0)),
+                    "entry_price": format_number_for_json(getattr(pos, "entry_price", 0)),
+                    "current_price": format_number_for_json(getattr(pos, "current_price", 0)),
+                    "unrealized_pnl": format_number_for_json(getattr(pos, "unrealized_pnl", 0)),
+                    "leverage": getattr(pos, "leverage", 1),
+                    "confidence": format_number_for_json(getattr(pos, "confidence", 0.5)),
                 },
             )
 
@@ -793,7 +798,7 @@ def build_risk_status_json(portfolio: Any, max_positions: int = 5) -> dict[str, 
     """Build risk status JSON."""
     current_positions_count = len(portfolio.positions) if hasattr(portfolio, "positions") else 0
     total_margin_used = sum(
-        p.get("margin_usd", 0)
+        p.margin_usd
         for p in (portfolio.positions.values() if hasattr(portfolio, "positions") else [])
     )
     available_cash = portfolio.current_balance if hasattr(portfolio, "current_balance") else 0

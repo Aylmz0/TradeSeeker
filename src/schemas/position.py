@@ -1,10 +1,12 @@
 """Position and ExitPlan schemas for portfolio state validation."""
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 
 
 class ExitPlan(BaseModel):
     """Exit strategy for a position."""
+
+    model_config = ConfigDict(frozen=True)
 
     stop_loss: float | None = None
     profit_target: float | None = None
@@ -14,15 +16,24 @@ class ExitPlan(BaseModel):
 class TrailingMeta(BaseModel):
     """Trailing stop metadata."""
 
+    model_config = ConfigDict(frozen=True)
+
     active: bool = False
     stop_price: float | None = None
     highest_pnl: float | None = None
     lowest_pnl: float | None = None
     last_update_cycle: int | None = None
+    last_reason: str | None = None
+    last_stop: float | None = None
+    progress_percent: float | None = None
+    time_in_trade_min: float | None = None
+    last_volume_ratio: float | None = None
 
 
 class TrendContext(BaseModel):
     """Trend context at entry."""
+
+    model_config = ConfigDict(frozen=True)
 
     trend_at_entry: str | None = None
     alignment: str | None = None
@@ -31,6 +42,8 @@ class TrendContext(BaseModel):
 
 class Position(BaseModel):
     """A single open position in the portfolio."""
+
+    model_config = ConfigDict(frozen=True)
 
     symbol: str
     direction: str  # "long" | "short"
@@ -64,3 +77,4 @@ class Position(BaseModel):
     erosion_pct: float = 0.0
     erosion_status: str = "NONE"
     profit_cycle_count: int = 0
+    partial_exit_flags: dict[str, bool] = Field(default_factory=dict)

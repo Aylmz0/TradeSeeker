@@ -18,6 +18,7 @@ if PROJECT_ROOT not in sys.path:
 
 from config.config import Config
 from src.ai.deepseek_api import DeepSeekAPI
+from src.schemas.position import Position
 from src.core import constants
 from src.core.account_service import AccountService
 from src.core.ai_service import AIService
@@ -563,13 +564,13 @@ class AlphaArenaDeepSeek:
                             if coin in valid_prices:
                                 position = self.portfolio.positions[coin]
                                 current_price = valid_prices[coin]
-                                direction = position.get("direction", "long")
-                                entry_price = position["entry_price"]
-                                quantity = position["quantity"]
-                                margin_used = position.get("margin_usd", 0)
+                                direction = position.direction
+                                entry_price = position.entry_price
+                                quantity = position.quantity
+                                margin_used = position.margin_usd
 
                                 # AI Panic Exit Preventer (Minimum Hold Shield)
-                                entry_time_str = position.get("entry_time")
+                                entry_time_str = position.entry_time
                                 if entry_time_str:
                                     try:
                                         entry_dt = datetime.fromisoformat(entry_time_str)
@@ -673,11 +674,11 @@ class AlphaArenaDeepSeek:
                                         "entry_price": entry_price,
                                         "exit_price": current_price,
                                         "quantity": quantity,
-                                        "notional_usd": position.get("notional_usd", "N/A"),
+                                        "notional_usd": position.notional_usd,
                                         "pnl": profit,
-                                        "entry_time": position["entry_time"],
+                                        "entry_time": position.entry_time,
                                         "exit_time": datetime.now(timezone.utc).isoformat(),
-                                        "leverage": position.get("leverage", "N/A"),
+                                        "leverage": position.leverage,
                                         "close_reason": "AI close_position signal",
                                     }
                                     del self.portfolio.positions[coin]
@@ -871,14 +872,14 @@ class AlphaArenaDeepSeek:
             logger.info("  No open positions.")
         else:
             for coin, pos in positions_snapshot:
-                pnl = pos.get("unrealized_pnl", 0.0)
+                pnl = pos.unrealized_pnl
                 pnl_sign = "+" if pnl >= 0 else ""
-                direction = pos.get("direction", "long").upper()
-                leverage = pos.get("leverage", 1)
-                notional = pos.get("notional_usd", 0.0)
-                liq = pos.get("liquidation_price", 0.0)
-                entry = pos.get("entry_price", 0.0)
-                qty = pos.get("quantity", 0.0)
+                direction = pos.direction.upper()
+                leverage = pos.leverage
+                notional = pos.notional_usd
+                liq = pos.liquidation_price
+                entry = pos.entry_price
+                qty = pos.quantity
                 logger.info(
                     "  {} ({} {}x): {} units | Notional ${} | Entry: ${} | PnL: {}${} | Liq Est: ${}",
                     coin,
@@ -1259,9 +1260,11 @@ class AlphaArenaDeepSeek:
         logger.info("=" * 60)
         self.show_status()
 
-    def _adjust_partial_sale_for_min_limit(self, position: dict, proposed_percent: float) -> float:
+    def _adjust_partial_sale_for_min_limit(
+        self, position: Position, proposed_percent: float
+    ) -> float:
         """Adjust partial sale percentage to ensure minimum limit remains after sale"""
-        current_margin = position.get("margin_usd", 0)
+        current_margin = position.margin_usd
 
         # Calculate dynamic minimum limit: $15 fixed OR 10% of available cash, whichever is larger
         min_remaining = self.portfolio._calculate_dynamic_minimum_limit()

@@ -6,6 +6,7 @@ from loguru import logger
 from config.config import Config
 from src.core import constants
 from src.core.data_engine import DataEngine
+from src.schemas.position import ExitPlan, Position
 from src.schemas.trade import TradeHistoryEntry
 from src.utils import format_num
 
@@ -100,12 +101,12 @@ class AccountService:
 
     def _ensure_exit_plan(
         self,
-        position: dict[str, Any],
+        direction: str,
+        entry_price: float,
+        symbol: str,
         *candidate_plans: dict[str, Any] | None,
     ) -> dict[str, Any]:
         """Ensure a position carries a valid exit plan, supplementing with defaults if needed."""
-        direction = position.get("direction", "long")
-        entry_price = position.get("entry_price") or position.get("current_price") or 0.0
         default_plan = self._build_default_exit_plan(direction, entry_price)
         final_plan = default_plan.copy()
         provided_keys = set()
@@ -126,26 +127,30 @@ class AccountService:
             key for key in ("stop_loss", "profit_target") if key not in provided_keys
         ]
         if missing_required:
-            symbol = position.get("symbol", "UNKNOWN")
             logger.warning(
                 "Missing {} for {} - using default exit plan offsets.",
                 ", ".join(missing_required),
                 symbol,
             )
-        position["exit_plan"] = final_plan
         return final_plan
 
     def _merge_live_positions(
         self,
         snapshot: dict[str, dict[str, Any]],
-    ) -> dict[str, dict[str, Any]]:
+    ) -> dict[str, Position]:
         """Merge Binance snapshot with local runtime metadata (exit plans, confidence, etc.)."""
-        merged: dict[str, dict[str, Any]] = {}
-        existing_positions = self.pm.positions if isinstance(self.pm.positions, dict) else {}
+        merged: dict[str, Position] = {}
+        existing_positions = self.pm.positions
         for coin, snap_pos in snapshot.items():
-            previous = existing_positions.get(coin, {})
+            previous = existing_positions.get(coin)
+            if isinstance(previous, Position):
+                previous_dict = previous.model_dump()
+            elif isinstance(previous, dict):
+                previous_dict = previous
+            else:
+                previous_dict = {}
             merged_pos: dict[str, Any] = {}
-            merged_pos.update(previous)
+            merged_pos.update(previous_dict)
             merged_pos.update(snap_pos)
             merged_pos["symbol"] = coin
 
@@ -166,18 +171,25 @@ class AccountService:
                 "entry_atr_14",
                 "trailing",
             ):
-                if key in previous and key not in merged_pos:
-                    merged_pos[key] = previous[key]
+                if key in previous_dict and key not in merged_pos:
+                    merged_pos[key] = previous_dict[key]
 
             # Risk USD should reflect current margin if available
             margin_usd = merged_pos.get("margin_usd")
             if isinstance(margin_usd, (int, float)):
                 merged_pos["risk_usd"] = margin_usd
 
-            existing_plan = previous.get("exit_plan")
+            existing_plan = previous_dict.get("exit_plan")
             snapshot_plan = snap_pos.get("exit_plan")
-            self._ensure_exit_plan(merged_pos, snapshot_plan, existing_plan)
-            merged[coin] = merged_pos
+            final_plan = self._ensure_exit_plan(
+                merged_pos.get("direction", "long"),
+                merged_pos.get("entry_price") or merged_pos.get("current_price") or 0.0,
+                coin,
+                snapshot_plan,
+                existing_plan,
+            )
+            merged_pos["exit_plan"] = final_plan
+            merged[coin] = Position(**merged_pos)
         return merged
 
     def sync_live_account(self):
@@ -253,11 +265,11 @@ class AccountService:
                 # For cross margin, margin_usd might be 0, so calculate from notional/leverage
                 total_margin_used = 0.0
                 for pos in self.pm.positions.values():
-                    margin = pos.get("margin_usd", 0.0)
+                    margin = pos.margin_usd
                     if margin <= 0:
                         # Calculate margin from notional and leverage (for cross margin)
-                        notional = pos.get("notional_usd", 0.0)
-                        leverage = pos.get("leverage", 1)
+                        notional = pos.notional_usd
+                        leverage = pos.leverage
                         if notional > 0 and leverage > 0:
                             margin = notional / leverage
                     if isinstance(margin, (int, float)) and margin > 0:
@@ -268,7 +280,7 @@ class AccountService:
                 # Calculate total unrealized PnL
                 total_unrealized_pnl = 0.0
                 for pos in self.pm.positions.values():
-                    pnl = pos.get("unrealized_pnl", 0.0)
+                    pnl = pos.unrealized_pnl
                     if isinstance(pnl, (int, float)):
                         total_unrealized_pnl += pnl
 
@@ -416,35 +428,44 @@ class AccountService:
                 )
                 _time_module.sleep(backoff_seconds)
 
-            position = self.pm.positions.get(coin, {})
+            position = self.pm.positions.get(coin)
 
             # Use provided margin_usd if available, otherwise calculate from position or notional
             if margin_usd is None or margin_usd <= 0:
-                if position and position.get("margin_usd", 0) > 0:
-                    margin_usd = position.get("margin_usd")
+                if position is not None and position.margin_usd > 0:
+                    margin_usd = position.margin_usd
                 else:
                     # Calculate from executed notional (more accurate than initial notional)
                     executed_notional = executed_qty * avg_price
                     margin_usd = executed_notional / max(leverage, 1)
 
             notional_runtime = (
-                position.get("notional_usd") if position else executed_qty * avg_price
+                position.notional_usd if position is not None else executed_qty * avg_price
             )
-            if position:
-                position["confidence"] = confidence
-                # Ensure margin_usd is saved to position for later use in TP/SL checks
-                if "margin_usd" not in position or position.get("margin_usd", 0) <= 0:
-                    position["margin_usd"] = margin_usd
-                    logger.info("Saved margin_usd=${:.2f} to position for {}", margin_usd, coin)
-                exit_plan = position.setdefault("exit_plan", {})
+            if position is not None:
+                exit_plan_candidate = position.exit_plan.model_dump()
                 if stop_loss is not None:
-                    exit_plan["stop_loss"] = stop_loss
+                    exit_plan_candidate["stop_loss"] = stop_loss
                 if profit_target is not None:
-                    exit_plan["profit_target"] = profit_target
+                    exit_plan_candidate["profit_target"] = profit_target
                 if invalidation is not None:
-                    exit_plan["invalidation_condition"] = invalidation
-                position["risk_usd"] = position.get("margin_usd", margin_usd)
-                self._ensure_exit_plan(position, exit_plan)
+                    exit_plan_candidate["invalidation_condition"] = invalidation
+
+                update_fields: dict[str, Any] = {"confidence": confidence}
+                if position.margin_usd <= 0 and margin_usd > 0:
+                    update_fields["margin_usd"] = margin_usd
+                    logger.info("Saved margin_usd=${:.2f} to position for {}", margin_usd, coin)
+                effective_margin = update_fields.get("margin_usd", position.margin_usd)
+                update_fields["risk_usd"] = effective_margin or margin_usd
+                final_exit_plan = self._ensure_exit_plan(
+                    position.direction,
+                    position.entry_price or position.current_price,
+                    coin,
+                    exit_plan_candidate,
+                )
+                update_fields["exit_plan"] = ExitPlan(**final_exit_plan)
+                position = position.model_copy(update=update_fields)
+                self.pm.positions[coin] = position
 
                 # Calculate and save ATR-based stop loss to exit_plan (for 30-second monitoring)
                 # Backend Authority: AI's stop_loss suggestion is IGNORED - system uses ATR only
@@ -502,8 +523,8 @@ class AccountService:
 
                     # Save ATR-based stop loss and profit target to exit_plan
                     if final_stop_loss > 0:
-                        exit_plan["stop_loss"] = final_stop_loss
-                        exit_plan["profit_target"] = final_profit_target
+                        exit_plan_candidate["stop_loss"] = final_stop_loss
+                        exit_plan_candidate["profit_target"] = final_profit_target
                         logger.info(
                             "ATR-based SL/TP saved for {}: SL=${}, TP=${} (ATR={:.4f} x {}/{}) - Backend Authority",
                             coin,
@@ -544,7 +565,7 @@ class AccountService:
     def execute_live_close(
         self,
         coin: str,
-        position: dict[str, Any],
+        position: Position,
         current_price: float,
         reason: str | None = None,
     ) -> dict[str, Any]:
@@ -553,8 +574,8 @@ class AccountService:
         if not position:
             return {"success": False, "error": "no_position"}
 
-        direction = position.get("direction", "long")
-        quantity = float(position.get("quantity", 0.0) or 0.0)
+        direction = position.direction
+        quantity = float(position.quantity or 0.0)
         if quantity <= 0:
             return {"success": False, "error": "invalid_quantity"}
 
@@ -569,7 +590,7 @@ class AccountService:
             executed_qty = float(order.get("executedQty", 0.0))
             avg_price = float(order.get("avgPriceComputed", order.get("avgPrice", 0.0)))
             pnl = self._calculate_realized_pnl(
-                position.get("entry_price", 0.0),
+                position.entry_price,
                 avg_price,
                 executed_qty,
                 direction,
@@ -579,14 +600,14 @@ class AccountService:
             history_entry = {
                 "symbol": coin,
                 "direction": direction,
-                "entry_price": position.get("entry_price"),
+                "entry_price": position.entry_price,
                 "exit_price": avg_price,
                 "quantity": executed_qty,
                 "notional_usd": executed_qty * avg_price,
                 "pnl": pnl,
-                "entry_time": position.get("entry_time"),
+                "entry_time": position.entry_time,
                 "exit_time": datetime.now(timezone.utc).isoformat(),
-                "leverage": position.get("leverage"),
+                "leverage": position.leverage,
                 "close_reason": reason or "live_close",
                 "exchange_order_id": order.get("orderId"),
             }
@@ -619,7 +640,7 @@ class AccountService:
     def execute_live_partial_close(
         self,
         coin: str,
-        position: dict[str, Any],
+        position: Position,
         close_percent: float,
         current_price: float,
         reason: str | None = None,
@@ -629,8 +650,8 @@ class AccountService:
         if not position:
             return {"success": False, "error": "no_position"}
 
-        direction = position.get("direction", "long")
-        quantity = float(position.get("quantity", 0.0) or 0.0)
+        direction = position.direction
+        quantity = float(position.quantity or 0.0)
         if quantity <= 0:
             return {"success": False, "error": "invalid_quantity"}
         close_percent = max(0.0, min(close_percent, 1.0))
@@ -650,7 +671,7 @@ class AccountService:
             if executed_qty <= 0:
                 return {"success": False, "error": "no_fill"}
             pnl = self._calculate_realized_pnl(
-                position.get("entry_price", 0.0),
+                position.entry_price,
                 avg_price,
                 executed_qty,
                 direction,
@@ -661,14 +682,14 @@ class AccountService:
             history_entry = {
                 "symbol": coin,
                 "direction": direction,
-                "entry_price": position.get("entry_price"),
+                "entry_price": position.entry_price,
                 "exit_price": avg_price,
                 "quantity": executed_qty,
                 "notional_usd": executed_qty * avg_price,
                 "pnl": pnl,
-                "entry_time": position.get("entry_time"),
+                "entry_time": position.entry_time,
                 "exit_time": datetime.now(timezone.utc).isoformat(),
-                "leverage": position.get("leverage"),
+                "leverage": position.leverage,
                 "close_reason": reason or "live_partial_close",
                 "exchange_order_id": order.get("orderId"),
             }
@@ -714,10 +735,10 @@ class AccountService:
                 return {"success": False, "error": "no_position"}
 
             position = self.pm.positions[coin]
-            direction = position.get("direction", "long")
-            entry_price = position.get("entry_price", 0)
-            quantity = position.get("quantity", 0)
-            margin_used = position.get("margin_usd", 0)
+            direction = position.direction
+            entry_price = position.entry_price
+            quantity = position.quantity
+            margin_used = position.margin_usd
 
             if quantity <= 0 or entry_price <= 0:
                 return {"success": False, "error": "invalid_position_data"}
@@ -743,11 +764,11 @@ class AccountService:
                 "entry_price": entry_price,
                 "exit_price": current_price,
                 "quantity": quantity,
-                "notional_usd": position.get("notional_usd", 0),
+                "notional_usd": position.notional_usd,
                 "pnl": profit,
-                "entry_time": position.get("entry_time", datetime.now(timezone.utc).isoformat()),
+                "entry_time": position.entry_time,
                 "exit_time": datetime.now(timezone.utc).isoformat(),
-                "leverage": position.get("leverage", 10),
+                "leverage": position.leverage,
                 "close_reason": reason,
             }
 
@@ -812,26 +833,26 @@ class AccountService:
             # Update erosion tracking (captures intraday peaks)
             self.pm._update_peak_pnl_tracking(coin, position)
 
-            exit_plan = position.get("exit_plan", {})
-            tp = exit_plan.get("profit_target")
-            sl = exit_plan.get("stop_loss")
-            direction = position.get("direction", "long")
+            exit_plan = position.exit_plan
+            tp = exit_plan.profit_target
+            sl = exit_plan.stop_loss
+            direction = position.direction
             # FIX: KeyError protection - use .get() with fallback to current_price
-            entry_price = position.get("entry_price", position.get("current_price", 0.0))
-            quantity = position.get("quantity", 0.0)
+            entry_price = position.entry_price or position.current_price or 0.0
+            quantity = position.quantity
 
             # Calculate margin_used properly - try multiple fallback methods
-            margin_used = position.get("margin_usd")
+            margin_used = position.margin_usd
             if margin_used is None or margin_used <= 0:
                 # Fallback 1: Calculate from notional and leverage
-                notional = position.get("notional_usd", 0)
-                leverage = position.get("leverage", 1)
+                notional = position.notional_usd
+                leverage = position.leverage
                 if notional > 0 and leverage > 0:
                     margin_used = notional / leverage
                 # Fallback 2: Calculate from entry_price and quantity
                 elif entry_price > 0 and quantity > 0:
                     notional = entry_price * quantity
-                    leverage = position.get("leverage", 10)
+                    leverage = position.leverage
                     # FIX: Leverage zero protection
                     margin_used = notional / leverage if leverage and leverage > 0 else 0
                 else:
@@ -842,9 +863,9 @@ class AccountService:
                 logger.warning(
                     "margin_used is 0 for {}. Position data: margin_usd={}, notional={}, leverage={}, entry={}, qty={}",
                     coin,
-                    position.get("margin_usd"),
-                    position.get("notional_usd"),
-                    position.get("leverage"),
+                    position.margin_usd,
+                    position.notional_usd,
+                    position.leverage,
                     entry_price,
                     quantity,
                 )
@@ -863,7 +884,7 @@ class AccountService:
                 sl = None
 
             # Enhanced exit strategy check - REAL-TIME ENTEGRASYON
-            exit_decision = self.enhanced_exit_strategy(position, current_price)
+            exit_decision, position = self.enhanced_exit_strategy(position, current_price, coin)
 
             # Handle enhanced exit strategy signals - ANINDA İŞLEME
             if exit_decision["action"] == "close_position":
@@ -908,13 +929,16 @@ class AccountService:
                     )
                     # BUG FIX: Adjust peak_pnl proportionally after partial close
                     # Without this, erosion tracking would falsely alarm (peak $3 -> current $1.5 = 50% erosion)
-                    if "peak_pnl" in position and position["peak_pnl"] > 0:
-                        old_peak = position["peak_pnl"]
-                        position["peak_pnl"] = position["peak_pnl"] * (1 - close_percent)
+                    if position.peak_pnl > 0:
+                        old_peak = position.peak_pnl
+                        position = position.model_copy(
+                            update={"peak_pnl": position.peak_pnl * (1 - close_percent)}
+                        )
+                        self.pm.positions[coin] = position
                         logger.debug(
                             "peak_pnl adjusted: ${} → ${} (after {:.0f}% close)",
                             format_num(old_peak, 2),
-                            format_num(position["peak_pnl"], 2),
+                            format_num(position.peak_pnl, 2),
                             close_percent * 100,
                         )
                     state_changed = True
@@ -930,9 +954,9 @@ class AccountService:
                 # concurrent reads from seeing partially updated position data.
                 with self.pm._lock:
                     # 1. Capture current state BEFORE mutation
-                    current_qty = float(position["quantity"])
-                    current_margin = float(position["margin_usd"])
-                    current_notional = float(position["notional_usd"])
+                    current_qty = float(position.quantity)
+                    current_margin = float(position.margin_usd)
+                    current_notional = float(position.notional_usd)
                     close_quantity = current_qty * close_percent
 
                     # 2. Calculate PnL and Commission
@@ -957,26 +981,38 @@ class AccountService:
                         "quantity": close_quantity,
                         "notional_usd": notional_portion_cost,  # Use cost-based notional for accuracy
                         "pnl": profit,
-                        "entry_time": position["entry_time"],
+                        "entry_time": position.entry_time,
                         "exit_time": datetime.now(timezone.utc).isoformat(),
-                        "leverage": position.get("leverage", 10),
+                        "leverage": position.leverage,
                         "close_reason": exit_decision["reason"],
                     }
 
                     # 4. Update position state (MUTATION) — under lock
-                    position["quantity"] = current_qty - close_quantity
-                    position["margin_usd"] = current_margin * (1 - close_percent)
-                    position["notional_usd"] = current_notional * (1 - close_percent)
+                    new_quantity = current_qty - close_quantity
+                    new_margin = current_margin * (1 - close_percent)
+                    new_notional = current_notional * (1 - close_percent)
 
                     # Adjust peak_pnl proportionally
-                    if "peak_pnl" in position and position["peak_pnl"] > 0:
-                        old_peak = position["peak_pnl"]
-                        position["peak_pnl"] = position["peak_pnl"] * (1 - close_percent)
+                    peak_update: dict[str, Any] = {}
+                    if position.peak_pnl > 0:
+                        old_peak = position.peak_pnl
+                        new_peak = position.peak_pnl * (1 - close_percent)
+                        peak_update = {"peak_pnl": new_peak}
                         logger.debug(
                             "peak_pnl adjusted: ${} → ${}",
                             format_num(old_peak, 2),
-                            format_num(position["peak_pnl"], 2),
+                            format_num(new_peak, 2),
                         )
+
+                    position = position.model_copy(
+                        update={
+                            "quantity": new_quantity,
+                            "margin_usd": new_margin,
+                            "notional_usd": new_notional,
+                            **peak_update,
+                        }
+                    )
+                    self.pm.positions[coin] = position
 
                     # 5. Update global balance — under lock
                     self.pm.current_balance += (current_margin * close_percent) + profit
@@ -999,7 +1035,12 @@ class AccountService:
                 # Update trailing stop - ANINDA GÜNCELLEME
                 updated_stops.append(coin)
                 new_stop = exit_decision["new_stop"]
-                exit_plan["stop_loss"] = new_stop
+                position = position.model_copy(
+                    update={
+                        "exit_plan": position.exit_plan.model_copy(update={"stop_loss": new_stop})
+                    }
+                )
+                self.pm.positions[coin] = position
                 logger.info(
                     "TRAILING STOP UPDATE {}: New stop at ${}", coin, format_num(new_stop, 4)
                 )
@@ -1130,11 +1171,11 @@ class AccountService:
                         "entry_price": entry_price,
                         "exit_price": current_price,
                         "quantity": quantity,
-                        "notional_usd": position.get("notional_usd", 0.0),
+                        "notional_usd": position.notional_usd,
                         "pnl": profit,
-                        "entry_time": position["entry_time"],
+                        "entry_time": position.entry_time,
                         "exit_time": datetime.now(timezone.utc).isoformat(),
-                        "leverage": position.get("leverage", 10),
+                        "leverage": position.leverage,
                         "close_reason": close_reason,  # Add reason
                     }
                     # Remove from active positions while lock is held
@@ -1225,8 +1266,8 @@ class AccountService:
         }
 
     def _process_partial_exit_logic(
-        self, position: dict, pnl_pct: float, tiers: dict
-    ) -> dict[str, Any] | None:
+        self, position: Position, pnl_pct: float, tiers: dict
+    ) -> tuple[dict[str, Any], Position] | None:
         """Unified processor for partial profit and partial loss exits."""
         abs_pnl = abs(pnl_pct)
         is_profit = pnl_pct > 0
@@ -1248,7 +1289,7 @@ class AccountService:
             if abs_pnl >= tiers[level_key]:
                 # Avoid repeat execution for the same level in the same direction (especially for loss mitigation)
                 executed_flag = f"{type_label.lower().replace(' ', '_')}_L{i}_active"
-                if position.get(executed_flag):
+                if position.partial_exit_flags.get(executed_flag, False):
                     continue
 
                 take_percent = tiers[take_key]
@@ -1258,55 +1299,67 @@ class AccountService:
                     return {
                         "action": "close_position",
                         "reason": reason or f"Hard limit reached during {type_label}",
-                    }
+                    }, position
 
                 if adjusted_percent > 0:
-                    position[executed_flag] = True
+                    position = position.model_copy(
+                        update={
+                            "partial_exit_flags": {
+                                **position.partial_exit_flags,
+                                executed_flag: True,
+                            }
+                        }
+                    )
                     return {
                         "action": "partial_close",
                         "percent": adjusted_percent,
                         "reason": f"{type_label} at {tiers[level_key] * 100:.1f}% {'gain' if is_profit else 'loss'} ({adjusted_percent * 100:.0f}%)",
-                    }
+                    }, position
         return None
 
-    def enhanced_exit_strategy(self, position: dict, current_price: float) -> dict[str, Any]:
+    def enhanced_exit_strategy(
+        self, position: Position, current_price: float, coin: str
+    ) -> tuple[dict[str, Any], Position]:
         """Enhanced exit strategy with dynamic profit taking and KADEMELİ loss cutting"""
-        entry_price = position.get("entry_price")
-        if entry_price is None:
-            entry_price = position.get("current_price", 0)
-            position["entry_price"] = entry_price
-        direction = position.get("direction", "long")
-        exit_plan = self._ensure_exit_plan(position, position.get("exit_plan"))
+        entry_price = position.entry_price
+        if entry_price == 0:
+            entry_price = position.current_price or 0
+            position = position.model_copy(update={"entry_price": entry_price})
+            self.pm.positions[coin] = position
+        direction = position.direction
+        exit_plan = self._ensure_exit_plan(
+            position.direction,
+            position.entry_price or position.current_price,
+            position.symbol,
+            position.exit_plan.model_dump(),
+        )
         exit_plan.get("stop_loss")
         profit_target = exit_plan.get("profit_target")
-        notional_usd = position.get("notional_usd", 0)
+        notional_usd = position.notional_usd
 
         exit_decision = {"action": "hold", "reason": "No exit trigger"}
 
-        position.get("margin_usd", 0)
-        margin_used = position.get(
-            "margin_usd",
-            position.get("notional_usd", 0) / max(position.get("leverage", 1), 1),
-        )
-        loss_cycle_count = position.get("loss_cycle_count", 0)
-        profit_cycle_count = position.get("profit_cycle_count", 0)
-        unrealized_pnl = position.get("unrealized_pnl", 0)
+        position.margin_usd
+        margin_used = position.margin_usd or (position.notional_usd / max(position.leverage, 1))
+        loss_cycle_count = position.loss_cycle_count
+        profit_cycle_count = position.profit_cycle_count
+        unrealized_pnl = position.unrealized_pnl
 
         # Extended loss exit - close after N negative cycles
         if loss_cycle_count >= Config.EXTENDED_LOSS_CYCLES and unrealized_pnl <= 0:
             reason = f"Position negative for {loss_cycle_count} cycles"
             logger.warning(
-                "Extended loss exit: {} {} closed ({}).", position["symbol"], direction, reason
+                "Extended loss exit: {} {} closed ({}).", position.symbol, direction, reason
             )
-            return {"action": "close_position", "reason": reason}
+            return {"action": "close_position", "reason": reason}, position
 
         # Extended profit exit - take profit after N positive cycles
         if profit_cycle_count >= Config.EXTENDED_PROFIT_CYCLES and unrealized_pnl > 0:
             reason = f"Taking profit after {profit_cycle_count} profitable cycles (PnL ${unrealized_pnl:.2f})"
             logger.success(
-                "Extended profit exit: {} {} closed ({}).", position["symbol"], direction, reason
+                "Extended profit exit: {} {} closed ({}).", position.symbol, direction, reason
             )
-            return {"action": "close_position", "reason": reason}
+            return {"action": "close_position", "reason": reason}, position
 
         # --- 1. HARD STOP LOSS ENFORCEMENT ---
         primary_sl = exit_plan.get("stop_loss")
@@ -1321,12 +1374,12 @@ class AccountService:
                 reason = f"Stop Loss (${primary_sl:.6f}) hit at ${current_price:.6f}"
                 logger.warning(
                     "STOP LOSS HIT: {} {} closed at ${:.6f} ({})",
-                    position["symbol"],
+                    position.symbol,
                     direction,
                     current_price,
                     reason,
                 )
-                return {"action": "close_position", "reason": reason}
+                return {"action": "close_position", "reason": reason}, position
 
         # Get dynamic exit tiers based on notional size
         exit_tiers = self.get_dynamic_exit_tiers(notional_usd)
@@ -1346,26 +1399,26 @@ class AccountService:
         loss_threshold_usd = margin_used * loss_multiplier
 
         if direction == "long":
-            unrealized_loss_usd = max(0.0, (entry_price - current_price) * position["quantity"])
+            unrealized_loss_usd = max(0.0, (entry_price - current_price) * position.quantity)
         else:
-            unrealized_loss_usd = max(0.0, (current_price - entry_price) * position["quantity"])
+            unrealized_loss_usd = max(0.0, (current_price - entry_price) * position.quantity)
 
         if unrealized_loss_usd >= loss_threshold_usd > 0:
             logger.warning(
                 "GRADUATED LOSS CUTTING: {} {} ${:.2f} loss (threshold: ${:.2f}). Closing position.",
                 direction,
-                position["symbol"],
+                position.symbol,
                 unrealized_loss_usd,
                 loss_threshold_usd,
             )
             return {
                 "action": "close_position",
                 "reason": f"Margin-based loss cut ${unrealized_loss_usd:.2f} >= ${loss_threshold_usd:.2f}",
-            }
+            }, position
 
         # FIRST: Always evaluate and update trailing stop when in profit
         if unrealized_pnl_percent > 0:
-            trailing_action = self._evaluate_trailing_stop(
+            trailing_action, position = self._evaluate_trailing_stop(
                 position=position,
                 current_price=current_price,
                 profit_target=profit_target,
@@ -1373,36 +1426,38 @@ class AccountService:
                 entry_price=entry_price,
                 unrealized_pnl_percent=unrealized_pnl_percent,
                 profit_levels=exit_tiers,
+                coin=coin,
             )
         else:
             trailing_action = None
 
         # If no partial exit but trailing stop was updated, return trailing action
         if trailing_action:
-            return trailing_action
+            return trailing_action, position
 
-        return exit_decision
+        return exit_decision, position
 
     def _evaluate_trailing_stop(
         self,
-        position: dict[str, Any],
+        position: Position,
         current_price: float,
         profit_target: float | None,
         direction: str,
         entry_price: float,
         unrealized_pnl_percent: float,
         profit_levels: dict[str, float],
-    ) -> dict[str, Any] | None:
+        coin: str,
+    ) -> tuple[dict[str, Any] | None, Position]:
         """Evaluate advanced trailing stop conditions based on progress, time, volume and ATR."""
         if (
             unrealized_pnl_percent <= 0
             or not isinstance(current_price, (int, float))
             or current_price <= 0
         ):
-            return None
+            return None, position
 
-        symbol = position.get("symbol")
-        exit_plan = position.get("exit_plan") or {}
+        symbol = position.symbol
+        exit_plan = position.exit_plan
 
         level1_threshold = 0.0
         if isinstance(profit_levels, dict):
@@ -1411,9 +1466,9 @@ class AccountService:
             except (TypeError, ValueError):
                 level1_threshold = 0.0
         if unrealized_pnl_percent < max(level1_threshold * 0.5, 0.0):
-            return None
+            return None, position
 
-        existing_stop = exit_plan.get("stop_loss")
+        existing_stop = exit_plan.stop_loss
         try:
             existing_stop = float(existing_stop) if existing_stop is not None else None
         except (TypeError, ValueError):
@@ -1444,7 +1499,7 @@ class AccountService:
 
         # Time in trade (minutes)
         time_in_trade = 0.0
-        entry_time_str = position.get("entry_time")
+        entry_time_str = position.entry_time
         if entry_time_str:
             try:
                 entry_time = datetime.fromisoformat(entry_time_str.replace("Z", "+00:00"))
@@ -1485,7 +1540,7 @@ class AccountService:
             and progress_score >= Config.TRAILING_TIME_PROGRESS_FLOOR
         )
         if not (progress_triggered or time_triggered):
-            return None
+            return None, position
 
         # Fetch current 3m indicators for ATR & volume context
         current_volume_ratio = None
@@ -1512,11 +1567,11 @@ class AccountService:
             atr_value = indicators_3m.get("atr_14")
 
         if not isinstance(atr_value, (int, float)) or atr_value <= 0:
-            atr_value = position.get("entry_atr_14")
+            atr_value = position.entry_atr_14
         if not isinstance(atr_value, (int, float)) or atr_value <= 0:
             atr_value = current_price * Config.TRAILING_FALLBACK_BUFFER_PCT
 
-        entry_volume_ratio = position.get("entry_volume_ratio")
+        entry_volume_ratio = position.entry_volume_ratio
         volume_drop_triggered = False
         if isinstance(current_volume_ratio, (int, float)):
             if current_volume_ratio <= Config.TRAILING_VOLUME_ABSOLUTE_THRESHOLD:
@@ -1596,10 +1651,10 @@ class AccountService:
                 baseline_stop = current_price - min_improvement_abs
 
             if existing_stop is not None and baseline_stop <= existing_stop + min_improvement_abs:
-                return None
+                return None, position
 
             if baseline_stop <= 0:
-                return None
+                return None, position
 
             new_stop = baseline_stop
         else:  # short
@@ -1620,42 +1675,44 @@ class AccountService:
                 baseline_stop = entry_price - min_improvement_abs
 
             if baseline_stop <= current_price:
-                return None
+                return None, position
 
             if existing_stop is not None and (existing_stop - baseline_stop) <= min_improvement_abs:
-                return None
+                return None, position
 
             new_stop = baseline_stop
 
         if new_stop is None:
-            return None
+            return None, position
 
         new_stop = round(max(0.0, new_stop), 6)
         if direction == "long" and new_stop >= current_price:
-            return None
+            return None, position
         if direction == "short" and new_stop <= current_price:
-            return None
+            return None, position
 
         # Persist updated stop and trailing metadata
-        exit_plan["stop_loss"] = new_stop
-        position["exit_plan"] = exit_plan
-
-        trailing_meta = position.setdefault("trailing", {})
-        trailing_meta.update(
-            {
-                "active": True,
-                "last_update_cycle": getattr(self, "current_cycle_number", None),
-                "last_reason": ", ".join(reason_tokens),
-                "last_stop": new_stop,
-                "progress_percent": round(progress_score, 2),
-                "time_in_trade_min": round(time_in_trade, 2),
-            },
-        )
+        new_exit_plan = position.exit_plan.model_copy(update={"stop_loss": new_stop})
+        trailing_update: dict[str, Any] = {
+            "active": True,
+            "last_update_cycle": getattr(self, "current_cycle_number", None),
+            "last_reason": ", ".join(reason_tokens) if reason_tokens else None,
+            "last_stop": new_stop,
+            "progress_percent": round(progress_score, 2),
+            "time_in_trade_min": round(time_in_trade, 2),
+        }
+        new_trailing = position.trailing.model_copy(update=trailing_update)
         if isinstance(current_volume_ratio, (int, float)):
-            trailing_meta["last_volume_ratio"] = round(current_volume_ratio, 4)
+            new_trailing = new_trailing.model_copy(
+                update={"last_volume_ratio": round(current_volume_ratio, 4)}
+            )
+        position = position.model_copy(
+            update={"exit_plan": new_exit_plan, "trailing": new_trailing}
+        )
+        self.pm.positions[coin] = position
 
         reason = f"Trailing stop tightened ({', '.join(reason_tokens)})"
-        return {"action": "update_stop", "new_stop": new_stop, "reason": reason}
+        return {"action": "update_stop", "new_stop": new_stop, "reason": reason}, position
 
     def _execute_new_positions_only(
         self,

@@ -377,11 +377,11 @@ REMEMBER: These are suggestions only. You make the final trading decisions based
         positions_by_direction: dict[str, list[dict[str, Any]]] = {"long": [], "short": []}
         now_ts = datetime.now(timezone.utc)
         for coin, position in self.portfolio.positions.items():
-            direction = position.get("direction", "long")
+            direction = position.direction
             if direction not in positions_by_direction:
                 continue
-            pnl = position.get("unrealized_pnl", 0.0)
-            entry_time_str = position.get("entry_time")
+            pnl = position.unrealized_pnl
+            entry_time_str = position.entry_time
             minutes_in_trade = None
             if entry_time_str:
                 try:
@@ -395,7 +395,7 @@ REMEMBER: These are suggestions only. You make the final trading decisions based
                     "coin": coin,
                     "pnl": pnl,
                     "minutes": minutes_in_trade,
-                    "loss_cycles": position.get("loss_cycle_count", 0),
+                    "loss_cycles": position.loss_cycle_count,
                 },
             )
 
@@ -582,20 +582,18 @@ REMEMBER: These are suggestions only. You make the final trading decisions based
             if coin in self.portfolio.positions:
                 position = self.portfolio.positions[coin]
                 prompt += "\n--- CURRENT OPEN POSITION & YOUR PLAN ---\n"
-                prompt += (
-                    f"You have an open {position.get('direction', 'long').upper()} position.\n"
-                )
-                prompt += f"  Symbol: {position.get('symbol', 'N/A')}\n"
-                prompt += f"  Quantity: {format_num(position.get('quantity', 0), 6)}\n"
-                prompt += f"  Entry Price: ${format_num(position.get('entry_price', 0))}\n"
-                prompt += f"  Current Price: ${format_num(position.get('current_price', 0))}\n"
-                prompt += f"  Liquidation Price (Est.): ${format_num(position.get('liquidation_price', 0))}\n"
-                prompt += f"  Unrealized PnL: ${format_num(position.get('unrealized_pnl', 0), 2)}\n"
-                prompt += f"  Leverage: {position.get('leverage', 1)}x\n"
-                prompt += f"  Notional Value: ${format_num(position.get('notional_usd', 0), 2)}\n"
+                prompt += f"You have an open {position.direction.upper()} position.\n"
+                prompt += f"  Symbol: {position.symbol}\n"
+                prompt += f"  Quantity: {format_num(position.quantity, 6)}\n"
+                prompt += f"  Entry Price: ${format_num(position.entry_price)}\n"
+                prompt += f"  Current Price: ${format_num(position.current_price)}\n"
+                prompt += f"  Liquidation Price (Est.): ${format_num(position.liquidation_price)}\n"
+                prompt += f"  Unrealized PnL: ${format_num(position.unrealized_pnl, 2)}\n"
+                prompt += f"  Leverage: {position.leverage}x\n"
+                prompt += f"  Notional Value: ${format_num(position.notional_usd, 2)}\n"
 
                 # Calculate position duration
-                entry_time_str = position.get("entry_time")
+                entry_time_str = position.entry_time
                 position_duration_minutes = None
                 position_duration_hours = None
                 if entry_time_str:
@@ -619,7 +617,7 @@ REMEMBER: These are suggestions only. You make the final trading decisions based
                 # Get current trend state
                 trend_info = self.portfolio.update_trend_state(coin, indicators_htf, indicators_3m)
                 current_trend = trend_info.get("trend", "unknown")
-                trend_direction = position.get("direction", "long").lower()
+                trend_direction = position.direction.lower()
 
                 # Determine 3m momentum
                 price_3m = indicators_3m.get("current_price")
@@ -770,13 +768,13 @@ REMEMBER: These are suggestions only. You make the final trading decisions based
                 if isinstance(rsi_3m, (int, float)):
                     prompt += f"  3m RSI: {rsi_3m:.1f}\n"
 
-                exit_plan = position.get("exit_plan", {})
+                exit_plan = position.exit_plan
                 prompt += "  YOUR ACTIVE EXIT PLAN:\n"
-                prompt += f"    Profit Target: {exit_plan.get('profit_target', 'N/A')}\n"
-                prompt += f"    Stop Loss: {exit_plan.get('stop_loss', 'N/A')}\n"
-                prompt += f"    Invalidation: {exit_plan.get('invalidation_condition', 'N/A')}\n"
-                prompt += f"  Your Confidence: {position.get('confidence', 'N/A')}\n"
-                prompt += f"  Estimated Risk USD: {position.get('risk_usd', 'N/A')}\n"
+                prompt += f"    Profit Target: {exit_plan.profit_target or 'N/A'}\n"
+                prompt += f"    Stop Loss: {exit_plan.stop_loss or 'N/A'}\n"
+                prompt += f"    Invalidation: {exit_plan.invalidation_condition or 'N/A'}\n"
+                prompt += f"  Your Confidence: {position.confidence}\n"
+                prompt += f"  Estimated Risk USD: {position.risk_usd or 'N/A'}\n"
                 prompt += "REMINDER: You can only 'hold' or 'close_position'.\n"
         # --- End coin loop ---
 
@@ -786,9 +784,7 @@ REMEMBER: These are suggestions only. You make the final trading decisions based
         trading_context = self.get_trading_context()
 
         # Calculate current risk status - NEW SIMPLIFIED SYSTEM
-        total_margin_used = sum(
-            pos.get("margin_usd", 0) for pos in self.portfolio.positions.values()
-        )
+        total_margin_used = sum(pos.margin_usd for pos in self.portfolio.positions.values())
         current_positions_count = len(self.portfolio.positions)
 
         prompt += f"""
@@ -1117,8 +1113,22 @@ Each coin below contains a State Vector with:
             # LiteLLM/OpenRouter can sometimes return {"content": None} on safety filters or timeouts
             raw_content = response.get("content") or ""
             internal_reasoning = response.get("reasoning") or ""
+            logger.debug(
+                "parse_ai_response: dict input, content length={}, reasoning length={}",
+                len(raw_content),
+                len(internal_reasoning or ""),
+            )
+            logger.debug(
+                "parse_ai_response: content preview: {}",
+                raw_content[:500] if raw_content else "(empty)",
+            )
         else:
             raw_content = str(response) if response is not None else ""
+            logger.debug(
+                "parse_ai_response: string input, length={}, preview: {}",
+                len(raw_content),
+                raw_content[:500] if raw_content else "(empty)",
+            )
 
         thoughts_list = []
         if internal_reasoning:
@@ -1223,20 +1233,18 @@ Each coin below contains a State Vector with:
                     position = self.portfolio.positions[coin]
                     cleaned_trade.update(
                         {
-                            "leverage": position.get("leverage", 1),
-                            "quantity_usd": position.get("margin_usd", 0),
-                            "confidence": position.get("confidence", 0.5),
-                            "profit_target": position.get("exit_plan", {}).get("profit_target"),
-                            "stop_loss": position.get("exit_plan", {}).get("stop_loss"),
-                            "risk_usd": position.get("risk_usd", 0),
-                            "invalidation_condition": position.get("exit_plan", {}).get(
-                                "invalidation_condition",
-                            ),
-                            "entry_price": position.get("entry_price", 0),
-                            "current_price": position.get("current_price", 0),
-                            "unrealized_pnl": position.get("unrealized_pnl", 0),
-                            "notional_usd": position.get("notional_usd", 0),
-                            "direction": position.get("direction", "long"),
+                            "leverage": position.leverage,
+                            "quantity_usd": position.margin_usd,
+                            "confidence": position.confidence,
+                            "profit_target": position.exit_plan.profit_target,
+                            "stop_loss": position.exit_plan.stop_loss,
+                            "risk_usd": position.risk_usd,
+                            "invalidation_condition": position.exit_plan.invalidation_condition,
+                            "entry_price": position.entry_price,
+                            "current_price": position.current_price,
+                            "unrealized_pnl": position.unrealized_pnl,
+                            "notional_usd": position.notional_usd,
+                            "direction": position.direction,
                         },
                     )
                 cleaned_decisions[coin] = cleaned_trade

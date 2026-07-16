@@ -1,10 +1,12 @@
 """AI decision and execution report schemas."""
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 
 
 class MLConsensus(BaseModel):
     """ML model consensus data injected into AI decisions."""
+
+    model_config = ConfigDict(frozen=True)
 
     prediction: str | None = None
     confidence: float | None = None
@@ -14,6 +16,8 @@ class MLConsensus(BaseModel):
 
 class AIDecision(BaseModel):
     """A single coin's AI decision from the LLM response."""
+
+    model_config = ConfigDict(frozen=True)
 
     signal: str = "hold"  # buy_to_enter | sell_to_enter | close_position | hold
     confidence: float = Field(default=0.0, ge=0, le=1)
@@ -31,6 +35,8 @@ class AIDecision(BaseModel):
 class ExecutedCoin(BaseModel):
     """A coin that was executed in a trade."""
 
+    model_config = ConfigDict(frozen=True)
+
     coin: str
     signal: str
     confidence: float = 0.0
@@ -42,6 +48,8 @@ class ExecutedCoin(BaseModel):
 class BlockedCoin(BaseModel):
     """A coin that was blocked from trading."""
 
+    model_config = ConfigDict(frozen=True)
+
     coin: str
     reason: str
     signal: str | None = None
@@ -50,12 +58,16 @@ class BlockedCoin(BaseModel):
 class SkippedCoin(BaseModel):
     """A coin that was skipped."""
 
+    model_config = ConfigDict(frozen=True)
+
     coin: str
     reason: str
 
 
 class ExecutionReport(BaseModel):
     """Summary of trade execution for a cycle."""
+
+    model_config = ConfigDict(frozen=True)
 
     executed: list[ExecutedCoin] = Field(default_factory=list)
     blocked: list[BlockedCoin] = Field(default_factory=list)

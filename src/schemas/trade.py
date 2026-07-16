@@ -1,10 +1,12 @@
 """Trade history and cycle history schemas."""
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 
 
 class TradeHistoryEntry(BaseModel):
     """A completed trade record."""
+
+    model_config = ConfigDict(frozen=True)
 
     symbol: str
     direction: str
@@ -22,6 +24,8 @@ class TradeHistoryEntry(BaseModel):
 class DirectionalBias(BaseModel):
     """Directional bias tracking for long/short."""
 
+    model_config = ConfigDict(frozen=True)
+
     net_pnl: float = 0.0
     trades: int = 0
     wins: int = 0
@@ -35,6 +39,8 @@ class DirectionalBias(BaseModel):
 
 class CycleHistoryEntry(BaseModel):
     """A single cycle record in history."""
+
+    model_config = ConfigDict(frozen=True)
 
     cycle: int
     timestamp: str = ""
