@@ -3,23 +3,36 @@ import logging
 import os
 import sqlite3
 import time
+from datetime import datetime, timezone
 from typing import Any
 
-import numpy as np
-import pandas as pd
+import polars as pl
 import requests
 from src.core import constants
 
 
-# Configure logging
 logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
 logger = logging.getLogger(__name__)
 
 
+KLINE_COLUMNS = [
+    "timestamp",
+    "open",
+    "high",
+    "low",
+    "close",
+    "volume",
+    "close_time",
+    "quote_asset_volume",
+    "number_of_trades",
+    "taker_buy_base_asset_volume",
+    "taker_buy_quote_asset_volume",
+    "ignore",
+]
+
+
 class DataEngine:
-    """Core Database Engine for TradeSeeker's ML Pipeline.
-    Handles SQLite ingestion, storage, and retrieval of market data, ML features, and AI decisions.
-    """
+    """Core Database Engine for TradeSeeker's ML Pipeline."""
 
     def __init__(self, db_path: str = "data/market_data.db"):
         self.db_path = db_path
@@ -27,32 +40,25 @@ class DataEngine:
         self._init_db()
 
     def _ensure_dir(self):
-        """Ensure the directory for the database exists."""
         db_dir = os.path.dirname(self.db_path)
         if db_dir and not os.path.exists(db_dir):
             os.makedirs(db_dir, exist_ok=True)
             logger.info(f"[DataEngine] Created directory: {db_dir}")
 
     def _get_connection(self) -> sqlite3.Connection:
-        """Get a configured SQLite connection with WAL mode and busy timeout."""
-        # WAL mode allows concurrent readers with a single writer — essential for
-        # multi-threaded access from cycle thread + TP/SL monitor thread.
         conn = sqlite3.connect(self.db_path, check_same_thread=False, timeout=10)
-        conn.row_factory = sqlite3.Row  # Return dict-like rows
+        conn.row_factory = sqlite3.Row
         try:
             conn.execute("PRAGMA journal_mode=WAL")
             conn.execute("PRAGMA busy_timeout=5000")
         except Exception:
-            pass  # Older SQLite may not support WAL; still functional without it
+            pass
         return conn
 
     def _init_db(self):
-        """Initialize the SQLite database schema for Phase 1.1."""
         conn = self._get_connection()
         try:
             cursor = conn.cursor()
-
-            # 1. Market Data Table: Stores raw OHLCV from Binance (3m, 15m, 1h)
             cursor.execute(
                 """
                 CREATE TABLE IF NOT EXISTS market_data (
@@ -68,28 +74,22 @@ class DataEngine:
                 )
             """
             )
-
-            # 2. Decisions Table: The Feedback Loop (Self-Learning memory)
             cursor.execute(
                 """
                 CREATE TABLE IF NOT EXISTS decisions (
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
                     timestamp INTEGER,
                     coin TEXT,
-                    action TEXT,          -- LONG, SHORT, WAIT
-                    ai_confidence REAL,   -- The confidence score given by DeepSeek
-                    ml_probability REAL,  -- The raw probability output from XGBoost
+                    action TEXT,
+                    ai_confidence REAL,
+                    ml_probability REAL,
                     entry_price REAL,
                     exit_price REAL,
-                    pnl_result REAL,      -- The actual realized PnL
-                    status TEXT           -- OPEN, CLOSED
+                    pnl_result REAL,
+                    status TEXT
                 )
             """
             )
-
-            # 3. Features Table: Normalized indicator values ready for XGBoost DMatrix
-            # We use a JSON text field for feature_data to allow adding/removing indicators
-            # without requiring complex schema migrations (Schema Evolution flexibility).
             cursor.execute(
                 """
                 CREATE TABLE IF NOT EXISTS features (
@@ -101,18 +101,12 @@ class DataEngine:
                 )
             """
             )
-
-            # Create indexes for query performance (O(log N) lookups)
             cursor.execute(
                 "CREATE INDEX IF NOT EXISTS idx_market_data_coin_interval ON market_data (coin, interval)"
             )
             cursor.execute("CREATE INDEX IF NOT EXISTS idx_decisions_status ON decisions (status)")
-
             conn.commit()
-            logger.info(
-                f"[DataEngine] Database schema initialized successfully at '{self.db_path}'."
-            )
-
+            logger.info(f"[DataEngine] Database schema initialized at '{self.db_path}'.")
         except Exception as e:
             logger.error(f"[DataEngine] Failed to initialize database: {e}")
             conn.rollback()
@@ -120,26 +114,21 @@ class DataEngine:
         finally:
             conn.close()
 
-    def log_market_data(self, df: pd.DataFrame, coin: str, interval: str):
-        """Public method to log raw OHLCV data."""
+    def log_market_data(self, df: pl.DataFrame, coin: str, interval: str):
         self._insert_klines_bulk(df, coin, interval)
 
     def log_cycle_features(self, coin: str, interval: str, indicators: dict[str, Any]):
-        """Logs indicator snapshots to the 'features' table.
-        Indicators should be a dict containing numeric values or series.
-        """
         if not isinstance(indicators, dict):
             return
 
         conn = self._get_connection()
         try:
-            # Prepare feature JSON (sanitize to ensure JSON serializable)
             feature_data = {}
             for k, v in indicators.items():
                 if isinstance(v, (int, float, str, bool)):
                     feature_data[k] = v
-                elif hasattr(v, "tolist"):  # numpy/pandas series
-                    feature_data[k] = v.tolist()[-1] if len(v) > 0 else None
+                elif isinstance(v, pl.Series):
+                    feature_data[k] = v.to_list()[-1] if len(v) > 0 else None
                 elif isinstance(v, list):
                     feature_data[k] = v[-1] if v else None
 
@@ -156,23 +145,27 @@ class DataEngine:
         finally:
             conn.close()
 
-    def _insert_klines_bulk(self, df: pd.DataFrame, coin: str, interval: str):
-        """Bulk insert a pandas DataFrame of KLines into SQLite."""
-        if df.empty:
+    def _insert_klines_bulk(self, df: pl.DataFrame, coin: str, interval: str):
+        if df.is_empty():
             return
 
         conn = self._get_connection()
         try:
             cursor = conn.cursor()
-
-            # Convert timestamp to integer milliseconds for storage
             records = []
-            for _, row in df.iterrows():
-                ts_val = row["timestamp"]
-                if hasattr(ts_val, "timestamp"):
-                    ts_int = int(ts_val.timestamp() * 1000)
+
+            ts_col = df["timestamp"]
+            open_col = df["open"].to_list()
+            high_col = df["high"].to_list()
+            low_col = df["low"].to_list()
+            close_col = df["close"].to_list()
+            vol_col = df["volume"].to_list()
+
+            for i in range(len(df)):
+                ts_val = ts_col[i]
+                if isinstance(ts_val, datetime):
+                    ts_int = int(ts_val.replace(tzinfo=timezone.utc).timestamp() * 1000)
                 else:
-                    # Fallback for integer milliseconds or numpy.int64
                     ts_int = int(ts_val)
 
                 records.append(
@@ -180,15 +173,14 @@ class DataEngine:
                         ts_int,
                         coin,
                         interval,
-                        float(row["open"]),
-                        float(row["high"]),
-                        float(row["low"]),
-                        float(row["close"]),
-                        float(row["volume"]),
+                        float(open_col[i]),
+                        float(high_col[i]),
+                        float(low_col[i]),
+                        float(close_col[i]),
+                        float(vol_col[i]),
                     )
                 )
 
-            # INSERT OR IGNORE protects against duplicate timestamp overlapping
             cursor.executemany(
                 """
                 INSERT OR IGNORE INTO market_data
@@ -197,7 +189,6 @@ class DataEngine:
             """,
                 records,
             )
-
             conn.commit()
             logger.info(f"[DataEngine] Ingested {len(records)} '{interval}' candles for {coin}.")
         except Exception as e:
@@ -207,41 +198,42 @@ class DataEngine:
         finally:
             conn.close()
 
-    def get_raw_market_data(
-        self, coin: str, interval: str, limit: int | None = None
-    ) -> pd.DataFrame:
-        """Fetch raw market data from SQLite into a pandas DataFrame."""
+    def _query_to_df(self, query: str, params: list | None = None) -> pl.DataFrame:
         conn = self._get_connection()
         try:
-            query = (
-                "SELECT * FROM market_data WHERE coin = ? AND interval = ? ORDER BY timestamp ASC"
-            )
-            params = [coin, interval]
-            if limit:
-                # We need to get the "latest" N candles, so we sort DESC then reverse,
-                # or just use a subquery. Subquery is cleaner.
-                query = """
-                    SELECT * FROM (
-                        SELECT * FROM market_data
-                        WHERE coin = ? AND interval = ?
-                        ORDER BY timestamp DESC LIMIT ?
-                    ) ORDER BY timestamp ASC
-                """
-                params.append(limit)
-
-            df = pd.read_sql_query(query, conn, params=params)
-
-            if not df.empty:
-                df["timestamp"] = pd.to_datetime(df["timestamp"], unit="ms")
-            return df
-        except Exception as e:
-            logger.error(f"[DataEngine] Error fetching raw data for {coin}: {e}")
-            return pd.DataFrame()
+            cursor = conn.execute(query, params or [])
+            columns = [desc[0] for desc in cursor.description]
+            rows = cursor.fetchall()
+            if not rows:
+                return pl.DataFrame(schema=columns)
+            return pl.DataFrame(rows, schema=columns)
         finally:
             conn.close()
 
+    def get_raw_market_data(
+        self, coin: str, interval: str, limit: int | None = None
+    ) -> pl.DataFrame:
+        query = "SELECT * FROM market_data WHERE coin = ? AND interval = ? ORDER BY timestamp ASC"
+        params: list = [coin, interval]
+        if limit:
+            query = """
+                SELECT * FROM (
+                    SELECT * FROM market_data
+                    WHERE coin = ? AND interval = ?
+                    ORDER BY timestamp DESC LIMIT ?
+                ) ORDER BY timestamp ASC
+            """
+            params.append(limit)
+
+        df = self._query_to_df(query, params)
+
+        if not df.is_empty():
+            df = df.with_columns(
+                pl.col("timestamp").cast(pl.Datetime(time_unit="ms")).alias("timestamp")
+            )
+        return df
+
     def wipe_market_data(self, coin: str | None = None, interval: str | None = None):
-        """Wipes the market_data and features tables. If coin/interval provided, only wipes matches."""
         conn = self._get_connection()
         try:
             cursor = conn.cursor()
@@ -265,7 +257,6 @@ class DataEngine:
             conn.close()
 
     def sync_bulk_history(self, coin: str, interval: str, target_count: int = 5000):
-        """Fetches historical data from Binance with pagination and saves to DB."""
         import time as _time_module
 
         logger.info(
@@ -275,9 +266,8 @@ class DataEngine:
         base_url = "https://api.binance.com/api/v3/klines"
         symbol = f"{coin}USDT"
         total_ingested = 0
-        end_time = None  # Start from current time
+        end_time = None
 
-        # We fetch in chunks of 1000
         while total_ingested < target_count:
             try:
                 params = {"symbol": symbol, "interval": interval, "limit": 1000}
@@ -291,33 +281,14 @@ class DataEngine:
                 if not data:
                     break
 
-                df = pd.DataFrame(
-                    data,
-                    columns=[
-                        "timestamp",
-                        "open",
-                        "high",
-                        "low",
-                        "close",
-                        "volume",
-                        "close_time",
-                        "quote_asset_volume",
-                        "number_of_trades",
-                        "taker_buy_base_asset_volume",
-                        "taker_buy_quote_asset_volume",
-                        "ignore",
-                    ],
-                )
+                df = pl.DataFrame(data, schema=KLINE_COLUMNS)
 
-                # Check for empty or malformed response
-                if df.empty:
+                if df.is_empty():
                     break
 
-                # Update endTime for next iteration (earliest candle in this batch)
-                first_ts = int(df["timestamp"].iloc[0])
+                first_ts = int(df["timestamp"][0])
                 end_time = first_ts
 
-                # Log to DB
                 self._insert_klines_bulk(df, coin, interval)
                 total_ingested += len(df)
 
@@ -326,10 +297,8 @@ class DataEngine:
                 )
 
                 if len(df) < 1000:
-                    # No more history available
                     break
 
-                # Small sleep to avoid rate limits
                 _time_module.sleep(0.1)
 
             except Exception as e:
@@ -351,50 +320,48 @@ class DataEngine:
         if hasattr(constants, "ML_DEFAULT_LOSS_THRESHOLD")
         else -0.003,
         limit: int | None = None,
-    ) -> pd.DataFrame:
-        """Creates the ML targets (Labels) by looking ahead in time.
-        Calculates the future percentage return from the current close to the close at (t + lookahead).
-        Assigns:
-        -  1 (BUY):  Return >= profit_threshold
-        - -1 (SELL): Return <= loss_threshold
-        -  0 (HOLD): Everything else (Choppy/Sideways)
-        """
+    ) -> pl.DataFrame:
         df = self.get_raw_market_data(coin, interval, limit=limit)
-        if df.empty:
+        if df.is_empty():
             return df
 
-        # Calculate future return using Vectorized shift (O(1) equivalent in pandas)
-        # Shift with negative number moves future values backwards to the current row
-        df["future_close"] = df["close"].shift(-lookahead_periods)
-        df["future_return"] = (df["future_close"] - df["close"]) / df["close"]
+        df = df.with_columns(
+            [
+                pl.col("close").shift(-lookahead_periods).alias("future_close"),
+            ]
+        )
+        df = df.with_columns(
+            ((pl.col("future_close") - pl.col("close")) / pl.col("close")).alias("future_return")
+        )
 
-        # === Dynamic Volatility (ATR) Based Thresholds ===
-        # True Range calculation (consistent with indicators.py:50-53)
-        tr0 = abs(df["high"] - df["low"])
-        tr1 = abs(df["high"] - df["close"].shift())
-        tr2 = abs(df["low"] - df["close"].shift())
-        tr = pd.concat([tr0, tr1, tr2], axis=1).max(axis=1)
-        atr_14 = tr.ewm(span=14, adjust=False).mean()
-        atr_pct = (atr_14 / df["close"]).fillna(constants.ML_ATR_LABEL_FLOOR)
+        tr0 = (pl.col("high") - pl.col("low")).abs()
+        tr1 = (pl.col("high") - pl.col("close").shift()).abs()
+        tr2 = (pl.col("low") - pl.col("close").shift()).abs()
 
-        # Scale ATR by multiplier with minimum floor
-        dynamic_profit = np.maximum(
-            atr_pct * constants.ML_ATR_LABEL_MULTIPLIER, constants.ML_ATR_LABEL_FLOOR
+        temp_df = df.select([tr0.alias("tr0"), tr1.alias("tr1"), tr2.alias("tr2")])
+        tr = temp_df.select(pl.max_horizontal("tr0", "tr1", "tr2")).to_series()
+
+        atr_14 = tr.ewm_mean(span=14, adjust=False)
+        atr_pct = (atr_14 / df["close"]).fill_nan(constants.ML_ATR_LABEL_FLOOR)
+
+        dynamic_profit = pl.max_horizontal(
+            atr_pct * constants.ML_ATR_LABEL_MULTIPLIER,
+            pl.Series([constants.ML_ATR_LABEL_FLOOR] * len(df)),
         )
         dynamic_loss = -dynamic_profit
 
-        # Apply labels using numpy.select for blazing fast vectorization
-        conditions = [
-            (df["future_return"] >= dynamic_profit),
-            (df["future_return"] <= dynamic_loss),
-        ]
-        choices = [1, -1]  # 1=BUY, -1=SELL
+        df = df.with_columns(
+            [
+                pl.when(pl.col("future_return") >= dynamic_profit)
+                .then(1)
+                .when(pl.col("future_return") <= dynamic_loss)
+                .then(-1)
+                .otherwise(0)
+                .alias("target_label"),
+            ]
+        )
 
-        # Default is 0 (HOLD)
-        df["target_label"] = np.select(conditions, choices, default=0)
-
-        # Drop rows with NaN future_return (the last 'lookahead_periods' rows have no future yet)
-        df.dropna(subset=["future_return"], inplace=True)
+        df = df.filter(pl.col("future_return").is_not_null())
 
         logger.info(
             f"[Labeling] {coin} {interval} -> Created labels with {lookahead_periods} periods lookahead."
@@ -402,7 +369,6 @@ class DataEngine:
         return df
 
     def fetch_and_store_klines(self, coin: str, interval: str, limit: int = 1000):
-        """Fetches KLines directly from Binance API to avoid importing bot configs during tests."""
         try:
             url = "https://api.binance.com/api/v3/klines"
             params = {"symbol": f"{coin}USDT", "interval": interval, "limit": limit}
@@ -414,30 +380,16 @@ class DataEngine:
                 logger.warning(f"[DataEngine] Received empty data for {coin} ({interval}).")
                 return False
 
-            df = pd.DataFrame(
-                data,
-                columns=[
-                    "timestamp",
-                    "open",
-                    "high",
-                    "low",
-                    "close",
-                    "volume",
-                    "close_time",
-                    "quote_asset_volume",
-                    "number_of_trades",
-                    "taker_buy_base_asset_volume",
-                    "taker_buy_quote_asset_volume",
-                    "ignore",
-                ],
-            )
-            for col in ["open", "high", "low", "close", "volume"]:
-                df[col] = df[col].astype(float).round(8)
-            df["timestamp"] = pd.to_datetime(df["timestamp"], unit="ms")
+            df = pl.DataFrame(data, schema=KLINE_COLUMNS)
 
-            # Sanitize corrupted candles
-            df.replace([np.inf, -np.inf], np.nan, inplace=True)
-            df.dropna(inplace=True)
+            for col in ["open", "high", "low", "close", "volume"]:
+                df = df.with_columns(pl.col(col).cast(pl.Float64).round(8))
+
+            df = df.with_columns(
+                pl.col("timestamp").cast(pl.Datetime(time_unit="ms")).alias("timestamp")
+            )
+
+            df = df.fill_nan(None).drop_nulls()
 
             self._insert_klines_bulk(df, coin, interval)
             return True
@@ -456,16 +408,16 @@ class DataEngine:
         ml_probability: float,
         entry_price: float,
     ) -> int | None:
-        """Log an OPEN trade decision to the decisions table. Returns the row ID."""
         conn = self._get_connection()
         try:
             cursor = conn.cursor()
+            now_ms = int(datetime.now(timezone.utc).timestamp() * 1000)
             cursor.execute(
                 """INSERT INTO decisions
                    (timestamp, coin, action, ai_confidence, ml_probability, entry_price, status)
                    VALUES (?, ?, ?, ?, ?, ?, 'OPEN')""",
                 (
-                    int(pd.Timestamp.now().timestamp() * 1000),
+                    now_ms,
                     coin,
                     direction.upper(),
                     round(float(ai_confidence), 4),
@@ -492,7 +444,6 @@ class DataEngine:
         exit_price: float,
         pnl_result: float,
     ) -> bool:
-        """Update the latest OPEN decision for a coin with exit price and realized PnL."""
         conn = self._get_connection()
         try:
             cursor = conn.cursor()
@@ -526,7 +477,6 @@ class DataEngine:
 if __name__ == "__main__":
     import time
 
-    # Test execution for Faz 1.2
     print("--- TradeSeeker Data Engine Ingestion Test ---")
     engine = DataEngine()
 
@@ -540,21 +490,21 @@ if __name__ == "__main__":
             print(f"[OK] Successfully written to SQLite (market_data table) for {ival}.")
         else:
             print(f"[FAIL] Failed to write {ival} data.")
-        time.sleep(1)  # Sleep to avoid rate limits
+        time.sleep(1)
 
     print("\n[Test] Testing Labeling Logic (Faz 1.3)...")
     df_labeled = engine.get_labeled_data("XRP", "15m")
 
-    if not df_labeled.empty:
+    if not df_labeled.is_empty():
         print(f"[OK] Labeling complete. Extracted {len(df_labeled)} labeled rows.")
-        # Show distribution of labels
-        distribution = df_labeled["target_label"].value_counts().to_dict()
-        print(f"[INFO] Label Distribution [1=BUY, -1=SELL, 0=HOLD]: {distribution}")
+        distribution = df_labeled.group_by("target_label").len().sort("target_label")
+        print(f"[INFO] Label Distribution [1=BUY, -1=SELL, 0=HOLD]:")
+        print(distribution)
+        print("\nDemo Row:")
         print(
-            "\nDemo Row:\n",
-            df_labeled[
+            df_labeled.select(
                 ["timestamp", "close", "future_close", "future_return", "target_label"]
-            ].tail(1),
+            ).tail(1)
         )
     else:
         print("[FAIL] Labeling failed or empty dataframe.")

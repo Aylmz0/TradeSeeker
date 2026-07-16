@@ -1,12 +1,13 @@
 import copy
 import json
+import math
 import threading
 import time
 import traceback
+from datetime import datetime, timezone
 from typing import Any
 
-import numpy as np
-import pandas as pd
+import polars as pl
 import requests
 
 from config.config import Config
@@ -33,11 +34,22 @@ from src.core.indicators import (
 from src.core.schemas.alignment import AlignmentError, AlignmentResult
 from src.utils import RetryManager
 
-
-# add this ass a cycle counter analysez
-
-# HTF_INTERVAL used in main.py, we can get it from Config or define it here
 HTF_INTERVAL = getattr(Config, "HTF_INTERVAL", "1h") or "1h"
+
+KLINE_COLUMNS = [
+    "timestamp",
+    "open",
+    "high",
+    "low",
+    "close",
+    "volume",
+    "close_time",
+    "quote_asset_volume",
+    "number_of_trades",
+    "taker_buy_base_asset_volume",
+    "taker_buy_quote_asset_volume",
+    "ignore",
+]
 
 
 class RealMarketData:
@@ -50,38 +62,32 @@ class RealMarketData:
         self.indicator_history_length = 10
         self.session = RetryManager.create_session_with_retry()
         self.preloaded_indicators: dict[str, dict[str, dict[str, Any]]] = {}
-        self._raw_dataframes: dict[str, dict[str, pd.DataFrame]] = {}
+        self._raw_dataframes: dict[str, dict[str, pl.DataFrame]] = {}
 
-        # FIX: Circuit breaker state to prevent hammering Binance during outages
         self._circuit_breaker_failures = 0
         self._circuit_breaker_threshold = constants.CIRCUIT_BREAKER_THRESHOLD
         self._circuit_breaker_timeout = constants.CIRCUIT_BREAKER_TIMEOUT_S
-        self._circuit_breaker_until = 0  # Timestamp when breaker resets
-        self._circuit_breaker_lock = threading.RLock()  # RLock for re-entrant safety
+        self._circuit_breaker_until = 0
+        self._circuit_breaker_lock = threading.RLock()
 
-        # FIX: Short-lived cache for bulk price fetches to prevent duplicate logs/calls during cycle start
         self._last_price_fetch_time = 0.0
         self._last_price_cache: dict[str, float] = {}
-        self._price_cache_lock = threading.RLock()  # RLock for re-entrant safety
+        self._price_cache_lock = threading.RLock()
 
     def clear_preloaded_indicators(self):
-        """Clear any preloaded indicator snapshots (typically once per cycle)."""
         self.preloaded_indicators = {}
         self._raw_dataframes = {}
 
     def get_cached_raw_dataframe(self, coin: str, interval: str):
-        """Get a cached raw OHLCV DataFrame from the current cycle, or None."""
         return self._raw_dataframes.get(coin, {}).get(interval)
 
     def store_preloaded_indicator(self, coin: str, interval: str, indicators: dict[str, Any]):
-        """Store a snapshot of indicators for reuse during the same cycle."""
         if not isinstance(indicators, dict):
             return
         coin_store = self.preloaded_indicators.setdefault(coin, {})
         coin_store[interval] = copy.deepcopy(indicators)
 
     def set_preloaded_indicators(self, cache: dict[str, dict[str, dict[str, Any]]]):
-        """Bulk load pre-computed indicator cache (deep copy)."""
         preloaded: dict[str, dict[str, dict[str, Any]]] = {}
         for coin, intervals in (cache or {}).items():
             preloaded[coin] = {}
@@ -90,23 +96,23 @@ class RealMarketData:
                     preloaded[coin][interval] = copy.deepcopy(data)
         self.preloaded_indicators = preloaded
 
+    def _build_empty_df(self) -> pl.DataFrame:
+        return pl.DataFrame(schema=KLINE_COLUMNS)
+
     def get_real_time_data(
         self,
         symbol: str,
         interval: str = "3m",
         limit: int = 100,
-    ) -> pd.DataFrame:
-        """Get real OHLCV data from Binance Spot with enhanced error handling, retry logic, and circuit breaker"""
+    ) -> pl.DataFrame:
         import time as _time_module
 
-        # FIX: Circuit breaker check - if tripped, fail fast to avoid hammering API
-        # Thread-safe: check is atomic (no lock needed for read)
         current_time = _time_module.time()
         if current_time < self._circuit_breaker_until:
             print(
                 f"[CIRCUIT] OPEN for {symbol} {interval} - cooling down until {self._circuit_breaker_until:.0f}"
             )
-            return pd.DataFrame()
+            return self._build_empty_df()
 
         max_retries = constants.MAX_API_RETRIES
         for attempt in range(max_retries):
@@ -121,7 +127,6 @@ class RealMarketData:
                 response.raise_for_status()
                 data = response.json()
 
-                # FIX: Success - reset circuit breaker (thread-safe)
                 with self._circuit_breaker_lock:
                     if self._circuit_breaker_failures > 0:
                         print(f"[CIRCUIT] Reset after {self._circuit_breaker_failures} failures")
@@ -132,53 +137,38 @@ class RealMarketData:
                     print(
                         f"[WARN] Insufficient kline data for {symbol} ({interval}). Got {len(data)}.",
                     )
-                    return pd.DataFrame()
+                    return self._build_empty_df()
 
-                df = pd.DataFrame(
-                    data,
-                    columns=[
-                        "timestamp",
-                        "open",
-                        "high",
-                        "low",
-                        "close",
-                        "volume",
-                        "close_time",
-                        "quote_asset_volume",
-                        "number_of_trades",
-                        "taker_buy_base_asset_volume",
-                        "taker_buy_quote_asset_volume",
-                        "ignore",
-                    ],
-                )
+                df = pl.DataFrame(data, schema=KLINE_COLUMNS)
+
                 for col in ["open", "high", "low", "close", "volume"]:
-                    df[col] = df[col].astype(float).round(8)
-                df["timestamp"] = pd.to_datetime(df["timestamp"], unit="ms")
+                    df = df.with_columns(pl.col(col).cast(pl.Float64).round(8))
 
-                # Sanitize corrupted candles
-                df.replace([np.inf, -np.inf], np.nan, inplace=True)
-                if df.isna().any().any():
+                df = df.with_columns(
+                    pl.col("timestamp").cast(pl.Datetime(time_unit="ms")).alias("timestamp")
+                )
+
+                df = df.fill_nan(None)
+                has_nan = df.select(pl.any_horizontal(pl.col(pl.Float64).is_nan())).item()
+                if has_nan:
                     print(
                         f"[WARN] Invalid candles (NaN/Inf) detected for {symbol} ({interval}). Dropping invalid rows."
                     )
-                    df.dropna(inplace=True)
+                    df = df.drop_nulls()
 
-                # Enhanced data validation
                 if self._validate_kline_data(df, symbol, interval):
-                    # Cache raw DataFrame for reuse within the same cycle (e.g., ML inference)
                     coin_key = symbol.replace("USDT", "")
-                    self._raw_dataframes.setdefault(coin_key, {})[interval] = df.copy()
+                    self._raw_dataframes.setdefault(coin_key, {})[interval] = df.clone()
                     return df
                 print(
                     f"[ERR]   Data validation failed for {symbol} ({interval}) - attempt {attempt + 1}/{max_retries}",
                 )
                 if attempt < max_retries - 1:
-                    time.sleep(2**attempt)  # Exponential backoff
+                    time.sleep(2**attempt)
                     continue
                 print(
                     f"[ERR]   All retries failed for {symbol} ({interval}). Returning empty DataFrame.",
                 )
-                # FIX: Circuit breaker - increment failure count and trip if threshold reached (thread-safe)
                 with self._circuit_breaker_lock:
                     self._circuit_breaker_failures += 1
                     if self._circuit_breaker_failures >= self._circuit_breaker_threshold:
@@ -188,7 +178,7 @@ class RealMarketData:
                         print(
                             f"[CIRCUIT] TRIPPED for {symbol} {interval} - open for {self._circuit_breaker_timeout}s (failures: {self._circuit_breaker_failures})"
                         )
-                return pd.DataFrame()
+                return self._build_empty_df()
 
             except requests.exceptions.Timeout:
                 print(
@@ -198,7 +188,6 @@ class RealMarketData:
                     time.sleep(2**attempt)
                     continue
                 print(f"[ERR]   All retries timed out for {symbol} ({interval})")
-                # FIX: Circuit breaker - increment failure count and trip if threshold reached (thread-safe)
                 with self._circuit_breaker_lock:
                     self._circuit_breaker_failures += 1
                     if self._circuit_breaker_failures >= self._circuit_breaker_threshold:
@@ -208,7 +197,7 @@ class RealMarketData:
                         print(
                             f"[CIRCUIT] TRIPPED for {symbol} {interval} - open for {self._circuit_breaker_timeout}s (failures: {self._circuit_breaker_failures})"
                         )
-                return pd.DataFrame()
+                return self._build_empty_df()
             except Exception as e:
                 print(
                     f"[ERR]   Kline data error {symbol} ({interval}) - attempt {attempt + 1}/{max_retries}: {e}",
@@ -217,7 +206,6 @@ class RealMarketData:
                     time.sleep(2**attempt)
                     continue
                 print(f"[ERR]   All retries failed for {symbol} ({interval})")
-                # FIX: Circuit breaker - increment failure count and trip if threshold reached (thread-safe)
                 with self._circuit_breaker_lock:
                     self._circuit_breaker_failures += 1
                     if self._circuit_breaker_failures >= self._circuit_breaker_threshold:
@@ -227,17 +215,15 @@ class RealMarketData:
                         print(
                             f"[CIRCUIT] TRIPPED for {symbol} {interval} - open for {self._circuit_breaker_timeout}s (failures: {self._circuit_breaker_failures})"
                         )
-                return pd.DataFrame()
+                return self._build_empty_df()
 
-        return pd.DataFrame()
+        return self._build_empty_df()
 
-    def _validate_kline_data(self, df: pd.DataFrame, symbol: str, interval: str) -> bool:
-        """Validate kline data quality with enhanced volume checks"""
-        if df.empty:
+    def _validate_kline_data(self, df: pl.DataFrame, symbol: str, interval: str) -> bool:
+        if df.is_empty():
             print(f"[WARN] Empty DataFrame for {symbol} ({interval})")
             return False
 
-        # Check for zero or negative prices
         price_cols = ["open", "high", "low", "close"]
         for col in price_cols:
             if (df[col] <= 0).any():
@@ -246,26 +232,17 @@ class RealMarketData:
                 )
                 return False
 
-        # Check for identical prices (stuck data)
-        if df["close"].nunique() < constants.STUCK_DATA_PRICE_COUNT:  # Less than 3 unique prices
+        if df["close"].n_unique() < constants.STUCK_DATA_PRICE_COUNT:
             print(
-                f"[WARN] Stuck price data for {symbol} ({interval}): only {df['close'].nunique()} unique prices",
+                f"[WARN] Stuck price data for {symbol} ({interval}): only {df['close'].n_unique()} unique prices",
             )
             return False
 
-        # Volume validation - only check for zero/invalid volume
         volume_sum = df["volume"].sum()
-
-        # Check for zero volume (data quality issue)
         if volume_sum == 0:
             print(f"[WARN] Zero volume for {symbol} ({interval})")
             return False
 
-        # NOTE: Removed hard volume threshold filter
-        # Volume quality is now handled by AI via prompt rules (0.3x threshold)
-        # This allows AI to see low-volume coins and make informed decisions
-
-        # Check for reasonable price movement
         price_range = df["high"].max() - df["low"].min()
         if price_range == 0:
             print(f"[WARN] No price movement for {symbol} ({interval})")
@@ -274,7 +251,6 @@ class RealMarketData:
         return True
 
     def get_open_interest(self, symbol: str) -> float:
-        """Get Latest Open Interest from Binance Futures"""
         try:
             params = {"symbol": f"{symbol}USDT"}
             response = self.session.get(
@@ -295,21 +271,17 @@ class RealMarketData:
             return 0.0
 
     def _calculate_max_drawdown(self, value_history: list[float]) -> float:
-        """Calculate Maximum Drawdown from value history"""
         if not value_history or len(value_history) < constants.MIN_HISTORY_FOR_ANALYSIS:
             return 0.0
-
         peak = value_history[0]
         max_drawdown = 0.0
         for value in value_history:
-            # Performance stats
             peak = max(peak, value)
             drawdown = (peak - value) / peak if peak > 0 else 0
             max_drawdown = max(max_drawdown, drawdown)
         return max_drawdown
 
     def get_funding_rate(self, symbol: str) -> float:
-        """Get Latest Funding Rate from Binance Futures"""
         try:
             params = {"symbol": f"{symbol}USDT"}
             response = self.session.get(
@@ -321,11 +293,9 @@ class RealMarketData:
             data = response.json()
             if isinstance(data, list):
                 data = data[0] if data else {}
-
             rate = data.get("lastFundingRate")
             if rate is not None and rate != "":
                 return float(rate)
-            # print(f"[INFO] Using nextFundingRate for {symbol}.")
             rate = data.get("nextFundingRate")
             return float(rate) if rate is not None and rate != "" else 0.0
         except Exception as e:
@@ -337,92 +307,79 @@ class RealMarketData:
                 print(f"[ERR]   Funding Rate error for {symbol}: {e}")
             return 0.0
 
-    # --- Indicator Calculation Functions ---
     def get_technical_indicators(self, coin: str, interval: str) -> dict[str, Any]:
-        """Calculate technical indicators, returning history series"""
         cached = self.preloaded_indicators.get(coin, {}).get(interval)
         if isinstance(cached, dict):
             return copy.deepcopy(cached)
 
         df = self.get_real_time_data(coin, interval=interval)
-        if df.empty or len(df) < constants.MIN_KLINE_DATA_POINTS:
+        if df.is_empty() or len(df) < constants.MIN_KLINE_DATA_POINTS:
             return {"error": f"Not enough data for {coin} {interval} (got {len(df)})"}
 
         close_prices = df["close"]
-        # FIX: Bounds check for empty series (defensive)
         if len(close_prices) == 0:
             return {"error": f"Empty close price series for {coin} {interval}"}
-        current_price = close_prices.iloc[-1]
+        current_price = float(close_prices[-1])
         hist_len = self.indicator_history_length
-        indicators = {"current_price": current_price}
+        indicators: dict[str, Any] = {"current_price": current_price}
         try:
             ema_20_series = calculate_ema_series(close_prices, constants.FIB_21)
             ema_50_series = calculate_ema_series(close_prices, constants.FIB_55)
             rsi_14_series = calculate_rsi_series(close_prices, constants.FIB_13)
             macd_line_series, macd_signal_series, macd_hist_series = calculate_macd_series(
                 close_prices,
-            )  # Fibonacci: 13
+            )
             atr_14_series = calculate_atr_series(df["high"], df["low"], df["close"], 14)
 
-            indicators["ema_20"] = ema_20_series.iloc[-1]
-            indicators["ema_50"] = ema_50_series.iloc[-1]
-            indicators["rsi_14"] = rsi_14_series.iloc[-1]
-            indicators["macd"] = macd_line_series.iloc[-1]
-            indicators["macd_signal"] = macd_signal_series.iloc[-1]
-            indicators["macd_histogram"] = macd_hist_series.iloc[-1]
-            indicators["atr_14"] = atr_14_series.iloc[-1]  # Keep atr_14 available for AI prompt
+            indicators["ema_20"] = float(ema_20_series[-1])
+            indicators["ema_50"] = float(ema_50_series[-1])
+            indicators["rsi_14"] = float(rsi_14_series[-1])
+            indicators["macd"] = float(macd_line_series[-1])
+            indicators["macd_signal"] = float(macd_signal_series[-1])
+            indicators["macd_histogram"] = float(macd_hist_series[-1])
+            indicators["atr_14"] = float(atr_14_series[-1])
 
-            # Use .where(pd.notna, None) to convert NaN to None for JSON
             indicators["ema_20_series"] = (
-                ema_20_series.iloc[-hist_len:].round(4).where(pd.notna, None).tolist()
+                ema_20_series[-hist_len:].round(4).fill_nan(None).to_list()
             )
             indicators["rsi_14_series"] = (
-                rsi_14_series.iloc[-hist_len:].round(3).where(pd.notna, None).tolist()
+                rsi_14_series[-hist_len:].round(3).fill_nan(None).to_list()
             )
             indicators["macd_series"] = (
-                macd_line_series.iloc[-hist_len:].round(4).where(pd.notna, None).tolist()
+                macd_line_series[-hist_len:].round(4).fill_nan(None).to_list()
             )
 
             if interval == "3m":
                 rsi_7_series = calculate_rsi_series(close_prices, constants.FIB_8)
-                indicators["rsi_7"] = rsi_7_series.iloc[-1]  # Keep key as rsi_7 for compatibility
+                indicators["rsi_7"] = float(rsi_7_series[-1])
                 indicators["rsi_7_series"] = (
-                    rsi_7_series.iloc[-hist_len:].round(3).where(pd.notna, None).tolist()
+                    rsi_7_series[-hist_len:].round(3).fill_nan(None).to_list()
                 )
             if interval == HTF_INTERVAL:
                 atr_3_series = calculate_atr_series(
                     df["high"], df["low"], df["close"], constants.FIB_3
                 )
-                indicators["atr_3"] = atr_3_series.iloc[-1]
+                indicators["atr_3"] = float(atr_3_series[-1])
 
-            # Volume Analysis: Use last CLOSED candle for consistent ratio
-            # iloc[-1] is current incomplete candle. iloc[-2] is last closed candle.
-            current_vol = df["volume"].iloc[-1]
-            last_closed_vol = df["volume"].iloc[-2]
+            current_vol = float(df["volume"][-1])
+            last_closed_vol = float(df["volume"][-2])
 
-            # Calculate average volume based on LAST CLOSED candles (excluding current partial)
-            # Take slice representing VOLUME_WINDOW_SIZE
-            avg_vol_closed = df["volume"].iloc[-(constants.VOLUME_WINDOW_SIZE + 1) : -1].mean()
+            vol_slice = df["volume"][-(constants.VOLUME_WINDOW_SIZE + 1) : -1]
+            avg_vol_closed = vol_slice.mean() if len(vol_slice) > 0 else None
 
-            indicators["volume"] = current_vol  # Keep current volume for AI context
+            indicators["volume"] = current_vol
             indicators["last_closed_volume"] = last_closed_vol
             indicators["avg_volume"] = (
-                avg_vol_closed if pd.notna(avg_vol_closed) and avg_vol_closed > 0 else 1.0
+                float(avg_vol_closed) if avg_vol_closed is not None and avg_vol_closed > 0 else 1.0
             )
 
-            # Pre-calculate ratio for consistency
             indicators["volume_ratio"] = last_closed_vol / indicators["avg_volume"]
 
-            # Efficiency Ratio (ER) Calculation for Choppy Regime Detection
-            # Using 20 periods (60 mins for 3m interval)
             indicators["efficiency_ratio"] = calculate_efficiency_ratio(
                 close_prices,
                 period=10,
             )
 
-            # ==================== NEW INDICATORS (v5.0) ====================
-
-            # 1. ADX/DMI - Trend Strength
             adx, plus_di, minus_di = calculate_adx(
                 df["high"],
                 df["low"],
@@ -442,7 +399,6 @@ class RealMarketData:
             else:
                 indicators["trend_strength_adx"] = "NO_TREND"
 
-            # 2. VWAP - Rolling 4-hour (bars count depends on cycle)
             vwap = calculate_vwap(
                 df["high"], df["low"], df["close"], df["volume"], period=constants.VWAP_WINDOW_SIZE
             )
@@ -455,16 +411,13 @@ class RealMarketData:
                 indicators["vwap_distance_pct"] = 0.0
                 indicators["price_vs_vwap"] = "UNKNOWN"
 
-            # 3. Bollinger Bands
             bb_upper, _bb_middle, bb_lower, bb_bandwidth, _bb_percent_b = calculate_bollinger_bands(
                 close_prices
             )
             indicators["bb_upper"] = bb_upper
             indicators["bb_lower"] = bb_lower
             indicators["bb_bandwidth"] = bb_bandwidth
-            indicators["bb_squeeze"] = (
-                bb_bandwidth < constants.BB_SQUEEZE_THRESHOLD
-            )  # Squeeze detection
+            indicators["bb_squeeze"] = bb_bandwidth < constants.BB_SQUEEZE_THRESHOLD
 
             if current_price > bb_upper:
                 indicators["bb_signal"] = "OVERBOUGHT"
@@ -473,53 +426,35 @@ class RealMarketData:
             else:
                 indicators["bb_signal"] = "NORMAL"
 
-            # 4. OBV - On Balance Volume
             _obv, obv_trend, obv_divergence = calculate_obv(close_prices, df["volume"])
             indicators["obv_trend"] = obv_trend
             indicators["obv_divergence"] = obv_divergence
 
-            # 5. SuperTrend
             st_line, st_direction = calculate_supertrend(df["high"], df["low"], close_prices)
             indicators["supertrend"] = st_line
             indicators["supertrend_direction"] = st_direction
 
-            # ==================== NEW READY-TO-EAT LABELS (v10.0) ====================
-
-            # 1. Price Momentum Slope (The "Angle")
             indicators["price_slope_label"] = calculate_slope_label(close_prices)
-
-            # 2. RSI Divergence (The "Hidden Edge")
             indicators["rsi_divergence_label"] = calculate_rsi_divergence_label(
                 close_prices, rsi_14_series
             )
-
-            # 3. EMA Stretch (The "Elasticity") - Use pre-calculated indicators["ema_20"]
             indicators["ema_stretch_label"] = calculate_ema_stretch_label(
                 current_price, indicators.get("ema_20")
             )
-
-            # 4. Volatility Pulse (The "Expansion") - Depends on HTF ATRs
             atr_3_val = indicators.get("atr_3")
             atr_14_val = indicators.get("atr_14")
             indicators["volatility_pulse_label"] = calculate_volatility_pulse_label(
                 atr_3_val, atr_14_val
             )
 
-            # ==================== END NEW INDICATORS ====================
+            indicators["price_series"] = close_prices[-hist_len:].round(4).fill_nan(None).to_list()
 
-            indicators["price_series"] = (
-                close_prices.iloc[-hist_len:].round(4).where(pd.notna, None).tolist()
-            )
-
-            # Enhanced Context Integration (Sparklines, Pivots, Tags)
-            # Smart Sparkline v2.1: HTF (1h) gets full data, 15m gets structure+momentum only
             if interval == HTF_INTERVAL:
                 indicators["smart_sparkline"] = generate_smart_sparkline(
                     close_prices,
                     period=constants.SPARKLINE_WINDOW,
                 )
             elif interval == "15m":
-                # 15m: structure, momentum, and price_location (no key_level for token efficiency)
                 full_sparkline = generate_smart_sparkline(
                     close_prices, period=constants.SPARKLINE_WINDOW
                 )
@@ -535,7 +470,7 @@ class RealMarketData:
             indicators["tags"] = generate_tags(indicators)
 
             for key, value in indicators.items():
-                if isinstance(value, float) and np.isnan(value):
+                if isinstance(value, float) and (value != value):  # NaN check
                     indicators[key] = None
             self.store_preloaded_indicator(coin, interval, indicators)
             return indicators
@@ -545,9 +480,7 @@ class RealMarketData:
             return {"current_price": current_price, "error": str(e)}
 
     def get_all_real_prices(self) -> dict[str, float]:
-        """Get real prices for all coins from Spot with enhanced error handling and short-lived caching"""
         with self._price_cache_lock:
-            # FIX: Check cache first (2-second TTL) to prevent duplicate logs/calls during concurrent cycle start
             current_time = time.time()
             if (
                 current_time - self._last_price_fetch_time < constants.PRICE_CACHE_TTL_S
@@ -562,7 +495,7 @@ class RealMarketData:
                 coin = symbol.replace("USDT", "")
                 try:
                     price_val = round(float(raw_price), 8)
-                    if price_val <= 0 or np.isnan(price_val) or np.isinf(price_val):
+                    if price_val <= 0 or price_val != price_val or math.isinf(price_val):
                         raise ValueError(f"Invalid price value {price_val}")
                     prices[coin] = price_val
                 except Exception as e:
@@ -571,7 +504,6 @@ class RealMarketData:
                     )
                     prices[coin] = self._get_fallback_price(coin)
 
-            # First try batched endpoint (single request, lower latency)
             try:
                 response = self.session.get(
                     f"{self.spot_url}/ticker/price",
@@ -586,18 +518,14 @@ class RealMarketData:
                         price_raw = entry.get("price")
                         if symbol and price_raw is not None:
                             _assign_price(symbol, price_raw)
-                    # Ensure we filled everything; fall back only for missing
                     missing = [coin for coin in self.available_coins if coin not in prices]
                     if not missing:
                         prices_str = " | ".join(
                             [f"{coin}: ${val:.4f}" for coin, val in prices.items()]
                         )
                         print(f"[OK]    Prices: {prices_str}")
-
-                        # Update cache
                         self._last_price_fetch_time = time.time()
                         self._last_price_cache = copy.deepcopy(prices)
-
                         return prices
                     print(
                         f"[WARN] Bulk price missing for: {', '.join(missing)}. Falling back to individual requests.",
@@ -609,7 +537,6 @@ class RealMarketData:
             except Exception as e:
                 print(f"[WARN] Bulk price fetch failed: {e}. Falling back to individual requests.")
 
-            # Fallback to individual calls (still using session, without artificial delay)
             for coin in self.available_coins:
                 try:
                     response = self.session.get(
@@ -620,7 +547,7 @@ class RealMarketData:
                     response.raise_for_status()
                     data = response.json()
                     price_val = round(float(data.get("price", 0)), 8)
-                    if price_val <= 0 or np.isnan(price_val) or np.isinf(price_val):
+                    if price_val <= 0 or price_val != price_val or math.isinf(price_val):
                         raise ValueError(f"Invalid price value {price_val}")
                     prices[coin] = price_val
                 except Exception as e:
@@ -630,38 +557,32 @@ class RealMarketData:
             if len(prices) > 0:
                 prices_str = " | ".join([f"{c}: ${p:.4f}" for c, p in prices.items()])
                 print(f"[OK]    Prices: {prices_str}")
-
-                # Update cache (fallback case)
                 self._last_price_fetch_time = time.time()
                 self._last_price_cache = copy.deepcopy(prices)
 
             return prices
 
     def _get_fallback_price(self, coin: str) -> float:
-        """Get fallback price using multiple methods"""
-        # Method 1: Try 1m kline data
         try:
             df = self.get_real_time_data(coin, interval="1m", limit=1)
-            if not df.empty and not df["close"].empty:
-                price_val = df["close"].iloc[-1]
-                if price_val > 0 and pd.notna(price_val):
+            if not df.is_empty() and len(df["close"]) > 0:
+                price_val = float(df["close"][-1])
+                if price_val > 0 and price_val == price_val:
                     print(f"   Fallback 1m kline: ${price_val:.4f}")
                     return price_val
         except Exception as e:
             print(f"   Fallback 1m failed: {e}")
 
-        # Method 2: Try 3m kline data
         try:
             df = self.get_real_time_data(coin, interval="3m", limit=1)
-            if not df.empty and not df["close"].empty:
-                price_val = df["close"].iloc[-1]
-                if price_val > 0 and pd.notna(price_val):
+            if not df.is_empty() and len(df["close"]) > 0:
+                price_val = float(df["close"][-1])
+                if price_val > 0 and price_val == price_val:
                     print(f"   Fallback 3m kline: ${price_val:.4f}")
                     return price_val
         except Exception as e:
             print(f"   Fallback 3m failed: {e}")
 
-        # Method 3: Use cached price from previous cycle
         try:
             from src.utils import safe_file_read
 
@@ -676,51 +597,37 @@ class RealMarketData:
         except Exception as e:
             print(f"   Fallback cache failed: {e}")
 
-        # Final fallback: return 0 with warning
         print(f"   [WARNING] All fallbacks failed for {coin}. Price set to 0.")
         return 0.0
 
     def verify_sync_alignment(
         self, coin: str, intervals: list[str] | None = None
     ) -> AlignmentResult:
-        """Verifies that the latest kline timestamps for multiple intervals are within
-        Config.MAX_ALIGNMENT_DELTA_S.
-        """
         if intervals is None:
             intervals = ["3m", "15m", "1h"]
         timestamps = {}
 
         try:
             for interval in intervals:
-                # Use internal cache to avoid redundant API hits
-                # In a real cycle, indices should already be preloaded or fetched
                 klines = self.get_real_time_data(coin, interval=interval, limit=1)
 
-                if klines is None or klines.empty:
+                if klines is None or klines.is_empty():
                     return AlignmentResult(
                         aligned=False,
                         error_type=AlignmentError.INSUFFICIENT_DATA,
                         error_message=f"No kline data for {coin} @ {interval}",
                     )
 
-                # Use the latest closed candle timestamp
-                # The 'timestamp' column is the open time of the candle.
-                # The 'close_time' column is the close time of the candle.
-                # For alignment, we care about the latest *completed* candle.
-                # Binance klines 'timestamp' is the open time, 'close_time' is the close time.
-                # We want the close time of the last *closed* candle.
-                # If limit=1, df.iloc[-1] is the latest candle, which might be incomplete.
-                # However, for alignment, we usually compare the *start* of the latest candle.
-                # Let's assume 'timestamp' (open time) is what we need for alignment check.
-                latest_ts = int(
-                    klines.iloc[-1]["timestamp"].timestamp() * 1000
-                )  # Convert datetime to ms timestamp
+                ts_val = klines["timestamp"][-1]
+                if isinstance(ts_val, datetime):
+                    latest_ts = int(ts_val.replace(tzinfo=timezone.utc).timestamp() * 1000)
+                else:
+                    latest_ts = int(ts_val)
                 timestamps[interval] = latest_ts
 
             if not timestamps:
                 return AlignmentResult(aligned=False, error_type=AlignmentError.INSUFFICIENT_DATA)
 
-            # Check deltas between all pairs
             ts_values = list(timestamps.values())
             max_ts = max(ts_values)
             min_ts = min(ts_values)
@@ -753,12 +660,9 @@ class RealMarketData:
             )
 
     def get_market_sentiment(self, coin: str) -> dict[str, Any]:
-        """Get Open Interest and Funding Rate (Nof1ai format)"""
         open_interest = self.get_open_interest(coin)
         funding_rate = self.get_funding_rate(coin)
-
-        # Nof1ai format: "Latest: X Average: Y" for Open Interest
-        avg_oi = open_interest  # Simplified average calculation
+        avg_oi = open_interest
         return {
             "open_interest": open_interest,
             "open_interest_avg": avg_oi,
@@ -773,23 +677,6 @@ class RealMarketData:
         indicators_15m: dict[str, Any] | None = None,
         position_direction: str | None = None,
     ) -> dict[str, Any]:
-        """Detect potential trend reversal signals with weighted scoring.
-
-        Weights:
-        - HTF trend reversal: +3
-        - 15m structure conflict: +3
-        - 15m momentum reversal: +2
-        - 3m trend reversal: +1
-        - RSI extreme: +1
-        - MACD divergence: +1
-
-        Strength levels:
-        - NONE: score = 0
-        - WEAK: score 1-2
-        - MODERATE: score 3-4
-        - STRONG: score 5-7
-        - CRITICAL: score 8+
-        """
         score = 0
         signals = []
 
@@ -803,7 +690,6 @@ class RealMarketData:
                 "trend_3m": None,
             }
 
-        # Extract indicators
         price_3m = indicators_3m.get("current_price")
         ema20_3m = indicators_3m.get("ema_20")
         rsi_3m = indicators_3m.get("rsi_14")
@@ -823,7 +709,6 @@ class RealMarketData:
                 "trend_3m": None,
             }
 
-        # Determine trends
         def _determine_trend(price: float, ema20: float) -> str:
             if ema20 == 0:
                 return "UNKNOWN"
@@ -837,7 +722,6 @@ class RealMarketData:
         trend_15m = None
         structure_15m = None
 
-        # Extract 15m data if available
         if indicators_15m and "error" not in indicators_15m:
             price_15m = indicators_15m.get("current_price")
             ema20_15m = indicators_15m.get("ema_20")
@@ -847,13 +731,10 @@ class RealMarketData:
                 if isinstance(sparkline_15m, dict)
                 else "UNCLEAR"
             )
-
             if price_15m and ema20_15m:
                 trend_15m = _determine_trend(price_15m, ema20_15m)
 
-        # If no position direction, detect general reversal signals
         if not position_direction:
-            # Return basic trend info without scoring
             return {
                 "signals": [],
                 "score": 0,
@@ -863,9 +744,6 @@ class RealMarketData:
                 "trend_3m": trend_3m,
             }
 
-        # ===== WEIGHTED SCORING =====
-
-        # 1. HTF trend reversal (+3)
         if position_direction == "long" and trend_htf == "BEARISH":
             score += 3
             signals.append("htf_bearish_vs_long(+3)")
@@ -873,7 +751,6 @@ class RealMarketData:
             score += 3
             signals.append("htf_bullish_vs_short(+3)")
 
-        # 2. 15m structure conflict (+3)
         if structure_15m:
             if position_direction == "long" and structure_15m == "LH_LL":
                 score += 3
@@ -882,7 +759,6 @@ class RealMarketData:
                 score += 3
                 signals.append("15m_hhhl_vs_short(+3)")
 
-        # 3. 15m momentum reversal (+2)
         if trend_15m:
             if position_direction == "long" and trend_15m == "BEARISH":
                 score += 2
@@ -891,7 +767,6 @@ class RealMarketData:
                 score += 2
                 signals.append("15m_bullish_vs_short(+2)")
 
-        # 4. 3m trend reversal (+1)
         if position_direction == "long" and trend_3m == "BEARISH":
             score += 1
             signals.append("3m_bearish_vs_long(+1)")
@@ -899,7 +774,6 @@ class RealMarketData:
             score += 1
             signals.append("3m_bullish_vs_short(+1)")
 
-        # 5. RSI extreme (+1)
         if rsi_3m is not None:
             if position_direction == "long" and rsi_3m > Config.RSI_OVERBOUGHT_THRESHOLD:
                 score += 1
@@ -908,7 +782,6 @@ class RealMarketData:
                 score += 1
                 signals.append(f"rsi_oversold_{rsi_3m:.0f}(+1)")
 
-        # 6. MACD divergence (+1)
         if macd_3m is not None and macd_signal_3m is not None:
             if position_direction == "long" and macd_3m < macd_signal_3m:
                 score += 1
@@ -917,8 +790,7 @@ class RealMarketData:
                 score += 1
                 signals.append("macd_bullish_cross(+1)")
 
-        # 7. ML reverse signal (+2)
-        ml_consensus = sentiment.get("ml_consensus", {})
+        ml_consensus = indicators_3m.get("ml_consensus", {})
         if position_direction == "long" and ml_consensus.get("SELL", 0) > 40:
             score += 2
             signals.append(f"ml_reverse_sell({ml_consensus.get('SELL', 0):.0f})(+2)")
@@ -926,7 +798,6 @@ class RealMarketData:
             score += 2
             signals.append(f"ml_reverse_buy({ml_consensus.get('BUY', 0):.0f})(+2)")
 
-        # Determine strength from score
         if score >= constants.REVERSAL_SCORE_CRITICAL:
             strength = "CRITICAL"
         elif score >= constants.REVERSAL_SCORE_STRONG:
