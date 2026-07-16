@@ -2,14 +2,14 @@ import contextlib
 import copy
 import json
 import logging
+import math
 import os
 import shutil
 import threading
 import time
 from functools import wraps
 
-import numpy as np
-import pandas as pd
+import polars as pl
 import requests
 from requests.adapters import HTTPAdapter
 from urllib3.util.retry import Retry
@@ -156,7 +156,7 @@ def cleanup_stale_temp_files() -> int:
 
 def format_num(num: float, precision: int = 2) -> str:
     """Format number with specific precision, handling None/NaN"""
-    if num is None or (isinstance(num, float) and np.isnan(num)):
+    if num is None or (isinstance(num, float) and math.isnan(num)):
         return "N/A"
     return f"{num:.{precision}f}"
 
@@ -218,12 +218,13 @@ class DataValidator:
     """Validates market data"""
 
     @staticmethod
-    def validate_dataframe(df: pd.DataFrame, required_columns: list[str] | None = None) -> bool:
-        if df is None or df.empty:
+    def validate_dataframe(df: pl.DataFrame, required_columns: list[str] | None = None) -> bool:
+        if df is None or df.is_empty():
             return False
 
         if required_columns:
-            missing_cols = [col for col in required_columns if col not in df.columns]
+            df_cols = set(df.columns)
+            missing_cols = [col for col in required_columns if col not in df_cols]
             if missing_cols:
                 logger.warning(f"[WARN]  Missing columns: {missing_cols}")
                 return False

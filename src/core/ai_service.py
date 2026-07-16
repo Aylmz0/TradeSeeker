@@ -1,10 +1,9 @@
 import copy
 import json
+import math
 import warnings
 from datetime import datetime, timezone
 from typing import Any
-
-import pandas as pd
 
 from config.config import Config
 from src.ai.enhanced_context_provider import EnhancedContextProvider
@@ -553,7 +552,7 @@ REMEMBER: These are suggestions only. You make the final trading decisions based
                 atr_3 = indicators.get("atr_3")
                 atr_14 = indicators.get("atr_14")
                 atr_str = ""
-                if atr_3 is not None and pd.notna(atr_3):
+                if atr_3 is not None and not math.isnan(atr_3):
                     atr_str += f"{prefix}3-Period ATR: {format_num(atr_3)} vs "
                 atr_str += f"14-Period ATR: {format_num(atr_14)}\n"
                 output += atr_str

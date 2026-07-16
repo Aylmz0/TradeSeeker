@@ -1,10 +1,9 @@
 import glob
 import json
 import os
+import statistics
 from datetime import datetime, timezone
 from typing import Any
-
-import pandas as pd
 
 from config.config import Config
 from src.core import constants
@@ -268,17 +267,23 @@ class PerformanceMonitor:
         if not value_history or len(value_history) < constants.SORTINO_MIN_RETURNS:
             return 0.0
 
-        returns = pd.Series(value_history).pct_change().dropna()
+        returns = [
+            (value_history[i] - value_history[i - 1]) / value_history[i - 1]
+            for i in range(1, len(value_history))
+            if value_history[i - 1] != 0
+        ]
         if len(returns) < constants.SORTINO_MIN_RETURNS:
             return 0.0
 
-        avg_return = returns.mean()
-        downside_returns = returns[returns < 0]
+        avg_return = statistics.mean(returns)
+        downside_returns = [r for r in returns if r < 0]
 
         if len(downside_returns) == 0:
             return float("inf")
 
-        downside_deviation = downside_returns.std()
+        downside_deviation = (
+            statistics.stdev(downside_returns) if len(downside_returns) > 1 else 0.0
+        )
 
         if downside_deviation == 0:
             return float("inf")

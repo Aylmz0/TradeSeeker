@@ -18,7 +18,8 @@ from typing import TYPE_CHECKING, Any, Literal
 if TYPE_CHECKING:
     from collections.abc import Callable
 
-import numpy as np
+import math
+import statistics
 
 from config.config import Config
 from src.core import constants
@@ -1511,15 +1512,15 @@ class PortfolioManager:
             excess_returns = [r - risk_free_rate for r in returns]
 
             # Daily return and volatility
-            avg_return_per_cycle = np.mean(excess_returns)
-            std_return_per_cycle = np.std(excess_returns)
+            avg_return_per_cycle = statistics.fmean(excess_returns)
+            std_return_per_cycle = statistics.pstdev(excess_returns)
 
             # Annualize metrics
             # Assuming 2-minute cycles -> 720 cycles/day
             cycles_per_day = 720
 
             avg_daily_return = avg_return_per_cycle * cycles_per_day
-            std_daily_return = std_return_per_cycle * np.sqrt(cycles_per_day)
+            std_daily_return = std_return_per_cycle * math.sqrt(cycles_per_day)
 
             if std_daily_return == 0:
                 return 0.0
@@ -1528,7 +1529,7 @@ class PortfolioManager:
             daily_sharpe = avg_daily_return / std_daily_return
 
             # Annualized Sharpe Ratio (Daily Sharpe * sqrt(365))
-            annualized_sharpe = daily_sharpe * np.sqrt(365)
+            annualized_sharpe = daily_sharpe * math.sqrt(365)
 
             return float(annualized_sharpe)
 

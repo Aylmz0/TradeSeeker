@@ -3,11 +3,13 @@ Allows testing trading strategies on historical data.
 """
 
 import logging
-from datetime import datetime, timezone
+import math
+import random
+import statistics
+from datetime import datetime, timedelta, timezone
 from typing import Any
 
-import numpy as np
-import pandas as pd
+import polars as pl
 
 from config.config import Config
 from src.core import constants
@@ -30,7 +32,7 @@ class BacktestEngine:
         start_date: str,
         end_date: str,
         interval: str = "1h",
-    ) -> pd.DataFrame:
+    ) -> pl.DataFrame:
         """Load historical price data for backtesting.
         Note: This is a simplified implementation. In production, you would use
         a proper historical data source like Binance API, Yahoo Finance, etc.
@@ -40,22 +42,41 @@ class BacktestEngine:
         logging.info(f"Loading historical data for {symbol} from {start_date} to {end_date}")
 
         # For demonstration, create synthetic data
-        dates = pd.date_range(start=start_date, end=end_date, freq=interval)
-        np.random.seed(constants.BACKTEST_SEED)  # For reproducible results
+        freq_map = {
+            "1m": timedelta(minutes=1),
+            "5m": timedelta(minutes=5),
+            "15m": timedelta(minutes=15),
+            "1h": timedelta(hours=1),
+            "4h": timedelta(hours=4),
+            "1d": timedelta(days=1),
+        }
+        delta = freq_map.get(interval, timedelta(hours=1))
+        start_dt = datetime.fromisoformat(start_date)
+        end_dt = datetime.fromisoformat(end_date)
+        dates = []
+        current = start_dt
+        while current <= end_dt:
+            dates.append(current)
+            current += delta
+
+        random.seed(constants.BACKTEST_SEED)  # For reproducible results
 
         # Generate synthetic price data
         base_price = constants.BACKTEST_BASE_PRICE
-        returns = np.random.normal(0.001, 0.02, len(dates))
-        prices = base_price * (1 + returns).cumprod()
+        returns = [random.gauss(0.001, 0.02) for _ in range(len(dates))]
+        prices = [base_price]
+        for r in returns:
+            prices.append(prices[-1] * (1 + r))
+        prices = prices[1:]  # Remove the seed value
 
-        return pd.DataFrame(
+        return pl.DataFrame(
             {
                 "timestamp": dates,
-                "open": prices * 0.99,
-                "high": prices * 1.01,
-                "low": prices * 0.98,
+                "open": [p * 0.99 for p in prices],
+                "high": [p * 1.01 for p in prices],
+                "low": [p * 0.98 for p in prices],
                 "close": prices,
-                "volume": np.random.normal(1000000, 200000, len(dates)),
+                "volume": [random.gauss(1000000, 200000) for _ in range(len(dates))],
             },
         )
 
@@ -193,9 +214,10 @@ class BacktestEngine:
             returns.append(daily_return)
 
         if returns:
+            std_ret = statistics.pstdev(returns)
             sharpe_ratio = (
-                np.mean(returns) / np.std(returns) * np.sqrt(constants.TRADING_DAYS_PER_YEAR)
-                if np.std(returns) > 0
+                statistics.fmean(returns) / std_ret * math.sqrt(constants.TRADING_DAYS_PER_YEAR)
+                if std_ret > 0
                 else 0
             )
         else:
@@ -223,8 +245,8 @@ class BacktestEngine:
             win_rate = (total_profit / (total_profit + total_loss)) * 100
         else:
             win_rate = 0
-        avg_win = np.mean([t["pnl"] for t in winning_trades]) if winning_trades else 0
-        avg_loss = np.mean([t["pnl"] for t in losing_trades]) if losing_trades else 0
+        avg_win = statistics.fmean([t["pnl"] for t in winning_trades]) if winning_trades else 0
+        avg_loss = statistics.fmean([t["pnl"] for t in losing_trades]) if losing_trades else 0
 
         return {
             "initial_balance": initial_value,
@@ -528,7 +550,7 @@ class AdvancedRiskManager:
         return decision
 
 
-def sample_strategy(symbol: str, data: pd.DataFrame, portfolio_state: dict) -> dict | None:
+def sample_strategy(symbol: str, data: pl.DataFrame, portfolio_state: dict) -> dict | None:
     """Sample trading strategy for backtesting.
     This is a simple moving average crossover strategy.
     """
@@ -536,9 +558,12 @@ def sample_strategy(symbol: str, data: pd.DataFrame, portfolio_state: dict) -> d
         return None
 
     # Calculate moving averages
-    short_ma = data["close"].rolling(window=20).mean().iloc[-1]
-    long_ma = data["close"].rolling(window=50).mean().iloc[-1]
-    data["close"].iloc[-1]
+    data = data.with_columns(
+        pl.col("close").rolling_mean(window_size=20).alias("short_ma"),
+        pl.col("close").rolling_mean(window_size=50).alias("long_ma"),
+    )
+    short_ma = data["short_ma"][-1]
+    long_ma = data["long_ma"][-1]
 
     # Simple crossover strategy
     if short_ma > long_ma and portfolio_state["current_balance"] > constants.MIN_BALANCE_FOR_TRADE:

@@ -5,8 +5,6 @@ Converts data structures to JSON format for hybrid prompt.
 from datetime import datetime
 from typing import Any
 
-import pandas as pd
-
 from config.config import Config
 from src.core import constants
 from src.ai.prompt_json_utils import format_number_for_json

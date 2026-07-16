@@ -5,8 +5,7 @@ from datetime import datetime, timedelta, timezone
 from typing import Any
 
 import joblib
-import numpy as np
-import pandas as pd
+import polars as pl
 import xgboost as xgb
 
 from src.core import constants
@@ -79,7 +78,7 @@ class MLService:
             logger.error(f"[MLService] Failed to load ML artifacts: {e}")
             self.is_ready = False
 
-    def predict(self, df_raw: pd.DataFrame, coin: str) -> dict[str, Any] | None:
+    def predict(self, df_raw: pl.DataFrame, coin: str) -> dict[str, Any] | None:
         """Takes raw OHLCV from Binance, extracts features, scales the latest row,
         and computes the directional multi-class probability.
         Includes automatic HOT-RELOAD if model file on disk is newer.
@@ -91,18 +90,22 @@ class MLService:
                 logger.info("[MLService] NEW MODEL DETECTED on disk. Triggering hot-reload...")
                 self._load_artifacts()
 
-        if not self.is_ready or df_raw.empty or len(df_raw) < constants.ML_MIN_DATA_POINTS_READY:
+        if (
+            not self.is_ready
+            or df_raw.is_empty()
+            or len(df_raw) < constants.ML_MIN_DATA_POINTS_READY
+        ):
             return None
 
         try:
             # 1. Pipeline: Raw Data -> Features
             df_features = get_features_for_ml(df_raw)
-            if df_features.empty:
+            if df_features.is_empty():
                 return None
 
             # 2. Extract ONLY the very last (current) row for inference
             # Ensure we only pick the exact columns the model was trained on
-            latest_features = df_features.iloc[[-1]][self.feature_cols]
+            latest_features = df_features.select(self.feature_cols).tail(1).to_numpy()
 
             # 3. Apply StandardScaler (Using transform, NEVER fit)
             scaled_features = self.scaler.transform(latest_features)
@@ -183,12 +186,24 @@ class MLService:
                 df_truth = engine.get_labeled_data(
                     coin, "15m", lookahead_periods=constants.ML_LOOKAHEAD_PERIODS
                 )
-                if df_truth.empty:
+                if df_truth.is_empty():
                     continue
 
                 # Map true labels to SELL(0), HOLD(1), BUY(2)
-                df_truth["label_idx"] = df_truth["target_label"].map({-1: 0, 0: 1, 1: 2})
-                truth_map = df_truth.set_index("timestamp")["label_idx"].to_dict()
+                df_truth = df_truth.with_columns(
+                    pl.when(pl.col("target_label") == -1)
+                    .then(0)
+                    .when(pl.col("target_label") == 0)
+                    .then(1)
+                    .when(pl.col("target_label") == 1)
+                    .then(2)
+                    .otherwise(None)
+                    .cast(pl.Int64)
+                    .alias("label_idx")
+                )
+                truth_map = dict(
+                    zip(df_truth["timestamp"].to_list(), df_truth["label_idx"].to_list())
+                )
 
                 for p in preds:
                     ts_str = p.get("ts")
@@ -293,15 +308,17 @@ if __name__ == "__main__":
         conn = sqlite3.connect("data/market_data.db")
         # Fetch 200 rows of raw data to feed the engine
         query = "SELECT * FROM market_data WHERE coin='XRP' AND interval='15m' ORDER BY timestamp DESC LIMIT 200"
-        df_test = pd.read_sql_query(query, conn)
-        df_test = df_test.sort_values("timestamp").reset_index(drop=True)
-        df_test["timestamp"] = pd.to_datetime(df_test["timestamp"], unit="ms")
+        rows = conn.execute(query).fetchall()
+        columns = [desc[0] for desc in conn.execute(query).description]
         conn.close()
+        df_test = pl.DataFrame(rows, schema=columns)
+        df_test = df_test.sort("timestamp")
+        df_test = df_test.with_columns(
+            (pl.col("timestamp") * 1000).cast(pl.Datetime("ms")).alias("timestamp")
+        )
 
         result = service.predict(df_test, coin="XRP")
         print("\n[OK] Prediction Result:")
-        import json
-
         print(json.dumps(result, indent=2))
     else:
         print("\n[FAIL] MLService not ready. Did you run scripts/train_model.py?")
