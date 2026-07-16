@@ -206,7 +206,7 @@ class DataEngine:
             rows = cursor.fetchall()
             if not rows:
                 return pl.DataFrame(schema=columns)
-            return pl.DataFrame(rows, schema=columns)
+            return pl.DataFrame(rows, schema=columns, orient="row")
         finally:
             conn.close()
 

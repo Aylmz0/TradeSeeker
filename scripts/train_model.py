@@ -54,14 +54,14 @@ def train_global_model():
             coin, interval, lookahead_periods=constants.ML_LOOKAHEAD_PERIODS
         )
 
-        if df_raw_labeled.empty:
+        if df_raw_labeled.is_empty():
             print(f"     [WARN] Not enough data for {coin}. Skipping.")
             continue
 
         # Extract ML-ready features (indicators, lags)
         df_features = get_features_for_ml(df_raw_labeled)
 
-        if df_features.empty:
+        if df_features.is_empty():
             print(f"     [WARN] Feature extraction failed for {coin}. Skipping.")
             continue
 

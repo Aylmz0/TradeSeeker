@@ -143,9 +143,27 @@ Genel polars dönüşüm tablosu:
 
 ---
 
-## Çalışma Kuralları
+## İkinci İnceleme Turu (Doğrulama) — Bulunan ve Düzeltilen Çalışma-Zamanı Hataları
 
-1. Her parça tamamlandıktan sonra → `ruff check` + import doğrulaması
-2. Bir sonraki parçaya geçmeden önce → mevcut parçanın doğrulaması geçilmeli
-3. Hata çıkarsa → o parçada düzelt, ileriye taşıma
-4. Her parçada → `import pandas` ve `import numpy` satırlarını hemen kaldır
+Planın Parça 1-5'i tamamlandıktan sonra, kod SADECE import edilerek (static) değil,
+çalıştırılarak (runtime) test edildi. Import testi geçse bile çalışma zamanında çöken
+polars uyumsuzlukları bulundu ve düzeltildi:
+
+| # | Dosya | Satır | Pandas API (bozuk) | Polars Karşılığı | Durum |
+|---|-------|------|--------------------|------------------|-------|
+| 1 | `indicators.py` | 825 | `pct_change(periods=N)` | `pct_change(n=N)` | DÜZELTİLDİ |
+| 2 | `indicators.py` | 846 | `df.forward_fill()` | `df.fill_null(strategy="forward")` | DÜZELTİLDİ |
+| 3 | `indicators.py` | 847 | `map_batches(lambda x: x.fill_nan(None))` | `df.fill_nan(None)` | DÜZELTİLDİ |
+| 4 | `ai_service.py` | 923,927 | `df.empty` | `df.is_empty()` | DÜZELTİLDİ |
+| 5 | `main.py` | 406 | `df.empty` | `df.is_empty()` | DÜZELTİLDİ |
+| 6 | `backtest.py` | 296,301,308 | `df.iloc[i]["col"]` / `df.iloc[:i+1]` | `df["col"][i]` / `df.head(i+1)` | DÜZELTİLDİ |
+| 7 | `train_model.py` | 57,64 | `df.empty` | `df.is_empty()` | DÜZELTİLDİ |
+| 8 | `data_engine.py` | 209 | `pl.DataFrame(rows, schema=cols)` (warning) | `pl.DataFrame(rows, schema=cols, orient="row")` | DÜZELTİLDİ |
+
+**Not (ölü kod):** `src/core/cache_manager.py` içindeki `optimize_dataframe_operations`
+metodu hâlâ pandas API'si (`.query()`, `.apply()`, `.copy()`) kullanıyor ancak proje
+içinde HİÇ çağrılmıyor (dead code) ve pandas import etmiyor. Çalışma zamanı etkisi yok.
+
+**Fonksiyonel doğrulama (gerçek veriyle):** `get_features_for_ml` (99 satır/47 kolon),
+`calculate_adx`, `data_engine` yaz-oku roundtrip, `backtest` iloc düzeltmesi, `ml_service.predict`
+hepsi çalışıyor. Tüm modüller (src + scripts + scratch + main.py) import başarılı.

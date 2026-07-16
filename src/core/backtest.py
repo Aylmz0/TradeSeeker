@@ -293,19 +293,19 @@ class BacktestEngine:
 
         # Run backtest for each time period
         for i in range(len(historical_data[symbols[0]])):
-            current_timestamp = historical_data[symbols[0]].iloc[i]["timestamp"]
+            current_timestamp = historical_data[symbols[0]]["timestamp"][i]
             current_prices = {}
 
             # Get current prices for all symbols
             for symbol in symbols:
-                current_prices[symbol] = historical_data[symbol].iloc[i]["close"]
+                current_prices[symbol] = historical_data[symbol]["close"][i]
 
             # Update portfolio value
             self.update_portfolio_value(current_prices, current_timestamp)
 
             # Get trading signals from strategy
             for symbol in symbols:
-                data_slice = historical_data[symbol].iloc[: i + 1]  # All data up to current point
+                data_slice = historical_data[symbol].head(i + 1)  # All data up to current point
                 portfolio_state = {
                     "current_balance": self.current_balance,
                     "positions": self.positions.copy(),

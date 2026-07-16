@@ -920,11 +920,13 @@ Current live positions & performance:"""
         if ml_service.is_ready:
             for coin in coins_to_analyze:
                 df_raw_15m = self.market_data.get_cached_raw_dataframe(coin, "15m")
-                if df_raw_15m is not None and not df_raw_15m.empty:
+                if df_raw_15m is not None and not df_raw_15m.is_empty():
                     ml_pred = ml_service.predict(df_raw_15m, coin)
                 else:
                     df_raw_15m = self.market_data.get_real_time_data(coin, "15m", limit=150)
-                    ml_pred = ml_service.predict(df_raw_15m, coin) if not df_raw_15m.empty else None
+                    ml_pred = (
+                        ml_service.predict(df_raw_15m, coin) if not df_raw_15m.is_empty() else None
+                    )
                 if ml_pred:
                     ml_consensus_dict[coin] = ml_pred
                     self.latest_ml_consensus[coin] = ml_pred

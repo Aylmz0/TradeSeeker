@@ -822,7 +822,7 @@ def get_features_for_ml(df: pl.DataFrame) -> pl.DataFrame:
 
     features = features.with_columns(
         [
-            df["close"].pct_change(periods=constants.INDICATOR_HISTORY_DEFAULT).alias("roc_10"),
+            df["close"].pct_change(n=constants.INDICATOR_HISTORY_DEFAULT).alias("roc_10"),
         ]
     )
 
@@ -843,8 +843,8 @@ def get_features_for_ml(df: pl.DataFrame) -> pl.DataFrame:
         if f"{col}_lag2" not in features.columns:
             features = features.with_columns(pl.col(col).shift(2).alias(f"{col}_lag2"))
 
-    features = features.forward_fill()
-    features = features.with_columns(pl.all().map_batches(lambda x: x.fill_nan(None)))
+    features = features.fill_null(strategy="forward")
+    features = features.fill_nan(None)
     features = features.drop_nulls()
 
     return features

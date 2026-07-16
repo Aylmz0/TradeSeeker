@@ -403,7 +403,7 @@ class AlphaArenaDeepSeek:
                         # 1. Log Raw OHLCV Data (Market Data Table)
                         for interval in ["3m", "15m", HTF_INTERVAL]:
                             df_raw = self.market_data.get_cached_raw_dataframe(coin, interval)
-                            if df_raw is not None and not df_raw.empty:
+                            if df_raw is not None and not df_raw.is_empty():
                                 self.data_engine.log_market_data(df_raw, coin, interval)
 
                         # 2. Log Indicator Snapshots (Features Table)
