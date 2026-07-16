@@ -85,6 +85,7 @@ all_trades_log.txt
 .system_generated/
 /tmp/
 /history_backups/
+graphify-out/
 
 # === Exceptions ===
 !requirements.txt

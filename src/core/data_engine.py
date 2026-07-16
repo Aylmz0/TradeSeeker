@@ -34,11 +34,16 @@ class DataEngine:
             logger.info(f"[DataEngine] Created directory: {db_dir}")
 
     def _get_connection(self) -> sqlite3.Connection:
-        """Get a configured SQLite connection."""
-        # Check_same_thread=False allows multi-threaded access if needed, but we should handle locks.
-        # Isolation level None means auto-commit mode, but we will explicitly commit.
-        conn = sqlite3.connect(self.db_path, check_same_thread=False)
+        """Get a configured SQLite connection with WAL mode and busy timeout."""
+        # WAL mode allows concurrent readers with a single writer — essential for
+        # multi-threaded access from cycle thread + TP/SL monitor thread.
+        conn = sqlite3.connect(self.db_path, check_same_thread=False, timeout=10)
         conn.row_factory = sqlite3.Row  # Return dict-like rows
+        try:
+            conn.execute("PRAGMA journal_mode=WAL")
+            conn.execute("PRAGMA busy_timeout=5000")
+        except Exception:
+            pass  # Older SQLite may not support WAL; still functional without it
         return conn
 
     def _init_db(self):

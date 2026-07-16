@@ -26,6 +26,7 @@ exclude = [
     "models",
     "logs",
     "archive",
+    "scratch",
 ]
 
 [tool.ruff.lint]

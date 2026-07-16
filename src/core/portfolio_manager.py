@@ -113,6 +113,7 @@ class PortfolioManager:
         self.current_balance = self.initial_balance
         self.positions = {}
         self._lock = threading.RLock()  # RLock for re-entrant safety
+        self._cancel_event = threading.Event()  # Watchdog cancellation flag
         self.directional_bias = self._init_directional_bias()
         self.trend_state = {}
         self.trend_flip_cooldown = constants.TREND_FLIP_COOLDOWN_DEFAULT
@@ -366,18 +367,21 @@ class PortfolioManager:
         if len(existing_reset_log) > constants.MAX_REPORT_ENTRIES:
             existing_reset_log = existing_reset_log[-constants.MAX_REPORT_ENTRIES :]
         safe_file_write("data/reset_log.json", existing_reset_log)
-        self.portfolio_values_history = [self.total_value]
-        for pos in self.positions.values():
-            pos["loss_cycle_count"] = 0
-            pos["profit_cycle_count"] = 0
-        self.last_history_reset_cycle = cycle_number
-        self.cycles_since_history_reset = 0
-        self.directional_cooldowns = {"long": 0, "short": 0}
-        self.coin_cooldowns = {}  # Also reset coin-based cooldowns
-        self.counter_trend_cooldown = 0
-        self.counter_trend_consecutive_losses = 0
-        self.relaxed_countertrend_cycles = 0
-        self.save_state()
+        # FIX: Hold lock for position counter resets and state updates to prevent
+        # TP/SL thread from reading partially-reset position data.
+        with self._lock:
+            self.portfolio_values_history = [self.total_value]
+            for pos in self.positions.values():
+                pos["loss_cycle_count"] = 0
+                pos["profit_cycle_count"] = 0
+            self.last_history_reset_cycle = cycle_number
+            self.cycles_since_history_reset = 0
+            self.directional_cooldowns = {"long": 0, "short": 0}
+            self.coin_cooldowns = {}  # Also reset coin-based cooldowns
+            self.counter_trend_cooldown = 0
+            self.counter_trend_consecutive_losses = 0
+            self.relaxed_countertrend_cycles = 0
+            self.save_state()
         print("[OK]    History reset complete.")
 
     def _serialize_directional_bias(self) -> dict[str, dict[str, Any]]:
@@ -1326,7 +1330,8 @@ class PortfolioManager:
                 positions in loss.
 
         """
-        # FIX: Keep lock for entire position modification to prevent race conditions
+        # FIX: Keep lock for entire state modification to prevent race conditions
+        # (positions, total_value, portfolio_values_history, sharpe_ratio must be atomic)
         with self._lock:
             total_unrealized_pnl = 0.0
             for coin, price in new_prices.items():
@@ -1346,29 +1351,29 @@ class PortfolioManager:
                 elif coin in self.positions:
                     print(f"[WARN]  Invalid price for {coin}: {price}. PnL skip.")
 
-        self._calculate_total_portfolio_value()
+            self._calculate_total_portfolio_value()
 
-        if self.initial_balance > 0:
-            self.total_return = (
-                (self.total_value - self.initial_balance) / self.initial_balance
-            ) * 100
-        else:
-            self.total_return = 0.0
+            if self.initial_balance > 0:
+                self.total_return = (
+                    (self.total_value - self.initial_balance) / self.initial_balance
+                ) * 100
+            else:
+                self.total_return = 0.0
 
-        # Update portfolio history for Sharpe ratio calculation
-        self.portfolio_values_history.append(self.total_value)
-        if (
-            len(self.portfolio_values_history) > constants.PORTFOLIO_HISTORY_MAX_ENTRIES
-        ):  # Keep last 5000 values (approx 1 week)
-            self.portfolio_values_history = self.portfolio_values_history[
-                -constants.PORTFOLIO_HISTORY_MAX_ENTRIES :
-            ]
+            # Update portfolio history for Sharpe ratio calculation
+            self.portfolio_values_history.append(self.total_value)
+            if (
+                len(self.portfolio_values_history) > constants.PORTFOLIO_HISTORY_MAX_ENTRIES
+            ):  # Keep last 5000 values (approx 1 week)
+                self.portfolio_values_history = self.portfolio_values_history[
+                    -constants.PORTFOLIO_HISTORY_MAX_ENTRIES :
+                ]
 
-        # Calculate Sharpe ratio
-        self.sharpe_ratio = self.calculate_sharpe_ratio()
+            # Calculate Sharpe ratio
+            self.sharpe_ratio = self.calculate_sharpe_ratio()
 
-        # Save updated state with Sharpe ratio
-        self.save_state()
+            # Save updated state with Sharpe ratio
+            self.save_state()
 
     def _sync_runtime_price(self, pos: dict[str, Any], price: float) -> None:
         """Sync position price with market price, preferring mark price in live mode.
@@ -4092,45 +4097,46 @@ class PortfolioManager:
             trade["runtime_decision"] = "executed_live"
             return True
 
-        # Simulated
-        self.current_balance -= margin_usd
-        est_liq = self._estimate_liquidation_price(current_price, leverage, direction)
-        self.positions[coin] = {
-            "symbol": coin,
-            "direction": direction,
-            "quantity": quantity_coin,
-            "entry_price": current_price,
-            "entry_time": datetime.now(timezone.utc).isoformat(),
-            "current_price": current_price,
-            "unrealized_pnl": 0.0,
-            "notional_usd": notional_usd,
-            "margin_usd": margin_usd,
-            "leverage": leverage,
-            "liquidation_price": est_liq,
-            "confidence": confidence,
-            "exit_plan": {
-                "profit_target": trade.get("profit_target"),
-                "stop_loss": atr_stop_loss,
-                "invalidation_condition": trade.get("invalidation_condition"),
-            },
-            "risk_usd": margin_usd,
-            "loss_cycle_count": 0,
-            "entry_volume": indicators_3m.get("volume"),
-            "entry_avg_volume": indicators_3m.get("avg_volume"),
-            "entry_volume_ratio": indicators_3m.get("volume_ratio"),
-            "entry_atr_14": indicators_3m.get("atr_14"),
-            "trend_alignment": classification,
-            "trend_context": {
-                "trend_at_entry": trade.get("trend_runtime", "unknown"),
-                "alignment": classification,
-                "cycle": self.current_cycle_number,
-            },
-            "trailing": {},
-            "sl_oid": -1,
-            "tp_oid": -1,
-            "entry_oid": -1,
-            "wait_for_fill": False,
-        }
+        # Simulated — atomically deduct balance and create position under lock
+        with self._lock:
+            self.current_balance -= margin_usd
+            est_liq = self._estimate_liquidation_price(current_price, leverage, direction)
+            self.positions[coin] = {
+                "symbol": coin,
+                "direction": direction,
+                "quantity": quantity_coin,
+                "entry_price": current_price,
+                "entry_time": datetime.now(timezone.utc).isoformat(),
+                "current_price": current_price,
+                "unrealized_pnl": 0.0,
+                "notional_usd": notional_usd,
+                "margin_usd": margin_usd,
+                "leverage": leverage,
+                "liquidation_price": est_liq,
+                "confidence": confidence,
+                "exit_plan": {
+                    "profit_target": trade.get("profit_target"),
+                    "stop_loss": atr_stop_loss,
+                    "invalidation_condition": trade.get("invalidation_condition"),
+                },
+                "risk_usd": margin_usd,
+                "loss_cycle_count": 0,
+                "entry_volume": indicators_3m.get("volume"),
+                "entry_avg_volume": indicators_3m.get("avg_volume"),
+                "entry_volume_ratio": indicators_3m.get("volume_ratio"),
+                "entry_atr_14": indicators_3m.get("atr_14"),
+                "trend_alignment": classification,
+                "trend_context": {
+                    "trend_at_entry": trade.get("trend_runtime", "unknown"),
+                    "alignment": classification,
+                    "cycle": self.current_cycle_number,
+                },
+                "trailing": {},
+                "sl_oid": -1,
+                "tp_oid": -1,
+                "entry_oid": -1,
+                "wait_for_fill": False,
+            }
         print(
             f"[OK]    {signal.upper()}: Opened {direction} {coin} ({format_num(quantity_coin, 4)} @ ${format_num(current_price, 4)} / Notional ${format_num(notional_usd, 2)} / Margin ${format_num(margin_usd, 2)})",
         )
@@ -4148,6 +4154,14 @@ class PortfolioManager:
         )
         trade["runtime_decision"] = "executed"
         return True
+
+    def cancel_cycle(self) -> None:
+        """Signal the current cycle to abort (called by watchdog on timeout)."""
+        self._cancel_event.set()
+
+    def is_cancelled(self) -> bool:
+        """Check if the current cycle has been cancelled by the watchdog."""
+        return self._cancel_event.is_set()
 
     def execute_decision(
         self,

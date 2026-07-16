@@ -226,7 +226,10 @@ class AccountService:
         try:
             snapshot = self.order_executor.get_positions_snapshot()
             if isinstance(snapshot, dict):
-                self.pm.positions = self._merge_live_positions(snapshot)
+                # FIX: Replace positions dict under lock to prevent concurrent reads from seeing
+                # a half-updated reference during the swap.
+                with self.pm._lock:
+                    self.pm.positions = self._merge_live_positions(snapshot)
 
                 # Update erosion tracking for each position using existing method
                 for coin, pos in self.pm.positions.items():
@@ -671,57 +674,55 @@ class AccountService:
             Dict with success status and PnL
 
         """
-        # FIX: Thread-safe position access with lock
+        # FIX: Hold lock across the entire close operation to prevent double-close
+        # from TP/SL thread racing with the cycle thread.
         with self.pm._lock:
             if coin not in self.pm.positions:
                 return {"success": False, "error": "no_position"}
 
-            position = self.pm.positions[
-                coin
-            ].copy()  # Copy to avoid holding lock during calculations
-        direction = position.get("direction", "long")
-        entry_price = position.get("entry_price", 0)
-        quantity = position.get("quantity", 0)
-        margin_used = position.get("margin_usd", 0)
+            position = self.pm.positions[coin]
+            direction = position.get("direction", "long")
+            entry_price = position.get("entry_price", 0)
+            quantity = position.get("quantity", 0)
+            margin_used = position.get("margin_usd", 0)
 
-        if quantity <= 0 or entry_price <= 0:
-            return {"success": False, "error": "invalid_position_data"}
+            if quantity <= 0 or entry_price <= 0:
+                return {"success": False, "error": "invalid_position_data"}
 
-        # Calculate PnL
-        if direction == "long":
-            profit = (current_price - entry_price) * quantity
-        else:
-            profit = (entry_price - current_price) * quantity
+            # Calculate PnL
+            if direction == "long":
+                profit = (current_price - entry_price) * quantity
+            else:
+                profit = (entry_price - current_price) * quantity
 
-        # Deduct commission for simulation realism (round-trip: entry + exit)
-        notional = (entry_price + current_price) / 2 * quantity
-        commission = notional * Config.SIMULATION_COMMISSION_RATE * 2
-        profit -= commission
+            # Deduct commission for simulation realism (round-trip: entry + exit)
+            notional = (entry_price + current_price) / 2 * quantity
+            commission = notional * Config.SIMULATION_COMMISSION_RATE * 2
+            profit -= commission
 
-        # Update balance
-        self.pm.current_balance += margin_used + profit
+            # Update balance
+            self.pm.current_balance += margin_used + profit
 
-        # Create history entry
-        history_entry = {
-            "symbol": coin,
-            "direction": direction,
-            "entry_price": entry_price,
-            "exit_price": current_price,
-            "quantity": quantity,
-            "notional_usd": position.get("notional_usd", 0),
-            "pnl": profit,
-            "entry_time": position.get("entry_time", datetime.now(timezone.utc).isoformat()),
-            "exit_time": datetime.now(timezone.utc).isoformat(),
-            "leverage": position.get("leverage", 10),
-            "close_reason": reason,
-        }
+            # Create history entry
+            history_entry = {
+                "symbol": coin,
+                "direction": direction,
+                "entry_price": entry_price,
+                "exit_price": current_price,
+                "quantity": quantity,
+                "notional_usd": position.get("notional_usd", 0),
+                "pnl": profit,
+                "entry_time": position.get("entry_time", datetime.now(timezone.utc).isoformat()),
+                "exit_time": datetime.now(timezone.utc).isoformat(),
+                "leverage": position.get("leverage", 10),
+                "close_reason": reason,
+            }
 
+            # Remove from active positions (under same lock)
+            del self.pm.positions[coin]
+
+        # History/bias update outside lock (add_to_history acquires its own lock)
         self.pm.add_to_history(history_entry)
-
-        # Remove from active positions (thread-safe)
-        with self.pm._lock:
-            if coin in self.pm.positions:
-                del self.pm.positions[coin]
 
         print(
             f"[OK]    PAPER CLOSE: {direction} {coin} @ ${format_num(current_price, 4)} (PnL: ${format_num(profit, 2)}, Commission: ${format_num(commission, 3)})",
@@ -866,55 +867,59 @@ class AccountService:
                         print(f"[WARN]  Failed to sync account after partial close: {sync_exc}")
                     continue
 
-                # 1. Capture current state BEFORE mutation
-                current_qty = float(position["quantity"])
-                current_margin = float(position["margin_usd"])
-                current_notional = float(position["notional_usd"])
-                close_quantity = current_qty * close_percent
+                # FIX: Hold lock for position mutation + balance update to prevent
+                # concurrent reads from seeing partially updated position data.
+                with self.pm._lock:
+                    # 1. Capture current state BEFORE mutation
+                    current_qty = float(position["quantity"])
+                    current_margin = float(position["margin_usd"])
+                    current_notional = float(position["notional_usd"])
+                    close_quantity = current_qty * close_percent
 
-                # 2. Calculate PnL and Commission
-                if direction == "long":
-                    profit = (current_price - entry_price) * close_quantity
-                else:
-                    profit = (entry_price - current_price) * close_quantity
+                    # 2. Calculate PnL and Commission
+                    if direction == "long":
+                        profit = (current_price - entry_price) * close_quantity
+                    else:
+                        profit = (entry_price - current_price) * close_quantity
 
-                # Round-trip commission for this portion
-                notional_portion_cost = entry_price * close_quantity
-                notional_portion_exit = current_price * close_quantity
-                avg_notional = (notional_portion_cost + notional_portion_exit) / 2
-                commission = avg_notional * Config.SIMULATION_COMMISSION_RATE * 2
-                profit -= commission
+                    # Round-trip commission for this portion
+                    notional_portion_cost = entry_price * close_quantity
+                    notional_portion_exit = current_price * close_quantity
+                    avg_notional = (notional_portion_cost + notional_portion_exit) / 2
+                    commission = avg_notional * Config.SIMULATION_COMMISSION_RATE * 2
+                    profit -= commission
 
-                # 3. Prepare History Entry BEFORE updating position (using original notional)
-                history_entry = {
-                    "symbol": coin,
-                    "direction": direction,
-                    "entry_price": entry_price,
-                    "exit_price": current_price,
-                    "quantity": close_quantity,
-                    "notional_usd": notional_portion_cost,  # Use cost-based notional for accuracy
-                    "pnl": profit,
-                    "entry_time": position["entry_time"],
-                    "exit_time": datetime.now(timezone.utc).isoformat(),
-                    "leverage": position.get("leverage", "N/A"),
-                    "close_reason": exit_decision["reason"],
-                }
+                    # 3. Prepare History Entry BEFORE updating position (using original notional)
+                    history_entry = {
+                        "symbol": coin,
+                        "direction": direction,
+                        "entry_price": entry_price,
+                        "exit_price": current_price,
+                        "quantity": close_quantity,
+                        "notional_usd": notional_portion_cost,  # Use cost-based notional for accuracy
+                        "pnl": profit,
+                        "entry_time": position["entry_time"],
+                        "exit_time": datetime.now(timezone.utc).isoformat(),
+                        "leverage": position.get("leverage", "N/A"),
+                        "close_reason": exit_decision["reason"],
+                    }
 
-                # 4. Update position state (MUTATION)
-                position["quantity"] = current_qty - close_quantity
-                position["margin_usd"] = current_margin * (1 - close_percent)
-                position["notional_usd"] = current_notional * (1 - close_percent)
+                    # 4. Update position state (MUTATION) — under lock
+                    position["quantity"] = current_qty - close_quantity
+                    position["margin_usd"] = current_margin * (1 - close_percent)
+                    position["notional_usd"] = current_notional * (1 - close_percent)
 
-                # Adjust peak_pnl proportionally
-                if "peak_pnl" in position and position["peak_pnl"] > 0:
-                    old_peak = position["peak_pnl"]
-                    position["peak_pnl"] = position["peak_pnl"] * (1 - close_percent)
-                    print(
-                        f"   [INFO]  peak_pnl adjusted: ${format_num(old_peak, 2)} → ${format_num(position['peak_pnl'], 2)}"
-                    )
+                    # Adjust peak_pnl proportionally
+                    if "peak_pnl" in position and position["peak_pnl"] > 0:
+                        old_peak = position["peak_pnl"]
+                        position["peak_pnl"] = position["peak_pnl"] * (1 - close_percent)
+                        print(
+                            f"   [INFO]  peak_pnl adjusted: ${format_num(old_peak, 2)} → ${format_num(position['peak_pnl'], 2)}"
+                        )
 
-                # 5. Update global balance and history
-                self.pm.current_balance += (current_margin * close_percent) + profit
+                    # 5. Update global balance — under lock
+                    self.pm.current_balance += (current_margin * close_percent) + profit
+
                 self.pm.add_to_history(history_entry)
 
                 print(
@@ -1020,39 +1025,47 @@ class AccountService:
                         print(f"[WARN]  Failed to sync account after close: {sync_exc}")
                     continue
 
-                if direction == "long":
-                    profit = (current_price - entry_price) * quantity
-                else:
-                    profit = (entry_price - current_price) * quantity
+                # FIX: Hold lock for balance update + position deletion to prevent
+                # double-close from concurrent TP/SL checks.
+                with self.pm._lock:
+                    if direction == "long":
+                        profit = (current_price - entry_price) * quantity
+                    else:
+                        profit = (entry_price - current_price) * quantity
 
-                # Deduct commission for simulation realism (round-trip)
-                notional_closed = ((entry_price + current_price) / 2) * quantity
-                commission = notional_closed * Config.SIMULATION_COMMISSION_RATE * 2  # Round-trip
-                profit -= commission
+                    # Deduct commission for simulation realism (round-trip)
+                    notional_closed = ((entry_price + current_price) / 2) * quantity
+                    commission = (
+                        notional_closed * Config.SIMULATION_COMMISSION_RATE * 2
+                    )  # Round-trip
+                    profit -= commission
 
-                self.pm.current_balance += (
-                    margin_used + profit
-                )  # Return margin + PnL (commission already deducted)
+                    self.pm.current_balance += (
+                        margin_used + profit
+                    )  # Return margin + PnL (commission already deducted)
 
-                print(f"   Closed PnL: ${format_num(profit, 2)}")
+                    print(f"   Closed PnL: ${format_num(profit, 2)}")
 
-                history_entry = {
-                    "symbol": coin,
-                    "direction": direction,
-                    "entry_price": entry_price,
-                    "exit_price": current_price,
-                    "quantity": quantity,
-                    "notional_usd": position.get("notional_usd", "N/A"),
-                    "pnl": profit,
-                    "entry_time": position["entry_time"],
-                    "exit_time": datetime.now(timezone.utc).isoformat(),
-                    "leverage": position.get("leverage", "N/A"),
-                    "close_reason": close_reason,  # Add reason
-                }
+                    history_entry = {
+                        "symbol": coin,
+                        "direction": direction,
+                        "entry_price": entry_price,
+                        "exit_price": current_price,
+                        "quantity": quantity,
+                        "notional_usd": position.get("notional_usd", "N/A"),
+                        "pnl": profit,
+                        "entry_time": position["entry_time"],
+                        "exit_time": datetime.now(timezone.utc).isoformat(),
+                        "leverage": position.get("leverage", "N/A"),
+                        "close_reason": close_reason,  # Add reason
+                    }
+                    # Remove from active positions while lock is held
+                    if coin in self.pm.positions:
+                        del self.pm.positions[coin]  # Remove from active positions
+                    closed_positions.append(coin)
+                    state_changed = True
+
                 self.pm.add_to_history(history_entry)  # This increments trade_count
-                closed_positions.append(coin)
-                del self.pm.positions[coin]  # Remove from active positions
-                state_changed = True
 
         if closed_positions:
             print(f"[OK]    Auto-closed positions: {', '.join(closed_positions)}")

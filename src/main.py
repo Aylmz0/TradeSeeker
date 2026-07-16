@@ -182,11 +182,16 @@ class AlphaArenaDeepSeek:
         # When too many positions are open
         return len(self.portfolio.positions) >= constants.MAX_POSITIONS_ALERT_THRESHOLD
 
-    def run_trading_cycle(self, cycle_number: int):
+    def run_trading_cycle(self, cycle_number: int, cancel_event: threading.Event | None = None):
         """Run a single trading cycle with auto TP/SL and enhanced features"""
         print(
             f"\n==== CYCLE {cycle_number} | {datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M:%S')} {'=' * 50}",
         )
+
+        # Check cancellation (watchdog timeout)
+        if cancel_event and cancel_event.is_set():
+            print(f"[ZOMBIE ABORT] Cycle {cycle_number} cancelled before start.")
+            return
 
         # Check bot control at cycle start
         control = self._read_bot_control()
@@ -362,6 +367,10 @@ class AlphaArenaDeepSeek:
                     print(f"[STOPPED] Cycle {cycle_number} STOPPED - Bot STOP command received")
                     self.cycle_active = False
                     return
+                # ZOMBIE ABORT: Check if watchdog fired while we were waiting
+                if cancel_event and cancel_event.is_set():
+                    print(f"[ZOMBIE ABORT] Cycle {cycle_number} cancelled before AI call.")
+                    return
 
                 ai_timer_start = time.perf_counter()
                 print("\n[AI]    Generating prompt...")
@@ -503,6 +512,10 @@ class AlphaArenaDeepSeek:
                     print(f"[STOPPED] Cycle {cycle_number} STOPPED - Bot STOP command received")
                     self.cycle_active = False
                     return
+                # ZOMBIE ABORT: Check if watchdog fired before we start executing trades
+                if cancel_event and cancel_event.is_set():
+                    print(f"[ZOMBIE ABORT] Cycle {cycle_number} cancelled before execution.")
+                    return
 
                 exec_start = time.perf_counter()
                 # AI PRIORITY SYSTEM: If "close_position" signal exists, the position is closed
@@ -600,39 +613,49 @@ class AlphaArenaDeepSeek:
                                         )
                                     continue
 
-                                if direction == "long":
-                                    profit = (current_price - entry_price) * quantity
-                                else:
-                                    profit = (entry_price - current_price) * quantity
+                                # FIX: Hold lock for balance update + position deletion to prevent
+                                # race with TP/SL thread closing the same position.
+                                with self.portfolio._lock:
+                                    if coin not in self.portfolio.positions:
+                                        close_execution_report["skipped"].append(
+                                            {"coin": coin, "reason": "position_already_closed"}
+                                        )
+                                        continue
+                                    if direction == "long":
+                                        profit = (current_price - entry_price) * quantity
+                                    else:
+                                        profit = (entry_price - current_price) * quantity
 
-                                # Deduct commission for simulation realism (round-trip: entry + exit)
-                                notional = (entry_price + current_price) / 2 * quantity
-                                commission = (
-                                    notional
-                                    * Config.SIMULATION_COMMISSION_RATE
-                                    * constants.COMMISSION_ROUND_TRIP_MULTIPLIER
-                                )
-                                profit -= commission
+                                    # Deduct commission for simulation realism (round-trip: entry + exit)
+                                    notional = (entry_price + current_price) / 2 * quantity
+                                    commission = (
+                                        notional
+                                        * Config.SIMULATION_COMMISSION_RATE
+                                        * constants.COMMISSION_ROUND_TRIP_MULTIPLIER
+                                    )
+                                    profit -= commission
 
-                                self.portfolio.current_balance += margin_used + profit
+                                    self.portfolio.current_balance += margin_used + profit
 
-                                print(
-                                    f"[OK]    Closed {direction} {coin} @ ${format_num(current_price, 4)} (PnL: ${format_num(profit, 2)})",
-                                )
+                                    print(
+                                        f"[OK]    Closed {direction} {coin} @ ${format_num(current_price, 4)} (PnL: ${format_num(profit, 2)})",
+                                    )
 
-                                history_entry = {
-                                    "symbol": coin,
-                                    "direction": direction,
-                                    "entry_price": entry_price,
-                                    "exit_price": current_price,
-                                    "quantity": quantity,
-                                    "notional_usd": position.get("notional_usd", "N/A"),
-                                    "pnl": profit,
-                                    "entry_time": position["entry_time"],
-                                    "exit_time": datetime.now(timezone.utc).isoformat(),
-                                    "leverage": position.get("leverage", "N/A"),
-                                    "close_reason": "AI close_position signal",
-                                }
+                                    history_entry = {
+                                        "symbol": coin,
+                                        "direction": direction,
+                                        "entry_price": entry_price,
+                                        "exit_price": current_price,
+                                        "quantity": quantity,
+                                        "notional_usd": position.get("notional_usd", "N/A"),
+                                        "pnl": profit,
+                                        "entry_time": position["entry_time"],
+                                        "exit_time": datetime.now(timezone.utc).isoformat(),
+                                        "leverage": position.get("leverage", "N/A"),
+                                        "close_reason": "AI close_position signal",
+                                    }
+                                    del self.portfolio.positions[coin]
+
                                 self.portfolio.add_to_history(history_entry)
 
                                 close_execution_report["executed"].append(
@@ -644,7 +667,6 @@ class AlphaArenaDeepSeek:
                                         "price": current_price,
                                     },
                                 )
-                                del self.portfolio.positions[coin]
                             else:
                                 close_execution_report["skipped"].append(
                                     {"coin": coin, "reason": "no_price_data_for_close"},
@@ -804,14 +826,20 @@ class AlphaArenaDeepSeek:
     def show_status(self):
         """Show current status in the console"""
         print("\n--- STATUS ---")
+        with self.portfolio._lock:
+            balance = self.portfolio.current_balance
+            total_value = self.portfolio.total_value
+            total_return = self.portfolio.total_return
+            trade_count = self.portfolio.trade_count
+            positions_snapshot = list(self.portfolio.positions.items())
         print(
-            f"[INFO]  Value: ${format_num(self.portfolio.total_value, 2)} | Return: {format_num(self.portfolio.total_return, 2)}% | Cash: ${format_num(self.portfolio.current_balance, 2)} | Trades: {self.portfolio.trade_count}",
+            f"[INFO]  Value: ${format_num(total_value, 2)} | Return: {format_num(total_return, 2)}% | Cash: ${format_num(balance, 2)} | Trades: {trade_count}",
         )
-        print(f"\n[INFO]  Positions ({len(self.portfolio.positions)} open):")
-        if not self.portfolio.positions:
+        print(f"\n[INFO]  Positions ({len(positions_snapshot)} open):")
+        if not positions_snapshot:
             print("  No open positions.")
         else:
-            for coin, pos in self.portfolio.positions.items():
+            for coin, pos in positions_snapshot:
                 pnl = pos.get("unrealized_pnl", 0.0)
                 pnl_sign = "+" if pnl >= 0 else ""
                 direction = pos.get("direction", "long").upper()
@@ -1093,16 +1121,18 @@ class AlphaArenaDeepSeek:
                 watchdog_timeout = max(dynamic_cycle_interval - 10, 30)  # Min 30s for safety
 
                 class CycleTask:
-                    def __init__(self):
+                    def __init__(self, cancel_event: threading.Event):
                         self.error = None
+                        self.cancel_event = cancel_event
 
                     def run(self, instance, cycle_num):
                         try:
-                            instance.run_trading_cycle(cycle_num)
+                            instance.run_trading_cycle(cycle_num, cancel_event=self.cancel_event)
                         except Exception as e:
                             self.error = e
 
-                task = CycleTask()
+                cancel_event = threading.Event()
+                task = CycleTask(cancel_event)
                 cycle_thread = threading.Thread(
                     target=task.run, args=(self, current_cycle_number), daemon=True
                 )
@@ -1115,6 +1145,8 @@ class AlphaArenaDeepSeek:
                         f"\n[WATCHDOG] Cycle {current_cycle_number} timed out after {watchdog_timeout}s!"
                     )
                     print("[WATCHDOG] Force-closing cycle and moving to next interval...")
+                    # Signal the abandoned thread to stop at next checkpoint
+                    cancel_event.set()
                     # Cleanup to allow next cycle to resume cleanly
                     self.cycle_active = False
                     self.enhanced_exit_enabled = True
