@@ -1,5 +1,4 @@
 import json
-import logging
 import os
 import sqlite3
 import time
@@ -9,10 +8,6 @@ from typing import Any
 import polars as pl
 import requests
 from src.core import constants
-
-
-logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
-logger = logging.getLogger(__name__)
 
 
 KLINE_COLUMNS = [
@@ -43,7 +38,7 @@ class DataEngine:
         db_dir = os.path.dirname(self.db_path)
         if db_dir and not os.path.exists(db_dir):
             os.makedirs(db_dir, exist_ok=True)
-            logger.info(f"[DataEngine] Created directory: {db_dir}")
+            logger.info("DataEngine: Created directory: {db_dir}")
 
     def _get_connection(self) -> sqlite3.Connection:
         conn = sqlite3.connect(self.db_path, check_same_thread=False, timeout=10)
@@ -106,9 +101,9 @@ class DataEngine:
             )
             cursor.execute("CREATE INDEX IF NOT EXISTS idx_decisions_status ON decisions (status)")
             conn.commit()
-            logger.info(f"[DataEngine] Database schema initialized at '{self.db_path}'.")
+            logger.info("DataEngine: Database schema initialized at '{self.db_path}'.")
         except Exception as e:
-            logger.error(f"[DataEngine] Failed to initialize database: {e}")
+            logger.error("DataEngine: Failed to initialize database: {e}")
             conn.rollback()
             raise
         finally:
@@ -140,7 +135,7 @@ class DataEngine:
             )
             conn.commit()
         except Exception as e:
-            logger.error(f"[DataEngine] Failed to log features for {coin}: {e}")
+            logger.error("DataEngine: Failed to log features for {coin}: {e}")
             conn.rollback()
         finally:
             conn.close()
@@ -190,9 +185,9 @@ class DataEngine:
                 records,
             )
             conn.commit()
-            logger.info(f"[DataEngine] Ingested {len(records)} '{interval}' candles for {coin}.")
+            logger.info("DataEngine: Ingested {len(records)} '{interval}' candles for {coin}.")
         except Exception as e:
-            logger.error(f"[DataEngine] Bulk insert failed for {coin} ({interval}): {e}")
+            logger.error("DataEngine: Bulk insert failed for {coin} ({interval}): {e}")
             conn.rollback()
             raise
         finally:
@@ -244,14 +239,14 @@ class DataEngine:
                 cursor.execute(
                     "DELETE FROM features WHERE coin = ? AND interval = ?", (coin, interval)
                 )
-                logger.info(f"[DataEngine] Wiped data for {coin} ({interval}).")
+                logger.info("DataEngine: Wiped data for {coin} ({interval}).")
             else:
                 cursor.execute("DELETE FROM market_data")
                 cursor.execute("DELETE FROM features")
-                logger.info("[DataEngine] Wiped ALL market data and features.")
+                logger.info("DataEngine: Wiped ALL market data and features.")
             conn.commit()
         except Exception as e:
-            logger.error(f"[DataEngine] Wipe failed: {e}")
+            logger.error("DataEngine: Wipe failed: {e}")
             conn.rollback()
         finally:
             conn.close()
@@ -377,7 +372,7 @@ class DataEngine:
             data = response.json()
 
             if not data:
-                logger.warning(f"[DataEngine] Received empty data for {coin} ({interval}).")
+                logger.warning("DataEngine: Received empty data for {coin} ({interval}).")
                 return False
 
             df = pl.DataFrame(data, schema=KLINE_COLUMNS)
@@ -432,7 +427,7 @@ class DataEngine:
             )
             return row_id
         except Exception as e:
-            logger.error(f"[DataEngine] Failed to log OPEN decision: {e}")
+            logger.error("DataEngine: Failed to log OPEN decision: {e}")
             conn.rollback()
             return None
         finally:
@@ -464,10 +459,10 @@ class DataEngine:
                     f"[DataEngine] Closed decision for {coin}: exit=${exit_price:.4f}, PnL=${pnl_result:.2f}"
                 )
                 return True
-            logger.warning(f"[DataEngine] No OPEN decision found for {coin} to close.")
+            logger.warning("DataEngine: No OPEN decision found for {coin} to close.")
             return False
         except Exception as e:
-            logger.error(f"[DataEngine] Failed to log CLOSE decision: {e}")
+            logger.error("DataEngine: Failed to log CLOSE decision: {e}")
             conn.rollback()
             return False
         finally:
@@ -477,36 +472,35 @@ class DataEngine:
 if __name__ == "__main__":
     import time
 
-    print("--- TradeSeeker Data Engine Ingestion Test ---")
+    logger.info("--- TradeSeeker Data Engine Ingestion Test ---")
     engine = DataEngine()
 
     test_coin = "XRP"
     intervals = ["3m", "15m", "1h"]
 
     for ival in intervals:
-        print(f"\n[Test] Backfilling 1000 candles for {test_coin} [{ival}]...")
+        logger.info("Backfilling 1000 candles for {} [{}]...", test_coin, ival)
         success = engine.fetch_and_store_klines(test_coin, interval=ival, limit=1000)
         if success:
-            print(f"[OK] Successfully written to SQLite (market_data table) for {ival}.")
+            logger.success("Successfully written to SQLite (market_data table) for {}.", ival)
         else:
-            print(f"[FAIL] Failed to write {ival} data.")
+            logger.error("Failed to write {} data.", ival)
         time.sleep(1)
 
-    print("\n[Test] Testing Labeling Logic (Faz 1.3)...")
+    logger.info("Testing Labeling Logic (Faz 1.3)...")
     df_labeled = engine.get_labeled_data("XRP", "15m")
 
     if not df_labeled.is_empty():
-        print(f"[OK] Labeling complete. Extracted {len(df_labeled)} labeled rows.")
+        logger.success("Labeling complete. Extracted {} labeled rows.", len(df_labeled))
         distribution = df_labeled.group_by("target_label").len().sort("target_label")
-        print(f"[INFO] Label Distribution [1=BUY, -1=SELL, 0=HOLD]:")
-        print(distribution)
-        print("\nDemo Row:")
-        print(
+        logger.info("Label Distribution [1=BUY, -1=SELL, 0=HOLD]: {}", distribution)
+        logger.info(
+            "Demo Row: {}",
             df_labeled.select(
                 ["timestamp", "close", "future_close", "future_return", "target_label"]
-            ).tail(1)
+            ).tail(1),
         )
     else:
-        print("[FAIL] Labeling failed or empty dataframe.")
+        logger.error("Labeling failed or empty dataframe.")
 
-    print("\n[OK] Phase 1.3 Labeling test completed.")
+    logger.success("Phase 1.3 Labeling test completed.")

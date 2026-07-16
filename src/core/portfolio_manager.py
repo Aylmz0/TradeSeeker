@@ -21,6 +21,8 @@ if TYPE_CHECKING:
 import math
 import statistics
 
+from loguru import logger
+
 from config.config import Config
 from src.core import constants
 from src.core.backtest import AdvancedRiskManager
@@ -162,7 +164,7 @@ class PortfolioManager:
     def _ensure_full_history_exists(self) -> None:
         """Ensure full trade history exists, copying from active history if needed."""
         if not Path(self.full_history_file).exists():
-            print(f"[INFO] Creating {self.full_history_file} from existing trade history...")
+            logger.info("Creating {} from existing trade history...", self.full_history_file)
             safe_file_write(self.full_history_file, self.trade_history)
 
     def _init_directional_bias(self) -> dict[str, dict[str, Any]]:
@@ -212,10 +214,10 @@ class PortfolioManager:
             "trade_count",
             len(self.trade_history),
         )  # Initialize from history if not in state
-        print(
-            f"[OK]    Loaded state ({len(self.positions)} positions, {self.trade_count} closed trades)"
-            if data
-            else "[INFO] No state file found.",
+        logger.info(
+            "Loaded state ({} positions, {} closed trades)" if data else "No state file found.",
+            len(self.positions),
+            self.trade_count,
         )
 
         bias_state = data.get("directional_bias")
@@ -326,10 +328,10 @@ class PortfolioManager:
                 "files": backed_up,
             }
             safe_file_write(str(backup_dir / "metadata.json"), metadata)
-            print(f"[OK]    History backup created at {backup_dir}")
+            logger.info("History backup created at {}", backup_dir)
             return str(backup_dir)
         except Exception as e:
-            print(f"[WARN]  History backup failed: {e}")
+            logger.warning("History backup failed: {}", e)
             return None
 
     def reset_historical_data(self, cycle_number: int) -> None:
@@ -344,7 +346,7 @@ class PortfolioManager:
         # This prevents TOCTOU race where TP/SL thread reads partially-reset data.
         with self._lock:
             self._backup_historical_files(cycle_number)
-            print(f"[CLEANUP] HISTORY RESET: Clearing logs at cycle {cycle_number}")
+            logger.info("HISTORY RESET: Clearing logs at cycle {}", cycle_number)
             self.trade_history = []
             self.trade_count = 0
             self.directional_bias = self._init_directional_bias()
@@ -382,7 +384,7 @@ class PortfolioManager:
             self.counter_trend_consecutive_losses = 0
             self.relaxed_countertrend_cycles = 0
             self.save_state()
-        print("[OK]    History reset complete.")
+        logger.info("History reset complete.")
 
     def _serialize_directional_bias(self) -> dict[str, dict[str, Any]]:
         """Serialize directional bias metrics for state saving.
@@ -417,7 +419,7 @@ class PortfolioManager:
 
         """
         history: list[dict[str, Any]] = safe_file_read(self.history_file, default_data=[])
-        print(f"[OK]    Loaded {len(history)} trades.")
+        logger.info("Loaded {} trades.", len(history))
         return history
 
     def save_trade_history(self) -> None:
@@ -427,7 +429,7 @@ class PortfolioManager:
                 -constants.MAX_TRADE_HISTORY_DISPLAY :
             ]
             safe_file_write(self.history_file, history_to_save)
-            print(f"[OK]    Saved {len(history_to_save)} trades.")
+            logger.info("Saved {} trades.", len(history_to_save))
 
     def add_to_history(self, trade: dict[str, Any]) -> None:
         """Add a completed trade to both active and full history files.
@@ -457,7 +459,7 @@ class PortfolioManager:
             full_history.append(trade)
 
             if not safe_file_write(self.full_history_file, full_history):
-                print(f"[ERR]   Failed to save full history for {trade.get('symbol')}")
+                logger.error("Failed to save full history for {}", trade.get("symbol"))
 
             # 3. Update directional bias & persistence (Must be INSIDE lock)
             self.update_directional_bias(trade)
@@ -470,7 +472,7 @@ class PortfolioManager:
             return
         stats = self.directional_bias[direction]
         pnl = float(trade.get("pnl", 0.0) or 0.0)
-        print(f"[INFO]  update_directional_bias called: {direction.upper()} trade, PnL=${pnl:.2f}")
+        logger.info("update_directional_bias called: {} trade, PnL=${:.2f}", direction.upper(), pnl)
         stats["rolling"].append(pnl)
         stats["net_pnl"] += pnl
         stats["trades"] += 1
@@ -501,16 +503,18 @@ class PortfolioManager:
         # Win Streak Cooldown
         if stats["consecutive_wins"] >= Config.WIN_STREAK_COOLDOWN_THRESHOLD:
             self._activate_directional_cooldown(direction, Config.WIN_STREAK_COOLDOWN_CYCLES)
-            print(
-                f"[WARN]  Win streak cooldown for {direction.upper()}: {stats['consecutive_wins']} wins"
+            logger.warning(
+                "Win streak cooldown for {}: {} wins", direction.upper(), stats["consecutive_wins"]
             )
 
         # Smart Cooldown (WIN)
         coin_symbol = trade.get("symbol", "").upper()
         if coin_symbol:
             self.coin_cooldowns[coin_symbol] = Config.SMART_COOLDOWN_WIN
-            print(
-                f"[WARN]  Smart Cooldown (WIN) ACTIVATED for {coin_symbol}: {Config.SMART_COOLDOWN_WIN} cycles"
+            logger.warning(
+                "Smart Cooldown (WIN) ACTIVATED for {}: {} cycles",
+                coin_symbol,
+                Config.SMART_COOLDOWN_WIN,
             )
 
         if stats.get("caution_active"):
@@ -543,8 +547,10 @@ class PortfolioManager:
         coin_symbol = trade.get("symbol", "").upper()
         if coin_symbol:
             self.coin_cooldowns[coin_symbol] = Config.SMART_COOLDOWN_LOSS
-            print(
-                f"[WARN]  Smart Cooldown (LOSS) ACTIVATED for {coin_symbol}: {Config.SMART_COOLDOWN_LOSS} cycles"
+            logger.warning(
+                "Smart Cooldown (LOSS) ACTIVATED for {}: {} cycles",
+                coin_symbol,
+                Config.SMART_COOLDOWN_LOSS,
             )
 
         if stats["consecutive_losses"] >= constants.REVERSAL_SCORE_WEAK:
@@ -561,8 +567,11 @@ class PortfolioManager:
 
         if should_activate:
             self._activate_directional_cooldown(direction, constants.DEFAULT_COOLDOWN_CYCLES)
-            print(
-                f"[WARN]  Directional cooldown ACTIVATED for {direction.upper()}: consecutive_losses={consecutive}, loss_streak_usd=${loss_streak_usd:.2f}",
+            logger.warning(
+                "Directional cooldown ACTIVATED for {}: consecutive_losses={}, loss_streak_usd=${:.2f}",
+                direction.upper(),
+                consecutive,
+                loss_streak_usd,
             )
 
         # Counter-trend cooldown: consecutive counter-trend losses
@@ -609,14 +618,19 @@ class PortfolioManager:
             self.relaxed_countertrend_cycles,
             constants.MIN_RELAXED_CYCLES,
         )
-        print(
-            f"[WARN]  Directional cooldown activated for {direction.upper()} trades ({constants.MIN_RELAXED_CYCLES} cycles). Counter-trend restrictions relaxed for {constants.MIN_RELAXED_CYCLES} cycles.",
+        logger.warning(
+            "Directional cooldown activated for {} trades ({} cycles). Counter-trend restrictions relaxed for {} cycles.",
+            direction.upper(),
+            constants.MIN_RELAXED_CYCLES,
+            constants.MIN_RELAXED_CYCLES,
         )
 
     def tick_cooldowns(self) -> None:
         """Decrement all active cooldown timers."""
-        print(
-            f"[TIME] tick_cooldowns called. Current cooldowns: {self.directional_cooldowns}, Coin cooldowns: {self.coin_cooldowns}"
+        logger.debug(
+            "tick_cooldowns called. Current cooldowns: {}, Coin cooldowns: {}",
+            self.directional_cooldowns,
+            self.coin_cooldowns,
         )
 
         # 1. Directional Cooldowns
@@ -629,7 +643,7 @@ class PortfolioManager:
         if self.relaxed_countertrend_cycles > 0:
             self.relaxed_countertrend_cycles -= 1
             if self.relaxed_countertrend_cycles == 0:
-                print("[OK]    Relaxed counter-trend validation mode EXPIRED.")
+                logger.info("Relaxed counter-trend validation mode EXPIRED.")
 
     def _tick_directional_cooldowns(self) -> None:
         """Decrement long/short directional cooldowns."""
@@ -637,15 +651,19 @@ class PortfolioManager:
             cycles = self.directional_cooldowns.get(direction, 0)
             if cycles > 0:
                 self.directional_cooldowns[direction] = cycles - 1
-                print(
-                    f"[TIME] {direction.upper()} cooldown: {cycles} -> {self.directional_cooldowns[direction]} cycles remaining"
+                logger.debug(
+                    "{} cooldown: {} -> {} cycles remaining",
+                    direction.upper(),
+                    cycles,
+                    self.directional_cooldowns[direction],
                 )
                 if self.directional_cooldowns[direction] == 0:
                     if direction in self.directional_bias:
                         self.directional_bias[direction]["loss_streak_loss_usd"] = 0.0
                         self.directional_bias[direction]["consecutive_losses"] = 0
-                    print(
-                        f"[OK]    Directional cooldown cleared for {direction.upper()} trades. Loss streak reset."
+                    logger.info(
+                        "Directional cooldown cleared for {} trades. Loss streak reset.",
+                        direction.upper(),
                     )
 
     def _tick_coin_cooldowns(self) -> None:
@@ -654,19 +672,22 @@ class PortfolioManager:
         for coin, cycles in self.coin_cooldowns.items():
             if cycles > 0:
                 self.coin_cooldowns[coin] = cycles - 1
-                print(
-                    f"[TIME] {coin} coin cooldown: {cycles} -> {self.coin_cooldowns[coin]} cycles remaining"
+                logger.debug(
+                    "{} coin cooldown: {} -> {} cycles remaining",
+                    coin,
+                    cycles,
+                    self.coin_cooldowns[coin],
                 )
                 if self.coin_cooldowns[coin] == 0:
                     to_remove.append(coin)
-                    print(f"[OK]    Coin cooldown cleared for {coin}.")
+                    logger.info("Coin cooldown cleared for {}.", coin)
 
         for coin in to_remove:
             del self.coin_cooldowns[coin]
         if self.counter_trend_cooldown > 0:
             self.counter_trend_cooldown -= 1
             if self.counter_trend_cooldown == 0:
-                print("[OK]    Counter-trend cooldown cleared.")
+                logger.info("Counter-trend cooldown cleared.")
 
     def get_trend_following_strength(self, coin: str, signal: str) -> dict[str, Any] | None:
         """Determine trend-following strength including 1h, 15m, and 3m alignment.
@@ -725,7 +746,7 @@ class PortfolioManager:
                                 "trends": trends,
                             }
         except Exception as e:
-            print(f"[WARN]  Trend-following strength detection error for {coin}: {e}")
+            logger.warning("Trend-following strength detection error for {}: {}", coin, e)
         return result
 
     def apply_directional_bias(
@@ -1113,7 +1134,7 @@ class PortfolioManager:
 
         """
         history = safe_file_read(self.cycle_history_file, default_data=[])
-        print(f"[OK]    Loaded {len(history)} cycles.")
+        logger.info("Loaded {} cycles.", len(history))
         return history
 
     def add_to_cycle_history(self, history_ctx: dict[str, Any]) -> None:
@@ -1202,7 +1223,7 @@ class PortfolioManager:
             self.cycle_history = self.cycle_history[-constants.MAX_CYCLE_HISTORY :]
         # safe_file_write is internally thread-safe (uses its own global lock + atomic replace)
         safe_file_write(self.cycle_history_file, self.cycle_history)
-        print(f"[OK]    Saved cycle {cycle_number} (Total: {len(self.cycle_history)})")
+        logger.info("Saved cycle {} (Total: {})", cycle_number, len(self.cycle_history))
 
     def _update_peak_pnl_tracking(self, coin: str, pos: dict[str, Any]) -> None:
         """Track peak PnL and calculate profit erosion for a single position.
@@ -1338,7 +1359,7 @@ class PortfolioManager:
                     if increment_loss_counters:
                         self._update_price_counters(coin, pos, pnl)
                 elif coin in self.positions:
-                    print(f"[WARN]  Invalid price for {coin}: {price}. PnL skip.")
+                    logger.warning("Invalid price for {}: {}. PnL skip.", coin, price)
 
             self._calculate_total_portfolio_value()
 
@@ -1405,16 +1426,24 @@ class PortfolioManager:
             pos["profit_cycle_count"] = 0  # Reset profit counter when negative
             new_count = pos["loss_cycle_count"]
             if new_count in constants.WATCH_CYCLES_LIST:
-                print(
-                    f"[WATCH] LOSS CYCLE WATCH: {coin} {direction} negative for {new_count} cycles (PnL ${pnl:.2f}).",
+                logger.info(
+                    "LOSS CYCLE WATCH: {} {} negative for {} cycles (PnL ${:.2f}).",
+                    coin,
+                    direction,
+                    new_count,
+                    pnl,
                 )
         else:
             pos["loss_cycle_count"] = 0
             pos["profit_cycle_count"] = pos.get("profit_cycle_count", 0) + 1
             new_profit_count = pos["profit_cycle_count"]
             if new_profit_count in constants.PROFIT_WATCH_CYCLES_LIST:
-                print(
-                    f"[WATCH] PROFIT CYCLE WATCH: {coin} {direction} profitable for {new_profit_count} cycles (PnL ${pnl:.2f}).",
+                logger.info(
+                    "PROFIT CYCLE WATCH: {} {} profitable for {} cycles (PnL ${:.2f}).",
+                    coin,
+                    direction,
+                    new_profit_count,
+                    pnl,
                 )
 
     def _calculate_total_portfolio_value(self) -> None:
@@ -1453,7 +1482,7 @@ class PortfolioManager:
                 else:
                     self.total_value = self.current_balance
             except Exception as e:
-                print(f"Error updating balance from overview: {e}")
+                logger.error("Error updating balance from overview: {}", e)
                 self.total_value = self.current_balance
         else:
             self.total_value = self.current_balance
@@ -1534,7 +1563,7 @@ class PortfolioManager:
             return float(annualized_sharpe)
 
         except Exception as e:
-            print(f"[WARN]  Sharpe ratio calculation error: {e}")
+            logger.warning("Sharpe ratio calculation error: {}", e)
             return 0.0
 
     def get_manual_override(self) -> dict[str, Any]:
@@ -1548,12 +1577,12 @@ class PortfolioManager:
         path_obj = Path(self.override_file)
         override_data = safe_file_read_cached(str(path_obj), default_data={})
         if override_data:
-            print(f"[ALERT] MANUAL OVERRIDE DETECTED: {override_data}")
+            logger.info("MANUAL OVERRIDE DETECTED: {}", override_data)
             try:
                 path_obj.unlink(missing_ok=True)
-                print("[INFO]  Override file deleted.")
+                logger.info("Override file deleted.")
             except OSError as e:
-                print(f"[WARN]  Could not delete override file: {e}")
+                logger.warning("Could not delete override file: {}", e)
         return override_data
 
     def _estimate_liquidation_price(
@@ -1581,7 +1610,7 @@ class PortfolioManager:
         mmr = self.maintenance_margin_rate
         margin_diff = imr - mmr
         if margin_diff <= 0:
-            print(f"[WARN]  Liq est. failed: margin diff <= 0 ({margin_diff}).")
+            logger.warning("Liq est. failed: margin diff <= 0 ({}).", margin_diff)
             return 0.0
         liq_price = (
             entry_price * (1 - margin_diff)
@@ -1760,8 +1789,11 @@ class PortfolioManager:
             if signal in ["buy_to_enter", "sell_to_enter"]:
                 # Apply kademeli position limit
                 if current_positions >= max_positions_for_cycle:
-                    print(
-                        f"[WARN]  KADEMELİ POZİSYON LİMİTİ (Cycle {cycle_number}): Max {max_positions_for_cycle} positions allowed. Skipping {coin} entry.",
+                    logger.warning(
+                        "KADEMELİ POZİSYON LİMİTİ (Cycle {}): Max {} positions allowed. Skipping {} entry.",
+                        cycle_number,
+                        max_positions_for_cycle,
+                        coin,
                     )
                     continue
                 current_positions += 1
@@ -1789,8 +1821,13 @@ class PortfolioManager:
         max_from_percentage: float = self.current_balance * Config.MAXIMUM_LIMIT_BALANCE_PCT
         min_limit: float = Config.MIN_PARTIAL_PROFIT_MARGIN_REMAINING_USD
         max_limit: float = max(min_limit, max_from_percentage)
-        print(
-            f"[INFO]  Maximum limit: ${max_limit:.2f} (${min_limit} fixed vs ${max_from_percentage:.2f} {Config.MAXIMUM_LIMIT_BALANCE_PCT * 100:.1f}% of ${self.current_balance:.2f} available cash)",
+        logger.info(
+            "Maximum limit: ${:.2f} (${} fixed vs ${:.2f} {:.1f}% of ${:.2f} available cash)",
+            max_limit,
+            min_limit,
+            max_from_percentage,
+            Config.MAXIMUM_LIMIT_BALANCE_PCT * 100,
+            self.current_balance,
         )
         return max_limit
 
@@ -1842,8 +1879,10 @@ class PortfolioManager:
 
         if current_margin <= max_limit:
             # Position already at or below maximum limit, don't sell - close completely
-            print(
-                f"🛑 Partial sale blocked: Position margin ${current_margin:.2f} <= maximum limit ${max_limit:.2f}. Position will be closed.",
+            logger.info(
+                "Partial sale blocked: Position margin ${:.2f} <= maximum limit ${:.2f}. Position will be closed.",
+                current_margin,
+                max_limit,
             )
             return (
                 0.0,
@@ -1862,8 +1901,11 @@ class PortfolioManager:
         # FIX: Division by zero protection
         adjusted_percent = adjusted_sale_amount / current_margin if current_margin > 0 else 0.0
 
-        print(
-            f"[INFO]  Adjusted partial sale: {proposed_percent * 100:.0f}% → {adjusted_percent * 100:.0f}% to maintain ${max_limit:.2f} maximum limit",
+        logger.info(
+            "Adjusted partial sale: {:.0f}% → {:.0f}% to maintain ${:.2f} maximum limit",
+            proposed_percent * 100,
+            adjusted_percent * 100,
+            max_limit,
         )
         return adjusted_percent, False, None
 
@@ -1920,8 +1962,11 @@ class PortfolioManager:
 
         return adjusted_percent, False, f"Adjusted to maintain minimum margin ${min_remaining:.2f}"
 
-        print(
-            f"[INFO]  Adjusted partial sale: {proposed_percent * 100:.0f}% → {adjusted_percent * 100:.0f}% to maintain ${min_remaining:.2f} minimum limit",
+        logger.info(
+            "Adjusted partial sale: {:.0f}% → {:.0f}% to maintain ${:.2f} minimum limit",
+            proposed_percent * 100,
+            adjusted_percent * 100,
+            min_remaining,
         )
         return adjusted_percent
 
@@ -1970,7 +2015,7 @@ class PortfolioManager:
             return self._evaluate_counter_trend_alignment(signal, sig_dir, t_htf, t_15m, t_3m)
 
         except Exception as e:
-            print(f"[WARN]  Counter-trend detection error for {coin}: {e}")
+            logger.warning("Counter-trend detection error for {}: {}", coin, e)
             return False
 
     def _calculate_trend_direction(self, price: float, ema20: float) -> str:
@@ -2060,7 +2105,9 @@ class PortfolioManager:
         if entry_price is None or stop_loss is None or entry_price <= 0:
             margin = available_cash * 0.40 * confidence
             margin = max(margin, Config.MIN_POSITION_MARGIN_USD)
-            print(f"[INFO]  Standard Sizing (Missing Data): ${margin:.2f} (conf: {confidence:.2f})")
+            logger.info(
+                "Standard Sizing (Missing Data): ${:.2f} (conf: {:.2f})", margin, confidence
+            )
             return margin
 
         # 2. Calculate Stop Distance %
@@ -2097,8 +2144,10 @@ class PortfolioManager:
                     },
                 )
             else:
-                print(
-                    f"[WARN]  Volatility sizing capped by cash limit: ${target_margin:.2f} -> ${max_margin_cash:.2f}"
+                logger.warning(
+                    "Volatility sizing capped by cash limit: ${:.2f} -> ${:.2f}",
+                    target_margin,
+                    max_margin_cash,
                 )
             target_margin = max_margin_cash
 
@@ -2112,7 +2161,7 @@ class PortfolioManager:
         if log_func:
             log_func("sizing", msg)
         else:
-            print(msg)
+            logger.info("{}", msg)
         return target_margin
 
     def get_graduated_loss_multiplier(self, margin_usd: float) -> float:
@@ -2178,7 +2227,7 @@ class PortfolioManager:
                 else:
                     score = 20.0
         except Exception as e:
-            print(f"[WARN]  Volume quality score calculation error for {coin}: {e}")
+            logger.warning("Volume quality score calculation error for {}: {}", coin, e)
         return score
 
     def check_flash_exit_conditions(self, coin: str, position: dict[str, Any]) -> bool:
@@ -2222,7 +2271,7 @@ class PortfolioManager:
                             if v_rat >= Config.FLASH_EXIT_VOLUME_SURGE_THRESHOLD:
                                 should_flash_exit = True
         except Exception as e:
-            print(f"[WARN] Flash exit check error for {coin}: {e}")
+            logger.warning("Flash exit check error for {}: {}", coin, e)
         return should_flash_exit
 
     def get_effective_same_direction_limit(self) -> int:
@@ -2272,7 +2321,7 @@ class PortfolioManager:
 
             # Allow exit if PnL is good (>2%) or bad (<-1.5%)
             if pnl_pct > constants.PNL_PCT_EXIT_PROFIT or pnl_pct < constants.PNL_PCT_EXIT_LOSS:
-                print(f"[OK]    Exit validated by PnL: {pnl_pct:.2f}%")
+                logger.info("Exit validated by PnL: {:.2f}%", pnl_pct)
                 return True
 
             # 2. 15m Confirmation
@@ -2285,7 +2334,7 @@ class PortfolioManager:
                     direction == "short" and price_15m > ema20_15m
                 )
                 if is_15m_reversal:
-                    print("[OK]    Exit validated by 15m reversal")
+                    logger.info("Exit validated by 15m reversal")
                     return True
 
             # 3. Strong 3m Reversal (Check MACD/RSI intensity)
@@ -2305,15 +2354,15 @@ class PortfolioManager:
             )  # Overbought/sold reversal
 
             if is_price_crossed and is_rsi_extreme:
-                print("[OK]    Exit validated by Strong 3m Reversal (Price+RSI)")
+                logger.info("Exit validated by Strong 3m Reversal (Price+RSI)")
                 return True
 
-            print(
-                f"[BLOCK] Exit blocked: Weak 3m reversal without confirmation (PnL: {pnl_pct:.2f}%)"
+            logger.info(
+                "Exit blocked: Weak 3m reversal without confirmation (PnL: {:.2f}%)", pnl_pct
             )
             return False
         except Exception as e:
-            print(f"[WARN]  Exit validation error: {e}")
+            logger.warning("Exit validation error: {}", e)
             return True  # Fail safe: allow exit
 
     def _get_signal_priority(self, item: tuple[str, Any]) -> tuple[int, float]:
@@ -2366,7 +2415,7 @@ class PortfolioManager:
 
         market_regime = RegimeDetector.detect_overall_regime(coin_indicators)
         regime_strength = RegimeDetector.calculate_regime_strength(coin_indicators)
-        print(f"[CYCLE] Market Regime: {market_regime} | Strength: {regime_strength:.2f}")
+        logger.info("Market Regime: {} | Strength: {:.2f}", market_regime, regime_strength)
 
         return {
             "report": {
@@ -2402,7 +2451,7 @@ class PortfolioManager:
 
         """
         if not position:
-            print(f"[WARN]  CLOSE {coin}: No position to close.")
+            logger.warning("CLOSE {}: No position to close.", coin)
             execution_report["skipped"].append(
                 {"coin": coin, "reason": "no_position_to_close"},
             )
@@ -2418,7 +2467,7 @@ class PortfolioManager:
             )
             if not live_result.get("success"):
                 error_msg = live_result.get("error", "unknown_error")
-                print(f"[BLOCK] LIVE CLOSE FAILED: {coin} ({error_msg})")
+                logger.warning("LIVE CLOSE FAILED: {} ({})", coin, error_msg)
                 execution_report["blocked"].append(
                     {"coin": coin, "reason": "live_close_failed", "error": error_msg},
                 )
@@ -2456,8 +2505,12 @@ class PortfolioManager:
         if not self.is_live_trading:
             self.current_balance += margin_used + profit
 
-        print(
-            f"[OK]    CLOSE (AI): Closed {direction} {coin} @ ${format_num(current_price, 4)} (PnL: ${format_num(profit, 2)})",
+        logger.info(
+            "CLOSE (AI): Closed {} {} @ ${} (PnL: ${})",
+            direction,
+            coin,
+            format_num(current_price, 4),
+            format_num(profit, 2),
         )
         execution_report["executed"].append(
             {
@@ -2537,7 +2590,7 @@ class PortfolioManager:
         trade = signal_ctx["trade"]
 
         if position:
-            print(f"[WARN]  {signal.upper()} {coin}: Position already open.")
+            logger.warning("{} {}: Position already open.", signal.upper(), coin)
             execution_report["skipped"].append(
                 {"coin": coin, "reason": "position_exists", "signal": signal},
             )
@@ -2584,8 +2637,10 @@ class PortfolioManager:
         coin_upper = coin.upper()
         coin_rem = coin_cooldowns.get(coin_upper, 0)
         if coin_rem > 0:
-            print(
-                f"[PAUSED] Coin cooldown active: Blocking {coin} entry ({coin_rem} cycles remaining - previous loss)."
+            logger.info(
+                "Coin cooldown active: Blocking {} entry ({} cycles remaining - previous loss).",
+                coin,
+                coin_rem,
             )
             execution_report["blocked"].append(
                 {"coin": coin, "reason": "coin_cooldown", "cooldown_remaining": coin_rem}
@@ -2596,8 +2651,11 @@ class PortfolioManager:
         directional_cooldowns = self.directional_cooldowns
         dir_rem = directional_cooldowns.get(direction, 0)
         if dir_rem > 0:
-            print(
-                f"[PAUSED] Directional cooldown active: Blocking {direction.upper()} entry for {coin} ({dir_rem} cycles remaining)."
+            logger.info(
+                "Directional cooldown active: Blocking {} entry for {} ({} cycles remaining).",
+                direction.upper(),
+                coin,
+                dir_rem,
             )
             execution_report["blocked"].append(
                 {
@@ -2640,13 +2698,20 @@ class PortfolioManager:
         effective_limit = Config.SAME_DIRECTION_LIMIT
         if regime_strength > constants.REGIME_STRENGTH_THRESHOLD:
             effective_limit = Config.DYNAMIC_DIRECTION_LIMIT
-            print(
-                f"🌊 Dynamic Slot Limit Active: Strength {regime_strength:.2f} > 0.7 -> Limit increased to {effective_limit}"
+            logger.info(
+                "Dynamic Slot Limit Active: Strength {:.2f} > 0.7 -> Limit increased to {}",
+                regime_strength,
+                effective_limit,
             )
 
         if current_same_direction >= effective_limit:
-            print(
-                f"[BLOCK] SAME-DIRECTION LIMIT: {coin} {signal} blocked. {current_same_direction}/{effective_limit} {direction.upper()} positions already open."
+            logger.info(
+                "SAME-DIRECTION LIMIT: {} {} blocked. {}/{} {} positions already open.",
+                coin,
+                signal,
+                current_same_direction,
+                effective_limit,
+                direction.upper(),
             )
             execution_report["blocked"].append(
                 {
@@ -2690,8 +2755,11 @@ class PortfolioManager:
             confidence = float(confidence)
             leverage = int(leverage)
         except (ValueError, TypeError):
-            print(
-                f"[WARN]  Invalid confidence ({confidence}) or leverage ({leverage}) for {coin}. Skipping."
+            logger.warning(
+                "Invalid confidence ({}) or leverage ({}) for {}. Skipping.",
+                confidence,
+                leverage,
+                coin,
             )
             return {"proceed": False}
 
@@ -2699,26 +2767,38 @@ class PortfolioManager:
 
         # Enforce limits
         if leverage > Config.MAX_LEVERAGE:
-            print(
-                f"[WARN]  Leverage {leverage}x exceeds maximum limit of {Config.MAX_LEVERAGE}x. Reducing to {Config.MAX_LEVERAGE}x."
+            logger.warning(
+                "Leverage {}x exceeds maximum limit of {}x. Reducing to {}x.",
+                leverage,
+                Config.MAX_LEVERAGE,
+                Config.MAX_LEVERAGE,
             )
             leverage = Config.MAX_LEVERAGE
 
         # Operational Band
         if leverage < constants.LEVERAGE_MIN_OP:
-            print(
-                f"[INFO]  Adjusting leverage from {leverage}x to minimum operational level {constants.LEVERAGE_MIN_OP}x for {coin}."
+            logger.info(
+                "Adjusting leverage from {}x to minimum operational level {}x for {}.",
+                leverage,
+                constants.LEVERAGE_MIN_OP,
+                coin,
             )
             leverage = constants.LEVERAGE_MIN_OP
         elif leverage > constants.LEVERAGE_MAX_OP:
-            print(
-                f"[INFO]  Adjusting leverage from {leverage}x to maximum operational level {constants.LEVERAGE_MAX_OP}x for {coin}."
+            logger.info(
+                "Adjusting leverage from {}x to maximum operational level {}x for {}.",
+                leverage,
+                constants.LEVERAGE_MAX_OP,
+                coin,
             )
             leverage = constants.LEVERAGE_MAX_OP
 
         if confidence < Config.MIN_CONFIDENCE:
-            print(
-                f"[BLOCK] LOW CONFIDENCE: {coin} trade confidence {confidence:.2f} < {Config.MIN_CONFIDENCE}. Skipping."
+            logger.info(
+                "LOW CONFIDENCE: {} trade confidence {:.2f} < {}. Skipping.",
+                coin,
+                confidence,
+                Config.MIN_CONFIDENCE,
             )
             execution_report = signal_ctx.get("report", {})
             if execution_report is not None:
@@ -3299,9 +3379,9 @@ class PortfolioManager:
                     signal == "sell_to_enter" and p1h <= e1h and p3m <= e3m
                 )
             if aligned:
-                print(f"[OK] TREND-FOLLOWING: {coin} aligns with trend direction")
+                logger.info("TREND-FOLLOWING: {} aligns with trend direction", coin)
             else:
-                print(f"[OK] TREND-FOLLOWING: {coin} aligns with trend direction (fallback)")
+                logger.info("TREND-FOLLOWING: {} aligns with trend direction (fallback)", coin)
 
     def _handle_volume_analysis_and_penalty(
         self,
@@ -3534,8 +3614,19 @@ class PortfolioManager:
         comp_htf = ">" if (price_htf or 0) > (ema20_htf or 0) else "<"
         comp_3m = ">" if (price_3m or 0) > (ema20_3m or 0) else "<"
 
-        print(
-            f"🧾 EXECUTION SNAPSHOT {coin}: {HTF_LABEL} price={_fmt(price_htf)} {comp_htf} EMA20={_fmt(ema20_htf)} | 3m price={_fmt(price_3m)} {comp_3m} EMA20={_fmt(ema20_3m)} | volume_ratio={volume_ratio:.2f}x | counter_trend={is_counter_trend} | trend_state={current_trend.upper()}"
+        logger.debug(
+            "EXECUTION SNAPSHOT {}: {} price={} {} EMA20={} | 3m price={} {} EMA20={} | volume_ratio={:.2f}x | counter_trend={} | trend_state={}",
+            coin,
+            HTF_LABEL,
+            _fmt(price_htf),
+            comp_htf,
+            _fmt(ema20_htf),
+            _fmt(price_3m),
+            comp_3m,
+            _fmt(ema20_3m),
+            volume_ratio,
+            is_counter_trend,
+            current_trend.upper(),
         )
 
         # Inconsistency check
@@ -3616,8 +3707,11 @@ class PortfolioManager:
 
         counter_trend_cooldown = self.counter_trend_cooldown
         if counter_trend_cooldown > 0:
-            print(
-                f"[BLOCK] Counter-trend cooldown active: Blocking {coin} {signal} ({counter_trend_cooldown} cycles remaining)."
+            logger.info(
+                "Counter-trend cooldown active: Blocking {} {} ({} cycles remaining).",
+                coin,
+                signal,
+                counter_trend_cooldown,
             )
             execution_report["blocked"].append(
                 {"coin": coin, "reason": "counter_trend_cooldown", "classification": classification}
@@ -3852,8 +3946,12 @@ class PortfolioManager:
                     if signal == "buy_to_enter"
                     else (current_price + sl_distance)
                 )
-                print(
-                    f"[INFO]  Pre-calculated ATR SL for sizing: {coin} ATR={atr_value:.6f} x {Config.ATR_SL_MULTIPLIER} -> SL=${atr_stop_loss:.6f}",
+                logger.info(
+                    "Pre-calculated ATR SL for sizing: {} ATR={:.6f} x {} -> SL=${:.6f}",
+                    coin,
+                    atr_value,
+                    Config.ATR_SL_MULTIPLIER,
+                    atr_stop_loss,
                 )
                 return atr_stop_loss
             fallback_dist = current_price * 0.02
@@ -3862,10 +3960,12 @@ class PortfolioManager:
                 if signal == "buy_to_enter"
                 else (current_price + fallback_dist)
             )
-            print(f"[WARN]  ATR unavailable for {coin}, using 2% fallback SL: ${atr_stop_loss:.6f}")
+            logger.warning(
+                "ATR unavailable for {}, using 2% fallback SL: ${:.6f}", coin, atr_stop_loss
+            )
             return atr_stop_loss
         except Exception as e:
-            print(f"[WARN]  ATR SL calculation failed for {coin}: {e}")
+            logger.warning("ATR SL calculation failed for {}: {}", coin, e)
             fallback_dist = current_price * 0.02
             return (
                 (current_price - fallback_dist)
@@ -3919,8 +4019,11 @@ class PortfolioManager:
         # Partial Margin & Overrides
         if partial_margin_factor < 1.0:
             reduced_margin = calculated_margin * partial_margin_factor
-            print(
-                f"[WATCH] Applying partial margin ({partial_margin_factor * 100:.0f}%): ${calculated_margin:.2f} → ${reduced_margin:.2f}",
+            logger.info(
+                "Applying partial margin ({:.0f}%): ${:.2f} → ${:.2f}",
+                partial_margin_factor * 100,
+                calculated_margin,
+                reduced_margin,
             )
             calculated_margin = max(reduced_margin, Config.MIN_POSITION_MARGIN_USD)
 
@@ -3940,8 +4043,10 @@ class PortfolioManager:
 
         # Safety Check: Min Margin
         if calculated_margin < Config.MIN_POSITION_MARGIN_USD:
-            print(
-                f"[INFO]  Calculated margin ${calculated_margin:.2f} below minimum ${Config.MIN_POSITION_MARGIN_USD:.2f}. Using minimum.",
+            logger.info(
+                "Calculated margin ${:.2f} below minimum ${:.2f}. Using minimum.",
+                calculated_margin,
+                Config.MIN_POSITION_MARGIN_USD,
             )
             calculated_margin = Config.MIN_POSITION_MARGIN_USD
 
@@ -3971,8 +4076,9 @@ class PortfolioManager:
 
         min_cash_guard = self.current_balance * 0.10
         if (self.current_balance - calculated_margin) < min_cash_guard:
-            print(
-                f"[WARN]  Trade would reduce available cash below minimum ${min_cash_guard:.2f}. Trade blocked.",
+            logger.warning(
+                "Trade would reduce available cash below minimum ${:.2f}. Trade blocked.",
+                min_cash_guard,
             )
             execution_report["blocked"].append(
                 {
@@ -3996,7 +4102,7 @@ class PortfolioManager:
         )
 
         if not risk_decision["should_enter"]:
-            print(f"[WARN]  Risk management blocked trade: {risk_decision['reason']}")
+            logger.warning("Risk management blocked trade: {}", risk_decision["reason"])
             execution_report["blocked"].append(
                 {"coin": coin, "reason": f"risk_manager:{risk_decision['reason']}"},
             )
@@ -4038,11 +4144,17 @@ class PortfolioManager:
         notional_usd = calculated_margin * leverage
         margin_usd = notional_usd / leverage
         if margin_usd <= 0:
-            print(f"[WARN]  {signal.upper()} {coin}: Calculated margin is zero/negative. Skipping.")
+            logger.warning(
+                "{} {}: Calculated margin is zero/negative. Skipping.", signal.upper(), coin
+            )
             return False
         if margin_usd > self.current_balance:
-            print(
-                f"[WARN]  {signal.upper()} {coin}: Not enough cash for margin (${margin_usd:.2f} > ${self.current_balance:.2f})",
+            logger.warning(
+                "{} {}: Not enough cash for margin (${:.2f} > ${:.2f})",
+                signal.upper(),
+                coin,
+                margin_usd,
+                self.current_balance,
             )
             return False
 
@@ -4065,7 +4177,7 @@ class PortfolioManager:
             )
             if not live_result.get("success"):
                 err_msg = live_result.get("error", "unknown_error")
-                print(f"[BLOCK] LIVE ORDER FAILED: {coin} {signal} ({err_msg})")
+                logger.warning("LIVE ORDER FAILED: {} {} ({})", coin, signal, err_msg)
                 execution_report["blocked"].append(
                     {"coin": coin, "reason": "live_order_failed", "error": err_msg},
                 )
@@ -4126,8 +4238,15 @@ class PortfolioManager:
                 "entry_oid": -1,
                 "wait_for_fill": False,
             }
-        print(
-            f"[OK]    {signal.upper()}: Opened {direction} {coin} ({format_num(quantity_coin, 4)} @ ${format_num(current_price, 4)} / Notional ${format_num(notional_usd, 2)} / Margin ${format_num(margin_usd, 2)})",
+        logger.info(
+            "{}: Opened {} {} ({} @ ${} / Notional ${} / Margin ${})",
+            signal.upper(),
+            direction,
+            coin,
+            format_num(quantity_coin, 4),
+            format_num(current_price, 4),
+            format_num(notional_usd, 2),
+            format_num(margin_usd, 2),
         )
         execution_report["executed"].append(
             {
@@ -4168,7 +4287,7 @@ class PortfolioManager:
 
         """
         if not isinstance(decisions, dict):
-            print(f"[ERR]   Invalid decisions format: {type(decisions)}")
+            logger.error("Invalid decisions format: {}", type(decisions))
             return
 
         batch_ctx = self._prepare_decision_batch_context(decisions)
@@ -4200,7 +4319,7 @@ class PortfolioManager:
 
         # Define logging helper
         def log_func(category: str, message: str, details: dict | None = None) -> None:
-            print(message)
+            logger.info("{}", message)
             report["debug_logs"].append(
                 {
                     "category": category,
@@ -4217,7 +4336,7 @@ class PortfolioManager:
             if t.get("signal") in ["buy_to_enter", "sell_to_enter"]
         ]
         if entry_signals:
-            print(f"[INFO]  Signal priority order: {entry_signals}")
+            logger.info("Signal priority order: {}", entry_signals)
 
         return {
             "report": report,
@@ -4250,12 +4369,12 @@ class PortfolioManager:
 
         """
         if not isinstance(trade, dict):
-            print(f"[WARN]  Invalid trade data for {coin}: {type(trade)}")
+            logger.warning("Invalid trade data for {}: {}", coin, type(trade))
             return
 
         price = current_prices.get(coin)
         if price is None or not isinstance(price, (int, float)) or price <= 0:
-            print(f"[WARN]  Skipping {coin}: Invalid price data.")
+            logger.warning("Skipping {}: Invalid price data.", coin)
             return
 
         signal = trade.get("signal")
@@ -4276,7 +4395,7 @@ class PortfolioManager:
         elif signal == "hold":
             self._handle_hold_signal(coin, position, batch_ctx["report"], trade)
         else:
-            print(f"[WARN]  Unknown signal '{signal}' for {coin}. Skipping.")
+            logger.warning("Unknown signal '{}' for {}. Skipping.", signal, coin)
 
     def _handle_entry_decision(
         self,
@@ -4371,9 +4490,9 @@ class PortfolioManager:
 
         """
         if position:
-            print(f"[INFO]  HOLD: Holding {position.get('direction', 'long')} {coin} position.")
+            logger.info("HOLD: Holding {} {} position.", position.get("direction", "long"), coin)
         else:
-            print(f"[INFO]  HOLD: Staying cash in {coin}.")
+            logger.info("HOLD: Staying cash in {}.", coin)
         report["holds"].append({"coin": coin, "has_position": bool(position)})
         trade["runtime_decision"] = "hold"
 

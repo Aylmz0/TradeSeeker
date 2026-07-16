@@ -1,5 +1,7 @@
 import glob
 import json
+
+from loguru import logger
 import os
 import statistics
 from datetime import datetime, timezone
@@ -240,7 +242,7 @@ class PerformanceMonitor:
             return performance_report
 
         except Exception as e:
-            print(f"[ERR]   Performance analysis error: {e}")
+            logger.error("Performance analysis error: {}", e)
             return {"error": f"Performance analysis failed: {e!s}"}
 
     def _calculate_max_drawdown(self, value_history: list[float]) -> float:
@@ -345,73 +347,69 @@ class PerformanceMonitor:
         return recommendations
 
     def print_performance_summary(self, report: dict):
-        """Print a formatted performance summary"""
+        """Log a formatted performance summary"""
         if "error" in report:
-            print(f"[ERR]   Performance analysis failed: {report['error']}")
+            logger.error("Performance analysis failed: {}", report["error"])
             return
 
         if "info" in report:
-            print(f"[INFO] {report['info']}")
+            logger.info("{}", report["info"])
             return
 
-        print(f"\n{'=' * 60}")
-        print(f"[INFO]  PERFORMANCE REPORT - {report.get('analysis_period', 'N/A')}")
-        print(f"{'=' * 60}")
+        logger.info("=" * 60)
+        logger.info("PERFORMANCE REPORT - {}", report.get("analysis_period", "N/A"))
 
-        # Trading Activity
         activity = report.get("trading_activity", {})
-        print("\n[INFO] TRADING ACTIVITY:")
-        print(f"   Total Decisions: {activity.get('total_decisions', 0)}")
-        print(f"   Entry Signals: {activity.get('entry_signals', 0)}")
-        print(f"   Hold Signals: {activity.get('hold_signals', 0)}")
-        print(f"   Decision Rate: {activity.get('decision_rate', 0):.1f}%")
+        logger.info(
+            "TRADING ACTIVITY: decisions={} entries={} holds={} rate={:.1f}%",
+            activity.get("total_decisions", 0),
+            activity.get("entry_signals", 0),
+            activity.get("hold_signals", 0),
+            activity.get("decision_rate", 0),
+        )
 
-        # Trade Performance
         trade_perf = report.get("trade_performance", {})
-        print("\n[INFO]   TRADE PERFORMANCE:")
-        print(f"   Total Trades: {trade_perf.get('total_trades', 0)}")
-        print(f"   Profitability Index: {trade_perf.get('profitability_index', 0):.1f}%")
-        print(f"   Total PnL: ${trade_perf.get('total_pnl', 0):.2f}")
-        print(f"   Avg PnL/Trade: ${trade_perf.get('average_pnl', 0):.2f}")
-        print(f"   Profit Factor: {trade_perf.get('profit_factor', 0):.2f}")
+        logger.info(
+            "TRADE PERFORMANCE: trades={} prof_idx={:.1f}% PnL=${:.2f} avg=${:.2f} PF={:.2f}",
+            trade_perf.get("total_trades", 0),
+            trade_perf.get("profitability_index", 0),
+            trade_perf.get("total_pnl", 0),
+            trade_perf.get("average_pnl", 0),
+            trade_perf.get("profit_factor", 0),
+        )
 
-        # Portfolio Performance
         portfolio_perf = report.get("portfolio_performance", {})
-        print("\n[INFO]   PORTFOLIO PERFORMANCE:")
-        print(f"   Total Return: {portfolio_perf.get('total_return', 0):.2f}%")
-        print(f"   Sharpe Ratio: {portfolio_perf.get('sharpe_ratio', 0):.3f}")
-        print(f"   Sortino Ratio: {portfolio_perf.get('sortino_ratio', 0):.3f}")
-        print(f"   Max Drawdown: {portfolio_perf.get('max_drawdown', 0):.2f}%")
-        print(f"   Open Positions: {portfolio_perf.get('open_positions', 0)}")
+        logger.info(
+            "PORTFOLIO: return={:.2f}% sharpe={:.3f} sortino={:.3f} drawdown={:.2f}% positions={}",
+            portfolio_perf.get("total_return", 0),
+            portfolio_perf.get("sharpe_ratio", 0),
+            portfolio_perf.get("sortino_ratio", 0),
+            portfolio_perf.get("max_drawdown", 0),
+            portfolio_perf.get("open_positions", 0),
+        )
 
-        # Coin Performance
         coin_perf = report.get("coin_performance", {})
         if coin_perf:
-            print("\n[INFO]   COIN PERFORMANCE:")
             for coin, stats in coin_perf.items():
-                profitability_index = stats.get("profitability_index", 0)
-                total_pnl = stats.get("total_pnl", 0)
-                trades = stats.get("trades", 0)
-                print(
-                    f"   {coin}: {trades} trades, {profitability_index:.1f}% prof. index, PnL: ${total_pnl:.2f}",
+                logger.info(
+                    "COIN {}: {} trades, {:.1f}% prof, PnL=${:.2f}",
+                    coin,
+                    stats.get("trades", 0),
+                    stats.get("profitability_index", 0),
+                    stats.get("total_pnl", 0),
                 )
 
-        # Recommendations
         recommendations = report.get("recommendations", [])
         if recommendations:
-            print("\n[INFO] RECOMMENDATIONS:")
             for rec in recommendations:
-                print(f"   - {rec}")
+                logger.info("RECOMMENDATION: {}", rec)
 
-        # Adaptive strategy suggestions
         adaptive_suggestions = self._generate_adaptive_suggestions(report)
         if adaptive_suggestions:
-            print("\n[INFO] ADAPTIVE STRATEGY SUGGESTIONS:")
             for suggestion in adaptive_suggestions:
-                print(f"   - {suggestion}")
+                logger.info("ADAPTIVE SUGGESTION: {}", suggestion)
 
-        print(f"\n[INFO] Full report saved to: {self.performance_file}")
-        print(f"{'=' * 60}")
+        logger.info("Full report saved to: {}", self.performance_file)
 
     def _generate_adaptive_suggestions(self, report: dict) -> list[str]:
         """Generate adaptive strategy suggestions based on performance patterns"""
@@ -546,7 +544,7 @@ class PerformanceMonitor:
             low_risk_coins = []
             no_risk_coins = []
 
-            print(f"[INFO] Analyzing trend break signals for {len(coins)} coins...")
+            logger.info("Analyzing trend break signals for {} coins...", len(coins))
 
             for coin in coins:
                 # Get indicators (from cache or fetch)
@@ -631,7 +629,7 @@ class PerformanceMonitor:
             return loss_risk_signals
 
         except Exception as e:
-            print(f"[ERR]   Error in trend break analysis for all coins: {e}")
+            logger.error("Error in trend break analysis for all coins: {}", e)
             return {"error": f"Trend break analysis failed: {e!s}"}
 
     def _generate_reversal_recommendations(
@@ -761,7 +759,7 @@ class PerformanceMonitor:
 def main():
     """Standalone performance analysis"""
     monitor = PerformanceMonitor()
-    print("[INFO] Analyzing trading performance...")
+    logger.info("Analyzing trading performance...")
     report = monitor.analyze_performance(last_n_cycles=10)
     monitor.print_performance_summary(report)
 

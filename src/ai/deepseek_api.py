@@ -1,4 +1,6 @@
 import json
+
+from loguru import logger
 import re
 
 import litellm
@@ -128,11 +130,11 @@ class DeepSeekAPI:
             )
 
         if not model_list:
-            print(
-                "[ERR]   No API keys found in .env! Please set OPENROUTER_API_KEY or GROQ_API_KEY."
+            logger.error(
+                "No API keys found in .env! Please set OPENROUTER_API_KEY or GROQ_API_KEY."
             )
         else:
-            print(f"[INFO] Initializing LiteLLM Router with {len(model_list)} fallback models.")
+            logger.info("Initializing LiteLLM Router with {} fallback models.", len(model_list))
             self.router = Router(
                 model_list=model_list,
                 routing_strategy="latency-based-routing",
@@ -443,7 +445,7 @@ class DeepSeekAPI:
             self.invocation_count += 1
             user_message_content = f"Analyze the following market data JSON and provide decisions based on the system rules:\n\n{prompt}"
 
-            print(f"[INFO] Sending request to LiteLLM Router... Payload Size: {len(prompt)} chars")
+            logger.info("Sending request to LiteLLM Router... Payload Size: {} chars", len(prompt))
 
             messages = [
                 {"role": "system", "content": self._build_system_prompt()},
@@ -467,10 +469,10 @@ class DeepSeekAPI:
             ]
 
             # Execute request through Router
-            print(f"[WAIT] Waiting for response from LLM...", end="", flush=True)
+            logger.info("Waiting for response from LLM...")
             response = self.router.completion(**kwargs, fallbacks=fallbacks)
 
-            print(" [OK]")
+            logger.info("LLM response received.")
 
             content = response.choices[0].message.content
 
@@ -483,10 +485,8 @@ class DeepSeekAPI:
             user_len = len(messages[1]["content"])
             total_chars = sys_len + user_len
 
-            print(" [OK]")
-            print("-" * 70)
-            print(f"[AI TOKEN BILL - INV #{self.invocation_count}]")
-            print("-" * 70)
+            logger.info("LLM response received.")
+            logger.info("AI TOKEN BILL - INV #{}", self.invocation_count)
             if usage:
                 prompt_tokens = usage.prompt_tokens
                 completion_tokens = usage.completion_tokens
@@ -497,17 +497,21 @@ class DeepSeekAPI:
                 sys_tokens_est = int(prompt_tokens * sys_ratio)
                 user_tokens_est = prompt_tokens - sys_tokens_est
 
-                print(f"PROMPT TOKENS: {prompt_tokens:,} (~{total_chars:,} chars)")
-                print(f"  - System (Rules): ~{sys_tokens_est:,}")
-                print(f"  - Market (Data):  ~{user_tokens_est:,}")
-                print(f"COMPLETION TOKENS: {completion_tokens:,} (AI Response)")
-                print(f"TOTAL TOKENS: {total_tokens:,}")
+                logger.info(
+                    "Tokens: prompt={:,} (system≈{:,}, market≈{:,}) completion={:,} total={:,}",
+                    prompt_tokens,
+                    sys_tokens_est,
+                    user_tokens_est,
+                    completion_tokens,
+                    total_tokens,
+                )
             else:
-                print(f"[WARN] Usage data missing from API response.")
-                print(f"Estimated Total: ~{total_chars // 4:,} Tokens (Based on char count)")
+                logger.warning(
+                    "Usage data missing from API response. Estimated: ~{:,} tokens (char-based)",
+                    total_chars // 4,
+                )
 
-            print(f"MODEL USED: {model_used}")
-            print("-" * 70)
+            logger.info("Model used: {}", model_used)
 
             # Capture hidden reasoning if available
             reasoning = getattr(response.choices[0].message, "reasoning_content", None)
@@ -515,23 +519,23 @@ class DeepSeekAPI:
             return {"content": content, "reasoning": reasoning}
 
         except litellm.ContextWindowExceededError as e:
-            print(f"[ERR]   Context window exceeded: {e}")
+            logger.error("Context window exceeded: {}", e)
             return self.get_cached_decisions()
         except litellm.RateLimitError as e:
-            print(f"[ERR]   Rate Limit hit across all fallbacks: {e}")
+            logger.error("Rate Limit hit across all fallbacks: {}", e)
             return self.get_cached_decisions()
         except litellm.Timeout as e:
-            print(f"[ERR]   Timeout across all fallbacks: {e}")
+            logger.error("Timeout across all fallbacks: {}", e)
             return self.get_cached_decisions()
         except Exception as e:
             error_type = type(e).__name__
-            print(f"[ERR]   Router API error ({error_type}): {e}")
+            logger.error("Router API error ({}): {}", error_type, e)
             return self._get_error_response(f"{error_type}: {e}")
 
     def _extract_json_from_content(self, content: str) -> str:
         """Robustly extracts and parses JSON from the LLM content block"""
         if not content:
-            print("[WARN]  No content returned from API")
+            logger.warning("No content returned from API")
             return self.get_safe_hold_decisions()
 
         try:
@@ -544,7 +548,7 @@ class DeepSeekAPI:
                     obj, _ = decoder.raw_decode(json_candidate)
                     return json.dumps(obj, indent=2)
                 except Exception as e:
-                    print(f"[WARN]  Strict JSON parse failed ({e}), attempting regex repair...")
+                    logger.warning("Strict JSON parse failed ({}), attempting regex repair...", e)
 
                     # 2. Aggressive Repair
                     cleaned = re.sub(r"```json\s*", "", json_candidate)
@@ -556,10 +560,10 @@ class DeepSeekAPI:
 
                     try:
                         obj = json.loads(cleaned)
-                        print("[OK]    JSON repaired successfully via regex filtering.")
+                        logger.debug("JSON repaired successfully via regex filtering.")
                         return json.dumps(obj, indent=2)
                     except Exception as inner_e:
-                        print(f"[WARN]  Regex repair failed: {inner_e}")
+                        logger.warning("Regex repair failed: {}", inner_e)
 
                         # Extract DECISIONS block if everything else is corrupted
                         match = re.search(r'"DECISIONS"\s*:\s*({[^}]+(}[^{}]*)*})', cleaned)
@@ -567,21 +571,21 @@ class DeepSeekAPI:
                             try:
                                 decisions_str = "{" + match.group(0) + "}"
                                 obj = json.loads(decisions_str)
-                                print(
-                                    "[OK]    JSON repaired successfully by extracting DECISIONS block only."
+                                logger.debug(
+                                    "JSON repaired successfully by extracting DECISIONS block only."
                                 )
                                 return json.dumps(obj, indent=2)
                             except Exception:
                                 pass
         except Exception as e:
-            print(f"[WARN]  JSON extraction warning: {e}")
+            logger.warning("JSON extraction warning: {}", e)
 
-        print("[ERR]   JSON parse failed completely, returning safe HOLD decisions")
+        logger.error("JSON parse failed completely, returning safe HOLD decisions")
         return self.get_safe_hold_decisions()
 
     def _get_simulation_response(self, prompt: str) -> str:
         """Simulation response without API - Returns valid JSON string"""
-        print("[WARN]  Using simulation mode...")
+        logger.warning("Using simulation mode...")
         simulation_data = {
             "CHAIN_OF_THOUGHTS": f"Simulation Mode: Assuming market pullback. Shorting SOL based on simulated {HTF_LABEL} resistance. Aiming for 1:1.5 R/R using simulated ATR. Holding others.",
             "DECISIONS": {
@@ -625,7 +629,7 @@ class DeepSeekAPI:
                         and d.get("signal") in ["buy_to_enter", "sell_to_enter"]
                     ]
                     if valid_signals:
-                        print("[INFO] Using cached decisions from recent successful cycle")
+                        logger.info("Using cached decisions from recent successful cycle")
                         # Neutralize entry signals for coins that already have an open position
                         # to prevent ghost entries (double-open on same coin)
                         safe_decisions = {}
@@ -639,8 +643,9 @@ class DeepSeekAPI:
                                     "signal": "hold",
                                     "justification": "Cache fallback: position already open, neutralized to avoid ghost entry.",
                                 }
-                                print(
-                                    f"[SHIELD] Cache ghost entry blocked for {coin} (position already open)."
+                                logger.info(
+                                    "Cache ghost entry blocked for {} (position already open).",
+                                    coin,
                                 )
                             else:
                                 safe_decisions[coin] = dec
@@ -653,12 +658,12 @@ class DeepSeekAPI:
             return self.get_safe_hold_decisions()
 
         except Exception as e:
-            print(f"[WARN]  Cache retrieval error: {e}")
+            logger.warning("Cache retrieval error: {}", e)
             return self.get_safe_hold_decisions()
 
     def get_safe_hold_decisions(self) -> str:
         """Generate safe hold decisions for all coins - Returns valid JSON string"""
-        print("[INFO] Generating safe hold decisions")
+        logger.info("Generating safe hold decisions")
         hold_decisions = {}
         for coin in ["XRP", "DOGE", "ASTER", "TRX", "ETH", "SOL"]:
             hold_decisions[coin] = {
@@ -674,7 +679,7 @@ class DeepSeekAPI:
 
     def _get_error_response(self, error_message: str) -> str:
         """Enhanced error response with intelligent recovery"""
-        print(f"[ERR]   Enhanced error handling for: {error_message}")
+        logger.error("Enhanced error handling for: {}", error_message)
 
         error_type = (
             type(error_message).__name__

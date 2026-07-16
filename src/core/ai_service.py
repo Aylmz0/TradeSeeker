@@ -5,6 +5,8 @@ import warnings
 from datetime import datetime, timezone
 from typing import Any
 
+from loguru import logger
+
 from config.config import Config
 from src.ai.enhanced_context_provider import EnhancedContextProvider
 from src.core import constants
@@ -47,7 +49,7 @@ class AIService:
             provider = EnhancedContextProvider()
             return provider.generate_enhanced_context()
         except Exception as e:
-            print(f"[WARN]  Enhanced context error: {e}")
+            logger.warning("Enhanced context error: {}", e)
             return {"error": f"Enhanced context failed: {e!s}"}
 
     def get_directional_bias_metrics(self) -> dict[str, dict[str, Any]]:
@@ -99,7 +101,7 @@ class AIService:
             }
 
         except Exception as e:
-            print(f"[WARN]  Trading context error: {e}")
+            logger.warning("Trading context error: {}", e)
             return {
                 "recent_decisions": [],
                 "market_behavior": "Error in context analysis",
@@ -830,6 +832,8 @@ Current live positions & performance:"""
             See :meth:`generate_alpha_arena_prompt` for text-only format (deprecated).
 
         """
+        from loguru import logger
+
         from config.config import Config
         from src.ai.prompt_json_builders import (
             build_coin_state_vector,
@@ -911,8 +915,9 @@ Current live positions & performance:"""
                 coins_to_analyze.append(coin)
 
         if skipped_cooldown_coins:
-            print(
-                f"[INFO]  Prompt optimization: Skipped cooldown coins (no position): {skipped_cooldown_coins}",
+            logger.info(
+                "Prompt optimization: Skipped cooldown coins (no position): {}",
+                skipped_cooldown_coins,
             )
 
         # Pre-compute ML predictions for analyzed coins to use in counter-trade analysis
@@ -1141,7 +1146,7 @@ Each coin below contains a State Vector with:
 
                     decisions = self._clean_ai_decisions(parsed_json.get("DECISIONS", {}))
                 except Exception as je:
-                    print(f"[WARN]  JSON extraction failed: {je}")
+                    logger.warning("JSON extraction failed: {}", je)
                     thoughts_list.append(f"\n[PARSING ERROR] JSON block is corrupted.")
             else:
                 # No JSON found, treat everything as analysis
@@ -1155,7 +1160,7 @@ Each coin below contains a State Vector with:
             return {"chain_of_thoughts": combined_thoughts, "decisions": decisions}
 
         except Exception as e:
-            print(f"[ERR]   General parse error: {e}")
+            logger.error("General parse error: {}", e)
             preview = (raw_content or "")[:200]
             return {
                 "chain_of_thoughts": f"Error during parsing: {e}\nRaw preview: {preview}",
@@ -1176,8 +1181,10 @@ Each coin below contains a State Vector with:
             inferred = trade.get("runtime_decision", "hold")
             if inferred not in {"buy_to_enter", "sell_to_enter", "close_position", "hold"}:
                 inferred = "hold"
-            print(
-                f"[NORM]  {coin}: Missing top-level 'signal'. Inferred='{inferred}' from runtime_decision."
+            logger.debug(
+                "{}: Missing top-level 'signal'. Inferred='{}' from runtime_decision.",
+                coin,
+                inferred,
             )
             trade["signal"] = inferred
 
@@ -1185,8 +1192,11 @@ Each coin below contains a State Vector with:
         raw_conf = trade.get("confidence")
         if isinstance(raw_conf, (int, float)) and raw_conf > 1.5:
             normalized = round(raw_conf / 100.0, 4)
-            print(
-                f"[NORM]  {coin}: Confidence {raw_conf:.2f} is a percentage → normalized to {normalized}"
+            logger.debug(
+                "{}: Confidence {:.2f} is a percentage → normalized to {}",
+                coin,
+                raw_conf,
+                normalized,
             )
             trade["confidence"] = normalized
 
@@ -1233,9 +1243,7 @@ Each coin below contains a State Vector with:
                 valid_signals = {"buy_to_enter", "sell_to_enter", "close_position", "hold"}
                 signal = trade.get("signal")
                 if signal not in valid_signals:
-                    print(
-                        f"[WARN]  {coin}: Invalid signal '{signal}' → converted to 'hold'",
-                    )
+                    logger.warning("{}: Invalid signal '{}' → converted to 'hold'", coin, signal)
                     trade["signal"] = "hold"
 
                 # Leverage bounds check
@@ -1244,8 +1252,12 @@ Each coin below contains a State Vector with:
                     max_lev = getattr(Config, "MAX_LEVERAGE", 20)
                     default_lev = getattr(Config, "BINANCE_DEFAULT_LEVERAGE", 10)
                     if leverage < 1 or leverage > max_lev:
-                        print(
-                            f"[WARN]  {coin}: Leverage {leverage} out of [1, {max_lev}] → reset to {default_lev}",
+                        logger.warning(
+                            "{}: Leverage {} out of [1, {}] → reset to {}",
+                            coin,
+                            leverage,
+                            max_lev,
+                            default_lev,
                         )
                         trade["leverage"] = default_lev
                 elif leverage is not None:
@@ -1255,8 +1267,8 @@ Each coin below contains a State Vector with:
                 confidence = trade.get("confidence")
                 if isinstance(confidence, (int, float)):
                     if confidence < 0.0 or confidence > 1.0:
-                        print(
-                            f"[WARN]  {coin}: Confidence {confidence:.4f} out of [0, 1] → clamped",
+                        logger.warning(
+                            "{}: Confidence {:.4f} out of [0, 1] → clamped", coin, confidence
                         )
                         trade["confidence"] = max(0.0, min(1.0, confidence))
 
@@ -1264,8 +1276,8 @@ Each coin below contains a State Vector with:
                 for key in ("margin_usd", "quantity_usd"):
                     val = trade.get(key)
                     if isinstance(val, (int, float)) and val <= 0:
-                        print(
-                            f"[WARN]  {coin}: {key}={val} is not positive → converted to hold",
+                        logger.warning(
+                            "{}: {}={} is not positive → converted to hold", coin, key, val
                         )
                         trade["signal"] = "hold"
                         break

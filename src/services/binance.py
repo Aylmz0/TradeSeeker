@@ -385,7 +385,7 @@ class BinanceOrderExecutor:
                         break
             except Exception as e:
                 # FIX: Log the error instead of silently swallowing
-                print(f"[WARN]  Failed to get wallet balance: {e}")
+                logger.warning("Failed to get wallet balance: %s", e)
 
         return overview
 
@@ -600,7 +600,7 @@ class BinanceOrderExecutor:
                 logger.info("Cancelled unfilled LIMIT order %s for %s", order_id, coin)
             except Exception as e:
                 # FIX: Log the error instead of silently swallowing
-                print(f"[WARN]  Failed to cancel order {order_id}: {e}")
+                logger.warning("Failed to cancel order %s: %s", order_id, e)
 
             # Check if partially filled
             try:
@@ -637,7 +637,7 @@ class BinanceOrderExecutor:
                     return final_status
             except Exception as e:
                 # FIX: Log the error instead of silently swallowing
-                print(f"[WARN]  Failed to get final order status: {e}")
+                logger.warning("Failed to get final order status: %s", e)
 
             # Pure fallback: full market order
             logger.info("LIMIT order timeout for %s, executing full MARKET fallback", coin)

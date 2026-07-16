@@ -7,6 +7,8 @@ from typing import Any
 
 import joblib
 import polars as pl
+
+from loguru import logger
 import xgboost as xgb
 
 from src.core import constants
@@ -167,7 +169,7 @@ class MLService:
                         try:
                             lines.append(json.loads(line))
                         except json.JSONDecodeError as e:
-                            print(f"[WARN]  Invalid JSON in ML prediction log: {e}")
+                            logger.warning("Invalid JSON in ML prediction log: {}", e)
                             continue
 
             if len(lines) < constants.MIN_ML_LOG_LINES:
@@ -303,7 +305,7 @@ class MLService:
 
 if __name__ == "__main__":
     # Local Test Block
-    print("--- Testing ML Inference Service ---")
+    logger.info("--- Testing ML Inference Service ---")
     service = MLService()
 
     if service.is_ready:
@@ -322,7 +324,6 @@ if __name__ == "__main__":
         )
 
         result = service.predict(df_test, coin="XRP")
-        print("\n[OK] Prediction Result:")
-        print(json.dumps(result, indent=2))
+        logger.info("Prediction Result: {}", json.dumps(result, indent=2))
     else:
-        print("\n[FAIL] MLService not ready. Did you run scripts/train_model.py?")
+        logger.error("MLService not ready. Did you run scripts/train_model.py?")

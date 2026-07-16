@@ -1,6 +1,8 @@
 from datetime import datetime, timezone
 from typing import Any
 
+from loguru import logger
+
 from config.config import Config
 from src.core import constants
 from src.core.data_engine import DataEngine
@@ -32,8 +34,9 @@ class AccountService:
         if self.is_live_trading:
             self._initialize_live_trading()
         elif BINANCE_IMPORT_ERROR:
-            print(
-                f"[INFO] Binance executor unavailable ({BINANCE_IMPORT_ERROR}). Staying in simulation mode."
+            logger.info(
+                "Binance executor unavailable ({}). Staying in simulation mode.",
+                BINANCE_IMPORT_ERROR,
             )
 
         # Propagate state to PortfolioManager
@@ -43,28 +46,29 @@ class AccountService:
     def _initialize_live_trading(self):
         """Configure Binance executor when live trading mode is enabled."""
         if BinanceOrderExecutor is None:
-            print("[ERR]   Live trading requested but Binance executor is unavailable.")
+            logger.error("Live trading requested but Binance executor is unavailable.")
             self.is_live_trading = False
             return
         try:
             self.order_executor = BinanceOrderExecutor(self.pm.market_data.available_coins)
             if not self.order_executor.is_live():
-                print(
-                    "[WARN]  Live trading requested but executor initialized in simulation mode. Reverting to paper trading.",
+                logger.warning(
+                    "Live trading requested but executor initialized in simulation mode. Reverting to paper trading."
                 )
                 self.is_live_trading = False
                 self.order_executor = None
                 return
-            print(
-                f"[OK]    Live trading mode enabled (Binance {'TESTNET' if Config.BINANCE_TESTNET else 'MAINNET'}).",
+            logger.success(
+                "Live trading mode enabled (Binance {}).",
+                "TESTNET" if Config.BINANCE_TESTNET else "MAINNET",
             )
             self.sync_live_account()
         except BinanceAPIError as exc:
-            print(f"[ERR]   Binance setup failed: {exc}. Reverting to simulation mode.")
+            logger.error("Binance setup failed: {}. Reverting to simulation mode.", exc)
             self.is_live_trading = False
             self.order_executor = None
         except Exception as exc:
-            print(f"[ERR]   Unexpected Binance setup error: {exc}. Reverting to simulation mode.")
+            logger.error("Unexpected Binance setup error: {}. Reverting to simulation mode.", exc)
             self.is_live_trading = False
             self.order_executor = None
 
@@ -122,8 +126,10 @@ class AccountService:
         ]
         if missing_required:
             symbol = position.get("symbol", "UNKNOWN")
-            print(
-                f"[WARN]  Missing {', '.join(missing_required)} for {symbol} - using default exit plan offsets.",
+            logger.warning(
+                "Missing {} for {} - using default exit plan offsets.",
+                ", ".join(missing_required),
+                symbol,
             )
         position["exit_plan"] = final_plan
         return final_plan
@@ -187,8 +193,11 @@ class AccountService:
                 wallet_balance = overview.get("walletBalance")
 
                 # Debug: Log what we got from Binance
-                print(
-                    f"[DEBUG] Binance API Response: availableBalance={available}, totalWalletBalance={total_wallet_balance}, walletBalance={wallet_balance}",
+                logger.debug(
+                    "Binance API Response: availableBalance={}, totalWalletBalance={}, walletBalance={}",
+                    available,
+                    total_wallet_balance,
+                    wallet_balance,
                 )
 
                 # Update available cash balance
@@ -199,29 +208,33 @@ class AccountService:
                         abs(old_balance - self.pm.current_balance)
                         > constants.BALANCE_UPDATE_THRESHOLD
                     ):  # Only log if significant change
-                        print(
-                            f"[INFO] Balance updated: ${old_balance:.2f} → ${self.pm.current_balance:.2f}",
+                        logger.info(
+                            "Balance updated: ${:.2f} → ${:.2f}",
+                            old_balance,
+                            self.pm.current_balance,
                         )
 
                 # Note: We'll calculate total_value manually after positions are synced
                 # Total value = Available cash + Margin used + Unrealized PnL
                 # Binance totalWalletBalance is used for validation only
                 if total_wallet_balance is not None and total_wallet_balance > 0:
-                    print(
-                        f"[OK]    Binance totalWalletBalance: ${total_wallet_balance:.2f} (will validate against calculated value)",
+                    logger.debug(
+                        "Binance totalWalletBalance: ${:.2f} (will validate against calculated value)",
+                        total_wallet_balance,
                     )
                 elif wallet_balance is not None and wallet_balance > 0:
-                    print(
-                        f"[WARN]  totalWalletBalance not available, using walletBalance: ${wallet_balance:.2f}",
+                    logger.warning(
+                        "totalWalletBalance not available, using walletBalance: ${:.2f}",
+                        wallet_balance,
                     )
                 else:
-                    print(
-                        "[WARN]  Neither totalWalletBalance nor walletBalance available from Binance API",
+                    logger.warning(
+                        "Neither totalWalletBalance nor walletBalance available from Binance API"
                     )
         except BinanceAPIError as exc:
-            print(f"[WARN]  Binance balance sync failed: {exc}")
+            logger.warning("Binance balance sync failed: {}", exc)
         except Exception as exc:
-            print(f"[WARN]  Unexpected Binance balance sync error: {exc}")
+            logger.warning("Unexpected Binance balance sync error: {}", exc)
 
         try:
             snapshot = self.order_executor.get_positions_snapshot()
@@ -265,13 +278,14 @@ class AccountService:
                 )
 
                 if abs(old_total - self.pm.total_value) > constants.BALANCE_UPDATE_THRESHOLD:
-                    print(
-                        f"[INFO]  Total value updated: ${old_total:.2f} → ${self.pm.total_value:.2f}"
+                    logger.info(
+                        "Total value updated: ${:.2f} → ${:.2f} (Available cash: ${:.2f} + Margin used: ${:.2f} + Unrealized PnL: ${:.2f})",
+                        old_total,
+                        self.pm.total_value,
+                        self.pm.current_balance,
+                        total_margin_used,
+                        total_unrealized_pnl,
                     )
-                    print(
-                        f"   (Available cash: ${self.pm.current_balance:.2f} + Margin used: ${total_margin_used:.2f} + Unrealized PnL: ${total_unrealized_pnl:.2f})",
-                    )
-                    print("   [INFO] Unrealized PnL from Binance (includes funding fees)")
 
                     # Debug: Also show what Binance says for comparison
                     if overview:
@@ -279,16 +293,19 @@ class AccountService:
                         wallet_b = overview.get("walletBalance")
                         if total_wb:
                             wallet_b_str = f"${wallet_b:.2f}" if wallet_b else "N/A"
-                            print(
-                                f"   (Binance totalWalletBalance: ${total_wb:.2f}, walletBalance: {wallet_b_str})",
+                            logger.debug(
+                                "Binance totalWalletBalance: ${:.2f}, walletBalance: {}",
+                                total_wb,
+                                wallet_b_str,
                             )
                             # Validate our calculation against Binance
                             diff = abs(self.pm.total_value - total_wb)
                             if (
                                 diff > constants.VALUE_SYNC_THRESHOLD
                             ):  # More than 10 cents difference
-                                print(
-                                    f"   [WARN]  Warning: Calculated total_value differs from Binance totalWalletBalance by ${diff:.2f}",
+                                logger.warning(
+                                    "Calculated total_value differs from Binance totalWalletBalance by ${:.2f}",
+                                    diff,
                                 )
             else:
                 self.pm.positions = {}
@@ -302,9 +319,9 @@ class AccountService:
                 else:
                     self.pm.total_value = self.pm.current_balance
         except BinanceAPIError as exc:
-            print(f"[WARN]  Binance position sync failed: {exc}")
+            logger.warning("Binance position sync failed: {}", exc)
         except Exception as exc:
-            print(f"[WARN]  Unexpected Binance position sync error: {exc}")
+            logger.warning("Unexpected Binance position sync error: {}", exc)
 
     @staticmethod
     def _calculate_realized_pnl(
@@ -381,15 +398,20 @@ class AccountService:
 
                 elapsed = _time_module.time() - start_time
                 if elapsed >= timeout_seconds:
-                    print(
-                        f"[WARN]  Ghost position resolution timeout for {coin} after {elapsed:.1f}s"
+                    logger.warning(
+                        "Ghost position resolution timeout for {} after {:.1f}s", coin, elapsed
                     )
                     break
 
                 # Exponential backoff: 1s, 2s, 4s, 8s, ... max 8s between retries
                 backoff_seconds = min(2 ** min(attempt, 3), 8)
-                print(
-                    f"[INFO] Resolving Binance replication lag for {coin}... (attempt {attempt + 1}/{max_attempts}, wait={backoff_seconds}s, elapsed={elapsed:.1f}s)"
+                logger.info(
+                    "Resolving Binance replication lag for {}... (attempt {}/{}, wait={}s, elapsed={:.1f}s)",
+                    coin,
+                    attempt + 1,
+                    max_attempts,
+                    backoff_seconds,
+                    elapsed,
                 )
                 _time_module.sleep(backoff_seconds)
 
@@ -412,7 +434,7 @@ class AccountService:
                 # Ensure margin_usd is saved to position for later use in TP/SL checks
                 if "margin_usd" not in position or position.get("margin_usd", 0) <= 0:
                     position["margin_usd"] = margin_usd
-                    print(f"[INFO] Saved margin_usd=${margin_usd:.2f} to position for {coin}")
+                    logger.info("Saved margin_usd=${:.2f} to position for {}", margin_usd, coin)
                 exit_plan = position.setdefault("exit_plan", {})
                 if stop_loss is not None:
                     exit_plan["stop_loss"] = stop_loss
@@ -438,14 +460,14 @@ class AccountService:
                             else None
                         )
                     except Exception as e:
-                        print(f"[WARN]  ATR fetch failed for {coin}: {e}")
+                        logger.warning("ATR fetch failed for {}: {}", coin, e)
                         atr_value = None
 
                     # Fallback: If ATR unavailable, use 2% of price
                     if not atr_value or atr_value <= 0:
                         atr_value = avg_price * 0.02
-                        print(
-                            f"[WARN]  ATR fallback for {coin}: Using 2% of price = ${atr_value:.4f}"
+                        logger.warning(
+                            "ATR fallback for {}: Using 2% of price = ${:.4f}", coin, atr_value
                         )
 
                     # Calculate stop distance using Config multiplier
@@ -464,21 +486,31 @@ class AccountService:
                     if direction == "long":
                         if final_stop_loss >= avg_price:
                             final_stop_loss = avg_price - (avg_price * 0.02)
-                            print(
-                                f"[WARN]  Final validation: Stop loss for {coin} LONG was invalid (>= entry), recalculated to ${format_num(final_stop_loss, 4)}",
+                            logger.warning(
+                                "Final validation: Stop loss for {} LONG was invalid (>= entry), recalculated to ${}",
+                                coin,
+                                format_num(final_stop_loss, 4),
                             )
                     elif final_stop_loss <= avg_price:
                         final_stop_loss = avg_price + (avg_price * 0.02)
-                        print(
-                            f"[WARN]  Final validation: Stop loss for {coin} SHORT was invalid (<= entry), recalculated to ${format_num(final_stop_loss, 4)}",
+                        logger.warning(
+                            "Final validation: Stop loss for {} SHORT was invalid (<= entry), recalculated to ${}",
+                            coin,
+                            format_num(final_stop_loss, 4),
                         )
 
                     # Save ATR-based stop loss and profit target to exit_plan
                     if final_stop_loss > 0:
                         exit_plan["stop_loss"] = final_stop_loss
                         exit_plan["profit_target"] = final_profit_target
-                        print(
-                            f"[INFO] ATR-based SL/TP saved for {coin}: SL=${format_num(final_stop_loss, 4)}, TP=${format_num(final_profit_target, 4)} (ATR={atr_value:.4f} x {Config.ATR_SL_MULTIPLIER}/{Config.ATR_TP_MULTIPLIER}) - Backend Authority",
+                        logger.info(
+                            "ATR-based SL/TP saved for {}: SL=${}, TP=${} (ATR={:.4f} x {}/{}) - Backend Authority",
+                            coin,
+                            format_num(final_stop_loss, 4),
+                            format_num(final_profit_target, 4),
+                            atr_value,
+                            Config.ATR_SL_MULTIPLIER,
+                            Config.ATR_TP_MULTIPLIER,
                         )
             # Decision Feedback Hook: Log OPEN trade to SQLite
             try:
@@ -491,7 +523,7 @@ class AccountService:
                 )
             except Exception as e:
                 # FIX: Log the error instead of silently swallowing
-                print(f"[WARN]  Failed to log decision open: {e}")
+                logger.warning("Failed to log decision open: {}", e)
 
             return {
                 "success": True,
@@ -502,10 +534,10 @@ class AccountService:
                 "notional_usd": notional_runtime,
             }
         except BinanceAPIError as exc:
-            print(f"[ERR]   Binance entry order failed for {coin}: {exc}")
+            logger.error("Binance entry order failed for {}: {}", coin, exc)
             return {"success": False, "error": str(exc)}
         except Exception as exc:
-            print(f"[ERR]   Unexpected Binance entry error for {coin}: {exc}")
+            logger.error("Unexpected Binance entry error for {}: {}", coin, exc)
             return {"success": False, "error": str(exc)}
 
     def execute_live_close(
@@ -566,7 +598,7 @@ class AccountService:
                 )
             except Exception as e:
                 # FIX: Log the error instead of silently swallowing
-                print(f"[WARN]  Failed to log decision close: {e}")
+                logger.warning("Failed to log decision close: {}", e)
 
             return {
                 "success": True,
@@ -577,10 +609,10 @@ class AccountService:
                 "history_entry": history_entry,
             }
         except BinanceAPIError as exc:
-            print(f"[ERR]   Binance close order failed for {coin}: {exc}")
+            logger.error("Binance close order failed for {}: {}", coin, exc)
             return {"success": False, "error": str(exc)}
         except Exception as exc:
-            print(f"[ERR]   Unexpected Binance close error for {coin}: {exc}")
+            logger.error("Unexpected Binance close error for {}: {}", coin, exc)
             return {"success": False, "error": str(exc)}
 
     def execute_live_partial_close(
@@ -648,10 +680,10 @@ class AccountService:
                 "history_entry": history_entry,
             }
         except BinanceAPIError as exc:
-            print(f"[ERR]   Binance partial close failed for {coin}: {exc}")
+            logger.error("Binance partial close failed for {}: {}", coin, exc)
             return {"success": False, "error": str(exc)}
         except Exception as exc:
-            print(f"[ERR]   Unexpected Binance partial close error for {coin}: {exc}")
+            logger.error("Unexpected Binance partial close error for {}: {}", coin, exc)
             return {"success": False, "error": str(exc)}
 
     def close_position(
@@ -724,8 +756,13 @@ class AccountService:
         # History/bias update outside lock (add_to_history acquires its own lock)
         self.pm.add_to_history(history_entry)
 
-        print(
-            f"[OK]    PAPER CLOSE: {direction} {coin} @ ${format_num(current_price, 4)} (PnL: ${format_num(profit, 2)}, Commission: ${format_num(commission, 3)})",
+        logger.info(
+            "PAPER CLOSE: {} {} @ ${} (PnL: ${}, Commission: ${})",
+            direction,
+            coin,
+            format_num(current_price, 4),
+            format_num(profit, 2),
+            format_num(commission, 3),
         )
 
         self.pm.save_state()
@@ -742,7 +779,7 @@ class AccountService:
         """
         # Enhanced exit strategy control - check if enabled
         if hasattr(self, "bot") and not self.pm.bot.enhanced_exit_enabled:
-            print("[PAUSED] Enhanced exit strategy paused during cycle")
+            logger.info("Enhanced exit strategy paused during cycle")
             return False
 
         # All TP/SL decisions made by 30-second monitoring (like simulation mode)
@@ -800,8 +837,14 @@ class AccountService:
 
             # Debug log if margin_used is still 0
             if margin_used <= 0:
-                print(
-                    f"[WARN]  Warning: margin_used is 0 for {coin}. Position data: margin_usd={position.get('margin_usd')}, notional={position.get('notional_usd')}, leverage={position.get('leverage')}, entry={entry_price}, qty={quantity}",
+                logger.warning(
+                    "margin_used is 0 for {}. Position data: margin_usd={}, notional={}, leverage={}, entry={}, qty={}",
+                    coin,
+                    position.get("margin_usd"),
+                    position.get("notional_usd"),
+                    position.get("leverage"),
+                    entry_price,
+                    quantity,
                 )
 
             close_reason = None
@@ -824,8 +867,12 @@ class AccountService:
             if exit_decision["action"] == "close_position":
                 # Enhanced exit strategy wants to close the position completely
                 close_reason = exit_decision["reason"]
-                print(
-                    f"[ALERT] ENHANCED EXIT CLOSE {coin} ({direction}): {close_reason} at price ${format_num(current_price, 4)}",
+                logger.warning(
+                    "ENHANCED EXIT CLOSE {} ({}): {} at price ${}",
+                    coin,
+                    direction,
+                    close_reason,
+                    format_num(current_price, 4),
                 )
                 state_changed = True
             elif exit_decision["action"] == "partial_close":
@@ -840,31 +887,41 @@ class AccountService:
                         reason=exit_decision["reason"],
                     )
                     if not live_result.get("success"):
-                        print(
-                            f"🚫 Live partial close failed for {coin}: {live_result.get('error', 'unknown_error')}",
+                        logger.error(
+                            "Live partial close failed for {}: {}",
+                            coin,
+                            live_result.get("error", "unknown_error"),
                         )
                         continue
                     history_entry = live_result.get("history_entry")
                     if history_entry:
                         self.pm.add_to_history(history_entry)
-                    print(
-                        f"[ALERT] PARTIAL CLOSE {coin} ({direction}) [LIVE]: {exit_decision['reason']} ({close_percent * 100:.0f}% / PnL ${format_num(live_result.get('pnl', 0), 2)})",
+                    logger.warning(
+                        "PARTIAL CLOSE {} ({}) [LIVE]: {} ({:.0f}% / PnL ${})",
+                        coin,
+                        direction,
+                        exit_decision["reason"],
+                        close_percent * 100,
+                        format_num(live_result.get("pnl", 0), 2),
                     )
                     # BUG FIX: Adjust peak_pnl proportionally after partial close
                     # Without this, erosion tracking would falsely alarm (peak $3 -> current $1.5 = 50% erosion)
                     if "peak_pnl" in position and position["peak_pnl"] > 0:
                         old_peak = position["peak_pnl"]
                         position["peak_pnl"] = position["peak_pnl"] * (1 - close_percent)
-                        print(
-                            f"   [STATS] peak_pnl adjusted: ${format_num(old_peak, 2)} → ${format_num(position['peak_pnl'], 2)} (after {close_percent * 100:.0f}% close)",
+                        logger.debug(
+                            "peak_pnl adjusted: ${} → ${} (after {:.0f}% close)",
+                            format_num(old_peak, 2),
+                            format_num(position["peak_pnl"], 2),
+                            close_percent * 100,
                         )
                     state_changed = True
                     # Sync account balance after partial close in live mode
                     try:
                         self.sync_live_account()
-                        print(f"[OK]    Account balance synced after partial close of {coin}")
+                        logger.debug("Account balance synced after partial close of {}", coin)
                     except Exception as sync_exc:
-                        print(f"[WARN]  Failed to sync account after partial close: {sync_exc}")
+                        logger.warning("Failed to sync account after partial close: {}", sync_exc)
                     continue
 
                 # FIX: Hold lock for position mutation + balance update to prevent
@@ -913,8 +970,10 @@ class AccountService:
                     if "peak_pnl" in position and position["peak_pnl"] > 0:
                         old_peak = position["peak_pnl"]
                         position["peak_pnl"] = position["peak_pnl"] * (1 - close_percent)
-                        print(
-                            f"   [INFO]  peak_pnl adjusted: ${format_num(old_peak, 2)} → ${format_num(position['peak_pnl'], 2)}"
+                        logger.debug(
+                            "peak_pnl adjusted: ${} → ${}",
+                            format_num(old_peak, 2),
+                            format_num(position["peak_pnl"], 2),
                         )
 
                     # 5. Update global balance — under lock
@@ -922,10 +981,15 @@ class AccountService:
 
                 self.pm.add_to_history(history_entry)
 
-                print(
-                    f"[ALERT] PARTIAL CLOSE {coin} ({direction}): {exit_decision['reason']} - Closed {close_percent * 100:.0f}% at ${format_num(current_price, 4)}"
+                logger.warning(
+                    "PARTIAL CLOSE {} ({}): {} - Closed {:.0f}% at ${}, PnL: ${}",
+                    coin,
+                    direction,
+                    exit_decision["reason"],
+                    close_percent * 100,
+                    format_num(current_price, 4),
+                    format_num(profit, 2),
                 )
-                print(f"   Partial PnL: ${format_num(profit, 2)}")
                 state_changed = True
                 continue  # Continue with remaining position
 
@@ -934,7 +998,9 @@ class AccountService:
                 updated_stops.append(coin)
                 new_stop = exit_decision["new_stop"]
                 exit_plan["stop_loss"] = new_stop
-                print(f"[INFO] TRAILING STOP UPDATE {coin}: New stop at ${format_num(new_stop, 4)}")
+                logger.info(
+                    "TRAILING STOP UPDATE {}: New stop at ${}", coin, format_num(new_stop, 4)
+                )
 
                 # No Binance orders - stop loss updated in exit_plan, will be monitored by 30-second loop
 
@@ -985,12 +1051,16 @@ class AccountService:
 
             # Execute Close if triggered
             if close_reason:
-                print(
-                    f"[ALERT] AUTO-CLOSE {coin} ({direction}): {close_reason} at price ${format_num(current_price, 4)}",
+                logger.warning(
+                    "AUTO-CLOSE {} ({}): {} at price ${}",
+                    coin,
+                    direction,
+                    close_reason,
+                    format_num(current_price, 4),
                 )
 
                 if self.is_live_trading:
-                    print(f"🔄 Executing LIVE close on Binance for {coin}...")
+                    logger.info("Executing LIVE close on Binance for {}...", coin)
                     live_result = self.execute_live_close(
                         coin=coin,
                         position=position,
@@ -998,8 +1068,10 @@ class AccountService:
                         reason=close_reason,
                     )
                     if not live_result.get("success"):
-                        print(
-                            f"🚫 Live auto-close failed for {coin}: {live_result.get('error', 'unknown_error')}",
+                        logger.error(
+                            "Live auto-close failed for {}: {}",
+                            coin,
+                            live_result.get("error", "unknown_error"),
                         )
                         continue
 
@@ -1007,22 +1079,26 @@ class AccountService:
                     order_id = live_result.get("order", {}).get("orderId")
                     executed_qty = live_result.get("executed_qty", 0)
                     avg_price = live_result.get("avg_price", 0)
-                    print(
-                        f"[OK]    Binance CLOSE order executed for {coin}: orderId={order_id}, qty={format_num(executed_qty, 4)}, avgPrice=${format_num(avg_price, 4)}",
+                    logger.success(
+                        "Binance CLOSE order executed for {}: orderId={}, qty={}, avgPrice=${}",
+                        coin,
+                        order_id,
+                        format_num(executed_qty, 4),
+                        format_num(avg_price, 4),
                     )
 
                     history_entry = live_result.get("history_entry")
                     if history_entry:
                         self.pm.add_to_history(history_entry)
-                    print(f"   Live Closed PnL: ${format_num(live_result.get('pnl', 0), 2)}")
+                    logger.info("Live Closed PnL: ${}", format_num(live_result.get("pnl", 0), 2))
                     closed_positions.append(coin)
                     state_changed = True
                     # Sync account balance after closing position in live mode
                     try:
                         self.sync_live_account()
-                        print(f"[OK]    Account balance synced after closing {coin}")
+                        logger.debug("Account balance synced after closing {}", coin)
                     except Exception as sync_exc:
-                        print(f"[WARN]  Failed to sync account after close: {sync_exc}")
+                        logger.warning("Failed to sync account after close: {}", sync_exc)
                     continue
 
                 # FIX: Hold lock for balance update + position deletion to prevent
@@ -1044,7 +1120,7 @@ class AccountService:
                         margin_used + profit
                     )  # Return margin + PnL (commission already deducted)
 
-                    print(f"   Closed PnL: ${format_num(profit, 2)}")
+                    logger.info("Closed PnL: ${}", format_num(profit, 2))
 
                     history_entry = {
                         "symbol": coin,
@@ -1068,9 +1144,9 @@ class AccountService:
                 self.pm.add_to_history(history_entry)  # This increments trade_count
 
         if closed_positions:
-            print(f"[OK]    Auto-closed positions: {', '.join(closed_positions)}")
+            logger.success("Auto-closed positions: {}", ", ".join(closed_positions))
         if updated_stops:
-            print(f"[OK]    Updated trailing stops: {', '.join(updated_stops)}")
+            logger.success("Updated trailing stops: {}", ", ".join(updated_stops))
 
         if state_changed:
             self.pm.save_state()
@@ -1217,14 +1293,16 @@ class AccountService:
         # Extended loss exit - close after N negative cycles
         if loss_cycle_count >= Config.EXTENDED_LOSS_CYCLES and unrealized_pnl <= 0:
             reason = f"Position negative for {loss_cycle_count} cycles"
-            print(f"⏳ Extended loss exit: {position['symbol']} {direction} closed ({reason}).")
+            logger.warning(
+                "Extended loss exit: {} {} closed ({}).", position["symbol"], direction, reason
+            )
             return {"action": "close_position", "reason": reason}
 
         # Extended profit exit - take profit after N positive cycles
         if profit_cycle_count >= Config.EXTENDED_PROFIT_CYCLES and unrealized_pnl > 0:
             reason = f"Taking profit after {profit_cycle_count} profitable cycles (PnL ${unrealized_pnl:.2f})"
-            print(
-                f"[OK]    Extended profit exit: {position['symbol']} {direction} closed ({reason})."
+            logger.success(
+                "Extended profit exit: {} {} closed ({}).", position["symbol"], direction, reason
             )
             return {"action": "close_position", "reason": reason}
 
@@ -1239,8 +1317,12 @@ class AccountService:
 
             if sl_hit:
                 reason = f"Stop Loss (${primary_sl:.6f}) hit at ${current_price:.6f}"
-                print(
-                    f"[ALERT] STOP LOSS HIT: {position['symbol']} {direction} closed at ${current_price:.6f} ({reason})"
+                logger.warning(
+                    "STOP LOSS HIT: {} {} closed at ${:.6f} ({})",
+                    position["symbol"],
+                    direction,
+                    current_price,
+                    reason,
                 )
                 return {"action": "close_position", "reason": reason}
 
@@ -1267,8 +1349,12 @@ class AccountService:
             unrealized_loss_usd = max(0.0, (current_price - entry_price) * position["quantity"])
 
         if unrealized_loss_usd >= loss_threshold_usd > 0:
-            print(
-                f"[ALERT] GRADUATED LOSS CUTTING: {direction} {position['symbol']} ${unrealized_loss_usd:.2f} loss (threshold: ${loss_threshold_usd:.2f}). Closing position.",
+            logger.warning(
+                "GRADUATED LOSS CUTTING: {} {} ${:.2f} loss (threshold: ${:.2f}). Closing position.",
+                direction,
+                position["symbol"],
+                unrealized_loss_usd,
+                loss_threshold_usd,
             )
             return {
                 "action": "close_position",
@@ -1389,7 +1475,7 @@ class AccountService:
                     extreme_zone_active = True
         except Exception as e:
             # FIX: Log the error instead of silently swallowing
-            print(f"[WARN]  Trailing stop progress calculation failed: {e}")
+            logger.warning("Trailing stop progress calculation failed: {}", e)
 
         progress_triggered = progress_score >= effective_progress_trigger
         time_triggered = (
@@ -1409,7 +1495,7 @@ class AccountService:
                 else {}
             )
         except Exception as exc:
-            print(f"[WARN]  Trailing stop indicator fetch failed for {symbol}: {exc}")
+            logger.warning("Trailing stop indicator fetch failed for {}: {}", symbol, exc)
             indicators_3m = {}
 
         if isinstance(indicators_3m, dict):
@@ -1467,12 +1553,15 @@ class AccountService:
                 ):
                     atr_buffer = atr_buffer * 0.5
                     overbought_protect_active = True
-                    print(
-                        f"[WARN]  OVERBOUGHT PROTECT: {symbol} zone={zone} RSI={rsi_htf:.1f} -> Buffer halved",
+                    logger.info(
+                        "OVERBOUGHT PROTECT: {} zone={} RSI={:.1f} -> Buffer halved",
+                        symbol,
+                        zone,
+                        rsi_htf,
                     )
         except Exception as e:
             # FIX: Log the error instead of silently swallowing
-            print(f"[WARN]  Overbought protection calculation failed: {e}")
+            logger.warning("Overbought protection calculation failed: {}", e)
 
         reason_tokens: list[str] = []
         if progress_triggered:
@@ -1574,7 +1663,7 @@ class AccountService:
         indicator_cache: dict[str, dict[str, Any]] | None = None,
     ):
         """Execute only new position entries after AI close_position signal"""
-        print("[INFO] Executing new positions only (after close_position signal)")
+        logger.info("Executing new positions only (after close_position signal)")
 
         # KADEMELİ POZİSYON SİSTEMİ: Cycle bazlı pozisyon limiti
         max_positions_for_cycle = self.pm.get_max_positions_for_cycle(cycle_number)
@@ -1589,8 +1678,11 @@ class AccountService:
             if signal in ["buy_to_enter", "sell_to_enter"]:
                 # Apply kademeli position limit
                 if current_positions >= max_positions_for_cycle:
-                    print(
-                        f"[WARN]  KADEMELİ POZİSYON LİMİTİ (Cycle {cycle_number}): Max {max_positions_for_cycle} positions allowed. Skipping {coin} entry.",
+                    logger.warning(
+                        "KADEMELİ POZİSYON LİMİTİ (Cycle {}): Max {} positions allowed. Skipping {} entry.",
+                        cycle_number,
+                        max_positions_for_cycle,
+                        coin,
                     )
                     continue
                 current_positions += 1

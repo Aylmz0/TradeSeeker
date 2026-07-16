@@ -1,4 +1,6 @@
 import json
+
+from loguru import logger
 import os
 from datetime import datetime, timezone
 from typing import Any
@@ -37,7 +39,7 @@ class EnhancedContextProvider:
 
                     return json.loads(content)
         except Exception as e:
-            print(f"[WARN]  Error reading {file_path}: {e}")
+            logger.warning("Error reading {}: {}", file_path, e)
         return default_data if default_data is not None else []
 
     def get_enhanced_position_context(self, portfolio_state: dict) -> dict[str, Any]:
@@ -175,7 +177,7 @@ class EnhancedContextProvider:
                     "price_vs_ema20": price_vs_ema20,
                 }
             except Exception as e:
-                print(f"[WARN]  Market regime calculation error for {coin}: {e}")
+                logger.warning("Market regime calculation error for {}: {}", coin, e)
                 coin_regimes[coin] = {"regime": "error", "score": 0, "price_vs_ema20": "unknown"}
 
         coin_count = len(market_data.available_coins) if market_data.available_coins else 0
@@ -367,7 +369,7 @@ class EnhancedContextProvider:
             }
 
         except Exception as e:
-            print(f"[ERR]   Enhanced context generation error: {e}")
+            logger.error("Enhanced context generation error: {}", e)
             return {"error": f"Context generation failed: {e!s}"}
 
     def generate_suggestions(self, portfolio_state: dict, market_regime: dict) -> list[str]:
@@ -392,65 +394,57 @@ class EnhancedContextProvider:
         return suggestions
 
     def print_enhanced_context(self, context: dict):
-        """Prints enhanced context in formatted way"""
+        """Logs enhanced context in structured way"""
         if "error" in context:
-            print(f"[ERR]   Enhanced context error: {context['error']}")
+            logger.error("Enhanced context error: {}", context["error"])
             return
 
-        print(f"\n{'=' * 60}")
-        print("[INFO] ENHANCED CONTEXT FOR AI DECISION MAKING")
-        print(f"{'=' * 60}")
+        logger.info("=" * 60)
+        logger.info("ENHANCED CONTEXT FOR AI DECISION MAKING")
 
-        # Position Context
         position_context = context.get("position_context", {})
         if position_context:
-            print("\n[STATS] POSITION CONTEXT:")
             for symbol, data in position_context.items():
                 pnl = data.get("unrealized_pnl", 0)
                 remaining_pct = data.get(
-                    "remaining_to_target_pct",
-                    data.get("profit_target_progress", 0),
+                    "remaining_to_target_pct", data.get("profit_target_progress", 0)
                 )
                 time_in_trade = data.get("time_in_trade_minutes", 0)
-                print(
-                    f"   {symbol}: ${pnl:.2f} PnL, {remaining_pct}% to target, {time_in_trade}min in trade",
+                logger.info(
+                    "POSITION {}: PnL=${:.2f} target={:.1f}% time={:.0f}min",
+                    symbol,
+                    pnl,
+                    remaining_pct,
+                    time_in_trade,
                 )
 
-        # Market Regime
         market_regime = context.get("market_regime", {})
-        print("\n[INFO] MARKET REGIME:")
-        print(f"   Current: {market_regime.get('current_regime', 'unknown')}")
-        print(f"   Strength: {market_regime.get('regime_strength', 0)}")
+        logger.info(
+            "MARKET REGIME: {} strength={}",
+            market_regime.get("current_regime", "unknown"),
+            market_regime.get("regime_strength", 0),
+        )
 
-        # Performance Insights
         performance = context.get("performance_insights", {})
-        insights = performance.get("insights", [])
-        if insights:
-            print("\n[INFO] PERFORMANCE INSIGHTS:")
-            for insight in insights:
-                print(f"   - {insight}")
+        for insight in performance.get("insights", []):
+            logger.info("INSIGHT: {}", insight)
 
-        # Risk Context
         risk_context = context.get("risk_context", {})
-        print("\n[STATS] RISK CONTEXT:")
-        print(f"   Total Risk: ${risk_context.get('total_risk_usd', 0):.2f}")
-        print(f"   Positions: {risk_context.get('position_count', 0)}")
+        logger.info(
+            "RISK: ${:.2f} total, {} positions",
+            risk_context.get("total_risk_usd", 0),
+            risk_context.get("position_count", 0),
+        )
 
-        # Suggestions
-        suggestions = context.get("suggestions", [])
-        if suggestions:
-            print("\n[INFO] SUGGESTIONS (Non-binding):")
-            for suggestion in suggestions:
-                print(f"   - {suggestion}")
-
-        print(f"\n{'=' * 60}")
+        for suggestion in context.get("suggestions", []):
+            logger.info("SUGGESTION: {}", suggestion)
 
 
 # Main function for testing
 def main():
     """Test enhanced context provider"""
     provider = EnhancedContextProvider()
-    print("[INFO] Generating enhanced context for AI decision making...")
+    logger.info("Generating enhanced context for AI decision making...")
     context = provider.generate_enhanced_context()
     provider.print_enhanced_context(context)
 

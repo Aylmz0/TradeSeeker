@@ -2,6 +2,8 @@ from typing import Any
 
 import polars as pl
 
+from loguru import logger
+
 from src.core import constants
 
 
@@ -853,7 +855,7 @@ def get_features_for_ml(df: pl.DataFrame) -> pl.DataFrame:
 if __name__ == "__main__":
     import sqlite3
 
-    print("\n--- Testing ML Feature Extraction ---")
+    logger.info("--- Testing ML Feature Extraction ---")
     try:
         conn = sqlite3.connect("data/market_data.db")
         query = "SELECT * FROM market_data WHERE coin='XRP' AND interval='15m' ORDER BY timestamp DESC LIMIT 500"
@@ -863,7 +865,7 @@ if __name__ == "__main__":
         conn.close()
 
         if not rows:
-            print("[FAIL] No raw data in DB. Run Phase 1.2 first.")
+            logger.error("No raw data in DB. Run Phase 1.2 first.")
         else:
             df_raw = pl.DataFrame(rows, schema=columns)
             df_raw = df_raw.sort("timestamp").with_row_index()
@@ -873,10 +875,10 @@ if __name__ == "__main__":
             )
 
             df_features = get_features_for_ml(df_raw)
-            print(f"[OK] Extracted features from {len(df_raw)} raw candles.")
-            print(f"[INFO] Generated {df_features.height} ML rows.")
-            print(f"[INFO] Feature Count: {len(df_features.columns)}")
-            print("\nLast Row Sample:")
-            print(df_features.tail(1))
+            logger.success("Extracted features from {} raw candles.", len(df_raw))
+            logger.info(
+                "Generated {} ML rows, {} features.", df_features.height, len(df_features.columns)
+            )
+            logger.info("Last Row Sample: {}", df_features.tail(1))
     except Exception as e:
-        print(f"[FAIL] Test Failed: {e}")
+        logger.error("Test Failed: {}", e)

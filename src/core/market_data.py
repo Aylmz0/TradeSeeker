@@ -1,4 +1,6 @@
 import copy
+
+from loguru import logger
 import json
 import math
 import threading
@@ -109,8 +111,11 @@ class RealMarketData:
 
         current_time = _time_module.time()
         if current_time < self._circuit_breaker_until:
-            print(
-                f"[CIRCUIT] OPEN for {symbol} {interval} - cooling down until {self._circuit_breaker_until:.0f}"
+            logger.warning(
+                "CIRCUIT OPEN for {} {} - cooling down until {:.0f}",
+                symbol,
+                interval,
+                self._circuit_breaker_until,
             )
             return self._build_empty_df()
 
@@ -129,13 +134,15 @@ class RealMarketData:
 
                 with self._circuit_breaker_lock:
                     if self._circuit_breaker_failures > 0:
-                        print(f"[CIRCUIT] Reset after {self._circuit_breaker_failures} failures")
+                        logger.info(
+                            "CIRCUIT Reset after {} failures", self._circuit_breaker_failures
+                        )
                         self._circuit_breaker_failures = 0
                         self._circuit_breaker_until = 0
 
                 if len(data) < constants.MIN_KLINE_DATA_POINTS:
-                    print(
-                        f"[WARN] Insufficient kline data for {symbol} ({interval}). Got {len(data)}.",
+                    logger.warning(
+                        "Insufficient kline data for {} ({}). Got {}.", symbol, interval, len(data)
                     )
                     return self._build_empty_df()
 
@@ -151,8 +158,10 @@ class RealMarketData:
                 df = df.fill_nan(None)
                 has_nan = df.select(pl.any_horizontal(pl.col(pl.Float64).is_nan()).any()).item()
                 if has_nan:
-                    print(
-                        f"[WARN] Invalid candles (NaN/Inf) detected for {symbol} ({interval}). Dropping invalid rows."
+                    logger.warning(
+                        "Invalid candles (NaN/Inf) detected for {} ({}). Dropping invalid rows.",
+                        symbol,
+                        interval,
                     )
                     df = df.drop_nulls()
 
@@ -160,14 +169,18 @@ class RealMarketData:
                     coin_key = symbol.replace("USDT", "")
                     self._raw_dataframes.setdefault(coin_key, {})[interval] = df.clone()
                     return df
-                print(
-                    f"[ERR]   Data validation failed for {symbol} ({interval}) - attempt {attempt + 1}/{max_retries}",
+                logger.error(
+                    "Data validation failed for {} ({}) - attempt {}/{}",
+                    symbol,
+                    interval,
+                    attempt + 1,
+                    max_retries,
                 )
                 if attempt < max_retries - 1:
                     time.sleep(2**attempt)
                     continue
-                print(
-                    f"[ERR]   All retries failed for {symbol} ({interval}). Returning empty DataFrame.",
+                logger.error(
+                    "All retries failed for {} ({}). Returning empty DataFrame.", symbol, interval
                 )
                 with self._circuit_breaker_lock:
                     self._circuit_breaker_failures += 1
@@ -175,45 +188,66 @@ class RealMarketData:
                         self._circuit_breaker_until = (
                             _time_module.time() + self._circuit_breaker_timeout
                         )
-                        print(
-                            f"[CIRCUIT] TRIPPED for {symbol} {interval} - open for {self._circuit_breaker_timeout}s (failures: {self._circuit_breaker_failures})"
+                        logger.warning(
+                            "CIRCUIT TRIPPED for {} {} - open for {}s (failures: {})",
+                            symbol,
+                            interval,
+                            self._circuit_breaker_timeout,
+                            self._circuit_breaker_failures,
                         )
                 return self._build_empty_df()
 
             except requests.exceptions.Timeout:
-                print(
-                    f"[ERR]   Timeout for {symbol} ({interval}) - attempt {attempt + 1}/{max_retries}"
+                logger.error(
+                    "Timeout for {} ({}) - attempt {}/{}",
+                    symbol,
+                    interval,
+                    attempt + 1,
+                    max_retries,
                 )
                 if attempt < max_retries - 1:
                     time.sleep(2**attempt)
                     continue
-                print(f"[ERR]   All retries timed out for {symbol} ({interval})")
+                logger.error("All retries timed out for {} ({})", symbol, interval)
                 with self._circuit_breaker_lock:
                     self._circuit_breaker_failures += 1
                     if self._circuit_breaker_failures >= self._circuit_breaker_threshold:
                         self._circuit_breaker_until = (
                             _time_module.time() + self._circuit_breaker_timeout
                         )
-                        print(
-                            f"[CIRCUIT] TRIPPED for {symbol} {interval} - open for {self._circuit_breaker_timeout}s (failures: {self._circuit_breaker_failures})"
+                        logger.warning(
+                            "CIRCUIT TRIPPED for {} {} - open for {}s (failures: {})",
+                            symbol,
+                            interval,
+                            self._circuit_breaker_timeout,
+                            self._circuit_breaker_failures,
                         )
                 return self._build_empty_df()
             except Exception as e:
-                print(
-                    f"[ERR]   Kline data error {symbol} ({interval}) - attempt {attempt + 1}/{max_retries}: {e}",
+                logger.error(
+                    "Kline data error {} ({}) - attempt {}/{}: {}",
+                    symbol,
+                    interval,
+                    attempt + 1,
+                    max_retries,
+                    e,
                 )
                 if attempt < max_retries - 1:
                     time.sleep(2**attempt)
                     continue
-                print(f"[ERR]   All retries failed for {symbol} ({interval})")
+                logger.error("All retries failed for {} ({})", symbol, interval)
                 with self._circuit_breaker_lock:
                     self._circuit_breaker_failures += 1
                     if self._circuit_breaker_failures >= self._circuit_breaker_threshold:
                         self._circuit_breaker_until = (
                             _time_module.time() + self._circuit_breaker_timeout
                         )
-                        print(
-                            f"[CIRCUIT] TRIPPED for {symbol} {interval} - open for {self._circuit_breaker_timeout}s (failures: {self._circuit_breaker_failures})"
+                        logger.warning(
+                            "CIRCUIT TRIPPED for {} {} - open for {}s (failures: {})",
+                            symbol,
+                            interval,
+                            self._circuit_breaker_timeout,
+                            self._circuit_breaker_failures,
                         )
                 return self._build_empty_df()
 
@@ -221,31 +255,37 @@ class RealMarketData:
 
     def _validate_kline_data(self, df: pl.DataFrame, symbol: str, interval: str) -> bool:
         if df.is_empty():
-            print(f"[WARN] Empty DataFrame for {symbol} ({interval})")
+            logger.warning("Empty DataFrame for {} ({})", symbol, interval)
             return False
 
         price_cols = ["open", "high", "low", "close"]
         for col in price_cols:
             if (df[col] <= 0).any():
-                print(
-                    f"[WARN] Invalid price data for {symbol} ({interval}): {col} contains zero/negative values",
+                logger.warning(
+                    "Invalid price data for {} ({}): {} contains zero/negative values",
+                    symbol,
+                    interval,
+                    col,
                 )
                 return False
 
         if df["close"].n_unique() < constants.STUCK_DATA_PRICE_COUNT:
-            print(
-                f"[WARN] Stuck price data for {symbol} ({interval}): only {df['close'].n_unique()} unique prices",
+            logger.warning(
+                "Stuck price data for {} ({}): only {} unique prices",
+                symbol,
+                interval,
+                df["close"].n_unique(),
             )
             return False
 
         volume_sum = df["volume"].sum()
         if volume_sum == 0:
-            print(f"[WARN] Zero volume for {symbol} ({interval})")
+            logger.warning("Zero volume for {} ({})", symbol, interval)
             return False
 
         price_range = df["high"].max() - df["low"].min()
         if price_range == 0:
-            print(f"[WARN] No price movement for {symbol} ({interval})")
+            logger.warning("No price movement for {} ({})", symbol, interval)
             return False
 
         return True
@@ -265,9 +305,9 @@ class RealMarketData:
                 isinstance(e, requests.exceptions.HTTPError)
                 and e.response.status_code == constants.OI_NOT_AVAILABLE_STATUS
             ):
-                print(f"[INFO] OI not available for {symbol}USDT on Futures.")
+                logger.info("OI not available for {}USDT on Futures.", symbol)
             else:
-                print(f"[ERR]   OI error for {symbol}: {e}")
+                logger.error("OI error for {}: {}", symbol, e)
             return 0.0
 
     def _calculate_max_drawdown(self, value_history: list[float]) -> float:
@@ -302,9 +342,9 @@ class RealMarketData:
             if isinstance(e, requests.exceptions.HTTPError) and (
                 e.response.status_code in [404, 400]
             ):
-                print(f"[INFO] Funding Rate not available for {symbol}USDT on Futures.")
+                logger.info("Funding Rate not available for {}USDT on Futures.", symbol)
             else:
-                print(f"[ERR]   Funding Rate error for {symbol}: {e}")
+                logger.error("Funding Rate error for {}: {}", symbol, e)
             return 0.0
 
     def get_technical_indicators(self, coin: str, interval: str) -> dict[str, Any]:
@@ -475,7 +515,7 @@ class RealMarketData:
             self.store_preloaded_indicator(coin, interval, indicators)
             return indicators
         except Exception as e:
-            print(f"[ERR]   Indicator error {coin} ({interval}): {e}")
+            logger.error("Indicator error {} ({}): {}", coin, interval, e)
             traceback.print_exc()
             return {"current_price": current_price, "error": str(e)}
 
@@ -499,8 +539,8 @@ class RealMarketData:
                         raise ValueError(f"Invalid price value {price_val}")
                     prices[coin] = price_val
                 except Exception as e:
-                    print(
-                        f"[WARN] Invalid bulk price for {coin}: {raw_price} ({e}). Using fallback."
+                    logger.warning(
+                        "Invalid bulk price for {}: {} ({}). Using fallback.", coin, raw_price, e
                     )
                     prices[coin] = self._get_fallback_price(coin)
 
@@ -523,19 +563,22 @@ class RealMarketData:
                         prices_str = " | ".join(
                             [f"{coin}: ${val:.4f}" for coin, val in prices.items()]
                         )
-                        print(f"[OK]    Prices: {prices_str}")
+                        logger.debug("Prices: {}", prices_str)
                         self._last_price_fetch_time = time.time()
                         self._last_price_cache = copy.deepcopy(prices)
                         return prices
-                    print(
-                        f"[WARN] Bulk price missing for: {', '.join(missing)}. Falling back to individual requests.",
+                    logger.warning(
+                        "Bulk price missing for: {}. Falling back to individual requests.",
+                        ", ".join(missing),
                     )
                 else:
-                    print(
-                        "[WARN] Unexpected bulk ticker response format. Falling back to individual requests.",
+                    logger.warning(
+                        "Unexpected bulk ticker response format. Falling back to individual requests."
                     )
             except Exception as e:
-                print(f"[WARN] Bulk price fetch failed: {e}. Falling back to individual requests.")
+                logger.warning(
+                    "Bulk price fetch failed: {}. Falling back to individual requests.", e
+                )
 
             for coin in self.available_coins:
                 try:
@@ -551,12 +594,12 @@ class RealMarketData:
                         raise ValueError(f"Invalid price value {price_val}")
                     prices[coin] = price_val
                 except Exception as e:
-                    print(f"[ERR]   {coin} price error: {e}. Using fallback...")
+                    logger.error("{} price error: {}. Using fallback...", coin, e)
                     prices[coin] = self._get_fallback_price(coin)
 
             if len(prices) > 0:
                 prices_str = " | ".join([f"{c}: ${p:.4f}" for c, p in prices.items()])
-                print(f"[OK]    Prices: {prices_str}")
+                logger.debug("Prices: {}", prices_str)
                 self._last_price_fetch_time = time.time()
                 self._last_price_cache = copy.deepcopy(prices)
 
@@ -568,20 +611,20 @@ class RealMarketData:
             if not df.is_empty() and len(df["close"]) > 0:
                 price_val = float(df["close"][-1])
                 if price_val > 0 and price_val == price_val:
-                    print(f"   Fallback 1m kline: ${price_val:.4f}")
+                    logger.debug("Fallback 1m kline: ${:.4f}", price_val)
                     return price_val
         except Exception as e:
-            print(f"   Fallback 1m failed: {e}")
+            logger.debug("Fallback 1m failed: {}", e)
 
         try:
             df = self.get_real_time_data(coin, interval="3m", limit=1)
             if not df.is_empty() and len(df["close"]) > 0:
                 price_val = float(df["close"][-1])
                 if price_val > 0 and price_val == price_val:
-                    print(f"   Fallback 3m kline: ${price_val:.4f}")
+                    logger.debug("Fallback 3m kline: ${:.4f}", price_val)
                     return price_val
         except Exception as e:
-            print(f"   Fallback 3m failed: {e}")
+            logger.debug("Fallback 3m failed: {}", e)
 
         try:
             from src.utils import safe_file_read
@@ -592,12 +635,12 @@ class RealMarketData:
                     if pos_coin == coin and "current_price" in position:
                         cached_price = position["current_price"]
                         if cached_price > 0:
-                            print(f"   Fallback cached: ${cached_price:.4f}")
+                            logger.debug("Fallback cached: ${:.4f}", cached_price)
                             return cached_price
         except Exception as e:
-            print(f"   Fallback cache failed: {e}")
+            logger.debug("Fallback cache failed: {}", e)
 
-        print(f"   [WARNING] All fallbacks failed for {coin}. Price set to 0.")
+        logger.warning("All fallbacks failed for {}. Price set to 0.", coin)
         return 0.0
 
     def verify_sync_alignment(

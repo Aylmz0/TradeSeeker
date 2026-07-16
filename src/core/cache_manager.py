@@ -4,6 +4,8 @@ Reduces redundant API calls and calculations.
 
 import hashlib
 import json
+
+from loguru import logger
 import logging
 import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
@@ -239,7 +241,7 @@ def fetch_all_indicators_parallel(
         >>> indicators, sentiment = fetch_all_indicators_parallel(market_data, ["BTC", "ETH"], "1h")
 
     """
-    print("[INFO] Fetching all indicators in parallel...")
+    logger.info("Fetching all indicators in parallel...")
     start_time = time.time()
 
     all_indicators = {}  # {coin: {interval: indicators}}
@@ -258,7 +260,7 @@ def fetch_all_indicators_parallel(
                 sentiment,
             )
         except Exception as e:
-            print(f"[WARN]  Error fetching indicators for {coin}: {e}")
+            logger.warning("Error fetching indicators for {}: {}", coin, e)
             return (
                 coin,
                 {
@@ -281,7 +283,7 @@ def fetch_all_indicators_parallel(
             all_sentiment[coin] = sentiment
 
     elapsed = time.time() - start_time
-    print(f"[OK]    Fetched all indicators in {elapsed:.2f}s (parallel)")
+    logger.info("Fetched all indicators in {:.2f}s (parallel)", elapsed)
 
     return all_indicators, all_sentiment
 
@@ -449,7 +451,7 @@ class SmartIndicatorCache:
             del self.cache[key]
 
         if expired_keys:
-            print(f"[CLEANUP] Cleared {len(expired_keys)} expired cache entries")
+            logger.debug("Cleared {} expired cache entries", len(expired_keys))
 
         return len(expired_keys)
 
@@ -472,18 +474,17 @@ class SmartIndicatorCache:
         return sum(len(json.dumps(entry).encode("utf-8")) for entry in self.cache.values())
 
     def print_stats(self):
-        """Print cache statistics"""
+        """Log cache statistics"""
         stats = self.get_stats()
-        print("\n" + "=" * 50)
-        print("[INFO]  SMART CACHE STATISTICS")
-        print("=" * 50)
-        print(f"Cache Entries:     {stats['total_entries']}")
-        print(f"Hits:              {stats['hits']}")
-        print(f"Misses:            {stats['misses']}")
-        print(f"Hit Rate:          {stats['hit_rate_pct']}%")
-        print(f"API Calls Saved:   {stats['api_calls_saved']}")
-        print(f"Memory Usage:      {stats['memory_usage_kb']:.2f} KB")
-        print("=" * 50 + "\n")
+        logger.info(
+            "SMART CACHE: entries={} hits={} misses={} rate={}% saved={} mem={:.2f}KB",
+            stats["total_entries"],
+            stats["hits"],
+            stats["misses"],
+            stats["hit_rate_pct"],
+            stats["api_calls_saved"],
+            stats["memory_usage_kb"],
+        )
 
     def reset_stats(self):
         """Reset statistics counters"""
@@ -495,7 +496,7 @@ class SmartIndicatorCache:
         """Clear all cache and reset stats"""
         self.cache.clear()
         self.reset_stats()
-        print("[CLEANUP] Cache cleared completely")
+        logger.info("Cache cleared completely")
 
 
 # Global cache instance (will be initialized with HTF from config)
@@ -551,7 +552,7 @@ def fetch_all_indicators_with_cache(
         # Fallback to non-cached version
         return fetch_all_indicators_parallel(market_data_instance, available_coins, htf_interval)
 
-    print("[INFO] Fetching indicators with smart cache...")
+    logger.info("Fetching indicators with smart cache...")
     start_time = time.time()
 
     # Get global cache instance
@@ -581,7 +582,7 @@ def fetch_all_indicators_with_cache(
                 sentiment,
             )
         except Exception as e:
-            print(f"[WARN]  Error fetching indicators for {coin}: {e}")
+            logger.warning("Error fetching indicators for {}: {}", coin, e)
             return (
                 coin,
                 {
@@ -611,7 +612,7 @@ def fetch_all_indicators_with_cache(
     cache_info = (
         f"Cache: {stats['hits']}/{stats['hits'] + stats['misses']} hits ({stats['hit_rate_pct']}%)"
     )
-    print(f"[OK]    Fetched in {elapsed:.2f}s (parallel + cache) | {cache_info}")
+    logger.info("Fetched in {:.2f}s (parallel + cache) | {}", elapsed, cache_info)
 
     # Periodically clear expired entries
     cache.clear_expired()

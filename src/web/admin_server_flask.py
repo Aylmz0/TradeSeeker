@@ -474,7 +474,7 @@ def get_ml_drift():
                     try:
                         preds.append(json.loads(l))
                     except json.JSONDecodeError as e:
-                        print(f"[WARN]  Invalid JSON in ML predictions line: {e}")
+                        logger.warning("Invalid JSON in ML predictions line: %s", e)
                         continue
                 dist = {}
                 total_conf = 0
