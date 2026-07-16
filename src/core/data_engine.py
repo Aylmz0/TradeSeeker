@@ -7,6 +7,8 @@ from typing import Any
 
 import polars as pl
 import requests
+from loguru import logger
+
 from src.core import constants
 
 
@@ -38,7 +40,7 @@ class DataEngine:
         db_dir = os.path.dirname(self.db_path)
         if db_dir and not os.path.exists(db_dir):
             os.makedirs(db_dir, exist_ok=True)
-            logger.info("DataEngine: Created directory: {db_dir}")
+            logger.info("DataEngine: Created directory: {}", db_dir)
 
     def _get_connection(self) -> sqlite3.Connection:
         conn = sqlite3.connect(self.db_path, check_same_thread=False, timeout=10)
@@ -101,9 +103,9 @@ class DataEngine:
             )
             cursor.execute("CREATE INDEX IF NOT EXISTS idx_decisions_status ON decisions (status)")
             conn.commit()
-            logger.info("DataEngine: Database schema initialized at '{self.db_path}'.")
+            logger.info("DataEngine: Database schema initialized at '{}'.", self.db_path)
         except Exception as e:
-            logger.error("DataEngine: Failed to initialize database: {e}")
+            logger.error("DataEngine: Failed to initialize database: {}", e)
             conn.rollback()
             raise
         finally:
@@ -135,7 +137,7 @@ class DataEngine:
             )
             conn.commit()
         except Exception as e:
-            logger.error("DataEngine: Failed to log features for {coin}: {e}")
+            logger.error("DataEngine: Failed to log features for {}: {}", coin, e)
             conn.rollback()
         finally:
             conn.close()
@@ -185,9 +187,11 @@ class DataEngine:
                 records,
             )
             conn.commit()
-            logger.info("DataEngine: Ingested {len(records)} '{interval}' candles for {coin}.")
+            logger.info(
+                "DataEngine: Ingested {} '{}' candles for {}.", len(records), interval, coin
+            )
         except Exception as e:
-            logger.error("DataEngine: Bulk insert failed for {coin} ({interval}): {e}")
+            logger.error("DataEngine: Bulk insert failed for {} ({}): {}", coin, interval, e)
             conn.rollback()
             raise
         finally:
@@ -239,14 +243,14 @@ class DataEngine:
                 cursor.execute(
                     "DELETE FROM features WHERE coin = ? AND interval = ?", (coin, interval)
                 )
-                logger.info("DataEngine: Wiped data for {coin} ({interval}).")
+                logger.info("DataEngine: Wiped data for {} ({}).", coin, interval)
             else:
                 cursor.execute("DELETE FROM market_data")
                 cursor.execute("DELETE FROM features")
                 logger.info("DataEngine: Wiped ALL market data and features.")
             conn.commit()
         except Exception as e:
-            logger.error("DataEngine: Wipe failed: {e}")
+            logger.error("DataEngine: Wipe failed: {}", e)
             conn.rollback()
         finally:
             conn.close()
@@ -297,10 +301,10 @@ class DataEngine:
                 _time_module.sleep(0.1)
 
             except Exception as e:
-                logger.error(f"[Sync] Failed batch for {coin} {interval}: {e}")
+                logger.error("[Sync] Failed batch for {} {}: {}", coin, interval, e)
                 break
 
-        logger.info(f"[Sync] Completed for {coin} {interval}. Total candles: {total_ingested}")
+        logger.info("[Sync] Completed for {} {}. Total candles: {}", coin, interval, total_ingested)
         return total_ingested
 
     def get_labeled_data(
@@ -372,7 +376,7 @@ class DataEngine:
             data = response.json()
 
             if not data:
-                logger.warning("DataEngine: Received empty data for {coin} ({interval}).")
+                logger.warning("DataEngine: Received empty data for {} ({}).", coin, interval)
                 return False
 
             df = pl.DataFrame(data, schema=KLINE_COLUMNS)
@@ -427,7 +431,7 @@ class DataEngine:
             )
             return row_id
         except Exception as e:
-            logger.error("DataEngine: Failed to log OPEN decision: {e}")
+            logger.error("DataEngine: Failed to log OPEN decision: {}", e)
             conn.rollback()
             return None
         finally:
@@ -459,10 +463,10 @@ class DataEngine:
                     f"[DataEngine] Closed decision for {coin}: exit=${exit_price:.4f}, PnL=${pnl_result:.2f}"
                 )
                 return True
-            logger.warning("DataEngine: No OPEN decision found for {coin} to close.")
+            logger.warning("DataEngine: No OPEN decision found for {} to close.", coin)
             return False
         except Exception as e:
-            logger.error("DataEngine: Failed to log CLOSE decision: {e}")
+            logger.error("DataEngine: Failed to log CLOSE decision: {}", e)
             conn.rollback()
             return False
         finally:

@@ -784,7 +784,8 @@ class AccountService:
 
         # All TP/SL decisions made by 30-second monitoring (like simulation mode)
         # No Binance TP/SL orders - all managed by monitoring loop
-        # print("[INFO] Checking for TP/SL triggers (30-second monitoring mode)")  # Silenced check heartbeat
+        if self.pm.positions:
+            logger.debug("TP/SL check: {} positions", len(self.pm.positions))
 
         closed_positions = []  # Keep track of positions closed in this check
         updated_stops = []  # Track positions with updated trailing stops

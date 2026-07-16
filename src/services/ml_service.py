@@ -78,7 +78,7 @@ class MLService:
                 f"[MLService] XGBoost Inference Engine loaded and READY. (mtime: {self.last_model_mtime})"
             )
         except Exception as e:
-            logger.error(f"[MLService] Failed to load ML artifacts: {e}")
+            logger.error("MLService: Failed to load ML artifacts: {}", e)
             self.is_ready = False
 
     def predict(self, df_raw: pl.DataFrame, coin: str) -> dict[str, Any] | None:
@@ -146,7 +146,7 @@ class MLService:
             return result
 
         except Exception as e:
-            logger.error(f"[MLService] Error during prediction: {e}")
+            logger.error("MLService: Error during prediction: {}", e)
             return None
 
     def get_model_health(self) -> dict[str, Any]:
@@ -247,7 +247,7 @@ class MLService:
                 "total_logged": len(lines),
             }
         except Exception as e:
-            logger.error(f"[MLService] Health audit failed: {e}")
+            logger.error("MLService: Health audit failed: {}", e)
             return {"status": "error", "message": str(e)}
 
     def _log_prediction(self, result: dict[str, Any], coin: str, interval: str = "15m") -> None:
@@ -278,7 +278,7 @@ class MLService:
                 self._rotate_prediction_log()
 
         except Exception as e:
-            logger.warning(f"[MLService] Failed to log prediction: {e}")
+            logger.warning("MLService: Failed to log prediction: {}", e)
 
     def _rotate_prediction_log(self) -> None:
         """Retain the latest ML_PREDICTION_LOG_KEEP_LINES lines, discard the rest.
@@ -300,7 +300,7 @@ class MLService:
                 f"[MLService] Prediction log rotated: {len(lines)} → {len(kept)} lines retained."
             )
         except Exception as e:
-            logger.warning(f"[MLService] Log rotation failed (non-critical): {e}")
+            logger.warning("MLService: Log rotation failed (non-critical): {}", e)
 
 
 if __name__ == "__main__":

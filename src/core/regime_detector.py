@@ -42,7 +42,7 @@ class RegimeDetector:
             return "BEARISH"
 
         except Exception as e:
-            logger.warning(f"Regime classification error: {e}")
+            logger.warning("Regime classification error: {}", e)
             return "NEUTRAL"
 
     @classmethod
@@ -97,5 +97,5 @@ class RegimeDetector:
             return max(bullish_count, bearish_count) / total_valid
 
         except Exception as e:
-            logger.warning(f"Regime strength calculation error: {e}")
+            logger.warning("Regime strength calculation error: {}", e)
             return 0.0

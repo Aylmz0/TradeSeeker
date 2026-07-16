@@ -1042,9 +1042,11 @@ class AlphaArenaDeepSeek:
 
                     if positions_closed:
                         logger.info("20-SECOND TP/SL CHECK: Positions closed")
-                    else:
-                        # No TP/SL triggers this check — log only when there are triggers
-                        pass
+                    elif self.portfolio.positions:
+                        logger.debug(
+                            "20-SECOND TP/SL CHECK: {} positions monitored, no trigger",
+                            len(self.portfolio.positions),
+                        )
                 else:
                     logger.warning("TP/SL monitoring: No valid prices")
 
