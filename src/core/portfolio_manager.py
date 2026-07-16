@@ -25,6 +25,8 @@ from loguru import logger
 
 from config.config import Config
 from src.core import constants
+from src.schemas.position import Position
+from src.schemas.trade import TradeHistoryEntry
 from src.core.backtest import AdvancedRiskManager
 from src.core.market_data import RealMarketData
 from src.core.regime_detector import RegimeDetector
@@ -209,7 +211,15 @@ class PortfolioManager:
         """
         data: dict[str, Any] = safe_file_read_cached(self.state_file, default_data={})
         self.current_balance = data.get("current_balance", self.initial_balance)
-        self.positions = data.get("positions", {})
+        raw_positions = data.get("positions", {})
+        validated_positions: dict[str, dict] = {}
+        for sym, pos_data in raw_positions.items():
+            try:
+                validated_positions[sym] = Position.model_validate(pos_data).model_dump()
+            except Exception:
+                logger.warning("Invalid position data for {}, skipping", sym)
+                continue
+        self.positions = validated_positions
         self.trade_count = data.get(
             "trade_count",
             len(self.trade_history),
@@ -2528,14 +2538,14 @@ class PortfolioManager:
             "entry_price": entry_price,
             "exit_price": current_price,
             "quantity": position["quantity"],
-            "notional_usd": position.get("notional_usd", "N/A"),
+            "notional_usd": position.get("notional_usd", 0.0),
             "pnl": profit,
             "entry_time": position["entry_time"],
             "exit_time": datetime.now(timezone.utc).isoformat(),
-            "leverage": position.get("leverage", "N/A"),
+            "leverage": position.get("leverage", 10),
             "close_reason": f"AI Decision: {trade.get('justification', 'N/A')}",
         }
-        self.add_to_history(history_entry)
+        self.add_to_history(TradeHistoryEntry.model_validate(history_entry).model_dump())
         del self.positions[coin]
 
     def _check_entry_preconditions(
@@ -4202,7 +4212,7 @@ class PortfolioManager:
         with self._lock:
             self.current_balance -= margin_usd
             est_liq = self._estimate_liquidation_price(current_price, leverage, direction)
-            self.positions[coin] = {
+            position_data = {
                 "symbol": coin,
                 "direction": direction,
                 "quantity": quantity_coin,
@@ -4238,6 +4248,7 @@ class PortfolioManager:
                 "entry_oid": -1,
                 "wait_for_fill": False,
             }
+            self.positions[coin] = Position.model_validate(position_data).model_dump()
         logger.info(
             "{}: Opened {} {} ({} @ ${} / Notional ${} / Margin ${})",
             signal.upper(),

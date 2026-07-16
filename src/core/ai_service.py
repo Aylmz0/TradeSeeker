@@ -834,7 +834,6 @@ Current live positions & performance:"""
         """
         from loguru import logger
 
-        from config.config import Config
         from src.ai.prompt_json_builders import (
             build_coin_state_vector,
             build_cooldown_status_json,
@@ -1288,7 +1287,20 @@ Each coin below contains a State Vector with:
             if coin in self.latest_ml_consensus and isinstance(cleaned_decisions.get(coin), dict):
                 cleaned_decisions[coin]["ml_consensus"] = self.latest_ml_consensus[coin]
 
-        return cleaned_decisions
+        # Final validation pass — catch any remaining type issues via Pydantic
+        validated: dict = {}
+        for coin, trade in cleaned_decisions.items():
+            if not isinstance(trade, dict):
+                validated[coin] = trade
+                continue
+            try:
+                AIDecision.model_validate(trade)
+                validated[coin] = trade
+            except Exception as e:
+                logger.warning("{}: AI decision validation failed ({}), forcing hold", coin, e)
+                validated[coin] = {"signal": "hold"}
+
+        return validated
 
     # --- Formatting Methods (v1.2 Restoration) ---
     def format_list(self, items: list, precision: int = 5) -> str:

@@ -6,6 +6,7 @@ from loguru import logger
 from config.config import Config
 from src.core import constants
 from src.core.data_engine import DataEngine
+from src.schemas.trade import TradeHistoryEntry
 from src.utils import format_num
 
 
@@ -958,7 +959,7 @@ class AccountService:
                         "pnl": profit,
                         "entry_time": position["entry_time"],
                         "exit_time": datetime.now(timezone.utc).isoformat(),
-                        "leverage": position.get("leverage", "N/A"),
+                        "leverage": position.get("leverage", 10),
                         "close_reason": exit_decision["reason"],
                     }
 
@@ -1129,11 +1130,11 @@ class AccountService:
                         "entry_price": entry_price,
                         "exit_price": current_price,
                         "quantity": quantity,
-                        "notional_usd": position.get("notional_usd", "N/A"),
+                        "notional_usd": position.get("notional_usd", 0.0),
                         "pnl": profit,
                         "entry_time": position["entry_time"],
                         "exit_time": datetime.now(timezone.utc).isoformat(),
-                        "leverage": position.get("leverage", "N/A"),
+                        "leverage": position.get("leverage", 10),
                         "close_reason": close_reason,  # Add reason
                     }
                     # Remove from active positions while lock is held
