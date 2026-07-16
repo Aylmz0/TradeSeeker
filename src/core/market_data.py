@@ -139,7 +139,7 @@ class RealMarketData:
                     )
                     return self._build_empty_df()
 
-                df = pl.DataFrame(data, schema=KLINE_COLUMNS)
+                df = pl.DataFrame(data, schema=KLINE_COLUMNS, orient="row")
 
                 for col in ["open", "high", "low", "close", "volume"]:
                     df = df.with_columns(pl.col(col).cast(pl.Float64).round(8))
@@ -149,7 +149,7 @@ class RealMarketData:
                 )
 
                 df = df.fill_nan(None)
-                has_nan = df.select(pl.any_horizontal(pl.col(pl.Float64).is_nan())).item()
+                has_nan = df.select(pl.any_horizontal(pl.col(pl.Float64).is_nan()).any()).item()
                 if has_nan:
                     print(
                         f"[WARN] Invalid candles (NaN/Inf) detected for {symbol} ({interval}). Dropping invalid rows."

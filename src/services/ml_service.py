@@ -1,6 +1,7 @@
 import json
 import logging
 import os
+import warnings
 from datetime import datetime, timedelta, timezone
 from typing import Any
 
@@ -108,7 +109,10 @@ class MLService:
             latest_features = df_features.select(self.feature_cols).tail(1).to_numpy()
 
             # 3. Apply StandardScaler (Using transform, NEVER fit)
-            scaled_features = self.scaler.transform(latest_features)
+            # scaler was fit on a named frame; suppress benign feature-name warning
+            with warnings.catch_warnings():
+                warnings.simplefilter("ignore", UserWarning)
+                scaled_features = self.scaler.transform(latest_features)
 
             # 4. Predict Proba
             # [[Prob_SELL, Prob_HOLD, Prob_BUY]] -> [0.45, 0.35, 0.20]
