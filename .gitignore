@@ -47,6 +47,7 @@ share/
 
 # === Data & ML Artifacts ===
 data/*
+data/logs/
 archive/
 models/*
 logs/

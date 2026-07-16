@@ -46,6 +46,7 @@ class Config:
     # Application Settings
     DEBUG: bool = os.getenv("DEBUG", "false").lower() == "true"
     LOG_LEVEL: str = os.getenv("LOG_LEVEL", "INFO").upper()
+    LOG_DIR: str = os.getenv("LOG_DIR", "data/logs")
     MAX_RETRY_ATTEMPTS: int = int(os.getenv("MAX_RETRY_ATTEMPTS", "3"))
     REQUEST_TIMEOUT: int = int(os.getenv("REQUEST_TIMEOUT", "30"))
 
@@ -448,10 +449,3 @@ class Config:
         if cls.TRADING_MODE == "live":
             logging.info(f"  BINANCE_MARGIN_TYPE: {cls.BINANCE_MARGIN_TYPE}")
             logging.info(f"  BINANCE_DEFAULT_LEVERAGE: {cls.BINANCE_DEFAULT_LEVERAGE}x")
-
-
-# Configure logging
-logging.basicConfig(
-    level=getattr(logging, Config.LOG_LEVEL),
-    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
-)

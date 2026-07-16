@@ -8,6 +8,8 @@ import traceback
 from datetime import datetime, timedelta, timezone
 from typing import Any
 
+from loguru import logger
+
 
 # Add project root to sys.path
 PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -21,6 +23,7 @@ from src.core.account_service import AccountService
 from src.core.ai_service import AIService
 from src.core.backtest import AdvancedRiskManager
 from src.core.data_engine import DataEngine
+from src.core.log_config import setup_logging
 from src.core.market_data import RealMarketData
 from src.core.portfolio_manager import PortfolioManager
 from src.core.strategy_analyzer import StrategyAnalyzer
@@ -105,8 +108,11 @@ class AlphaArenaDeepSeek:
                     "signal": "hold",
                     "justification": f"Directional cooldown active ({remaining} cycles remaining)",
                 }
-                print(
-                    f"[PAUSED] Directional cooldown: Blocking {direction.upper()} entry for {coin} ({remaining} cycles remaining).",
+                logger.info(
+                    "Directional cooldown: Blocking {} entry for {} ({} cycles remaining)",
+                    direction.upper(),
+                    coin,
+                    remaining,
                 )
                 continue
 
@@ -128,8 +134,10 @@ class AlphaArenaDeepSeek:
             return
         cycles_elapsed = getattr(self.portfolio, "cycles_since_history_reset", 0)
         if cycles_elapsed >= interval:
-            print(
-                f"[BIAS CONTROL] Bias control: {cycles_elapsed} cycles since last reset (interval {interval}). Resetting history.",
+            logger.info(
+                "Bias control: {} cycles since last reset (interval {}). Resetting history.",
+                cycles_elapsed,
+                interval,
             )
             self.portfolio.reset_historical_data(cycle_number)
             self.invocation_count = 0
@@ -142,7 +150,7 @@ class AlphaArenaDeepSeek:
         try:
             return Config.CYCLE_INTERVAL_MINUTES * 60  # Convert to seconds
         except Exception as e:
-            print(f"[WARN]  Cycle frequency calculation error: {e}")
+            logger.warning("Cycle frequency calculation error: {}", e)
             return constants.DEFAULT_CYCLE_FREQUENCY_S  # Default fallback
 
     def track_performance_metrics(self, cycle_number: int):
@@ -168,7 +176,7 @@ class AlphaArenaDeepSeek:
             )  # Last N cycles
 
         except Exception as e:
-            print(f"[WARN]  Performance tracking error: {e}")
+            logger.warning("Performance tracking error: {}", e)
 
     def should_run_performance_analysis(self, cycle_number: int) -> bool:
         """Run analysis every 10 cycles or in critical situations"""
@@ -185,22 +193,25 @@ class AlphaArenaDeepSeek:
 
     def run_trading_cycle(self, cycle_number: int, cancel_event: threading.Event | None = None):
         """Run a single trading cycle with auto TP/SL and enhanced features"""
-        print(
-            f"\n==== CYCLE {cycle_number} | {datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M:%S')} {'=' * 50}",
+        logger.info(
+            "==== CYCLE {} | {} {}",
+            cycle_number,
+            datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S"),
+            "=" * 50,
         )
 
         # Check cancellation (watchdog timeout)
         if cancel_event and cancel_event.is_set():
-            print(f"[ZOMBIE ABORT] Cycle {cycle_number} cancelled before start.")
+            logger.warning("Cycle {} cancelled before start.", cycle_number)
             return
 
         # Check bot control at cycle start
         control = self._read_bot_control()
         if control.get("status") == "paused":
-            print(f"[PAUSED] Cycle {cycle_number} SKIPPED - Bot is PAUSED")
+            logger.info("Cycle {} SKIPPED - Bot is PAUSED", cycle_number)
             return
         if control.get("status") == "stopped":
-            print(f"[STOPPED] Cycle {cycle_number} STOPPED - Bot STOP command received")
+            logger.info("Cycle {} STOPPED - Bot STOP command received", cycle_number)
             return
 
         self.current_cycle_number = cycle_number
@@ -228,7 +239,7 @@ class AlphaArenaDeepSeek:
 
             # Run performance analysis every 10 cycles or on critical conditions
             if self.should_run_performance_analysis(cycle_number):
-                print(f"[INFO]  Performance analysis (Cycle {cycle_number})")
+                logger.info("Performance analysis (Cycle {})", cycle_number)
                 from src.core.performance_monitor import PerformanceMonitor
 
                 monitor = PerformanceMonitor()
@@ -238,7 +249,7 @@ class AlphaArenaDeepSeek:
             # PHASE 27: AUTOMATED ML TRAINING
             self.auto_train_cycle_count += 1
             if self.auto_train_cycle_count >= constants.AUTO_TRAIN_CYCLE_INTERVAL:
-                print("\n[AUTO-ML] Triggering 3-hour automated model retraining...")
+                logger.info("Triggering 3-hour automated model retraining...")
                 try:
                     import subprocess
 
@@ -249,14 +260,14 @@ class AlphaArenaDeepSeek:
 
                     cmd = [venv_py, os.path.join(PROJECT_ROOT, "scripts", "train_model.py")]
                     subprocess.Popen(cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-                    print(
-                        "[AUTO-ML] Training started in background. Hot-reload will trigger on completion."
+                    logger.info(
+                        "Training started in background. Hot-reload will trigger on completion."
                     )
                     self.auto_train_cycle_count = 0  # Reset counter
                 except Exception as aml_err:
-                    print(f"[WARN]   Failed to trigger automated training: {aml_err}")
+                    logger.warning("Failed to trigger automated training: {}", aml_err)
 
-            print("\n[INFO]  Fetching market data...")
+            logger.info("Fetching market data...")
             md_start = time.perf_counter()
             real_prices = self.market_data.get_all_real_prices()
             valid_prices = {
@@ -269,11 +280,11 @@ class AlphaArenaDeepSeek:
             # Check bot control before live account sync (can be slow)
             control = self._read_bot_control()
             if control.get("status") == "paused":
-                print(f"[PAUSED] Cycle {cycle_number} PAUSED before account sync - stopping cycle")
+                logger.info("Cycle {} PAUSED before account sync - stopping cycle", cycle_number)
                 self.cycle_active = False
                 return
             if control.get("status") == "stopped":
-                print(f"[STOPPED] Cycle {cycle_number} STOPPED - Bot STOP command received")
+                logger.info("Cycle {} STOPPED - Bot STOP command received", cycle_number)
                 self.cycle_active = False
                 return
             if self.portfolio.is_live_trading:
@@ -313,7 +324,7 @@ class AlphaArenaDeepSeek:
 
                 if coin in valid_prices:
                     if self.portfolio.check_flash_exit_conditions(coin, position):
-                        print(f"[ALERT] EXECUTING FLASH EXIT for {coin}...")
+                        logger.warning("EXECUTING FLASH EXIT for {}...", coin)
                         current_price = valid_prices[coin]
 
                         # Close position immediately
@@ -340,41 +351,41 @@ class AlphaArenaDeepSeek:
                             flash_exits_triggered = True
 
             if flash_exits_triggered:
-                print("[INFO] Flash Exits triggered. Continuing cycle...")
+                logger.info("Flash Exits triggered. Continuing cycle...")
             # --- End Flash Exit Check ---
 
             manual_override = self.portfolio.get_manual_override()
             auto_exit_triggered = bool(positions_closed_by_tp_sl)
 
             if manual_override:
-                print("[ALERT] APPLYING MANUAL OVERRIDE...")
+                logger.info("APPLYING MANUAL OVERRIDE...")
                 decisions = manual_override.get("decisions", {})
                 thoughts = "Manual override."
                 prompt = "N/A (Manual)"
-                print("\n[RESULT] MANUAL DECISIONS:", json.dumps(decisions, indent=2))
+                logger.info("MANUAL DECISIONS:\n{}", json.dumps(decisions, indent=2))
             # Only ask AI if no TP/SL triggered AND no manual override
             else:
                 if auto_exit_triggered:
-                    print(
-                        "[INFO] Auto TP/SL/extended exit triggered earlier this cycle - proceeding with AI analysis.",
+                    logger.info(
+                        "Auto TP/SL/extended exit triggered earlier this cycle - proceeding with AI analysis.",
                     )
                 # Check bot control before AI call (can be slow in live mode)
                 control = self._read_bot_control()
                 if control.get("status") == "paused":
-                    print(f"[PAUSED] Cycle {cycle_number} PAUSED before AI call - stopping cycle")
+                    logger.info("Cycle {} PAUSED before AI call - stopping cycle", cycle_number)
                     self.cycle_active = False
                     return
                 if control.get("status") == "stopped":
-                    print(f"[STOPPED] Cycle {cycle_number} STOPPED - Bot STOP command received")
+                    logger.info("Cycle {} STOPPED - Bot STOP command received", cycle_number)
                     self.cycle_active = False
                     return
                 # ZOMBIE ABORT: Check if watchdog fired while we were waiting
                 if cancel_event and cancel_event.is_set():
-                    print(f"[ZOMBIE ABORT] Cycle {cycle_number} cancelled before AI call.")
+                    logger.warning("Cycle {} cancelled before AI call.", cycle_number)
                     return
 
                 ai_timer_start = time.perf_counter()
-                print("\n[AI]    Generating prompt...")
+                logger.info("Generating prompt...")
                 self.invocation_count += 1  # Increment AI call count
                 # Use JSON prompt if enabled, with fallback to text format
                 prompt = None
@@ -385,15 +396,15 @@ class AlphaArenaDeepSeek:
                     try:
                         prompt = self.ai_service.generate_alpha_arena_prompt_json()
                         prompt_format_used = "json"
-                        print(f"[OK]    JSON prompt format v{Config.JSON_PROMPT_VERSION}")
+                        logger.info("JSON prompt format v{}", Config.JSON_PROMPT_VERSION)
                     except Exception as e:
                         json_serialization_error = str(e)
-                        print(f"[WARN]  JSON prompt failed: {e} -- falling back to text")
+                        logger.warning("JSON prompt failed: {} -- falling back to text", e)
                         prompt = self.ai_service.generate_alpha_arena_prompt()
                         prompt_format_used = "json_fallback"
                 else:
                     prompt = self.ai_service.generate_alpha_arena_prompt()
-                print("[INFO]  Prompt: " + prompt[:160] + "...")
+                logger.info("Prompt: {}...", prompt[:160])
 
                 # PHASE 10: AUTOMATED DATA COLLECTION (DEPRECATED - Moved to Bulk Sync in train_model.py)
                 """
@@ -412,29 +423,29 @@ class AlphaArenaDeepSeek:
                                 coin, "15m", latest_indicators[coin]["15m"]
                             )
                 except Exception as log_err:
-                    print(f"[WARN]  Database logging failed: {log_err}")
+                        logger.warning("Database logging failed: {}", log_err)
                 """
 
                 # Check bot control before AI API call (can be slow in live mode)
                 control = self._read_bot_control()
                 if control.get("status") == "paused":
-                    print(
-                        f"[PAUSED] Cycle {cycle_number} PAUSED before AI API call - stopping cycle"
-                    )
+                    logger.info("Cycle {} PAUSED before AI API call - stopping cycle", cycle_number)
                     self.cycle_active = False
                     return
                 if control.get("status") == "stopped":
-                    print(f"[STOPPED] Cycle {cycle_number} STOPPED - Bot STOP command received")
+                    logger.info("Cycle {} STOPPED - Bot STOP command received", cycle_number)
                     self.cycle_active = False
                     return
 
-                print("[AI]    Sending to API...")
+                logger.info("Sending to API...")
                 ai_response = self.deepseek.get_ai_decision(prompt)
 
                 # ZOMBIE THREAD CHECK: If this thread woke up late and the main loop moved on, ABORT.
                 if self.current_cycle_number != cycle_number:
-                    print(
-                        f"\n[ZOMBIE ABORT] Cycle {cycle_number} woke up late! (Main loop is at {self.current_cycle_number}). Aborting trades to prevent corruption."
+                    logger.warning(
+                        "Cycle {} woke up late! (Main loop is at {}). Aborting trades to prevent corruption.",
+                        cycle_number,
+                        self.current_cycle_number,
                     )
                     # Do NOT touch self.cycle_active here, as the new cycle might be using it.
                     return
@@ -442,11 +453,11 @@ class AlphaArenaDeepSeek:
                 # Check bot control after AI API call (may have taken time in live mode)
                 control = self._read_bot_control()
                 if control.get("status") == "paused":
-                    print(f"[PAUSED] Cycle {cycle_number} PAUSED after AI call - stopping cycle")
+                    logger.info("Cycle {} PAUSED after AI call - stopping cycle", cycle_number)
                     self.cycle_active = False
                     return
                 if control.get("status") == "stopped":
-                    print(f"[STOPPED] Cycle {cycle_number} STOPPED - Bot STOP command received")
+                    logger.info("Cycle {} STOPPED - Bot STOP command received", cycle_number)
                     self.cycle_active = False
                     return
 
@@ -458,15 +469,15 @@ class AlphaArenaDeepSeek:
                 cycle_timing["ai_ms"] = round((time.perf_counter() - ai_timer_start) * 1000, 2)
 
                 if not isinstance(decisions, dict):
-                    print(f"[ERR]   AI decisions not dict ({type(decisions)}). Resetting.")
+                    logger.error("AI decisions not dict ({}). Resetting.", type(decisions))
                     thoughts += "\nError: Decisions not dict."
                     decisions = {}
 
                 if isinstance(thoughts, str):
                     thoughts = thoughts.replace("\\n", "\n")
-                print("\n[AI]    REASONING:\n" + thoughts)
-                print(
-                    "\n[AI]    DECISIONS:",
+                logger.info("REASONING:\n{}", thoughts)
+                logger.info(
+                    "DECISIONS:\n{}",
                     json.dumps(decisions, indent=2) if decisions else "{}",
                 )
 
@@ -475,8 +486,10 @@ class AlphaArenaDeepSeek:
                 current_positions = len(self.portfolio.positions)
 
                 if current_positions >= max_positions_for_cycle:
-                    print(
-                        f"[WARN]  Position limit reached: max {max_positions_for_cycle} for cycle {cycle_number}",
+                    logger.warning(
+                        "Position limit reached: max {} for cycle {}",
+                        max_positions_for_cycle,
+                        cycle_number,
                     )
                     # If position limit is reached, convert new entry signals to hold
                     filtered_decisions = {}
@@ -484,8 +497,10 @@ class AlphaArenaDeepSeek:
                         if isinstance(trade, dict):
                             signal = trade.get("signal")
                             if signal in ["buy_to_enter", "sell_to_enter"]:
-                                print(
-                                    f"        {coin} {signal} -> HOLD (limit)",
+                                logger.info(
+                                    "{} {} -> HOLD (limit)",
+                                    coin,
+                                    signal,
                                 )
                                 filtered_decisions[coin] = {
                                     "signal": "hold",
@@ -506,16 +521,16 @@ class AlphaArenaDeepSeek:
                 # Check bot control before execution (live mode can be slow)
                 control = self._read_bot_control()
                 if control.get("status") == "paused":
-                    print(f"[PAUSED] Cycle {cycle_number} PAUSED before execution - stopping cycle")
+                    logger.info("Cycle {} PAUSED before execution - stopping cycle", cycle_number)
                     self.cycle_active = False
                     return
                 if control.get("status") == "stopped":
-                    print(f"[STOPPED] Cycle {cycle_number} STOPPED - Bot STOP command received")
+                    logger.info("Cycle {} STOPPED - Bot STOP command received", cycle_number)
                     self.cycle_active = False
                     return
                 # ZOMBIE ABORT: Check if watchdog fired before we start executing trades
                 if cancel_event and cancel_event.is_set():
-                    print(f"[ZOMBIE ABORT] Cycle {cycle_number} cancelled before execution.")
+                    logger.warning("Cycle {} cancelled before execution.", cycle_number)
                     return
 
                 exec_start = time.perf_counter()
@@ -536,7 +551,7 @@ class AlphaArenaDeepSeek:
                 }
 
                 if has_close_position_signal:
-                    print("[AI]    CLOSE_POSITION signal -- executing closes")
+                    logger.info("CLOSE_POSITION signal -- executing closes")
                     # Close only the coins with close_position signal
                     for coin, trade in decisions.items():
                         if not isinstance(trade, dict):
@@ -564,8 +579,10 @@ class AlphaArenaDeepSeek:
                                             / 60,
                                         )
                                         if held_minutes < 12.0:
-                                            print(
-                                                f"[SHIELD]  Panic exit prevented for {coin} (Held: {int(held_minutes)}m). Minimum hold is 12m."
+                                            logger.info(
+                                                "Panic exit prevented for {} (Held: {}m). Minimum hold is 12m.",
+                                                coin,
+                                                int(held_minutes),
                                             )
                                             close_execution_report["blocked"].append(
                                                 {
@@ -587,7 +604,7 @@ class AlphaArenaDeepSeek:
                                     )
                                     if not live_result.get("success"):
                                         error_msg = live_result.get("error", "unknown_error")
-                                        print(f"[ERR]   Live close failed: {coin} ({error_msg})")
+                                        logger.error("Live close failed: {} ({})", coin, error_msg)
                                         close_execution_report["blocked"].append(
                                             {
                                                 "coin": coin,
@@ -609,8 +626,12 @@ class AlphaArenaDeepSeek:
                                                 "mode": "live",
                                             },
                                         )
-                                        print(
-                                            f"[OK]    Closed {direction} {coin} @ ${format_num(current_price, 4)} (PnL: ${format_num(live_result.get('pnl', 0), 2)}) [LIVE]",
+                                        logger.info(
+                                            "Closed {} {} @ ${} (PnL: ${}) [LIVE]",
+                                            direction,
+                                            coin,
+                                            format_num(current_price, 4),
+                                            format_num(live_result.get("pnl", 0), 2),
                                         )
                                     continue
 
@@ -638,8 +659,12 @@ class AlphaArenaDeepSeek:
 
                                     self.portfolio.current_balance += margin_used + profit
 
-                                    print(
-                                        f"[OK]    Closed {direction} {coin} @ ${format_num(current_price, 4)} (PnL: ${format_num(profit, 2)})",
+                                    logger.info(
+                                        "Closed {} {} @ ${} (PnL: ${})",
+                                        direction,
+                                        coin,
+                                        format_num(current_price, 4),
+                                        format_num(profit, 2),
                                     )
 
                                     history_entry = {
@@ -725,7 +750,7 @@ class AlphaArenaDeepSeek:
                 execution_elapsed = time.perf_counter() - exec_start
 
             elif isinstance(decisions, dict):
-                print("[INFO]  No trading actions this cycle.")
+                logger.info("No trading actions this cycle.")
 
             if execution_elapsed is not None:
                 cycle_timing["execution_ms"] = round(execution_elapsed * 1000, 2)
@@ -768,7 +793,7 @@ class AlphaArenaDeepSeek:
                 if "execution_ms" in cycle_timing:
                     timing_summary.append(f"exec {cycle_timing['execution_ms']:.2f}ms")
                 if timing_summary:
-                    print("[INFO]  Timers: " + " | ".join(timing_summary))
+                    logger.info("Timers: {}", " | ".join(timing_summary))
 
             self.portfolio.add_to_cycle_history(
                 {
@@ -792,7 +817,7 @@ class AlphaArenaDeepSeek:
             self.show_status()
 
         except Exception as e:
-            print(f"[ERR]   CRITICAL CYCLE ERROR: {e}")
+            logger.error("CRITICAL CYCLE ERROR: {}", e)
             traceback.print_exc()
             try:
                 decisions_log = decisions if isinstance(decisions, dict) else {}
@@ -807,7 +832,7 @@ class AlphaArenaDeepSeek:
                     }
                 )
             except Exception as log_e:
-                print(f"[ERR]   Failed to save error to cycle history: {log_e}")
+                logger.error("Failed to save error to cycle history: {}", log_e)
         finally:
             self.cycle_active = False
             self.enhanced_exit_enabled = True
@@ -815,30 +840,35 @@ class AlphaArenaDeepSeek:
             try:
                 control = self._read_bot_control()
                 if control.get("status") == "stopped":
-                    print(
-                        f"[STOPPED] Cycle {cycle_number} exception handler: Bot STOP command received"
+                    logger.info(
+                        "Cycle {} exception handler: Bot STOP command received",
+                        cycle_number,
                     )
                     raise SystemExit("Bot stopped by user command")
             except SystemExit:
                 raise
             except Exception as control_e:
-                print(f"[WARN]  Failed to check bot control after exception: {control_e}")
+                logger.warning("Failed to check bot control after exception: {}", control_e)
 
     def show_status(self):
         """Show current status in the console"""
-        print("\n--- STATUS ---")
+        logger.info("--- STATUS ---")
         with self.portfolio._lock:
             balance = self.portfolio.current_balance
             total_value = self.portfolio.total_value
             total_return = self.portfolio.total_return
             trade_count = self.portfolio.trade_count
             positions_snapshot = list(self.portfolio.positions.items())
-        print(
-            f"[INFO]  Value: ${format_num(total_value, 2)} | Return: {format_num(total_return, 2)}% | Cash: ${format_num(balance, 2)} | Trades: {trade_count}",
+        logger.info(
+            "Value: ${} | Return: {}% | Cash: ${} | Trades: {}",
+            format_num(total_value, 2),
+            format_num(total_return, 2),
+            format_num(balance, 2),
+            trade_count,
         )
-        print(f"\n[INFO]  Positions ({len(positions_snapshot)} open):")
+        logger.info("Positions ({} open):", len(positions_snapshot))
         if not positions_snapshot:
-            print("  No open positions.")
+            logger.info("  No open positions.")
         else:
             for coin, pos in positions_snapshot:
                 pnl = pos.get("unrealized_pnl", 0.0)
@@ -849,29 +879,38 @@ class AlphaArenaDeepSeek:
                 liq = pos.get("liquidation_price", 0.0)
                 entry = pos.get("entry_price", 0.0)
                 qty = pos.get("quantity", 0.0)
-                print(
-                    f"  {coin} ({direction} {leverage}x): {format_num(qty, 4)} units | Notional ${format_num(notional, 2)} | Entry: ${format_num(entry, 4)} | PnL: {pnl_sign}${format_num(pnl, 2)} | Liq Est: ${format_num(liq, 4)}",
+                logger.info(
+                    "  {} ({} {}x): {} units | Notional ${} | Entry: ${} | PnL: {}${} | Liq Est: ${}",
+                    coin,
+                    direction,
+                    leverage,
+                    format_num(qty, 4),
+                    format_num(notional, 2),
+                    format_num(entry, 4),
+                    pnl_sign,
+                    format_num(pnl, 2),
+                    format_num(liq, 4),
                 )
 
     def start_tp_sl_monitoring(self):
         """Start TP/SL monitoring timer that runs every 1 minute"""
         if self.tp_sl_timer and self.tp_sl_timer.is_alive():
-            print("[INFO] TP/SL monitoring already running")
+            logger.info("TP/SL monitoring already running")
             return
 
         self.is_running = True
         self.tp_sl_timer = threading.Thread(target=self._tp_sl_monitoring_loop, daemon=True)
         self.tp_sl_timer.start()
-        print("[OK]    TP/SL monitoring started (30s interval)")
+        logger.info("TP/SL monitoring started (30s interval)")
 
     def stop_tp_sl_monitoring(self):
         """Stop TP/SL monitoring timer"""
         self.is_running = False
         if self.tp_sl_timer and self.tp_sl_timer.is_alive():
             self.tp_sl_timer.join(timeout=5)
-            print("[STOPPED] TP/SL monitoring stopped")
+            logger.info("TP/SL monitoring stopped")
         else:
-            print("[INFO] TP/SL monitoring was not running")
+            logger.info("TP/SL monitoring was not running")
 
     def _tp_sl_monitoring_loop(self):
         """Background thread that checks TP/SL every 30 seconds"""
@@ -881,13 +920,13 @@ class AlphaArenaDeepSeek:
                 # Check bot control file for pause/stop command
                 control = self._read_bot_control()
                 if control.get("status") == "stopped":
-                    print(
-                        "[STOPPED] TP/SL monitoring: STOP command received. Stopping monitoring loop..."
+                    logger.info(
+                        "TP/SL monitoring: STOP command received. Stopping monitoring loop..."
                     )
                     self.is_running = False
                     break
                 if control.get("status") == "paused":
-                    print("[PAUSED] TP/SL monitoring: Bot is PAUSED. Waiting for resume...")
+                    logger.info("TP/SL monitoring: Bot is PAUSED. Waiting for resume...")
                     # Wait in smaller intervals to check for resume with safety timeout
                     pause_timeout = 300  # 5 minutes max in paused state
                     pause_iterations = 0
@@ -898,20 +937,20 @@ class AlphaArenaDeepSeek:
                             control = self._read_bot_control()
                         except Exception:
                             # FIX: Handle corrupted control file gracefully
-                            print("[WARN]  Failed to read control file, retrying...")
+                            logger.warning("Failed to read control file, retrying...")
                             continue
                         if control.get("status") == "running":
-                            print("[INFO] TP/SL monitoring: Bot RESUMED. Continuing monitoring...")
+                            logger.info("TP/SL monitoring: Bot RESUMED. Continuing monitoring...")
                             break
                         if control.get("status") == "stopped":
-                            print(
-                                "[STOPPED] TP/SL monitoring: STOP command received. Stopping monitoring loop...",
+                            logger.info(
+                                "TP/SL monitoring: STOP command received. Stopping monitoring loop..."
                             )
                             self.is_running = False
                             break
                     else:
                         # Timeout reached - auto-resume to prevent hanging
-                        print("[WARN]  Pause timeout reached, auto-resuming...")
+                        logger.info("Pause timeout reached, auto-resuming...")
                     if control.get("status") == "stopped":
                         break
                     continue
@@ -995,40 +1034,42 @@ class AlphaArenaDeepSeek:
                                         )
                                         flash_exits_triggered = True
                         if flash_exits_triggered:
-                            print("[ALERT]  Flash exit: V-Reversal detected and closed")
+                            logger.warning("Flash exit: V-Reversal detected and closed")
 
                     # Run TP/SL check - all decisions made by 20-second monitoring (like simulation mode)
                     # No Binance TP/SL orders - all managed by monitoring loop
                     positions_closed = self.account_service.check_and_execute_tp_sl(valid_prices)
 
                     if positions_closed:
-                        print("[INFO] 20-SECOND TP/SL CHECK: Positions closed")
+                        logger.info("20-SECOND TP/SL CHECK: Positions closed")
                     else:
                         # No TP/SL triggers this check — log only when there are triggers
                         pass
                 else:
-                    print("[WARN]  TP/SL monitoring: No valid prices")
+                    logger.warning("TP/SL monitoring: No valid prices")
 
                 # Check bot control before sleep
                 control = self._read_bot_control()
                 if control.get("status") == "stopped":
-                    print(
-                        "[STOPPED] TP/SL monitoring: STOP command received. Stopping monitoring loop..."
+                    logger.info(
+                        "TP/SL monitoring: STOP command received. Stopping monitoring loop..."
                     )
                     self.is_running = False
                     break
 
             except Exception as e:
-                print(f"[ERR]   TP/SL monitoring error: {e}")
+                logger.error("TP/SL monitoring error: {}", e)
                 # Check bot control after exception
                 try:
                     control = self._read_bot_control()
                     if control.get("status") == "stopped":
-                        print("[STOPPED] TP/SL monitoring: STOP command received after exception")
+                        logger.info("TP/SL monitoring: STOP command received after exception")
                         self.is_running = False
                         break
                 except Exception as control_e:
-                    print(f"[WARN]  Failed to check bot control after TP/SL exception: {control_e}")
+                    logger.warning(
+                        "Failed to check bot control after TP/SL exception: {}", control_e
+                    )
 
             # Wait 30 seconds before next check
             if self.is_running:
@@ -1036,11 +1077,14 @@ class AlphaArenaDeepSeek:
 
     def run_simulation(self, total_duration_hours: int = 168, cycle_interval_minutes: int = 2):
         """Run the simulation with dynamic cycle frequency and TP/SL monitoring"""
-        print(f"[INFO]  ALPHA ARENA v{VERSION}")
-        print(
-            f"[INFO]  Budget: ${format_num(self.portfolio.initial_balance, 2)} | Duration: {total_duration_hours}h | Coins: {', '.join(self.market_data.available_coins)}",
+        logger.info("ALPHA ARENA v{}", VERSION)
+        logger.info(
+            "Budget: ${} | Duration: {}h | Coins: {}",
+            format_num(self.portfolio.initial_balance, 2),
+            total_duration_hours,
+            ", ".join(self.market_data.available_coins),
         )
-        print("[INFO]  Dynamic cycle: 2-4 min | TP/SL monitor: 30s interval")
+        logger.info("Dynamic cycle: 2-4 min | TP/SL monitor: 30s interval")
 
         # Start TP/SL monitoring
         self.start_tp_sl_monitoring()
@@ -1050,9 +1094,7 @@ class AlphaArenaDeepSeek:
         last_reset = getattr(self.portfolio, "last_history_reset_cycle", 0) or 0
         cycles_since_reset = len(self.portfolio.cycle_history)
         start_cycle = last_reset + cycles_since_reset + 1
-        print(
-            f"[INFO]  Resuming from cycle {start_cycle}",
-        )
+        logger.info("Resuming from cycle {}", start_cycle)
         self.invocation_count = start_cycle - 1
         current_cycle_number = start_cycle - 1
 
@@ -1066,8 +1108,8 @@ class AlphaArenaDeepSeek:
                 # Check bot control file for pause/stop command BEFORE starting cycle
                 control = self._read_bot_control()
                 if control.get("status") == "paused":
-                    print(
-                        "[PAUSED] Bot is PAUSED. Waiting for resume command... (checking every 10 seconds)",
+                    logger.info(
+                        "Bot is PAUSED. Waiting for resume command... (checking every 10 seconds)"
                     )
                     # Wait in smaller intervals to check for resume with safety timeout
                     pause_timeout = 300  # 5 minutes max in paused state
@@ -1078,23 +1120,21 @@ class AlphaArenaDeepSeek:
                         try:
                             control = self._read_bot_control()
                         except Exception:
-                            # FIX: Handle corrupted control file gracefully
-                            print("[WARN]  Failed to read control file, retrying...")
+                            logger.warning("Failed to read control file, retrying...")
                             continue
                         if control.get("status") == "running":
-                            print("[RESUMED] Bot RESUMED. Continuing trading cycles...")
+                            logger.info("Bot RESUMED. Continuing trading cycles...")
                             break
                         if control.get("status") == "stopped":
-                            print("[STOPPED] Bot STOP command received. Stopping gracefully...")
+                            logger.info("Bot STOP command received. Stopping gracefully...")
                             break
                     else:
-                        # Timeout reached - auto-resume to prevent hanging
-                        print("[WARN]  Pause timeout reached, auto-resuming...")
+                        logger.info("Pause timeout reached, auto-resuming...")
                     if control.get("status") == "stopped":
                         break
                     continue
                 if control.get("status") == "stopped":
-                    print("[STOPPED] Bot STOP command received. Stopping gracefully...")
+                    logger.info("Bot STOP command received. Stopping gracefully...")
                     break
 
                 current_cycle_number += 1
@@ -1103,15 +1143,17 @@ class AlphaArenaDeepSeek:
 
                 # Check MAX_CYCLES limit - auto-stop at configured cycle number
                 if Config.MAX_CYCLES > 0 and current_cycle_number > Config.MAX_CYCLES:
-                    print(
-                        f"[STOPPED] MAX_CYCLES limit reached ({Config.MAX_CYCLES}). Auto-stopping bot...",
+                    logger.info(
+                        "MAX_CYCLES limit reached ({}). Auto-stopping bot...", Config.MAX_CYCLES
                     )
                     break
 
                 # Calculate dynamic cycle frequency
                 dynamic_cycle_interval = self.calculate_optimal_cycle_frequency()
-                print(
-                    f"[INFO]  Cycle interval: {dynamic_cycle_interval}s ({dynamic_cycle_interval / 60:.1f} min)",
+                logger.info(
+                    "Cycle interval: {}s ({:.1f} min)",
+                    dynamic_cycle_interval,
+                    dynamic_cycle_interval / 60,
                 )
 
                 # --- CYCLE WATCHDOG (Hard Kill via Daemon Thread) ---
@@ -1142,10 +1184,10 @@ class AlphaArenaDeepSeek:
 
                 if cycle_thread.is_alive():
                     # Thread is still running after timeout -> HUNG
-                    print(
-                        f"\n[WATCHDOG] Cycle {current_cycle_number} timed out after {watchdog_timeout}s!"
+                    logger.warning(
+                        "Cycle {} timed out after {}s!", current_cycle_number, watchdog_timeout
                     )
-                    print("[WATCHDOG] Force-closing cycle and moving to next interval...")
+                    logger.warning("Force-closing cycle and moving to next interval...")
                     # Signal the abandoned thread to stop at next checkpoint
                     cancel_event.set()
                     # Cleanup to allow next cycle to resume cleanly
@@ -1154,8 +1196,8 @@ class AlphaArenaDeepSeek:
                     # The thread is daemonized, so we just abandon it. It will die with the process.
                 elif task.error:
                     # Thread finished with an error
-                    print(
-                        f"[ERR]   Cycle {current_cycle_number} failed with internal error: {task.error}"
+                    logger.error(
+                        "Cycle {} failed with internal error: {}", current_cycle_number, task.error
                     )
                 # --- END WATCHDOG ---
 
@@ -1163,16 +1205,19 @@ class AlphaArenaDeepSeek:
                     break
                 elapsed_time = time.time() - cycle_start_time
                 sleep_time = max(0, dynamic_cycle_interval - elapsed_time)
-                print(
-                    f"\n[INFO]  Cycle {current_cycle_number} done in {format_num(elapsed_time, 2)}s. Next in {format_num(sleep_time / 60, 2)} min.",
+                logger.info(
+                    "Cycle {} done in {}s. Next in {} min.",
+                    current_cycle_number,
+                    format_num(elapsed_time, 2),
+                    format_num(sleep_time / 60, 2),
                 )
                 time.sleep(max(sleep_time, 0.5))
 
                 # Check bot control file AFTER sleep (before next cycle)
                 control = self._read_bot_control()
                 if control.get("status") == "paused":
-                    print(
-                        "[PAUSED] Bot is PAUSED. Waiting for resume command... (checking every 10 seconds)",
+                    logger.info(
+                        "Bot is PAUSED. Waiting for resume command... (checking every 10 seconds)"
                     )
                     # Wait in smaller intervals to check for resume with safety timeout
                     pause_timeout = 300  # 5 minutes max in paused state
@@ -1184,33 +1229,32 @@ class AlphaArenaDeepSeek:
                             control = self._read_bot_control()
                         except Exception:
                             # FIX: Handle corrupted control file gracefully
-                            print("[WARN]  Failed to read control file, retrying...")
+                            logger.warning("Failed to read control file, retrying...")
                             continue
                         if control.get("status") == "running":
-                            print("[RESUMED] Bot RESUMED. Continuing trading cycles...")
+                            logger.info("Bot RESUMED. Continuing trading cycles...")
                             break
                         if control.get("status") == "stopped":
-                            print("[STOPPED] Bot STOP command received. Stopping gracefully...")
+                            logger.info("Bot STOP command received. Stopping gracefully...")
                             break
                     else:
-                        # Timeout reached - auto-resume to prevent hanging
-                        print("[WARN]  Pause timeout reached, auto-resuming...")
+                        logger.info("Pause timeout reached, auto-resuming...")
                     if control.get("status") == "stopped":
                         break
                     continue
                 if control.get("status") == "stopped":
-                    print("[STOPPED] Bot STOP command received. Stopping gracefully...")
+                    logger.info("Bot STOP command received. Stopping gracefully...")
                     break
 
         except KeyboardInterrupt:
-            print("\n[STOPPED] Program stopped by user.")
+            logger.info("Program stopped by user.")
         finally:
             # Stop TP/SL monitoring
             self.stop_tp_sl_monitoring()
 
-        print(f"\n{'=' * 60}")
-        print("[INFO]  SIMULATION COMPLETED")
-        print(f"{'=' * 60}")
+        logger.info("=" * 60)
+        logger.info("SIMULATION COMPLETED")
+        logger.info("=" * 60)
         self.show_status()
 
     def _adjust_partial_sale_for_min_limit(self, position: dict, proposed_percent: float) -> float:
@@ -1222,8 +1266,10 @@ class AlphaArenaDeepSeek:
 
         if current_margin <= min_remaining:
             # Position already at or below minimum, don't sell
-            print(
-                f"[STOPPED] Partial sale blocked: Position margin ${current_margin:.2f} <= minimum limit ${min_remaining:.2f}",
+            logger.info(
+                "Partial sale blocked: Position margin ${:.2f} <= minimum limit ${:.2f}",
+                current_margin,
+                min_remaining,
             )
             return 0.0
 
@@ -1237,8 +1283,11 @@ class AlphaArenaDeepSeek:
         adjusted_sale_amount = current_margin - min_remaining
         adjusted_percent = adjusted_sale_amount / current_margin
 
-        print(
-            f"[INFO]  Adjusted partial sale: {proposed_percent * 100:.0f}% -> {adjusted_percent * 100:.0f}% to maintain ${min_remaining:.2f} minimum limit",
+        logger.info(
+            "Adjusted partial sale: {:.0f}% -> {:.0f}% to maintain ${:.2f} minimum limit",
+            proposed_percent * 100,
+            adjusted_percent * 100,
+            min_remaining,
         )
         return adjusted_percent
 
@@ -1266,7 +1315,7 @@ class AlphaArenaDeepSeek:
                 {"status": "running", "last_updated": datetime.now(timezone.utc).isoformat()},
             )
         except Exception as e:
-            print(f"[WARN]  Failed to read bot_control.json: {e}")
+            logger.warning("Failed to read bot_control.json: {}", e)
             # Return default running state if file read fails (fail-safe)
             return {"status": "running", "last_updated": datetime.now(timezone.utc).isoformat()}
 
@@ -1317,18 +1366,19 @@ VERSION = "9 - Auto TP/SL, Dynamic Size, Prompt Eng"
 
 def main():
     """Main application entry point"""
+    setup_logging(log_level=Config.LOG_LEVEL, log_dir=Config.LOG_DIR)
     try:
         cleanup_stale_temp_files()
         api_key = os.getenv("DEEPSEEK_API_KEY")
         if not api_key:
-            print("[WARN]  No DEEPSEEK_API_KEY found. Running simulation mode...")
+            logger.warning("No DEEPSEEK_API_KEY found. Running simulation mode...")
         arena = AlphaArenaDeepSeek(api_key)
         arena.run_simulation(total_duration_hours=168, cycle_interval_minutes=2)
     except KeyboardInterrupt:
-        print("\n[STOPPED] Program stopped by user.")
+        logger.info("Program stopped by user.")
     except Exception as e:
-        print(f"\n[ERROR] Unexpected critical error in main: {e}")
-        traceback.print_exc()
+        logger.critical("Unexpected critical error in main: {}", e)
+        logger.debug(traceback.format_exc())
 
 
 if __name__ == "__main__":
