@@ -18,6 +18,8 @@ from typing import TYPE_CHECKING, Any, Literal
 if TYPE_CHECKING:
     from collections.abc import Callable
 
+    from src.core.cache_manager import CacheManager
+
 import math
 import statistics
 
@@ -40,7 +42,7 @@ HTF_LABEL = HTF_INTERVAL
 try:
     from src.services.binance import BinanceOrderExecutor
 
-    BINANCE_IMPORT_ERROR = None
+    BINANCE_IMPORT_ERROR: str | None = None
 except Exception as e:
     BinanceOrderExecutor = None
     BINANCE_IMPORT_ERROR = str(e)
@@ -68,13 +70,14 @@ class PortfolioManager:
     trend_state: dict[str, dict[str, Any]]
     trend_flip_cooldown: int
     trend_flip_history_window: int
-    indicator_cache: dict[str, dict[str, dict[str, Any]]]
+    indicator_cache: CacheManager | dict[str, dict[str, dict[str, Any]]]
     last_execution_report: dict[str, Any]
     history_reset_interval: int
     last_history_reset_cycle: int
     cycles_since_history_reset: int
     directional_cooldowns: dict[str, int]
     relaxed_countertrend_cycles: int
+    latest_bias_metrics: dict[str, Any]
     counter_trend_cooldown: int
     counter_trend_consecutive_losses: int
     coin_cooldowns: dict[str, int]
@@ -724,6 +727,9 @@ class PortfolioManager:
                 p3m, e3m = inds_3m.get("current_price"), inds_3m.get("ema_20")
 
                 if all(isinstance(x, (int, float)) for x in [p1h, e1h, p15, e15, p3m, e3m]):
+                    p1h, e1h = float(p1h), float(e1h)
+                    p15, e15 = float(p15), float(e15)
+                    p3m, e3m = float(p3m), float(e3m)
                     t1h = "BULLISH" if p1h > e1h else "BEARISH"
                     t15 = "BULLISH" if p15 > e15 else "BEARISH"
                     t3m = "BULLISH" if p3m > e3m else "BEARISH"
@@ -1290,10 +1296,14 @@ class PortfolioManager:
             from config.config import Config
 
             htf_interval = getattr(Config, "HTF_INTERVAL", "1h")
+            indicators_htf = None
             if hasattr(self, "indicator_cache") and self.indicator_cache:
-                indicators_htf = self.indicator_cache.get_indicators(
-                    coin_name, htf_interval, self.market_data
-                )
+                from src.core.cache_manager import CacheManager as _CM
+
+                if isinstance(self.indicator_cache, _CM):
+                    indicators_htf = self.indicator_cache.get_indicators(
+                        coin_name, htf_interval, self.market_data
+                    )
                 if indicators_htf and "smart_sparkline" in indicators_htf:
                     return (
                         indicators_htf["smart_sparkline"]
@@ -1481,6 +1491,85 @@ class PortfolioManager:
                 total_margin_used += margin
 
         self.total_value = self.current_balance + total_margin_used + total_unrealized_pnl
+
+    def execute_live_close(
+        self,
+        coin: str,
+        position: dict[str, Any],
+        current_price: float,
+        reason: str | None = None,
+    ) -> dict[str, Any]:
+        if not self.is_live_trading or not self.order_executor:
+            return {"success": False, "error": "live_trading_disabled"}
+        direction = position.get("direction", "long")
+        quantity = float(position.get("quantity", 0.0) or 0.0)
+        if quantity <= 0:
+            return {"success": False, "error": "invalid_quantity"}
+        try:
+            order = self.order_executor.close_position(
+                coin=coin,
+                direction=direction,
+                quantity=quantity,
+                price_reference=current_price,
+            )
+            executed_qty = float(order.get("executedQty", 0.0))
+            avg_price = float(order.get("avgPriceComputed", order.get("avgPrice", 0.0)))
+            pnl = (avg_price - float(position.get("entry_price", 0.0))) * executed_qty
+            if direction == "short":
+                pnl = -pnl
+            return {
+                "success": True,
+                "order": order,
+                "pnl": pnl,
+                "history_entry": {
+                    "symbol": coin,
+                    "direction": direction,
+                    "entry_price": float(position.get("entry_price", 0.0)),
+                    "exit_price": avg_price,
+                    "quantity": executed_qty,
+                    "pnl": pnl,
+                    "reason": reason or "live_close",
+                },
+            }
+        except Exception as e:
+            return {"success": False, "error": str(e)}
+
+    def execute_live_entry(
+        self,
+        coin: str,
+        direction: str,
+        quantity: float,
+        leverage: int,
+        current_price: float,
+        notional_usd: float,
+        confidence: float,
+        margin_usd: float | None = None,
+        stop_loss: float | None = None,
+        profit_target: float | None = None,
+        invalidation: str | None = None,
+    ) -> dict[str, Any]:
+        if not self.is_live_trading or not self.order_executor:
+            return {"success": False, "error": "live_trading_disabled"}
+        try:
+            order = self.order_executor.place_smart_limit_order(
+                coin=coin,
+                direction=direction,
+                quantity=quantity,
+                leverage=leverage,
+                price_reference=current_price,
+                reduce_only=False,
+                timeout_seconds=5.0,
+            )
+            executed_qty = float(order.get("executedQty", 0.0))
+            avg_price = float(order.get("avgPriceComputed", order.get("avgPrice", 0.0)))
+            return {
+                "success": True,
+                "order": order,
+                "executed_qty": executed_qty,
+                "avg_price": avg_price,
+            }
+        except Exception as e:
+            return {"success": False, "error": str(e)}
 
     def _calculate_empty_portfolio_value(self) -> None:
         """Calculate total value when no positions are active."""
@@ -2413,9 +2502,7 @@ class PortfolioManager:
             Dictionary containing 'report', 'market_regime', and 'regime_strength'.
 
         """
-        if self.is_live_trading:
-            self.sync_live_account()
-
+        # NOTE: sync_live_account() is handled by AccountService, not PortfolioManager
         # Phase 7: Centralized Regime Detection
         coin_indicators = {}
         for coin in self.market_data.available_coins:

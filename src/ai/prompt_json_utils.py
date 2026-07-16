@@ -12,9 +12,9 @@ class SafeJSONEncoder(json.JSONEncoder):
     Integrates with format_num() for consistent number formatting.
     """
 
-    def encode(self, obj: Any) -> str:
+    def encode(self, o: Any) -> str:
         """Encode object to JSON string, handling special cases."""
-        return super().encode(self._clean_value(obj))
+        return super().encode(self._clean_value(o))
 
     def _clean_value(self, value: Any) -> Any:
         """Recursively clean values, converting NaN/None to null."""

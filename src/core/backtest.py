@@ -7,7 +7,7 @@ import math
 import random
 import statistics
 from datetime import datetime, timedelta, timezone
-from typing import Any
+from typing import Any, Callable
 
 import polars as pl
 
@@ -266,7 +266,7 @@ class BacktestEngine:
 
     def run_backtest(
         self,
-        strategy_func: callable,
+        strategy_func: "Callable[..., Any]",
         symbols: list[str],
         start_date: str,
         end_date: str,
@@ -406,9 +406,9 @@ class AdvancedRiskManager:
         base_position_size = risk_per_trade / risk_per_unit
 
         # Adjust based on confidence - flexible sizing within limits
-        if confidence > Config.CONFIDENCE_VERY_HIGH:  # High confidence
+        if confidence > 0.8:  # High confidence
             confidence_multiplier = 1.3  # More conservative scaling
-        elif confidence > Config.CONFIDENCE_HIGH:  # Medium confidence
+        elif confidence > 0.6:  # Medium confidence
             confidence_multiplier = 1.1
         else:  # Low confidence
             confidence_multiplier = 0.7
@@ -452,8 +452,6 @@ class AdvancedRiskManager:
 
         # Set concentration limit based on risk level
         if max_concentration is None:
-            from config.config import Config
-
             risk_level = Config.RISK_LEVEL.lower()
 
             if risk_level in {"low", "high"}:

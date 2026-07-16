@@ -98,7 +98,9 @@ def _sv_volume_label_from_ratio(ratio: float) -> str:
     return "LOW"
 
 
-def _sv_volume_label(indicators_3m: dict[str, Any], indicators_15m: dict[str, Any] = None) -> str:
+def _sv_volume_label(
+    indicators_3m: dict[str, Any], indicators_15m: dict[str, Any] | None = None
+) -> str:
     """Legacy function - calculates hybrid ratio then converts to label."""
     # Calculate hybrid volume ratio (same as runtime)
     ratio_3m = None
@@ -332,7 +334,7 @@ def build_counter_trade_json(
     htf_interval: str,
     market_data=None,  # NEW: market_data parameter for Funding Rate
     ml_consensus_dict: dict[str, dict[str, Any]] | None = None,  # Inject ML consensus dict
-) -> list[dict[str, Any]]:
+) -> dict[str, dict[str, Any]]:
     """Build counter-trade analysis JSON from text analysis or indicators.
 
     Args:

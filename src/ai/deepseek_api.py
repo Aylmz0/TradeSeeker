@@ -516,7 +516,7 @@ class DeepSeekAPI:
             # Capture hidden reasoning if available
             reasoning = getattr(response.choices[0].message, "reasoning_content", None)
 
-            return {"content": content, "reasoning": reasoning}
+            return json.dumps({"content": content, "reasoning": reasoning})
 
         except litellm.ContextWindowExceededError as e:
             logger.error("Context window exceeded: {}", e)

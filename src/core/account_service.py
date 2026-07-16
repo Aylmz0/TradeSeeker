@@ -105,7 +105,7 @@ class AccountService:
     ) -> dict[str, Any]:
         """Ensure a position carries a valid exit plan, supplementing with defaults if needed."""
         direction = position.get("direction", "long")
-        entry_price = position.get("entry_price") or position.get("current_price")
+        entry_price = position.get("entry_price") or position.get("current_price") or 0.0
         default_plan = self._build_default_exit_plan(direction, entry_price)
         final_plan = default_plan.copy()
         provided_keys = set()
@@ -314,7 +314,7 @@ class AccountService:
                 if (
                     overview
                     and overview.get("totalWalletBalance")
-                    and overview.get("totalWalletBalance") > 0
+                    and float(overview["totalWalletBalance"]) > 0
                 ):
                     self.pm.total_value = float(overview["totalWalletBalance"])
                 else:

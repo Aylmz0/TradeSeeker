@@ -116,6 +116,86 @@ line-ending = "auto"
 "src/core/performance_monitor.py" = ["ALL"]
 
 [tool.ty]
-overrides = [
-    { rules = { "invalid-parameter-default" = "ignore", "member-access" = "ignore", "type-mismatch" = "ignore", "unresolved-attribute" = "ignore", "possibly-missing-attribute" = "ignore", "invalid-return-type" = "ignore", "invalid-argument-type" = "ignore", "unsupported-operator" = "ignore", "invalid-assignment" = "ignore", "invalid-raise" = "ignore", "not-subscriptable" = "ignore", "unresolved-reference" = "ignore", "invalid-type-form" = "ignore", "no-matching-overload" = "ignore", "invalid-method-override" = "ignore", "unresolved-import" = "ignore" } }
-]
+[tool.ty.environment]
+python-version = "3.10"
+python-platform = "linux"
+
+[tool.ty.src]
+include = ["src", "config"]
+
+[tool.ty.rules]
+# Import hataları
+unresolved-import = "error"
+unresolved-reference = "error"
+
+# Tip hataları
+invalid-argument-type = "error"
+invalid-assignment = "error"
+invalid-return-type = "error"
+missing-argument = "error"
+call-non-callable = "error"
+
+# Operatör hataları
+unsupported-operator = "error"
+not-iterable = "error"
+not-subscriptable = "error"
+
+# Sınıf/Protocol hataları
+invalid-method-override = "error"
+
+# Olası hatalar (warn seviyesinde)
+possibly-missing-attribute = "warn"
+possibly-unresolved-reference = "warn"
+
+# Trading-kritik
+division-by-zero = "warn"
+
+[tool.ty.terminal]
+error-on-warning = false
+output-format = "full"
+
+[[tool.ty.overrides]]
+include = ["tests/**"]
+[tool.ty.overrides.rules]
+possibly-unresolved-reference = "ignore"
+
+# LiteLLM stub'lardan kaynaklanan false positive'leri bastır
+[[tool.ty.overrides]]
+include = ["src/ai/deepseek_api.py"]
+[tool.ty.overrides.rules]
+invalid-argument-type = "ignore"
+invalid-assignment = "ignore"
+unresolved-attribute = "ignore"
+
+# Graceful degradation pattern (import fallback)
+[[tool.ty.overrides]]
+include = ["src/core/account_service.py"]
+[tool.ty.overrides.rules]
+invalid-assignment = "ignore"
+
+# Polars stub'lardan kaynaklanan false positive'leri bastır
+[[tool.ty.overrides]]
+include = ["src/core/market_data.py", "src/core/indicators.py", "src/core/portfolio_manager.py"]
+[tool.ty.overrides.rules]
+invalid-argument-type = "ignore"
+unsupported-operator = "ignore"
+unresolved-attribute = "ignore"
+invalid-assignment = "ignore"
+
+# Division-by-zero false positives (guarded by if-check)
+[[tool.ty.overrides]]
+include = ["src/core/cache_manager.py"]
+[tool.ty.overrides.rules]
+division-by-zero = "ignore"
+
+# xgboost stub'lardan kaynaklanan false positive
+[[tool.ty.overrides]]
+include = ["src/services/ml_service.py"]
+[tool.ty.overrides.rules]
+possibly-missing-attribute = "ignore"
+
+# locals() pattern false positive
+[[tool.ty.overrides]]
+include = ["src/main.py"]
+[tool.ty.overrides.rules]
+possibly-unresolved-reference = "ignore"

@@ -1264,7 +1264,7 @@ class AlphaArenaDeepSeek:
         current_margin = position.get("margin_usd", 0)
 
         # Calculate dynamic minimum limit: $15 fixed OR 10% of available cash, whichever is larger
-        min_remaining = self._calculate_dynamic_minimum_limit()
+        min_remaining = self.portfolio._calculate_dynamic_minimum_limit()
 
         if current_margin <= min_remaining:
             # Position already at or below minimum, don't sell
@@ -1333,10 +1333,12 @@ class AlphaArenaDeepSeek:
         current_trend: str,
     ) -> float:
         return self.portfolio.apply_directional_bias(
-            signal,
-            confidence,
-            bias_metrics,
-            current_trend,
+            {
+                "signal": signal,
+                "confidence": confidence,
+                "bias_metrics": bias_metrics,
+                "current_trend": current_trend,
+            },
         )
 
     def get_directional_bias_metrics(self) -> dict[str, dict[str, Any]]:
@@ -1353,12 +1355,14 @@ class AlphaArenaDeepSeek:
         metadata: dict[str, Any] | None = None,
     ):
         return self.portfolio.add_to_cycle_history(
-            cycle_number,
-            prompt,
-            thoughts,
-            decisions,
-            status=status,
-            metadata=metadata,
+            {
+                "cycle_number": cycle_number,
+                "prompt": prompt,
+                "thoughts": thoughts,
+                "decisions": decisions,
+                "status": status,
+                "metadata": metadata,
+            }
         )
 
 

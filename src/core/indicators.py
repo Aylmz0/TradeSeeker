@@ -1,3 +1,4 @@
+from collections.abc import Sequence
 from typing import Any
 
 import polars as pl
@@ -7,7 +8,7 @@ from loguru import logger
 from src.core import constants
 
 
-def _linear_slope(x: list[float], y: list[float]) -> float:
+def _linear_slope(x: Sequence[int | float], y: Sequence[int | float]) -> float:
     n = len(x)
     if n < 2:
         return 0.0
@@ -349,8 +350,8 @@ def extract_semantic_features(prices: pl.Series, period: int = 24) -> dict[str, 
     subset = prices[-period:].to_list()
     current_price = subset[-1]
 
-    x = list(range(len(subset)))
-    slope = _linear_slope(x, subset)
+    x = [float(i) for i in range(len(subset))]
+    slope = _linear_slope(x, [float(v) for v in subset])
     slope_pct = (slope / subset[0]) * 100 if subset[0] != 0 else 0
 
     peaks = []
@@ -363,7 +364,9 @@ def extract_semantic_features(prices: pl.Series, period: int = 24) -> dict[str, 
 
     std_dev = prices[-period:].std()
     mean_price = prices[-period:].mean()
-    volatility_ratio = std_dev / mean_price if mean_price != 0 else 0
+    std_val = float(std_dev) if isinstance(std_dev, (int, float)) else 0.0
+    mean_val = float(mean_price) if isinstance(mean_price, (int, float)) else 0.0
+    volatility_ratio = std_val / mean_val if mean_val != 0 else 0.0
 
     volatility_state = "STABLE"
     if volatility_ratio > constants.VOLATILITY_THRESHOLD:
@@ -398,8 +401,8 @@ def calculate_slope_label(prices: pl.Series, period: int = 20) -> str:
     if len(prices) < period:
         return "FLAT"
     subset = prices[-period:].to_list()
-    x = list(range(len(subset)))
-    slope = _linear_slope(x, subset)
+    x = [float(i) for i in range(len(subset))]
+    slope = _linear_slope(x, [float(v) for v in subset])
     slope_pct = (slope / subset[0]) * 100 if subset[0] != 0 else 0
 
     if slope_pct > 0.2:
@@ -585,7 +588,12 @@ def calculate_pivots(df: pl.DataFrame, periods: int = 24) -> dict[str, float]:
     if len(df) < periods:
         return {}
     subset = df.tail(periods)
-    return {"high": float(subset["high"].max()), "low": float(subset["low"].min())}
+    high_val = subset["high"].max()
+    low_val = subset["low"].min()
+    return {
+        "high": float(high_val) if isinstance(high_val, (int, float)) else 0.0,
+        "low": float(low_val) if isinstance(low_val, (int, float)) else 0.0,
+    }
 
 
 def generate_tags(indicators: dict[str, Any]) -> list[str]:

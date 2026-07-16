@@ -1,5 +1,4 @@
 import json
-import logging
 import os
 import warnings
 from datetime import datetime, timedelta, timezone
@@ -13,9 +12,6 @@ import xgboost as xgb
 
 from src.core import constants
 from src.core.indicators import get_features_for_ml
-
-
-logger = logging.getLogger(__name__)
 
 
 class MLService:
@@ -114,10 +110,13 @@ class MLService:
             # scaler was fit on a named frame; suppress benign feature-name warning
             with warnings.catch_warnings():
                 warnings.simplefilter("ignore", UserWarning)
-                scaled_features = self.scaler.transform(latest_features)
+                scaled_features = (
+                    self.scaler.transform(latest_features) if self.scaler else latest_features
+                )
 
-            # 4. Predict Proba
-            # [[Prob_SELL, Prob_HOLD, Prob_BUY]] -> [0.45, 0.35, 0.20]
+            if not self.model:
+                return {"action": "hold", "confidence": 0.0, "reason": "model_not_loaded"}
+
             probs = self.model.predict_proba(scaled_features)[0]
 
             # Index mapping exactly as trained in train_model.py (0=SELL, 1=HOLD, 2=BUY)

@@ -56,7 +56,9 @@ class Alert:
             "title": self.title,
             "message": self.message,
             "symbol": self.symbol,
-            "timestamp": self.timestamp.isoformat(),
+            "timestamp": self.timestamp.isoformat()
+            if self.timestamp
+            else datetime.now(timezone.utc).isoformat(),
             "data": self.data or {},
         }
 
@@ -304,7 +306,9 @@ class AlertManager:
         cutoff_time = datetime.now(timezone.utc) - timedelta(hours=hours)
         initial_count = len(self.alerts)
 
-        self.alerts = [alert for alert in self.alerts if alert.timestamp > cutoff_time]
+        self.alerts = [
+            alert for alert in self.alerts if alert.timestamp and alert.timestamp > cutoff_time
+        ]
 
         return initial_count - len(self.alerts)
 

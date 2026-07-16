@@ -198,7 +198,7 @@ class RetryManager:
         retries: int = 3,
         backoff_factor: float = 0.3,
         status_forcelist: tuple = (500, 502, 504),
-        session: requests.Session = None,
+        session: requests.Session | None = None,
     ) -> requests.Session:
         session = session or requests.Session()
         retry = Retry(

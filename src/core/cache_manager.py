@@ -4,6 +4,8 @@ Reduces redundant API calls and calculations.
 
 import hashlib
 import json
+from collections.abc import Callable
+from typing import Any
 
 from loguru import logger
 import logging
@@ -90,8 +92,8 @@ class CacheManager:
 
     def get_stats(self) -> dict[str, Any]:
         """Get cache statistics."""
-        total_requests = self.hit_count + self.miss_count
-        hit_rate = (self.hit_count / total_requests * 100) if total_requests > 0 else 0
+        total_requests: int = self.hit_count + self.miss_count
+        hit_rate = (self.hit_count / max(total_requests, 1) * 100) if total_requests > 0 else 0
 
         return {
             "total_entries": len(self.cache),
@@ -150,7 +152,7 @@ class PerformanceOptimizer:
         self,
         symbol: str,
         interval: str,
-        calculation_func: callable,
+        calculation_func: Callable[..., Any],
     ) -> Any:
         """Memoize technical indicator calculations."""
         cache_key = f"indicators_{symbol}_{interval}"
@@ -178,7 +180,7 @@ def async_retry(max_retries: int = 3, delay: float = 1.0):
     def decorator(func):
         @wraps(func)
         async def wrapper(*args, **kwargs):
-            last_exception = None
+            last_exception: Exception = Exception("Max retries exceeded")
             for attempt in range(max_retries):
                 try:
                     return await func(*args, **kwargs)
@@ -457,8 +459,8 @@ class SmartIndicatorCache:
 
     def get_stats(self) -> dict[str, Any]:
         """Get cache statistics"""
-        total_requests = self.hits + self.misses
-        hit_rate = (self.hits / total_requests * 100) if total_requests > 0 else 0
+        total_requests: int = self.hits + self.misses
+        hit_rate = (self.hits / max(total_requests, 1) * 100) if total_requests > 0 else 0
 
         return {
             "total_entries": len(self.cache),

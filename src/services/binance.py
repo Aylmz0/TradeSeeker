@@ -82,6 +82,7 @@ class BinanceFuturesClient:
 
     def _sign(self, payload: dict[str, Any]) -> str:
         query_string = urllib.parse.urlencode(payload, doseq=True)
+        assert self.secret_key is not None
         return hmac.new(
             self.secret_key.encode("utf-8"),
             query_string.encode("utf-8"),
@@ -94,7 +95,7 @@ class BinanceFuturesClient:
         path: str,
         params: dict[str, Any] | None = None,
         signed: bool = False,
-    ) -> dict[str, Any]:
+    ) -> Any:
         params = params.copy() if params else {}
         headers = {"X-MBX-APIKEY": self.api_key}
 

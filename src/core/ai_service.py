@@ -27,9 +27,12 @@ class AIService:
         self.market_data = market_data
         self.strategy_analyzer = strategy_analyzer
         self.invocation_count = 0
+        self.current_cycle_number: int = 0
         self.latest_ml_consensus = {}  # Store ML predictions for the current cycle
 
-    def _fetch_all_indicators_parallel(self) -> dict[str, dict[str, dict[str, Any]]]:
+    def _fetch_all_indicators_parallel(
+        self,
+    ) -> tuple[dict[str, dict[str, dict[str, Any]]], dict[str, Any]]:
         """Fetch all indicators for all coins in parallel with smart caching."""
         if Config.USE_SMART_CACHE:
             return fetch_all_indicators_with_cache(
@@ -607,7 +610,7 @@ REMEMBER: These are suggestions only. You make the final trading decisions based
                         # FIX: Specific exception handling for datetime calculation
                         pass
 
-                if position_duration_minutes is not None:
+                if position_duration_minutes is not None and position_duration_hours is not None:
                     if position_duration_hours >= 1:
                         prompt += f"  Position Duration: {position_duration_hours:.1f} hours ({position_duration_minutes} minutes)\n"
                     else:
