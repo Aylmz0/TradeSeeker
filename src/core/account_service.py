@@ -28,6 +28,8 @@ HTF_LABEL = HTF_INTERVAL
 
 
 class AccountService:
+    _warned_missing_exit_plan: set[str] = set()
+
     def __init__(self, portfolio_manager):
         self.pm = portfolio_manager
         self.is_live_trading = getattr(Config, "TRADING_MODE", "simulation") == "live"
@@ -127,11 +129,14 @@ class AccountService:
             key for key in ("stop_loss", "profit_target") if key not in provided_keys
         ]
         if missing_required:
-            logger.warning(
-                "Missing {} for {} - using default exit plan offsets.",
-                ", ".join(missing_required),
-                symbol,
-            )
+            warn_key = f"{symbol}:{','.join(missing_required)}"
+            if warn_key not in self._warned_missing_exit_plan:
+                logger.warning(
+                    "Missing {} for {} - using default exit plan offsets.",
+                    ", ".join(missing_required),
+                    symbol,
+                )
+                self._warned_missing_exit_plan.add(warn_key)
         return final_plan
 
     def _merge_live_positions(

@@ -1,22 +1,48 @@
 """Centralized loguru configuration for TradeSeeker.
 
-Provides structured logging with 4 sinks:
+Provides structured logging with 5 sinks:
 1. Console — human-readable, colored output
 2. File — daily rotation, 30 days retention
-3. JSON — structured, machine-readable, 10MB rotation
-4. Crash — ERROR and above, 90 days retention
+3. AI Reasoning — full LLM chain-of-thought, daily rotation
+4. Structured — machine-readable, 10MB rotation (jq-queryable)
+5. Crash — ERROR and above, 90 days retention
 
 Usage:
     from src.core.log_config import setup_logging
     setup_logging()
 """
 
+import logging
 import os
 import sys
 
 from loguru import logger
 
 PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
+
+class _InterceptHandler(logging.Handler):
+    """Route Python stdlib logging (litellm, xgboost, etc.) through loguru."""
+
+    _LEVEL_MAP = {
+        logging.DEBUG: "DEBUG",
+        logging.INFO: "INFO",
+        logging.WARNING: "WARNING",
+        logging.ERROR: "ERROR",
+        logging.CRITICAL: "CRITICAL",
+    }
+
+    def emit(self, record: logging.LogRecord) -> None:
+        try:
+            level = self._LEVEL_MAP.get(record.levelno, "INFO")
+            logger.opt(depth=6).log(level, "{}", record.getMessage())
+        except Exception:
+            pass
+
+
+def _ai_reasoning_filter(record) -> bool:
+    """Only let through messages bound with kind='ai_reasoning'."""
+    return record["extra"].get("kind") == "ai_reasoning"
 
 
 def setup_logging(log_level: str = "INFO", log_dir: str | None = None) -> None:
@@ -57,24 +83,43 @@ def setup_logging(log_level: str = "INFO", log_dir: str | None = None) -> None:
         compression="gz",
     )
 
-    # 3. JSON — structured, machine-readable
+    # 3. AI Reasoning — full LLM chain-of-thought (bind with kind="ai_reasoning")
+    logger.add(
+        os.path.join(log_dir, "ai_reasoning.log"),
+        level="DEBUG",
+        rotation="1 day",
+        retention="30 days",
+        format="{time:YYYY-MM-DD HH:mm:ss.SSS} | {level} | {name}:{line} | {message}",
+        filter=_ai_reasoning_filter,
+        compression="gz",
+    )
+
+    # 4. Structured — machine-readable, 10MB rotation, gzipped
     logger.add(
         os.path.join(log_dir, "structured.jsonl"),
         level="DEBUG",
         rotation="10 MB",
         retention="7 days",
-        format="{time:ISO}",
-        serialize=True,
+        format="{time:YYYY-MM-DD}T{time:HH:mm:ss.SSS} | {level: <8} | {name}:{function}:{line} | {message}",
+        compression="gz",
     )
 
-    # 4. Crash reports — ERROR and above only
+    # 5. Crash reports — ERROR and above only
     logger.add(
         os.path.join(log_dir, "crash_reports.jsonl"),
         level="ERROR",
         rotation="10 MB",
         retention="90 days",
-        format="{time:ISO}",
-        serialize=True,
+        format="{time:YYYY-MM-DD}T{time:HH:mm:ss.SSS} | {level: <8} | {name}:{function}:{line} | {message}",
+        compression="gz",
     )
+
+    # Route stdlib logging (litellm, xgboost, httpx) through loguru
+    intercept_handler = _InterceptHandler()
+    for name in ("litellm", "LiteLLM", "LiteLLM Proxy", "LiteLLM Router", "httpx", "httpcore"):
+        stdlib_logger = logging.getLogger(name)
+        stdlib_logger.handlers = [intercept_handler]
+        stdlib_logger.setLevel(logging.WARNING)
+        stdlib_logger.propagate = False
 
     logger.info("Logging initialized", level=log_level, log_dir=log_dir)

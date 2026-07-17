@@ -19,6 +19,7 @@ import os
 # Suppress messy internal LiteLLM terminal logs
 os.environ["LITELLM_LOG"] = "ERROR"
 litellm.suppress_debug_info = True
+litellm.verbose = False
 
 
 class DeepSeekAPI:
@@ -486,7 +487,6 @@ class DeepSeekAPI:
             user_len = len(messages[1]["content"])
             total_chars = sys_len + user_len
 
-            logger.info("LLM response received.")
             logger.info("AI TOKEN BILL - INV #{}", self.invocation_count)
             if usage:
                 prompt_tokens = usage.prompt_tokens

@@ -4439,7 +4439,15 @@ class PortfolioManager:
 
         # Define logging helper
         def log_func(category: str, message: str, details: dict | None = None) -> None:
-            logger.info("{}", message)
+            match category:
+                case "OK":
+                    logger.success("{}", message)
+                case "WARN" | "WATCH":
+                    logger.warning("{}", message)
+                case "ERR":
+                    logger.error("{}", message)
+                case _:
+                    logger.info("{}", message)
             report["debug_logs"].append(
                 {
                     "category": category,

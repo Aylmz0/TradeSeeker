@@ -194,7 +194,8 @@ class AlphaArenaDeepSeek:
 
     def run_trading_cycle(self, cycle_number: int, cancel_event: threading.Event | None = None):
         """Run a single trading cycle with auto TP/SL and enhanced features"""
-        logger.info(
+        log = logger.bind(cycle=cycle_number, phase="trading_cycle")
+        log.info(
             "==== CYCLE {} | {} {}",
             cycle_number,
             datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S"),
@@ -405,7 +406,7 @@ class AlphaArenaDeepSeek:
                         prompt_format_used = "json_fallback"
                 else:
                     prompt = self.ai_service.generate_alpha_arena_prompt()
-                logger.info("Prompt: {}...", prompt[:160])
+                logger.debug("Prompt size: {} chars, format: {}", len(prompt), prompt_format_used)
 
                 # PHASE 10: AUTOMATED DATA COLLECTION (DEPRECATED - Moved to Bulk Sync in train_model.py)
                 """
@@ -483,7 +484,8 @@ class AlphaArenaDeepSeek:
 
                 if isinstance(thoughts, str):
                     thoughts = thoughts.replace("\\n", "\n")
-                logger.info("REASONING:\n{}", thoughts)
+                logger.debug("REASONING: {} chars, {} decisions", len(thoughts), len(decisions))
+                logger.bind(kind="ai_reasoning").debug("REASONING FULL:\n{}", thoughts)
                 logger.info(
                     "DECISIONS:\n{}",
                     json.dumps(decisions, indent=2) if decisions else "{}",
