@@ -115,11 +115,22 @@ def setup_logging(log_level: str = "INFO", log_dir: str | None = None) -> None:
     )
 
     # Route stdlib logging (litellm, xgboost, httpx) through loguru
+    # Set litellm to ERROR to suppress noisy register_model cost-map warnings
     intercept_handler = _InterceptHandler()
-    for name in ("litellm", "LiteLLM", "LiteLLM Proxy", "LiteLLM Router", "httpx", "httpcore"):
+    for name in (
+        "litellm",
+        "litellm.utils",
+        "litellm.router",
+        "litellm.proxy",
+        "LiteLLM",
+        "LiteLLM Proxy",
+        "LiteLLM Router",
+        "httpx",
+        "httpcore",
+    ):
         stdlib_logger = logging.getLogger(name)
         stdlib_logger.handlers = [intercept_handler]
-        stdlib_logger.setLevel(logging.WARNING)
+        stdlib_logger.setLevel(logging.ERROR)
         stdlib_logger.propagate = False
 
     logger.info("Logging initialized", level=log_level, log_dir=log_dir)
