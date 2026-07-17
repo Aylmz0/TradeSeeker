@@ -445,7 +445,7 @@ class AdvancedRiskManager:
         if not current_positions:
             return True
 
-        total_notional = sum(pos.get("notional_usd", 0) for pos in current_positions.values())
+        total_notional = sum(getattr(pos, "notional_usd", 0) for pos in current_positions.values())
 
         if total_notional <= 0:
             return True
@@ -461,7 +461,7 @@ class AdvancedRiskManager:
 
         # Check if any single position is too concentrated
         # Use dynamic balance calculation (current_balance + total_margin)
-        total_margin = sum(pos.get("margin_usd", 0) for pos in current_positions.values())
+        total_margin = sum(getattr(pos, "margin_usd", 0) for pos in current_positions.values())
         total_balance = Config.INITIAL_BALANCE  # Initial balance
         current_available_balance = total_balance - total_margin
 
@@ -472,7 +472,7 @@ class AdvancedRiskManager:
             return True
 
         for _symbol, position in current_positions.items():
-            position.get("margin_usd", 0) / dynamic_total_balance
+            getattr(position, "margin_usd", 0) / dynamic_total_balance
             # Concentration limit removed - always return True
             # if position_concentration > max_concentration:
             #     logging.warning(f"Position {symbol} exceeds concentration limit: {position_concentration:.2%} > {max_concentration:.0%}")
@@ -498,7 +498,7 @@ class AdvancedRiskManager:
         if not positions:
             return 0.0
 
-        total_portfolio_value = sum(pos.get("notional_usd", 0) for pos in positions.values())
+        total_portfolio_value = sum(getattr(pos, "notional_usd", 0) for pos in positions.values())
 
         if total_portfolio_value <= 0:
             return 0.0
@@ -508,9 +508,9 @@ class AdvancedRiskManager:
         for symbol, position in positions.items():
             if symbol in current_prices:
                 current_price = current_prices[symbol]
-                entry_price = position.get("entry_price", current_price)
+                entry_price = getattr(position, "entry_price", current_price)
                 risk_per_position = abs(current_price - entry_price) / entry_price
-                position_weight = position.get("notional_usd", 0) / total_portfolio_value
+                position_weight = getattr(position, "notional_usd", 0) / total_portfolio_value
                 portfolio_risk += risk_per_position * position_weight
 
         return portfolio_risk
@@ -591,7 +591,7 @@ class MockOrderExecutor:
         return False
 
     def get_account_overview(self) -> dict[str, float]:
-        total_pnl = sum(p.get("unrealized_pnl", 0) for p in self.positions.values())
+        total_pnl = sum(getattr(p, "unrealized_pnl", 0) for p in self.positions.values())
         return {
             "availableBalance": self.wallet_balance,
             "walletBalance": self.wallet_balance,

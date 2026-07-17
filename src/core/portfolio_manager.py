@@ -1770,14 +1770,15 @@ class PortfolioManager:
         confidence_multiplier = confidence
 
         # Market regime factor
-        if market_regime == "BULLISH":
-            regime_multiplier = 1.2
-        elif market_regime == "BEARISH":
-            regime_multiplier = 0.8
-        elif market_regime == "CHOPPY":
-            regime_multiplier = 0.7  # Reduced risk for choppy/sideways markets
-        else:
-            regime_multiplier = 1.0
+        match market_regime:
+            case "BULLISH":
+                regime_multiplier = 1.2
+            case "BEARISH":
+                regime_multiplier = 0.8
+            case "CHOPPY":
+                regime_multiplier = 0.7  # Reduced risk for choppy/sideways markets
+            case _:
+                regime_multiplier = 1.0
 
         # Trend strength factor
         trend_multiplier = 1.0 + (trend_strength * 0.1)
@@ -3263,15 +3264,16 @@ class PortfolioManager:
         # ADX (15m)
         t_str = indicators_15m.get("trend_strength_adx", "MODERATE")
         adx_v = indicators_15m.get("adx", 25)
-        if t_str == "NO_TREND":
-            confidence *= 0.80
-            adjustments.append(f"adx_no_trend({adx_v:.0f})(-20%)")
-        elif t_str == "WEAK":
-            confidence *= 0.90
-            adjustments.append(f"adx_weak({adx_v:.0f})(-10%)")
-        elif t_str == "STRONG":
-            confidence *= 1.05
-            adjustments.append(f"adx_strong({adx_v:.0f})(+5%)")
+        match t_str:
+            case "NO_TREND":
+                confidence *= 0.80
+                adjustments.append(f"adx_no_trend({adx_v:.0f})(-20%)")
+            case "WEAK":
+                confidence *= 0.90
+                adjustments.append(f"adx_weak({adx_v:.0f})(-10%)")
+            case "STRONG":
+                confidence *= 1.05
+                adjustments.append(f"adx_strong({adx_v:.0f})(+5%)")
 
         return confidence, adjustments
 
@@ -4498,22 +4500,23 @@ class PortfolioManager:
         signal = trade.get("signal")
         position = self.positions.get(coin)
 
-        if signal in {"buy_to_enter", "sell_to_enter"}:
-            entry_ctx = {
-                "coin": coin,
-                "trade": trade,
-                "price": price,
-                "position": position,
-                "indicator_cache": indicator_cache,
-                "batch_ctx": batch_ctx,
-            }
-            self._handle_entry_decision(entry_ctx)
-        elif signal == "close_position":
-            self._handle_exit_signal_logic(coin, trade, price, position, batch_ctx["report"])
-        elif signal == "hold":
-            self._handle_hold_signal(coin, position, batch_ctx["report"], trade)
-        else:
-            logger.warning("Unknown signal '{}' for {}. Skipping.", signal, coin)
+        match signal:
+            case "buy_to_enter" | "sell_to_enter":
+                entry_ctx = {
+                    "coin": coin,
+                    "trade": trade,
+                    "price": price,
+                    "position": position,
+                    "indicator_cache": indicator_cache,
+                    "batch_ctx": batch_ctx,
+                }
+                self._handle_entry_decision(entry_ctx)
+            case "close_position":
+                self._handle_exit_signal_logic(coin, trade, price, position, batch_ctx["report"])
+            case "hold":
+                self._handle_hold_signal(coin, position, batch_ctx["report"], trade)
+            case _:
+                logger.warning("Unknown signal '{}' for {}. Skipping.", signal, coin)
 
     def _handle_entry_decision(
         self,

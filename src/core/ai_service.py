@@ -167,12 +167,13 @@ class AIService:
             for trade in decisions.values():
                 if isinstance(trade, dict):
                     signal = trade.get("signal")
-                    if signal in {"buy_to_enter", "sell_to_enter"}:
-                        entry_signals += 1
-                    elif signal == "hold":
-                        hold_signals += 1
-                    elif signal == "close_position":
-                        close_signals += 1
+                    match signal:
+                        case "buy_to_enter" | "sell_to_enter":
+                            entry_signals += 1
+                        case "hold":
+                            hold_signals += 1
+                        case "close_position":
+                            close_signals += 1
 
         total_signals = entry_signals + hold_signals + close_signals
         if total_signals == 0:
