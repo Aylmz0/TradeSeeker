@@ -1100,10 +1100,16 @@ Each coin below contains a State Vector with:
 
         return prompt
 
-    def parse_ai_response(self, response: Any) -> dict[str, Any]:
-        """Robustly parse AI response - separates reasoning, text analysis and JSON decisions"""
+    def parse_ai_response(self, response: Any) -> tuple[dict[str, Any], None] | tuple[None, str]:
+        """Robustly parse AI response - separates reasoning, text analysis and JSON decisions.
+
+        Returns:
+            tuple[dict, None] on success: {"chain_of_thoughts": str, "decisions": dict}
+            tuple[None, str] on fatal error: (None, error_message)
+
+        """
         if not response:
-            return {"chain_of_thoughts": "No response received.", "decisions": {}}
+            return None, "No response received."
 
         raw_content = ""
         internal_reasoning = ""
@@ -1170,15 +1176,12 @@ Each coin below contains a State Vector with:
                 "\n\n".join(thoughts_list) if thoughts_list else "No explicit reasoning captured."
             )
 
-            return {"chain_of_thoughts": combined_thoughts, "decisions": decisions}
+            return {"chain_of_thoughts": combined_thoughts, "decisions": decisions}, None
 
         except Exception as e:
             logger.error("General parse error: {}", e)
             preview = (raw_content or "")[:200]
-            return {
-                "chain_of_thoughts": f"Error during parsing: {e}\nRaw preview: {preview}",
-                "decisions": {},
-            }
+            return None, f"Error during parsing: {e}\nRaw preview: {preview}"
 
     def _normalize_decision_schema(self, coin: str, trade: dict) -> dict:
         """Normalize LLM decision schema deviations before processing.

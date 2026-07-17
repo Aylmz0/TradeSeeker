@@ -462,9 +462,16 @@ class AlphaArenaDeepSeek:
                     self.cycle_active = False
                     return
 
-                parsed_response = self.ai_service.parse_ai_response(ai_response)
-                thoughts = parsed_response.get("chain_of_thoughts", "Parse Error.")
-                decisions = parsed_response.get("decisions", {})
+                parsed_result = self.ai_service.parse_ai_response(ai_response)
+                match parsed_result:
+                    case (parsed_response, None):
+                        thoughts = parsed_response.get("chain_of_thoughts", "Parse Error.")
+                        decisions = parsed_response.get("decisions", {})
+                    case (None, error_msg):
+                        logger.error("AI response parse failed: {}", error_msg)
+                        thoughts = error_msg
+                        decisions = {}
+
                 if auto_exit_triggered and isinstance(thoughts, str):
                     thoughts += "\n[Auto Exit Note: TP/SL or extended-loss closure executed before this analysis]"
                 cycle_timing["ai_ms"] = round((time.perf_counter() - ai_timer_start) * 1000, 2)
