@@ -519,6 +519,37 @@ class RealMarketData:
             traceback.print_exc()
             return {"current_price": current_price, "error": str(e)}
 
+    def get_averaged_er(
+        self, coin: str, timeframes: list[str] | None = None, period: int = 10
+    ) -> float:
+        """Calculate averaged Efficiency Ratio across multiple timeframes.
+        Default: 3m + 15m, each with 10-candle period.
+        Returns averaged ER or 1.0 (no-error fallback) if both fail.
+        """
+        if timeframes is None:
+            timeframes = ["3m", "15m"]
+
+        er_values: list[float] = []
+        for tf in timeframes:
+            indicators = self.get_technical_indicators(coin, tf)
+            if isinstance(indicators, dict) and "efficiency_ratio" in indicators:
+                er_val = indicators["efficiency_ratio"]
+                if isinstance(er_val, (int, float)) and er_val == er_val:  # NaN check
+                    er_values.append(float(er_val))
+
+        if not er_values:
+            return 1.0
+
+        avg_er = sum(er_values) / len(er_values)
+        logger.debug(
+            "Averaged ER for {}: {} (from {} timeframes: {})",
+            coin,
+            round(avg_er, 4),
+            len(er_values),
+            timeframes[: len(er_values)],
+        )
+        return avg_er
+
     def get_all_real_prices(self) -> dict[str, float]:
         with self._price_cache_lock:
             current_time = time.time()

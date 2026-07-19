@@ -200,14 +200,13 @@ def build_coin_state_vector(
 
     """
     # Efficiency ratio for choppy detection.
-    # Source: 15m — 10 periods × 15m = 150-minute (2.5-hour) lookback window.
-    # More responsive than 1h (10-hour window was too stale/broad for short-term trading),
-    # while still being stable enough to avoid the noise of the 3m (30-min) source.
-    efficiency_ratio = (
-        indicators_3m.get("efficiency_ratio", 0.5)
-        if indicators_3m and "error" not in indicators_3m
-        else 0.5
-    )
+    # Source: averaged 3m + 15m ER (each 10 candles) for balanced responsiveness.
+    er_values: list[float] = []
+    if indicators_3m and "error" not in indicators_3m and "efficiency_ratio" in indicators_3m:
+        er_values.append(float(indicators_3m["efficiency_ratio"]))
+    if indicators_15m and "error" not in indicators_15m and "efficiency_ratio" in indicators_15m:
+        er_values.append(float(indicators_15m["efficiency_ratio"]))
+    efficiency_ratio = sum(er_values) / len(er_values) if er_values else 0.5
 
     # Volume ratio (HYBRID: 3m + 15m average for consistency with runtime)
     vol_ratio = None

@@ -564,17 +564,8 @@ class StrategyAnalyzer:
                 return "UNCLEAR"
 
             # 0. Choppy Veto (Prioritize market noise over price position)
-            # Use 3m ER if available for extreme responsiveness, fallback to 15m or HTF
-            er_source = (
-                indicators_3m
-                if indicators_3m and "efficiency_ratio" in indicators_3m
-                else (
-                    indicators_15m
-                    if indicators_15m and "efficiency_ratio" in indicators_15m
-                    else indicators_htf
-                )
-            )
-            er_val = er_source.get("efficiency_ratio", 1.0)
+            # Use averaged 3m + 15m ER (each 10 candles) for balanced choppy detection
+            er_val = self.market_data.get_averaged_er(coin, ["3m", "15m"], period=10)
 
             if er_val < getattr(Config, "CHOPPY_ER_THRESHOLD", 0.30):
                 return "CHOPPY"

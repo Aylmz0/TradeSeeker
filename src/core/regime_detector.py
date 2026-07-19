@@ -17,18 +17,24 @@ class RegimeDetector:
     """Classifies market regimes based on technical indicators."""
 
     @staticmethod
-    def classify_coin_regime(indicators: dict[str, Any]) -> str:
+    def classify_coin_regime(indicators: dict[str, Any], averaged_er: float | None = None) -> str:
         """Classifies the regime for a single coin.
         Returns: BULLISH, BEARISH, NEUTRAL, VOLATILE, CHOPPY
+
+        Parameters
+        ----------
+        averaged_er : float, optional
+            Pre-computed averaged ER from 3m+15m. If provided, used instead of
+            single-timeframe ER from indicators dict.
         """
         try:
             adx = indicators.get("adx_14", 0)
             atr = indicators.get("atr_14", 0)
             price = indicators.get("current_price", 0)
             ema20 = indicators.get("ema_20", 0)
-            er = indicators.get("efficiency_ratio", 1.0)
+            er = averaged_er if averaged_er is not None else indicators.get("efficiency_ratio", 1.0)
 
-            # 1. Choppy Check (Efficiency Ratio)
+            # 1. Choppy Check (Efficiency Ratio: averaged 3m+15m)
             if er < getattr(Config, "CHOPPY_ER_THRESHOLD", 0.35):
                 return "CHOPPY"
 
@@ -46,9 +52,23 @@ class RegimeDetector:
             return "NEUTRAL"
 
     @classmethod
-    def detect_overall_regime(cls, coin_indicators: dict[str, dict[str, Any]]) -> str:
-        """Detects the global market regime by aggregating coin-level regimes."""
-        regimes = [cls.classify_coin_regime(ind) for ind in coin_indicators.values()]
+    def detect_overall_regime(
+        cls,
+        coin_indicators: dict[str, dict[str, Any]],
+        averaged_ers: dict[str, float] | None = None,
+    ) -> str:
+        """Detects the global market regime by aggregating coin-level regimes.
+
+        Parameters
+        ----------
+        averaged_ers : dict, optional
+            Pre-computed averaged ER per coin (3m+15m). If provided, used for
+            CHOPPY classification instead of single-timeframe ER.
+        """
+        regimes = [
+            cls.classify_coin_regime(ind, averaged_er=(averaged_ers or {}).get(coin))
+            for coin, ind in coin_indicators.items()
+        ]
         if not regimes:
             return "NEUTRAL"
 

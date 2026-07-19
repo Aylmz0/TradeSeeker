@@ -2529,12 +2529,15 @@ class PortfolioManager:
         # NOTE: sync_live_account() is handled by AccountService, not PortfolioManager
         # Phase 7: Centralized Regime Detection
         coin_indicators = {}
+        averaged_ers: dict[str, float] = {}
         for coin in self.market_data.available_coins:
             indicators_htf = self.market_data.get_technical_indicators(coin, HTF_INTERVAL)
             if "error" not in indicators_htf:
                 coin_indicators[coin] = indicators_htf
+            # Pre-compute averaged ER (3m+15m) for CHOPPY classification
+            averaged_ers[coin] = self.market_data.get_averaged_er(coin, ["3m", "15m"])
 
-        market_regime = RegimeDetector.detect_overall_regime(coin_indicators)
+        market_regime = RegimeDetector.detect_overall_regime(coin_indicators, averaged_ers)
         regime_strength = RegimeDetector.calculate_regime_strength(coin_indicators)
         logger.info("Market Regime: {} | Strength: {:.2f}", market_regime, regime_strength)
 
