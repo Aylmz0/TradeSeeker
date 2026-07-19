@@ -605,6 +605,31 @@ class AlphaArenaDeepSeek:
                                     except (ValueError, TypeError, AttributeError):
                                         pass
 
+                                # AI Panic Exit Validator — blocks weak exits
+                                # between -1.5% and +2% without technical confirmation
+                                try:
+                                    inds_3m = self.market_data.get_technical_indicators(coin, "3m")
+                                    if "error" not in inds_3m:
+                                        exit_valid = self.portfolio.validate_exit_signal(
+                                            coin, position, inds_3m
+                                        )
+                                        if not exit_valid:
+                                            logger.info(
+                                                "AI close blocked — weak exit for {} (PnL: ${:.2f})",
+                                                coin,
+                                                position.unrealized_pnl,
+                                            )
+                                            close_execution_report["blocked"].append(
+                                                {
+                                                    "coin": coin,
+                                                    "reason": "weak_exit_validation_failed",
+                                                    "unrealized_pnl": position.unrealized_pnl,
+                                                }
+                                            )
+                                            continue
+                                except Exception as e:
+                                    logger.debug("Exit validation skipped for {}: {}", coin, e)
+
                                 if self.portfolio.is_live_trading:
                                     live_result = self.account_service.execute_live_close(
                                         coin=coin,
