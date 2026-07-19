@@ -98,43 +98,6 @@ def _sv_volume_label_from_ratio(ratio: float) -> str:
     return "LOW"
 
 
-def _sv_volume_label(
-    indicators_3m: dict[str, Any], indicators_15m: dict[str, Any] | None = None
-) -> str:
-    """Legacy function - calculates hybrid ratio then converts to label."""
-    # Calculate hybrid volume ratio (same as runtime)
-    ratio_3m = None
-    ratio_15m = None
-
-    if indicators_3m and "error" not in indicators_3m:
-        if "volume_ratio" in indicators_3m:
-            ratio_3m = indicators_3m["volume_ratio"]
-        else:
-            vol = indicators_3m.get("volume", 0)
-            avg_vol = indicators_3m.get("avg_volume", 1)
-            ratio_3m = (vol or 0) / (avg_vol or 1) if avg_vol > 0 else 0.0
-
-    if indicators_15m and "error" not in indicators_15m:
-        if "volume_ratio" in indicators_15m:
-            ratio_15m = indicators_15m["volume_ratio"]
-        else:
-            vol_15m = indicators_15m.get("volume", 0)
-            avg_vol_15m = indicators_15m.get("avg_volume", 1)
-            ratio_15m = (vol_15m or 0) / (avg_vol_15m or 1) if avg_vol_15m > 0 else 0.0
-
-    # Hybrid average
-    if ratio_3m is not None and ratio_15m is not None:
-        ratio = (ratio_3m + ratio_15m) / 2
-    elif ratio_3m is not None:
-        ratio = ratio_3m
-    elif ratio_15m is not None:
-        ratio = ratio_15m
-    else:
-        ratio = 0.0
-
-    return _sv_volume_label_from_ratio(ratio)
-
-
 def _sv_build_position(position: Any) -> dict[str, Any]:
     """Build compact position data for state vector."""
     pos = {
@@ -851,29 +814,3 @@ def build_directional_bias_json(bias_metrics: dict[str, dict[str, Any]]) -> dict
             "caution_active": stats.get("caution_active", False),
         }
     return result
-
-
-def build_trend_flip_guard_json(
-    trend_flip_summary: list[str],
-    trend_flip_cooldown: int,
-    trend_flip_history_window: int,
-) -> dict[str, Any]:
-    """Build trend flip guard JSON.
-
-    Args:
-    ----
-        trend_flip_summary: Output from get_recent_trend_flip_summary()
-        trend_flip_cooldown: Cooldown period in cycles
-        trend_flip_history_window: History window in cycles
-
-    Returns:
-    -------
-        Trend flip guard JSON object
-
-    """
-    return {
-        "cooldown_cycles": trend_flip_cooldown,
-        "history_window_cycles": trend_flip_history_window,
-        "recent_flips": trend_flip_summary or [],
-        "flip_count": len(trend_flip_summary) if trend_flip_summary else 0,
-    }

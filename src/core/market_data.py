@@ -89,15 +89,6 @@ class RealMarketData:
         coin_store = self.preloaded_indicators.setdefault(coin, {})
         coin_store[interval] = copy.deepcopy(indicators)
 
-    def set_preloaded_indicators(self, cache: dict[str, dict[str, dict[str, Any]]]):
-        preloaded: dict[str, dict[str, dict[str, Any]]] = {}
-        for coin, intervals in (cache or {}).items():
-            preloaded[coin] = {}
-            for interval, data in (intervals or {}).items():
-                if isinstance(data, dict):
-                    preloaded[coin][interval] = copy.deepcopy(data)
-        self.preloaded_indicators = preloaded
-
     def _build_empty_df(self) -> pl.DataFrame:
         return pl.DataFrame(schema=KLINE_COLUMNS)
 

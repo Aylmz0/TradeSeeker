@@ -533,57 +533,6 @@ class DeepSeekAPI:
             logger.error("Router API error ({}): {}", error_type, e)
             return self._get_error_response(f"{error_type}: {e}")
 
-    def _extract_json_from_content(self, content: str) -> str:
-        """Robustly extracts and parses JSON from the LLM content block"""
-        if not content:
-            logger.warning("No content returned from API")
-            return self.get_safe_hold_decisions()
-
-        try:
-            # 1. First Pass: Try raw
-            start_index = content.find("{")
-            if start_index != -1:
-                json_candidate = content[start_index:]
-                try:
-                    decoder = json.JSONDecoder()
-                    obj, _ = decoder.raw_decode(json_candidate)
-                    return json.dumps(obj, indent=2)
-                except Exception as e:
-                    logger.warning("Strict JSON parse failed ({}), attempting regex repair...", e)
-
-                    # 2. Aggressive Repair
-                    cleaned = re.sub(r"```json\s*", "", json_candidate)
-                    cleaned = re.sub(r"```\s*", "", cleaned)
-                    # Fix missing commas
-                    cleaned = re.sub(r'(?<=[}\]])\s*(?=[{"\w])', ",", cleaned)
-                    # Fix trailing commas
-                    cleaned = re.sub(r",\s*([}\]])", r"\1", cleaned)
-
-                    try:
-                        obj = json.loads(cleaned)
-                        logger.debug("JSON repaired successfully via regex filtering.")
-                        return json.dumps(obj, indent=2)
-                    except Exception as inner_e:
-                        logger.warning("Regex repair failed: {}", inner_e)
-
-                        # Extract DECISIONS block if everything else is corrupted
-                        match = re.search(r'"DECISIONS"\s*:\s*({[^}]+(}[^{}]*)*})', cleaned)
-                        if match:
-                            try:
-                                decisions_str = "{" + match.group(0) + "}"
-                                obj = json.loads(decisions_str)
-                                logger.debug(
-                                    "JSON repaired successfully by extracting DECISIONS block only."
-                                )
-                                return json.dumps(obj, indent=2)
-                            except Exception:
-                                pass
-        except Exception as e:
-            logger.warning("JSON extraction warning: {}", e)
-
-        logger.error("JSON parse failed completely, returning safe HOLD decisions")
-        return self.get_safe_hold_decisions()
-
     def _get_simulation_response(self, prompt: str) -> str:
         """Simulation response without API - Returns valid JSON string"""
         logger.warning("Using simulation mode...")

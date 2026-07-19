@@ -109,7 +109,6 @@ line-ending = "auto"
 "config/*" = ["ALL"]
 "src/__init__.py" = ["ALL"]
 "config/__init__.py" = ["ALL"]
-"oldportfoliomanager.py" = ["ALL"]
 "src/core/*" = ["ALL"]
 # Re-enable all checks specifically for PortfolioManager since Phase 14 is complete for it
 "src/core/portfolio_manager.py" = []
