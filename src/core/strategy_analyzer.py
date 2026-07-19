@@ -488,7 +488,9 @@ class StrategyAnalyzer:
         direction: str,
         entry_price: float,
     ) -> dict[str, Any]:
-        """Generate advanced exit plan - TP/SL is now handled by execute_live_entry using Config multipliers"""
+        """Generate advanced exit plan - TP/SL are computed downstream by the entry
+        execution path (sim: Config.DEFAULT_PROFIT_TARGET_PCT / ATR SL; live: _ensure_exit_plan)
+        using Config defaults. This method only generates the invalidation condition."""
         try:
             indicators_htf = self.market_data.get_technical_indicators(coin, HTF_INTERVAL)
 
@@ -502,7 +504,7 @@ class StrategyAnalyzer:
             rsi_htf = indicators_htf.get("rsi_13", 50)
             htf_upper = HTF_LABEL.upper()
 
-            # Only generate invalidation conditions - TP/SL handled by execute_live_entry
+            # Only generate invalidation conditions - TP/SL computed downstream via Config defaults
             if direction == "long":
                 if rsi_htf > constants.RSI_HTF_OVERBOUGHT:
                     invalidation_condition = f"If {htf_upper} RSI breaks back below {constants.RSI_THRESHOLD_OB_MODERATE}, signaling momentum failure"
@@ -520,8 +522,8 @@ class StrategyAnalyzer:
                 )
 
             return {
-                "profit_target": None,  # Handled by execute_live_entry
-                "stop_loss": None,  # Handled by execute_live_entry
+                "profit_target": None,  # Computed downstream via Config defaults
+                "stop_loss": None,  # Computed downstream (ATR in sim, default % in live)
                 "invalidation_condition": invalidation_condition,
                 "rsi_context": f"{htf_upper} RSI: {rsi_htf:.1f}",
             }

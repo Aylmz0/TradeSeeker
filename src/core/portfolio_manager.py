@@ -1576,9 +1576,6 @@ class PortfolioManager:
         notional_usd: float,
         confidence: float,
         margin_usd: float | None = None,
-        stop_loss: float | None = None,
-        profit_target: float | None = None,
-        invalidation: str | None = None,
     ) -> dict[str, Any]:
         if not self.is_live_trading or not self.order_executor:
             return {"success": False, "error": "live_trading_disabled"}
@@ -4294,6 +4291,12 @@ class PortfolioManager:
 
         quantity_coin = notional_usd / current_price
 
+        # Fixed percentage-based profit target (avoids N/A in UI)
+        tp_pct = getattr(Config, "DEFAULT_PROFIT_TARGET_PCT", 0.015)
+        default_profit_target = (
+            current_price * (1 + tp_pct) if direction == "long" else current_price * (1 - tp_pct)
+        )
+
         # Live or Simulated
         if self.is_live_trading:
             live_result = self.execute_live_entry(
@@ -4305,9 +4308,6 @@ class PortfolioManager:
                 notional_usd=notional_usd,
                 confidence=confidence,
                 margin_usd=margin_usd,
-                stop_loss=atr_stop_loss,
-                profit_target=trade.get("profit_target"),
-                invalidation=trade.get("invalidation_condition"),
             )
             if not live_result.get("success"):
                 err_msg = live_result.get("error", "unknown_error")
@@ -4350,7 +4350,7 @@ class PortfolioManager:
                 "liquidation_price": est_liq,
                 "confidence": confidence,
                 "exit_plan": {
-                    "profit_target": trade.get("profit_target"),
+                    "profit_target": default_profit_target,
                     "stop_loss": atr_stop_loss,
                     "invalidation_condition": trade.get("invalidation_condition"),
                 },
