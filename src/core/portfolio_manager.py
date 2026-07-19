@@ -967,7 +967,7 @@ class PortfolioManager:
         self,
         coin: str,
         indicators_htf: dict[str, Any],
-        indicators_3m: dict[str, Any] | None = None,
+        indicators_15m: dict[str, Any] | None = None,
     ) -> dict[str, Any]:
         """Calculate and update the trend state for a given coin.
 
@@ -975,7 +975,7 @@ class PortfolioManager:
         ----
             coin: The cryptocurrency symbol.
             indicators_htf: HTF technical indicators.
-            indicators_3m: Optional 3m technical indicators for intraday adjustment.
+            indicators_15m: Optional 15m technical indicators for intraday adjustment.
 
         Returns:
         -------
@@ -998,9 +998,9 @@ class PortfolioManager:
         is_neutral = abs(delta) <= Config.EMA_NEUTRAL_BAND_PCT
         current_trend = "neutral" if is_neutral else ("bullish" if delta > 0 else "bearish")
 
-        # Intraday adjustment
+        # Intraday adjustment (15m RSI — primary for 1h target)
         current_trend = self._calculate_trend_with_intraday(
-            price_htf, ema20_htf, current_trend, indicators_3m
+            price_htf, ema20_htf, current_trend, indicators_15m
         )
 
         return self._update_trend_record(coin, current_trend)
@@ -1010,16 +1010,18 @@ class PortfolioManager:
         price_htf: float,
         ema20_htf: float,
         current_trend: str,
-        indicators_3m: dict[str, Any] | None,
+        indicators_15m: dict[str, Any] | None,
     ) -> str:
         """Apply intraday RSI and EMA filters to the high-level trend.
+
+        Uses 15m RSI (primary for 1h target) instead of 3m to avoid noise.
 
         Args:
         ----
             price_htf: The HTF current price.
             ema20_htf: The HTF EMA 20 value.
             current_trend: The initial detected trend.
-            indicators_3m: Technical indicators for the 3m timeframe.
+            indicators_15m: Technical indicators for the 15m timeframe.
 
         Returns:
         -------
@@ -1028,30 +1030,36 @@ class PortfolioManager:
         """
         from config.config import Config
 
-        if not (indicators_3m and isinstance(indicators_3m, dict) and "error" not in indicators_3m):
+        if not (
+            indicators_15m and isinstance(indicators_15m, dict) and "error" not in indicators_15m
+        ):
             return current_trend
 
-        p3m = indicators_3m.get("current_price")
-        e3m = indicators_3m.get("ema_20", p3m)
-        r3m = indicators_3m.get("rsi_14", indicators_3m.get("rsi_7", 50))
+        p15m = indicators_15m.get("current_price")
+        e15m = indicators_15m.get("ema_20", p15m)
+        r15m = indicators_15m.get("rsi_13", 50)
 
-        if not all(isinstance(x, (int, float)) for x in [p3m, e3m, r3m]):
+        if not all(isinstance(x, (int, float)) for x in [p15m, e15m, r15m]):
             return current_trend
 
-        # Neutralization logic
-        intra_bull = p3m >= e3m
+        # Neutralization logic (15m)
+        intra_bull = p15m >= e15m
         if (
-            current_trend == "bearish" and intra_bull and r3m >= Config.INTRADAY_NEUTRAL_RSI_HIGH
+            current_trend == "bearish" and intra_bull and r15m >= Config.INTRADAY_NEUTRAL_RSI_HIGH
         ) or (
-            current_trend == "bullish" and not intra_bull and r3m <= Config.INTRADAY_NEUTRAL_RSI_LOW
+            current_trend == "bullish"
+            and not intra_bull
+            and r15m <= Config.INTRADAY_NEUTRAL_RSI_LOW
         ):
             current_trend = "neutral"
 
-        # Strong trend recovery logic
+        # Strong trend recovery logic (15m)
         if current_trend == "neutral":
-            if price_htf <= ema20_htf and p3m <= e3m and r3m <= Config.TREND_SHORT_RSI_THRESHOLD:
+            if price_htf <= ema20_htf and p15m <= e15m and r15m <= Config.TREND_SHORT_RSI_THRESHOLD:
                 current_trend = "bearish"
-            elif price_htf >= ema20_htf and p3m >= e3m and r3m >= Config.TREND_LONG_RSI_THRESHOLD:
+            elif (
+                price_htf >= ema20_htf and p15m >= e15m and r15m >= Config.TREND_LONG_RSI_THRESHOLD
+            ):
                 current_trend = "bullish"
 
         return current_trend
@@ -2383,8 +2391,8 @@ class PortfolioManager:
                 )
                 if p_ok:
                     # 2. RSI Spike Check
-                    rsi_c = inds.get("rsi_14", 50)
-                    rsi_s = inds.get("rsi_14_series", [])
+                    rsi_c = inds.get("rsi_13", 50)
+                    rsi_s = inds.get("rsi_13_series", [])
                     if len(rsi_s) >= constants.MAX_POSITIONS_DIVERSITY:
                         rsi_p = rsi_s[-constants.MAX_POSITIONS_DIVERSITY]
                         rsi_diff = abs(rsi_c - rsi_p)
@@ -2449,9 +2457,11 @@ class PortfolioManager:
 
             # 2. 15m Confirmation
             indicators_15m = self.market_data.get_technical_indicators(coin, "15m")
-            if "error" not in indicators_15m:
-                price_15m = indicators_15m.get("current_price")
-                ema20_15m = indicators_15m.get("ema_20")
+            has_15m = "error" not in indicators_15m
+            price_15m = indicators_15m.get("current_price") if has_15m else None
+            ema20_15m = indicators_15m.get("ema_20") if has_15m else None
+
+            if has_15m and price_15m is not None and ema20_15m is not None:
                 # Check if 15m trend opposes position
                 is_15m_reversal = (direction == "long" and price_15m < ema20_15m) or (
                     direction == "short" and price_15m > ema20_15m
@@ -2460,28 +2470,30 @@ class PortfolioManager:
                     logger.info("Exit validated by 15m reversal")
                     return True
 
-            # 3. Strong 3m Reversal (Check MACD/RSI intensity)
-            # This is a heuristic since we don't have explicit "strength" flag from AI here easily
-            # We assume if AI called close, it saw a reversal. We check if it's "strong".
-            # Strong = Price crossed EMA20 AND (RSI extreme or MACD cross)
-            price_3m = indicators_3m.get("current_price")
-            ema20_3m = indicators_3m.get("ema_20")
-            rsi_3m = indicators_3m.get("rsi_14", 50)
+            # 3. Strong 15m Reversal (Check RSI extreme on 15m — primary for 1h target)
+            # Strong = Price crossed EMA20 AND 15m RSI extreme
+            rsi_15m = indicators_15m.get("rsi_13", 50) if has_15m else 50
 
-            is_price_crossed = (direction == "long" and price_3m < ema20_3m) or (
-                direction == "short" and price_3m > ema20_3m
+            is_price_crossed = (
+                has_15m
+                and price_15m is not None
+                and ema20_15m is not None
+                and (
+                    (direction == "long" and price_15m < ema20_15m)
+                    or (direction == "short" and price_15m > ema20_15m)
+                )
             )
 
-            is_rsi_extreme = (direction == "long" and rsi_3m > constants.RSI_OVERBOUGHT) or (
-                direction == "short" and rsi_3m < constants.RSI_OVERSOLD
-            )  # Overbought/sold reversal
+            is_rsi_extreme = (direction == "long" and rsi_15m > constants.RSI_OVERBOUGHT) or (
+                direction == "short" and rsi_15m < constants.RSI_OVERSOLD
+            )
 
             if is_price_crossed and is_rsi_extreme:
-                logger.info("Exit validated by Strong 3m Reversal (Price+RSI)")
+                logger.info("Exit validated by Strong 15m Reversal (Price+RSI)")
                 return True
 
             logger.info(
-                "Exit blocked: Weak 3m reversal without confirmation (PnL: {:.2f}%)", pnl_pct
+                "Exit blocked: Weak reversal without 15m confirmation (PnL: {:.2f}%)", pnl_pct
             )
             return False
         except Exception as e:
@@ -3101,7 +3113,7 @@ class PortfolioManager:
         mom = sparkline.get("momentum", "STABLE") if isinstance(sparkline, dict) else "STABLE"
         price_loc = sparkline.get("price_location", {}) if isinstance(sparkline, dict) else {}
         zone = price_loc.get("zone", "MIDDLE")
-        rsi = indicators_15m.get("rsi_14", 50)
+        rsi = indicators_15m.get("rsi_13", 50)
         vwap_rel = indicators_15m.get("price_vs_vwap", "UNKNOWN")
 
         # 1. Momentum & RSI Zone
@@ -3392,8 +3404,8 @@ class PortfolioManager:
         if not proceed:
             return {"proceed": False}
 
-        # 3. Update Trend
-        trend_info = self.update_trend_state(coin, inds_htf, inds_3m)
+        # 3. Update Trend (15m RSI for intraday adjustment)
+        trend_info = self.update_trend_state(coin, inds_htf, inds_15m)
         curr_trend = trend_info.get("trend", "unknown")
         trade["trend_runtime"] = curr_trend
 

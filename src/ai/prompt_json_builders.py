@@ -287,10 +287,10 @@ def build_coin_state_vector(
         "key_levels": {
             "price": _sv_fmt(indicators_htf.get("current_price") if indicators_htf else None),
             "ema20_htf": _sv_fmt(indicators_htf.get("ema_20") if indicators_htf else None),
-            "rsi_15m": _sv_fmt(indicators_15m.get("rsi_14") if indicators_15m else None),
+            "rsi_15m": _sv_fmt(indicators_15m.get("rsi_13") if indicators_15m else None),
             "atr_htf": _sv_fmt(indicators_htf.get("atr_14") if indicators_htf else None),
             "rsi_3m": _sv_fmt(
-                indicators_3m.get("rsi_7", indicators_3m.get("rsi_14")) if indicators_3m else None
+                indicators_3m.get("rsi_7", indicators_3m.get("rsi_13")) if indicators_3m else None
             ),
             "ema20_3m": _sv_fmt(indicators_3m.get("ema_20") if indicators_3m else None),
         },
@@ -372,7 +372,7 @@ def build_counter_trade_json(
             if price_htf is None or ema20_htf is None or price_3m is None or ema20_3m is None:
                 continue
 
-            rsi_3m = format_number_for_json(indicators_3m.get("rsi_14", 50))
+            rsi_3m = format_number_for_json(indicators_3m.get("rsi_13", 50))
             volume_3m = format_number_for_json(indicators_3m.get("volume", 0))
             avg_volume_3m = format_number_for_json(indicators_3m.get("avg_volume", 1))
             macd_3m = format_number_for_json(indicators_3m.get("macd", 0))

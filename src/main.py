@@ -1334,10 +1334,10 @@ class AlphaArenaDeepSeek:
         self,
         coin: str,
         indicators_htf: dict[str, Any],
-        indicators_3m: dict[str, Any] | None = None,
+        indicators_15m: dict[str, Any] | None = None,
     ) -> dict[str, Any]:
         """Delegate trend state updates to PortfolioManager for backward compatibility."""
-        return self.portfolio.update_trend_state(coin, indicators_htf, indicators_3m)
+        return self.portfolio.update_trend_state(coin, indicators_htf, indicators_15m)
 
     def get_recent_trend_flip_summary(self) -> list[str]:
         """Expose portfolio trend flip summary for existing integrations."""

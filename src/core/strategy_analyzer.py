@@ -51,9 +51,9 @@ class StrategyAnalyzer:
             if "error" in indicators_htf or "error" in indicators_15m or "error" in indicators_3m:
                 return False
 
-            rsi_3m = indicators_3m.get("rsi_14", 50)
-            rsi_15m = indicators_15m.get("rsi_14", 50)
-            rsi_htf = indicators_htf.get("rsi_14", 50)
+            rsi_3m = indicators_3m.get("rsi_13", 50)
+            rsi_15m = indicators_15m.get("rsi_13", 50)
+            rsi_htf = indicators_htf.get("rsi_13", 50)
             macd_3m = indicators_3m.get("macd", 0)
             macd_15m = indicators_15m.get("macd", 0)
             macd_htf = indicators_htf.get("macd", 0)
@@ -186,7 +186,7 @@ class StrategyAnalyzer:
             price_htf = indicators_htf.get("current_price")
             ema20_htf = indicators_htf.get("ema_20")
             ema50_htf = indicators_htf.get("ema_50")
-            rsi_htf = indicators_htf.get("rsi_14", 50)
+            rsi_htf = indicators_htf.get("rsi_13", 50)
             macd_htf = indicators_htf.get("macd", 0)
             volume_htf = indicators_htf.get("volume", 0)
             avg_volume_htf = indicators_htf.get("avg_volume", 1)
@@ -463,7 +463,7 @@ class StrategyAnalyzer:
 
             # Enhanced short conditions:
             # 1. 3m RSI > 70 (overbought)
-            rsi_3m = indicators_3m.get("rsi_14", 50)
+            rsi_3m = indicators_3m.get("rsi_13", 50)
             # 2. Volume > 1.5x average
             volume_ratio = indicators_3m.get("volume", 0) / indicators_3m.get("avg_volume", 1)
             # 3. Higher timeframe trend bearish
@@ -499,20 +499,20 @@ class StrategyAnalyzer:
                     "invalidation_condition": "Unable to generate exit plan due to data error",
                 }
 
-            rsi_14 = indicators_htf.get("rsi_14", 50)
+            rsi_htf = indicators_htf.get("rsi_13", 50)
             htf_upper = HTF_LABEL.upper()
 
             # Only generate invalidation conditions - TP/SL handled by execute_live_entry
             if direction == "long":
-                if rsi_14 > constants.RSI_HTF_OVERBOUGHT:
+                if rsi_htf > constants.RSI_HTF_OVERBOUGHT:
                     invalidation_condition = f"If {htf_upper} RSI breaks back below {constants.RSI_THRESHOLD_OB_MODERATE}, signaling momentum failure"
-                elif rsi_14 < constants.RSI_THRESHOLD_OS_MODERATE:
+                elif rsi_htf < constants.RSI_THRESHOLD_OS_MODERATE:
                     invalidation_condition = f"If {htf_upper} RSI breaks above {constants.RSI_NEUTRAL_MARK}, signaling momentum recovery"
                 else:
                     invalidation_condition = f"If {htf_upper} price closes below {htf_upper} EMA20, signaling trend reversal"
-            elif rsi_14 < constants.RSI_THRESHOLD_OS_STRONG:
+            elif rsi_htf < constants.RSI_THRESHOLD_OS_STRONG:
                 invalidation_condition = f"If {htf_upper} RSI breaks back above {constants.RSI_THRESHOLD_OS_MODERATE}, signaling momentum failure"
-            elif rsi_14 > constants.RSI_THRESHOLD_OB_MODERATE:
+            elif rsi_htf > constants.RSI_THRESHOLD_OB_MODERATE:
                 invalidation_condition = f"If {htf_upper} RSI breaks below {constants.RSI_NEUTRAL_MARK}, signaling momentum recovery"
             else:
                 invalidation_condition = (
@@ -523,7 +523,7 @@ class StrategyAnalyzer:
                 "profit_target": None,  # Handled by execute_live_entry
                 "stop_loss": None,  # Handled by execute_live_entry
                 "invalidation_condition": invalidation_condition,
-                "rsi_context": f"{htf_upper} RSI: {rsi_14:.1f}",
+                "rsi_context": f"{htf_upper} RSI: {rsi_htf:.1f}",
             }
 
         except Exception as e:

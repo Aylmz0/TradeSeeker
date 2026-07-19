@@ -1600,7 +1600,7 @@ class AccountService:
                 else {}
             )
             if isinstance(indicators_htf, dict) and "error" not in indicators_htf:
-                rsi_htf = indicators_htf.get("rsi_14", 50)
+                rsi_htf = indicators_htf.get("rsi_13", 50)
                 sparkline = indicators_htf.get("smart_sparkline", {})
                 price_loc = (
                     sparkline.get("price_location", {}) if isinstance(sparkline, dict) else {}

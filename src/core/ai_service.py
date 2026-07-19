@@ -547,7 +547,7 @@ REMEMBER: These are suggestions only. You make the final trading decisions based
                 output += (
                     f"{prefix}Price Momentum Slope: {indicators.get('price_slope_label', 'FLAT')}\n"
                 )
-                output += f"{prefix}RSI-14: {format_num(indicators.get('rsi_14', 50), 2)} ({indicators.get('rsi_divergence_label', 'NONE')})\n"
+                output += f"{prefix}RSI-13: {format_num(indicators.get('rsi_13', 50), 2)} ({indicators.get('rsi_divergence_label', 'NONE')})\n"
                 if "rsi_7" in indicators:
                     output += f"{prefix}RSI-7: {format_num(indicators.get('rsi_7', 50), 2)}\n"
                 output += f"{prefix}MACD Signal: {indicators.get('macd_histogram', 0):.6f}\n"
@@ -616,14 +616,14 @@ REMEMBER: These are suggestions only. You make the final trading decisions based
                         prompt += f"  Position Duration: {position_duration_minutes} minutes\n"
 
                 # Get current trend state
-                trend_info = self.portfolio.update_trend_state(coin, indicators_htf, indicators_3m)
+                trend_info = self.portfolio.update_trend_state(coin, indicators_htf, indicators_15m)
                 current_trend = trend_info.get("trend", "unknown")
                 trend_direction = position.direction.lower()
 
                 # Determine 3m momentum
                 price_3m = indicators_3m.get("current_price")
                 ema20_3m = indicators_3m.get("ema_20")
-                rsi_3m = indicators_3m.get("rsi_14", indicators_3m.get("rsi_7", 50))
+                rsi_3m = indicators_3m.get("rsi_13", indicators_3m.get("rsi_7", 50))
                 momentum_3m = "unknown"
                 if (
                     isinstance(price_3m, (int, float))
@@ -656,7 +656,7 @@ REMEMBER: These are suggestions only. You make the final trading decisions based
                 # Determine 15m momentum
                 price_15m = indicators_15m.get("current_price")
                 ema20_15m = indicators_15m.get("ema_20")
-                rsi_15m = indicators_15m.get("rsi_14", indicators_15m.get("rsi_7", 50))
+                rsi_15m = indicators_15m.get("rsi_13", indicators_15m.get("rsi_7", 50))
                 momentum_15m = "unknown"
                 if (
                     isinstance(price_15m, (int, float))

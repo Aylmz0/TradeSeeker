@@ -365,7 +365,7 @@ class RealMarketData:
         try:
             ema_20_series = calculate_ema_series(close_prices, constants.FIB_21)
             ema_50_series = calculate_ema_series(close_prices, constants.FIB_55)
-            rsi_14_series = calculate_rsi_series(close_prices, constants.FIB_13)
+            rsi_13_series = calculate_rsi_series(close_prices, constants.FIB_13)
             macd_line_series, macd_signal_series, macd_hist_series = calculate_macd_series(
                 close_prices,
             )
@@ -373,7 +373,7 @@ class RealMarketData:
 
             indicators["ema_20"] = float(ema_20_series[-1])
             indicators["ema_50"] = float(ema_50_series[-1])
-            indicators["rsi_14"] = float(rsi_14_series[-1])
+            indicators["rsi_13"] = float(rsi_13_series[-1])
             indicators["macd"] = float(macd_line_series[-1])
             indicators["macd_signal"] = float(macd_signal_series[-1])
             indicators["macd_histogram"] = float(macd_hist_series[-1])
@@ -382,8 +382,8 @@ class RealMarketData:
             indicators["ema_20_series"] = (
                 ema_20_series[-hist_len:].round(4).fill_nan(None).to_list()
             )
-            indicators["rsi_14_series"] = (
-                rsi_14_series[-hist_len:].round(3).fill_nan(None).to_list()
+            indicators["rsi_13_series"] = (
+                rsi_13_series[-hist_len:].round(3).fill_nan(None).to_list()
             )
             indicators["macd_series"] = (
                 macd_line_series[-hist_len:].round(4).fill_nan(None).to_list()
@@ -476,7 +476,7 @@ class RealMarketData:
 
             indicators["price_slope_label"] = calculate_slope_label(close_prices)
             indicators["rsi_divergence_label"] = calculate_rsi_divergence_label(
-                close_prices, rsi_14_series
+                close_prices, rsi_13_series
             )
             indicators["ema_stretch_label"] = calculate_ema_stretch_label(
                 current_price, indicators.get("ema_20")
@@ -766,7 +766,7 @@ class RealMarketData:
 
         price_3m = indicators_3m.get("current_price")
         ema20_3m = indicators_3m.get("ema_20")
-        rsi_3m = indicators_3m.get("rsi_14")
+        rsi_3m = indicators_3m.get("rsi_13")
         macd_3m = indicators_3m.get("macd")
         macd_signal_3m = indicators_3m.get("macd_signal")
 

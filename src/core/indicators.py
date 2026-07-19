@@ -618,7 +618,7 @@ def generate_tags(indicators: dict[str, Any]) -> list[str]:
     elif price < ema20 and price > ema50:
         tags.append("Trend_Correction_Bear")
 
-    rsi = indicators.get("rsi_14", 50)
+    rsi = indicators.get("rsi_13", 50)
     if rsi > constants.RSI_OVERBOUGHT:
         tags.append("RSI_Overbought")
     elif rsi < constants.RSI_OVERSOLD:
