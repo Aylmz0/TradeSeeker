@@ -674,12 +674,59 @@ graphify hook install
 
 ---
 
-## 10. Sonraki Adımlar (Onay Bekliyor)
+## 10. Uygulama Durumu (2026-07-20 — Tamamlandı)
 
-1. **Onayla** → Faz A ile başla (graph query/path/explain + callflow-html + wiki)
-2. **Onayla** → Faz B ile devam et (pdoc kurulumu + API docs üretimi)
-3. **Onayla** → Faz C ile tamamla (doküman yazımı)
-4. **Onayla** → Faz D ile bitir (README güncelleme)
+### Faz A — Graph Verilerini Toplama ✓ TAMAMLANDI
+| Adım | Durum | Sonuç |
+|------|-------|-------|
+| A.1: Graph query (6 sorgu) | ✓ | Mimari ilişki keşfi tamamlandı |
+| A.2: Graph path (8 sorgu) | ✓ | Veri akışı diyagramları çıkarıldı |
+| A.3: Graph explain (19 modül) | ✓ | Tüm kritik modüllerin açıklaması alındı |
+| A.4: Callflow HTML | ✓ | `docs/arch.html` (285KB, 15 section, 13 Mermaid) |
+| A.5: Wiki | ✓ | `graphify-out/wiki/` (124 dosya, 6.5KB index) |
+| A.6: Tree HTML | ✓ | `docs/tree.html` (110KB, D3 collapsible) |
+| A.7: Label | ✓ | Graph tazelendi (LLM backend yok, isimler korundu) |
+| A.8: Save-result | ✓ | 8 Q&A kaydedildi (`graphify-out/memory/`) |
+| A.9: Reflect | ✓ | `docs/LESSONS.md` üretildi (8 useful, 0 dead end) |
+
+### Faz B — pdoc + Docs Yapısı ✓ TAMAMLANDI
+| Adım | Durum | Sonuç |
+|------|-------|-------|
+| B.1: pdoc kurulumu | ✓ | pdoc 16.0.0 |
+| B.2: API docs üretimi | ✓ | `docs/api/` (32 HTML dosyası) |
+| B.3: docs/index.md | ✓ | Ana sayfa (3.3KB) |
+| B.4: docs/architecture.md | ✓ | Mimari tasarım (7KB) |
+| B.5: docs/configuration.md | ✓ | 120+ ayar referansı (10.6KB) |
+| B.6: docs/operations.md | ✓ | Runbook (2.5KB) |
+| B.7: docs/development.md | ✓ | Katkı rehberi (2.8KB) |
+
+### Faz C — README Güncelleme ✓ TAMAMLANDI
+| Adım | Durum | Sonuç |
+|------|-------|-------|
+| C.1: README docs bölümü | ✓ | 9 doküman linki eklendi |
+
+### Nihai Dosya Yapısı (2026-07-20)
+```
+docs/
+  index.md                      # ana sayfa (giriş, hızlı rehber)
+  architecture.md               # mimari tasarım (graphify query/path/explain)
+  configuration.md              # Config + .env referansı (120+ ayar)
+  operations.md                 # runbook: 35-cycle reset, live mod, troubleshooting
+  development.md                # katkı rehberi, docstring standartı
+  arch.html                     # interaktif çağrı akışı (graphify export callflow-html)
+  tree.html                     # D3 collapsible hiyerarşi (graphify tree)
+  LESSONS.md                    # bilgi bankası (graphify reflect)
+  AI_PROMPTS_REFERENCE.md       # AI prompt sistemi dokümanı
+  guide.md                      # mevcut rehber
+  api/                          # pdoc API referansı (32 HTML)
+  plans/                        # aktif çalışma planları
+graphify-out/
+  wiki/                         # 123 topluluk makalesi (graphify wiki)
+  memory/                       # 8 Q&A dosyası (graphify save-result)
+  graph.json                    # knowledge graph (2.5MB)
+  graph.html                    # graph visualizasyonu (2.1MB)
+  GRAPH_REPORT.md               # topluluk haritası (25.5KB)
+```
 
 ---
 
@@ -691,3 +738,14 @@ graphify hook install
 - En son: services/, schemas/, web/
 
 Bu plan docstring iyileştirmesini KAPSAMAZ — sadece mevcut docstring'lerden en iyi şekilde yararlanmayı hedefler.
+
+---
+
+## 12. Graphify Komut Düzeltmeleri (Uygulama Sırasında Öğrenilen)
+
+- `graphify wiki` komutu bu versiyonda mevcut değil → `graphify . --wiki` olarak kullanılır
+- `graphify explain` için modül adı `.py` uzantılı olmalı: `graphify explain "prompt_json_builders.py"`
+- `graphify export callflow-html` → `graphify export callflow-html --output docs/arch.html`
+- `graphify tree` → `graphify tree --output docs/tree.html`
+- Wiki üretimi için `--code-only` flag'i gerekli (API key olmadan)
+- `graphify label` için LLM backend gerekli (yoksa isimler korunur)

@@ -45,6 +45,22 @@ python3 scripts/train_model.py
 
 ---
 
+## 📚 Documentation
+
+| Document | Description |
+|----------|-------------|
+| [Architecture](docs/architecture.md) | System design, module map, data flow |
+| [Configuration](docs/configuration.md) | Every Config / .env option explained |
+| [Operations](docs/operations.md) | Runbooks: 35-cycle reset, live mode, troubleshooting |
+| [Development](docs/development.md) | Contributing guide, docstring conventions |
+| [API Reference](docs/api/index.html) | Auto-generated from docstrings (pdoc) |
+| [Callflow Diagram](docs/arch.html) | Interactive Mermaid-based architecture visualization |
+| [Knowledge Graph Wiki](graphify-out/wiki/index.md) | 123 community articles from graphify |
+| [Lessons Learned](docs/LESSONS.md) | Auto-generated from graphify Q&A memory |
+| [AI Prompts Reference](docs/AI_PROMPTS_REFERENCE.md) | AI prompt system documentation |
+
+---
+
 ## ⚠️ Yasal Uyarı
 Bu yazılım **yüksek riskli** bir finansal araçtır. Yalnızca eğitim amaçlıdır. Kullanımdan doğacak mali sonuçlardan kullanıcı sorumludur.
 
