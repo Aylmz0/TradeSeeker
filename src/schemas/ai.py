@@ -22,11 +22,9 @@ class AIDecision(BaseModel):
     signal: str = "hold"  # buy_to_enter | sell_to_enter | close_position | hold
     confidence: float = Field(default=0.0, ge=0, le=1)
     leverage: int = Field(default=10, ge=1, le=20)
-    quantity_usd: float = Field(default=0.0, ge=0)
     profit_target: float | None = None
     stop_loss: float | None = None
     invalidation_condition: str | None = None
-    risk_usd: float = Field(default=0.0, ge=0)
     ml_consensus: MLConsensus | None = None
     reasoning: str | None = None
     runtime_decision: str | None = None

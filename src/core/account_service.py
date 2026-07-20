@@ -179,10 +179,8 @@ class AccountService:
                 if key in previous_dict and key not in merged_pos:
                     merged_pos[key] = previous_dict[key]
 
-            # Risk USD should reflect current margin if available
-            margin_usd = merged_pos.get("margin_usd")
-            if isinstance(margin_usd, (int, float)):
-                merged_pos["risk_usd"] = margin_usd
+            # Risk USD is set at entry time in _execute_order_payload
+            # Do not overwrite with margin_usd here
 
             existing_plan = previous_dict.get("exit_plan")
             snapshot_plan = snap_pos.get("exit_plan")

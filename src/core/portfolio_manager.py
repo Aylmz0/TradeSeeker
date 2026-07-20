@@ -2854,25 +2854,8 @@ class PortfolioManager:
             )
             leverage = constants.LEVERAGE_MAX_OP
 
-        if confidence < Config.MIN_CONFIDENCE:
-            logger.info(
-                "LOW CONFIDENCE: {} trade confidence {:.2f} < {}. Skipping.",
-                coin,
-                confidence,
-                Config.MIN_CONFIDENCE,
-            )
-            execution_report = signal_ctx.get("report", {})
-            if execution_report is not None:
-                execution_report["blocked"].append(
-                    {
-                        "coin": coin,
-                        "reason": "low_confidence",
-                        "confidence": confidence,
-                        "threshold": Config.MIN_CONFIDENCE,
-                    }
-                )
-            trade["runtime_decision"] = "blocked_low_confidence"
-            return {"proceed": False}
+        # MIN_CONFIDENCE check moved to _finalize_entry_sizing_and_execution()
+        # so it runs after all confidence multipliers (CT, trend clash, directional bias)
 
         return {"proceed": True, "confidence": confidence, "leverage": leverage}
 
@@ -3591,8 +3574,9 @@ class PortfolioManager:
         trade = signal_ctx["trade"]
         log_func = signal_ctx["log_func"]
         # AI/Runtime Trend Clash
-        ai_runtime_clash = (current_trend == "BULLISH" and direction == "short") or (
-            current_trend == "BEARISH" and direction == "long"
+        trend_upper = current_trend.upper() if isinstance(current_trend, str) else ""
+        ai_runtime_clash = (trend_upper == "BULLISH" and direction == "short") or (
+            trend_upper == "BEARISH" and direction == "long"
         )
         if ai_runtime_clash:
             trade["forced_min_margin"] = True
@@ -3758,8 +3742,6 @@ class PortfolioManager:
         """
         coin = guard_ctx["coin"]
         signal = guard_ctx["signal"]
-        confidence = guard_ctx["confidence"]
-        partial_margin_factor = guard_ctx["partial_margin_factor"]
         confidence = guard_ctx["confidence"]
         partial_margin_factor = guard_ctx["partial_margin_factor"]
         relax_mode_active = guard_ctx["relax_mode_active"]
@@ -3962,6 +3944,28 @@ class PortfolioManager:
         signal = signal_ctx["signal"]
         current_price = signal_ctx["current_price"]
         indicators_htf = signal_ctx.get("indicators_htf", {})
+
+        # 0. MIN_CONFIDENCE check AFTER all multipliers (CT, trend clash, directional bias)
+        final_confidence = signal_ctx["confidence"]
+        if final_confidence < Config.MIN_CONFIDENCE:
+            logger.info(
+                "POST-MULTIPLIER LOW CONFIDENCE: {} final confidence {:.2f} < {}. Skipping.",
+                coin,
+                final_confidence,
+                Config.MIN_CONFIDENCE,
+            )
+            execution_report = signal_ctx.get("report")
+            if execution_report is not None:
+                execution_report["blocked"].append(
+                    {
+                        "coin": coin,
+                        "reason": "low_confidence_post_multiplier",
+                        "confidence": final_confidence,
+                        "threshold": Config.MIN_CONFIDENCE,
+                    }
+                )
+            signal_ctx["trade"]["runtime_decision"] = "blocked_low_confidence"
+            return False
 
         # 1. ATR-based Stop Loss Calculation
         atr_stop_loss = self._calculate_atr_stop_loss(signal, coin, current_price, indicators_htf)
@@ -4285,7 +4289,9 @@ class PortfolioManager:
                     "stop_loss": atr_stop_loss,
                     "invalidation_condition": trade.get("invalidation_condition"),
                 },
-                "risk_usd": margin_usd,
+                "risk_usd": notional_usd * (abs(current_price - atr_stop_loss) / current_price)
+                if current_price
+                else 0,
                 "loss_cycle_count": 0,
                 "entry_volume": indicators_3m.get("volume"),
                 "entry_avg_volume": indicators_3m.get("avg_volume"),
