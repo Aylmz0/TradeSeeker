@@ -44,6 +44,7 @@ class Alert:
     data: dict[str, Any] | None = None
 
     def __post_init__(self):
+        """Initialize default values for optional fields."""
         if self.timestamp is None:
             self.timestamp = datetime.now(timezone.utc)
 
@@ -67,6 +68,7 @@ class AlertManager:
     """Manages real-time alerts and notifications."""
 
     def __init__(self):
+        """Initialize the alert manager with default settings."""
         self.alerts: list[Alert] = []
         self.max_alerts = 100
         self.alert_handlers: list[Callable[[Alert], None]] = []
@@ -333,6 +335,11 @@ class FileAlertHandler:
     """File-based alert handler for logging."""
 
     def __init__(self, filename: str = "data/alerts.json"):
+        """Initialize the file alert handler.
+
+        Args:
+            filename: Path to the alert log file.
+        """
         self.filename = filename
 
     def __call__(self, alert: Alert) -> None:

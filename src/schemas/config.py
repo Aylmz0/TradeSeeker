@@ -213,7 +213,21 @@ class Settings(BaseSettings):
     @field_validator("LOG_LEVEL")
     @classmethod
     def validate_log_level(cls: type["Settings"], v: str) -> str:
-        """Validate LOG_LEVEL is a standard Python logging level."""
+        """Validate LOG_LEVEL is a standard Python logging level.
+
+        Args:
+        ----
+            v: Raw log level string from environment or defaults.
+
+        Returns:
+        -------
+            Uppercase log level string if valid.
+
+        Raises:
+        ------
+            ValueError: If the value is not a recognized logging level.
+
+        """
         allowed = {"DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"}
         upper = v.upper()
         if upper not in allowed:
@@ -224,7 +238,21 @@ class Settings(BaseSettings):
     @field_validator("TRADING_MODE")
     @classmethod
     def validate_trading_mode(cls: type["Settings"], v: str) -> str:
-        """Validate TRADING_MODE is either simulation or live."""
+        """Validate TRADING_MODE is either simulation or live.
+
+        Args:
+        ----
+            v: Raw trading mode string from environment or defaults.
+
+        Returns:
+        -------
+            Lowercase trading mode string if valid.
+
+        Raises:
+        ------
+            ValueError: If the value is not 'simulation' or 'live'.
+
+        """
         allowed = {"simulation", "live"}
         lower = v.lower()
         if lower not in allowed:
@@ -235,7 +263,21 @@ class Settings(BaseSettings):
     @field_validator("RISK_LEVEL")
     @classmethod
     def validate_risk_level(cls: type["Settings"], v: str) -> str:
-        """Validate RISK_LEVEL is low, medium, or high."""
+        """Validate RISK_LEVEL is low, medium, or high.
+
+        Args:
+        ----
+            v: Raw risk level string from environment or defaults.
+
+        Returns:
+        -------
+            Lowercase risk level string if valid.
+
+        Raises:
+        ------
+            ValueError: If the value is not 'low', 'medium', or 'high'.
+
+        """
         allowed = {"low", "medium", "high"}
         lower = v.lower()
         if lower not in allowed:
@@ -246,7 +288,21 @@ class Settings(BaseSettings):
     @field_validator("HTF_INTERVAL")
     @classmethod
     def validate_htf_interval(cls: type["Settings"], v: str) -> str:
-        """Validate HTF_INTERVAL is a supported candle interval."""
+        """Validate HTF_INTERVAL is a supported candle interval.
+
+        Args:
+        ----
+            v: Raw interval string from environment or defaults.
+
+        Returns:
+        -------
+            Lowercase interval string if valid.
+
+        Raises:
+        ------
+            ValueError: If the value is not one of 30m, 1h, 2h, or 4h.
+
+        """
         allowed = {"30m", "1h", "2h", "4h"}
         lower = v.lower()
         if lower not in allowed:
@@ -257,7 +313,21 @@ class Settings(BaseSettings):
     @field_validator("BINANCE_MARGIN_TYPE")
     @classmethod
     def validate_margin_type(cls: type["Settings"], v: str) -> str:
-        """Validate BINANCE_MARGIN_TYPE is ISOLATED or CROSSED."""
+        """Validate BINANCE_MARGIN_TYPE is ISOLATED or CROSSED.
+
+        Args:
+        ----
+            v: Raw margin type string from environment or defaults.
+
+        Returns:
+        -------
+            Uppercase margin type string if valid.
+
+        Raises:
+        ------
+            ValueError: If the value is not 'ISOLATED' or 'CROSSED'.
+
+        """
         allowed = {"ISOLATED", "CROSSED"}
         upper = v.upper()
         if upper not in allowed:
@@ -266,7 +336,17 @@ class Settings(BaseSettings):
         return upper
 
     def get_masked_api_key(self: "Settings", api_key: str | None) -> str:
-        """Return a masked version of the API key for safe logging."""
+        """Return a masked version of the API key for safe logging.
+
+        Args:
+        ----
+            api_key: Full API key string, or None if not set.
+
+        Returns:
+        -------
+            Masked key showing first and last four characters, or a placeholder.
+
+        """
         from src.core import constants
 
         if not api_key:

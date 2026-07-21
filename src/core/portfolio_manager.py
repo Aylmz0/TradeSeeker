@@ -95,10 +95,11 @@ class PortfolioManager:
         """Initialize the PortfolioManager with optional initial balance.
 
         Args:
-        ----
             initial_balance: Starting balance for the portfolio. If None,
                 loads from saved state or Config.
 
+        Returns:
+            None.
         """
         # Dynamic initial balance - if not provided, take from actual balance or use $200
         if initial_balance is None:
@@ -167,7 +168,11 @@ class PortfolioManager:
         )  # Calculate initial value with loaded positions
 
     def _ensure_full_history_exists(self) -> None:
-        """Ensure full trade history exists, copying from active history if needed."""
+        """Ensure full trade history exists, copying from active history if needed.
+
+        Returns:
+            None.
+        """
         if not Path(self.full_history_file).exists():
             logger.info("Creating {} from existing trade history...", self.full_history_file)
             safe_file_write(self.full_history_file, self.trade_history)
@@ -175,10 +180,8 @@ class PortfolioManager:
     def _init_directional_bias(self) -> dict[str, dict[str, Any]]:
         """Initialize directional bias metrics for long and short trade tracking.
 
-        Returns
-        -------
+        Returns:
             Dictionary containing initialized stats for both 'long' and 'short' directions.
-
         """
         return {
             "long": {
@@ -211,6 +214,9 @@ class PortfolioManager:
         """Load portfolio state from local JSON file.
 
         Restores balance, active positions, trade counts, and directional bias metrics.
+
+        Returns:
+            None.
         """
         data: dict[str, Any] = safe_file_read_cached(self.state_file, default_data={})
         self.current_balance = data.get("current_balance", self.initial_balance)
@@ -267,6 +273,9 @@ class PortfolioManager:
         """Save current portfolio state to local JSON file.
 
         Persists balance, positions, bias metrics, and cycle information with thread safety.
+
+        Returns:
+            None.
         """
         with self._lock:
             data: dict[str, Any] = {
@@ -295,13 +304,10 @@ class PortfolioManager:
         """Create a timestamped backup for historical JSON files before wiping them.
 
         Args:
-        ----
             cycle_number: The current cycle number for grouping the backup.
 
         Returns:
-        -------
             Path to the backup directory if successful, None otherwise.
-
         """
         timestamp = datetime.now(timezone.utc).strftime("%Y%m%d_%H%M%S")
         backup_dir = Path("data/backups") / f"{timestamp}_cycle_{cycle_number}"
@@ -351,9 +357,10 @@ class PortfolioManager:
         """Clear historical logs to prevent long-term bias while keeping live positions.
 
         Args:
-        ----
             cycle_number: The current cycle number at which reset occurs.
 
+        Returns:
+            None.
         """
         # FIX: Single lock block covers in-memory state + file writes + position resets.
         # This prevents TOCTOU race where TP/SL thread reads partially-reset data.
@@ -403,10 +410,8 @@ class PortfolioManager:
     def _serialize_directional_bias(self) -> dict[str, dict[str, Any]]:
         """Serialize directional bias metrics for state saving.
 
-        Returns
-        -------
+        Returns:
             Dictionary containing bias stats simplified for JSON serialization.
-
         """
         serialized: dict[str, dict[str, Any]] = {}
         for side, stats in self.directional_bias.items():
@@ -427,17 +432,19 @@ class PortfolioManager:
     def load_trade_history(self) -> list[dict[str, Any]]:
         """Load trade history from the local JSON file.
 
-        Returns
-        -------
+        Returns:
             List of trade records.
-
         """
         history: list[dict[str, Any]] = safe_file_read(self.history_file, default_data=[])
         logger.info("Loaded {} trades.", len(history))
         return history
 
     def save_trade_history(self) -> None:
-        """Save the most recent trade history to the active history file."""
+        """Save the most recent trade history to the active history file.
+
+        Returns:
+            None.
+        """
         with self._lock:
             history_to_save: list[dict[str, Any]] = self.trade_history[
                 -constants.MAX_TRADE_HISTORY_DISPLAY :
@@ -449,9 +456,10 @@ class PortfolioManager:
         """Add a completed trade to both active and full history files.
 
         Args:
-        ----
             trade: The trade record to append.
 
+        Returns:
+            None.
         """
         # CRITICAL: Keep lock for ALL updates (History + Bias + State) to ensure atomicity
         with self._lock:
@@ -480,7 +488,14 @@ class PortfolioManager:
             self.save_state()  # This also uses _lock (RLock handles it)
 
     def update_directional_bias(self, trade: dict[str, Any]) -> None:
-        """Update directional bias based on trade outcome and logic."""
+        """Update directional bias statistics based on a completed trade's outcome.
+
+        Args:
+            trade: Completed trade record containing direction, pnl, symbol, and trend_alignment.
+
+        Returns:
+            None.
+        """
         direction = trade.get("direction")
         if direction not in ("long", "short"):
             return
@@ -507,7 +522,17 @@ class PortfolioManager:
     def _handle_win_bias(
         self, direction: str, stats: dict[str, Any], pnl: float, trade: dict[str, Any]
     ) -> None:
-        """Process logic for a winning trade."""
+        """Process directional bias updates for a winning trade outcome.
+
+        Args:
+            direction: The trade direction ('long' or 'short').
+            stats: Dictionary of directional bias statistics to update.
+            pnl: The profit/loss amount in USD.
+            trade: The completed trade record.
+
+        Returns:
+            None.
+        """
         from config.config import Config
 
         stats["wins"] += 1
@@ -544,7 +569,17 @@ class PortfolioManager:
     def _handle_loss_bias(
         self, direction: str, stats: dict[str, Any], pnl: float, trade: dict[str, Any]
     ) -> None:
-        """Process logic for a losing trade."""
+        """Process directional bias updates for a losing trade outcome.
+
+        Args:
+            direction: The trade direction ('long' or 'short').
+            stats: Dictionary of directional bias statistics to update.
+            pnl: The profit/loss amount in USD (negative for losses).
+            trade: The completed trade record.
+
+        Returns:
+            None.
+        """
         from config.config import Config
 
         stats["losses"] += 1
@@ -598,10 +633,8 @@ class PortfolioManager:
     def count_positions_by_direction(self) -> dict[str, int]:
         """Count currently open positions categorized by trade direction.
 
-        Returns
-        -------
+        Returns:
             Dictionary containing counts for 'long' and 'short' positions.
-
         """
         counts = {"long": 0, "short": 0}
         for pos in self.positions.values():
@@ -614,10 +647,11 @@ class PortfolioManager:
         """Activate a cooldown for a specific trade direction.
 
         Args:
-        ----
             direction: The trade direction ('long' or 'short') to cool down.
             cycles: Number of cycles the cooldown should remain active.
 
+        Returns:
+            None.
         """
         if direction not in ("long", "short"):
             return
@@ -640,7 +674,11 @@ class PortfolioManager:
         )
 
     def tick_cooldowns(self) -> None:
-        """Decrement all active cooldown timers."""
+        """Decrement all active cooldown timers by one cycle.
+
+        Returns:
+            None.
+        """
         logger.debug(
             "tick_cooldowns called. Current cooldowns: {}, Coin cooldowns: {}",
             self.directional_cooldowns,
@@ -660,7 +698,11 @@ class PortfolioManager:
                 logger.info("Relaxed counter-trend validation mode EXPIRED.")
 
     def _tick_directional_cooldowns(self) -> None:
-        """Decrement long/short directional cooldowns."""
+        """Decrement directional cooldown counters and reset loss streaks on expiry.
+
+        Returns:
+            None.
+        """
         for direction in ("long", "short"):
             cycles = self.directional_cooldowns.get(direction, 0)
             if cycles > 0:
@@ -681,7 +723,11 @@ class PortfolioManager:
                     )
 
     def _tick_coin_cooldowns(self) -> None:
-        """Decrement individual coin cooldowns."""
+        """Decrement per-coin cooldown counters and remove expired entries.
+
+        Returns:
+            None.
+        """
         to_remove = []
         for coin, cycles in self.coin_cooldowns.items():
             if cycles > 0:
@@ -707,14 +753,11 @@ class PortfolioManager:
         """Determine trend-following strength including 1h, 15m, and 3m alignment.
 
         Args:
-        ----
             coin: The cryptocurrency symbol.
             signal: The trade signal type ('buy_to_enter' or 'sell_to_enter').
 
         Returns:
-        -------
             Dictionary with 'strength', 'alignment_info', and 'trends' if valid, else None.
-
         """
         result: dict[str, Any] | None = None
         try:
@@ -893,10 +936,13 @@ class PortfolioManager:
     ) -> float:
         """Apply confidence multipliers based on ML prediction consensus.
 
-        Logic:
-        - ML BUY > 50%: Long x1.10, Short x0.90
-        - ML SELL > 50%: Short x1.10, Long x0.90
-        - ML HOLD > 50%: Any x0.95
+        Args:
+            confidence: Current confidence level.
+            side: The trade side ('long' or 'short').
+            ml_consensus: Dictionary with 'BUY', 'SELL', 'HOLD' probability values.
+
+        Returns:
+            The adjusted confidence value after ML consensus multipliers.
         """
         ml_buy = ml_consensus.get("BUY", 0.0)
         ml_sell = ml_consensus.get("SELL", 0.0)
@@ -924,8 +970,7 @@ class PortfolioManager:
     def get_directional_bias_metrics(self) -> dict[str, dict[str, Any]]:
         """Calculate and retrieve holistic directional bias metrics.
 
-        Returns
-        -------
+        Returns:
             Dictionary with 'long' and 'short' performance metrics.
 
         """
@@ -1114,8 +1159,7 @@ class PortfolioManager:
     def get_recent_trend_flip_summary(self) -> list[str]:
         """Get a summary of recent trend flips within the guard and history windows.
 
-        Returns
-        -------
+        Returns:
             List of summary strings describing recent trend changes.
 
         """
@@ -1153,8 +1197,7 @@ class PortfolioManager:
     def load_cycle_history(self) -> list[dict[str, Any]]:
         """Load cycle history records from the local JSON file.
 
-        Returns
-        -------
+        Returns:
             List of cycle history records.
 
         """
@@ -1531,6 +1574,17 @@ class PortfolioManager:
         current_price: float,
         reason: str | None = None,
     ) -> dict[str, Any]:
+        """Execute a live position close order via the order executor.
+
+        Args:
+            coin: The cryptocurrency symbol.
+            position: The position to close.
+            current_price: Current market price for reference.
+            reason: Optional reason for closing the position.
+
+        Returns:
+            Dictionary with 'success' status, order details, and pnl if successful.
+        """
         if not self.is_live_trading or not self.order_executor:
             return {"success": False, "error": "live_trading_disabled"}
         direction = position.direction
@@ -1577,6 +1631,21 @@ class PortfolioManager:
         confidence: float,
         margin_usd: float | None = None,
     ) -> dict[str, Any]:
+        """Execute a live entry order via the order executor.
+
+        Args:
+            coin: The cryptocurrency symbol.
+            direction: Trade direction ('long' or 'short').
+            quantity: Number of coins to trade.
+            leverage: Leverage multiplier.
+            current_price: Current market price for order reference.
+            notional_usd: Total notional value in USD.
+            confidence: Trade confidence level.
+            margin_usd: Optional margin amount in USD.
+
+        Returns:
+            Dictionary with 'success' status, order details, executed quantity, and average price.
+        """
         if not self.is_live_trading or not self.order_executor:
             return {"success": False, "error": "live_trading_disabled"}
         try:
@@ -1601,7 +1670,13 @@ class PortfolioManager:
             return {"success": False, "error": str(e)}
 
     def _calculate_empty_portfolio_value(self) -> None:
-        """Calculate total value when no positions are active."""
+        """Calculate total value when no positions are active.
+
+        Updates total_value, total_return, portfolio history, and Sharpe ratio.
+
+        Returns:
+            None
+        """
         if self.is_live_trading and self.order_executor and self.order_executor.is_live():
             try:
                 overview = self.order_executor.get_account_overview()
@@ -1640,10 +1715,8 @@ class PortfolioManager:
     def calculate_sharpe_ratio(self) -> float:
         """Calculate the annualized Sharpe ratio based on portfolio value history.
 
-        Returns
-        -------
+        Returns:
             The calculated Sharpe ratio, or 0.0 if insufficient history.
-
         """
         if len(self.portfolio_values_history) < constants.MIN_HISTORY_FOR_ANALYSIS:
             return 0.0
@@ -1697,10 +1770,8 @@ class PortfolioManager:
     def get_manual_override(self) -> dict[str, Any]:
         """Check for and remove the manual override file.
 
-        Returns
-        -------
+        Returns:
             Dictionary containing override commands if found, else empty.
-
         """
         path_obj = Path(self.override_file)
         override_data = safe_file_read_cached(str(path_obj), default_data={})
@@ -1722,15 +1793,12 @@ class PortfolioManager:
         """Estimate the liquidation price for a position.
 
         Args:
-        ----
             entry_price: Price at which position was entered.
             leverage: Leverage used for the position.
             direction: Trade direction ('long' or 'short').
 
         Returns:
-        -------
             The estimated liquidation price.
-
         """
         if leverage <= 1 or entry_price <= 0:
             return 0.0
@@ -1752,13 +1820,10 @@ class PortfolioManager:
         """Calculate gradual maximum position limit based on cycle number.
 
         Args:
-        ----
             cycle_number: The current cycle sequence number.
 
         Returns:
-        -------
             The maximum number of allowed concurrent positions.
-
         """
         from config.config import Config
 
@@ -1782,14 +1847,11 @@ class PortfolioManager:
         """Fetch indicators for 3m and HTF from cache or market data.
 
         Args:
-        ----
             coin: The cryptocurrency symbol.
             indicator_cache: Optional cache to pull from.
 
         Returns:
-        -------
             A tuple of (indicators_3m, indicators_htf) dictionaries.
-
         """
         cache_source = (
             indicator_cache if indicator_cache is not None else getattr(self, "indicator_cache", {})
@@ -1824,7 +1886,6 @@ class PortfolioManager:
         """Execute normal AI decisions with gradual position limit enforcement.
 
         Args:
-        ----
             decisions: Dictionary of coin-to-trade decisions.
             valid_prices: Dictionary of current validated prices.
             cycle_number: The current cycle sequence number.
@@ -1832,6 +1893,8 @@ class PortfolioManager:
                 flags during price update.
             indicator_cache: Optional cache for technical indicators.
 
+        Returns:
+            None
         """
         # print("[INFO] Executing normal AI decisions (partial profit active)")
 
@@ -1881,14 +1944,11 @@ class PortfolioManager:
         to ensure consistent behavior regardless of direction.
 
         Args:
-        ----
             position: The position to evaluate.
             proposed_percent: The original proposed sale percentage (0.0 to 1.0).
 
         Returns:
-        -------
             A tuple of (adjusted_percent, should_close_entirely, block_reason).
-
         """
         current_margin = position.margin_usd
         if current_margin <= 0:
@@ -1935,10 +1995,8 @@ class PortfolioManager:
     def _calculate_partial_sale_floor(self) -> float:
         """Calculate the minimum margin floor for partial sales.
 
-        Returns
-        -------
+        Returns:
             The floor amount in USD that must remain after any partial sale.
-
         """
         from_balance = self.current_balance * Config.MAXIMUM_LIMIT_BALANCE_PCT
         return max(Config.MIN_PARTIAL_PROFIT_MARGIN_REMAINING_USD, from_balance)
@@ -1953,16 +2011,13 @@ class PortfolioManager:
         """Determine if a prospective trade aligns with or counters the HTF trend.
 
         Args:
-        ----
             coin: The cryptocurrency symbol.
             signal: The trade signal type.
             indicators_3m: 3m technical indicators.
             indicators_htf: HTF technical indicators.
 
         Returns:
-        -------
             True if the trade is considered counter-trend, False otherwise.
-
         """
         try:
             if "error" in indicators_3m or "error" in indicators_htf:
@@ -1995,14 +2050,11 @@ class PortfolioManager:
         """Determine trend direction relative to EMA with a neutral band.
 
         Args:
-        ----
             price: Current asset price.
             ema20: The EMA 20 value.
 
         Returns:
-        -------
             String representing the trend direction ('BULLISH', 'BEARISH', or 'NEUTRAL').
-
         """
         from config.config import Config
 
@@ -2024,7 +2076,6 @@ class PortfolioManager:
         """Evaluate if a counter-trend signal has sufficient timeframe alignment.
 
         Args:
-        ----
             signal: The original signal string.
             sig_dir: The normalized signal direction.
             t_htf: The HTF trend direction.
@@ -2032,9 +2083,7 @@ class PortfolioManager:
             t_3m: The 3m trend direction.
 
         Returns:
-        -------
             True if alignment is sufficient for entry, False otherwise.
-
         """
         is_ct = False
         if t_htf == "NEUTRAL":
@@ -2060,13 +2109,10 @@ class PortfolioManager:
         """Calculate margin based on volatility sizing (fixed risk) and confidence.
 
         Args:
-        ----
             margin_ctx: Context containing confidence, balance, and price data.
 
         Returns:
-        -------
             The calculated target margin in USD.
-
         """
         confidence = margin_ctx["confidence"]
         available_cash = margin_ctx["balance"]
@@ -2141,13 +2187,10 @@ class PortfolioManager:
         """Calculate the loss multiplier based on position margin size.
 
         Args:
-        ----
             margin_usd: The position margin in USD.
 
         Returns:
-        -------
             The graduated loss multiplier percentage.
-
         """
         from config.config import Config
 
@@ -2169,14 +2212,11 @@ class PortfolioManager:
         """Calculate volume quality score based on current vs average volume.
 
         Args:
-        ----
             coin: The cryptocurrency symbol.
             indicators_3m: Optional technical indicators for 3m timeframe.
 
         Returns:
-        -------
             A score from 0.0 to 100.0 representing volume quality.
-
         """
         score = 0.0
         try:
@@ -2207,14 +2247,11 @@ class PortfolioManager:
         """Check for flash exit conditions including price, RSI, and volume surge.
 
         Args:
-        ----
             coin: The cryptocurrency symbol.
-            position: The position dictionary to evaluate.
+            position: The position to evaluate.
 
         Returns:
-        -------
             True if flash exit conditions are met, False otherwise.
-
         """
         should_flash_exit = False
         if not Config.FLASH_EXIT_ENABLED:
@@ -2250,10 +2287,8 @@ class PortfolioManager:
     def get_effective_same_direction_limit(self) -> int:
         """Calculate the effective same direction position limit.
 
-        Returns
-        -------
+        Returns:
             The maximum number of allowed concurrent positions in the same direction.
-
         """
         # FIX: Use getattr for safe config access
         return getattr(Config, "SAME_DIRECTION_LIMIT", 2)
@@ -2264,15 +2299,12 @@ class PortfolioManager:
         """Validate if an exit signal should be executed based on PnL and technicals.
 
         Args:
-        ----
             coin: The cryptocurrency symbol.
-            position: The position dictionary.
+            position: The position to evaluate.
             indicators_3m: 3m technical indicators.
 
         Returns:
-        -------
             True if exit is validated, False to block the exit.
-
         """
         try:
             # 1. PnL Check (Profit Protection / Stop Loss)
@@ -2346,13 +2378,10 @@ class PortfolioManager:
         """Determine the execution priority for a trade signal based on confidence.
 
         Args:
-        ----
             item: A tuple of (coin, trade_decision).
 
         Returns:
-        -------
             A tuple of (priority_index, negative_confidence) for sorting.
-
         """
         _coin, trade = item
         if not isinstance(trade, dict):
@@ -2375,10 +2404,8 @@ class PortfolioManager:
     def _prepare_execution_context(self) -> dict[str, Any]:
         """Initialize the execution context including regime detection and report setup.
 
-        Returns
-        -------
+        Returns:
             Dictionary containing 'report', 'market_regime', and 'regime_strength'.
-
         """
         # NOTE: sync_live_account() is handled by AccountService, not PortfolioManager
         # Phase 7: Centralized Regime Detection
@@ -2420,13 +2447,11 @@ class PortfolioManager:
         """Process an exit signal including verification and execution steps.
 
         Args:
-        ----
             coin: The cryptocurrency symbol.
             trade: The trade decision from AI.
             current_price: The current market price.
             position: The existing position dictionary, if any.
             execution_report: The report dictionary to update.
-
         """
         if not position:
             logger.warning("CLOSE {}: No position to close.", coin)
@@ -2520,13 +2545,10 @@ class PortfolioManager:
         """Validate if a new entry signal should proceed based on limits and state.
 
         Args:
-        ----
             signal_ctx: Context containing coin, trade, and execution state.
 
         Returns:
-        -------
             Dictionary with 'proceed', 'confidence', and 'leverage'.
-
         """
         # 1. Basic checks (Existing position & Same-cycle limit)
         if not self._check_basic_preconditions(signal_ctx):
@@ -2547,13 +2569,10 @@ class PortfolioManager:
         """Check for existing positions and same-cycle entry limits.
 
         Args:
-        ----
             signal_ctx: Context containing coin, trade, and execution state.
 
         Returns:
-        -------
             True if basic preconditions are met, False otherwise.
-
         """
         from config.config import Config
 
@@ -2595,13 +2614,10 @@ class PortfolioManager:
         """Check for active coin or directional cooldown restrictions.
 
         Args:
-        ----
             signal_ctx: Context containing coin, trade, and execution state.
 
         Returns:
-        -------
             True if no cooldowns are active, False otherwise.
-
         """
         coin = signal_ctx["coin"]
         direction = signal_ctx["direction"]
@@ -2649,13 +2665,10 @@ class PortfolioManager:
         """Check for directional slot limits and regime-based capacity.
 
         Args:
-        ----
             signal_ctx: Context containing coin, trade, and execution state.
 
         Returns:
-        -------
             True if diversity limits allow the trade, False otherwise.
-
         """
         from src.core import constants
 
@@ -2706,13 +2719,10 @@ class PortfolioManager:
         """Validate and clamp confidence and leverage values to operational limits.
 
         Args:
-        ----
             signal_ctx: Context containing coin, trade, and execution state.
 
         Returns:
-        -------
             Dictionary with 'proceed', 'confidence', and 'leverage'.
-
         """
         from src.core import constants
 
@@ -2780,13 +2790,10 @@ class PortfolioManager:
         """Apply commission guard and technical indicator adjustments to confidence.
 
         Args:
-        ----
             signal_ctx: Context containing coin, trade, and market indicators.
 
         Returns:
-        -------
             Dictionary with 'proceed' status and the adjusted 'confidence'.
-
         """
         coin = signal_ctx["coin"]
         signal = signal_ctx["signal"]
@@ -2887,7 +2894,6 @@ class PortfolioManager:
         """Calculate combined technical adjustments for trade confidence.
 
         Args:
-        ----
             coin: The cryptocurrency symbol.
             direction: Trade direction ('long' or 'short').
             confidence: Base confidence level.
@@ -2895,9 +2901,7 @@ class PortfolioManager:
             indicators_3m: 3m technical indicators.
 
         Returns:
-        -------
             A tuple of (adjusted_confidence, list_of_adjustment_notes).
-
         """
         adjustments = []
 
@@ -2923,16 +2927,13 @@ class PortfolioManager:
         """Handle momentum, price zone, RSI, and VWAP adjustments to confidence.
 
         Args:
-        ----
             direction: Trade direction ('long' or 'short').
             confidence: Current confidence level.
             indicators_15m: 15m technical indicators.
             adjustments: List of existing adjustment notes to append to.
 
         Returns:
-        -------
             A tuple of (adjusted_confidence, updated_adjustments).
-
         """
         sparkline = indicators_15m.get("smart_sparkline", {})
         mom = sparkline.get("momentum", "STABLE") if isinstance(sparkline, dict) else "STABLE"
@@ -2964,15 +2965,12 @@ class PortfolioManager:
         """Handle momentum and RSI zone specific adjustments to confidence.
 
         Args:
-        ----
             confidence: Current confidence level.
             mom_ctx: Momentum context containing direction, mom, zone, and rsi.
             adjustments: List of existing adjustment notes.
 
         Returns:
-        -------
             A tuple of (adjusted_confidence, updated_adjustments).
-
         """
         direction = mom_ctx["direction"]
         mom = mom_ctx["mom"]
@@ -3011,16 +3009,13 @@ class PortfolioManager:
         """Apply VWAP relationship adjustments to trade confidence.
 
         Args:
-        ----
             direction: Trade direction ('long' or 'short').
             confidence: Current confidence level.
             vwap_rel: Price relationship to VWAP ('ABOVE' or 'BELOW').
             adjustments: List of existing adjustment notes.
 
         Returns:
-        -------
             A tuple of (adjusted_confidence, updated_adjustments).
-
         """
         if direction == "long":
             if vwap_rel == "BELOW":
@@ -3049,7 +3044,6 @@ class PortfolioManager:
         """Apply volume, ADX, and indicator alignment adjustments to confidence.
 
         Args:
-        ----
             direction: Trade direction ('long' or 'short').
             confidence: Current confidence level.
             indicators_15m: 15m technical indicators.
@@ -3057,9 +3051,7 @@ class PortfolioManager:
             adjustments: List of existing adjustment notes.
 
         Returns:
-        -------
             A tuple of (adjusted_confidence, updated_adjustments).
-
         """
         # 1. Volume & ADX
         confidence, adjustments = self._apply_volume_and_adx_adjustments(
@@ -3081,16 +3073,13 @@ class PortfolioManager:
         """Apply volume and ADX trend strength adjustments to confidence.
 
         Args:
-        ----
             confidence: Current confidence level.
             indicators_15m: 15m technical indicators.
             indicators_3m: 3m technical indicators.
             adjustments: List of existing adjustment notes.
 
         Returns:
-        -------
             A tuple of (adjusted_confidence, updated_adjustments).
-
         """
         # Volume (3m)
         v_rat = indicators_3m.get("volume_ratio", 1.0) if indicators_3m else 1.0
@@ -3127,16 +3116,13 @@ class PortfolioManager:
         """Apply Bollinger, OBV, and SuperTrend alignment adjustments.
 
         Args:
-        ----
             direction: Trade direction ('long' or 'short').
             confidence: Current confidence level.
             indicators_15m: 15m technical indicators.
             adjustments: List of existing adjustment notes.
 
         Returns:
-        -------
             A tuple of (adjusted_confidence, updated_adjustments).
-
         """
         # Bollinger
         bb_sig = indicators_15m.get("bb_signal", "NORMAL")
@@ -3194,13 +3180,10 @@ class PortfolioManager:
         """Analyze trend alignment, apply directional bias, and apply flip guard logic.
 
         Args:
-        ----
             signal_ctx: Context for the trade signal.
 
         Returns:
-        -------
             Dictionary with 'proceed' status and updated signal data.
-
         """
         coin = signal_ctx["coin"]
         signal = signal_ctx["signal"]
@@ -3313,13 +3296,11 @@ class PortfolioManager:
         """Log detailed trend alignment information and fallbacks.
 
         Args:
-        ----
             coin: The cryptocurrency symbol.
             signal: The original signal string.
             inds_htf: HTF technical indicators.
             inds_3m: 3m technical indicators.
             log_func: Logging function to use.
-
         """
         strength_result = self.get_trend_following_strength(coin, signal)
         if strength_result and strength_result.get("strength"):
@@ -3351,16 +3332,13 @@ class PortfolioManager:
         """Perform volume quality analysis and apply confidence penalties if weak.
 
         Args:
-        ----
             signal_ctx: Context for the trade signal.
             indicators_3m_snap: Snapshot of 3m technical indicators.
+            indicators_15m_snap: Optional snapshot of 15m technical indicators.
 
         Returns:
-        -------
             A tuple of (proceed_boolean, final_confidence_float).
-
         """
-        """Handles volume quality scoring and filters."""
         from config.config import Config
 
         coin = signal_ctx["coin"]
@@ -3471,14 +3449,11 @@ class PortfolioManager:
         """Handle detection of AI/Runtime trend clashes and apply directional bias.
 
         Args:
-        ----
             signal_ctx: Context for the trade signal.
             current_trend: The current detected runtime trend.
 
         Returns:
-        -------
             The adjusted confidence level.
-
         """
         coin = signal_ctx["coin"]
         signal = signal_ctx["signal"]
@@ -3545,13 +3520,11 @@ class PortfolioManager:
         """Log a detailed snapshot of market conditions at the time of execution.
 
         Args:
-        ----
             signal_ctx: Context for the trade signal.
             indicators_htf_snap: Snapshot of HTF technical indicators.
             indicators_3m_snap: Snapshot of 3m technical indicators.
             current_trend: The current detected runtime trend.
             is_counter_trend: Boolean indicating if trade is counter-trend.
-
         """
         coin = signal_ctx["coin"]
         trade = signal_ctx["trade"]
@@ -3569,6 +3542,7 @@ class PortfolioManager:
         )
 
         def _fmt(val: float | int | None) -> str:
+            """Format a numeric value to 4 decimal places or return 'n/a'."""
             return f"{val:.4f}" if isinstance(val, (int, float)) else "n/a"
 
         comp_htf = ">" if (price_htf or 0) > (ema20_htf or 0) else "<"
@@ -4250,11 +4224,19 @@ class PortfolioManager:
         return True
 
     def cancel_cycle(self) -> None:
-        """Signal the current cycle to abort (called by watchdog on timeout)."""
+        """Signal the current cycle to abort (called by watchdog on timeout).
+
+        Returns:
+            None.
+        """
         self._cancel_event.set()
 
     def is_cancelled(self) -> bool:
-        """Check if the current cycle has been cancelled by the watchdog."""
+        """Check if the current cycle has been cancelled by the watchdog.
+
+        Returns:
+            True if the cancel event has been set, False otherwise.
+        """
         return self._cancel_event.is_set()
 
     def execute_decision(
@@ -4271,6 +4253,8 @@ class PortfolioManager:
             current_prices: Current market price dictionary.
             indicator_cache: Optional technical indicator cache.
 
+        Returns:
+            None.
         """
         if not isinstance(decisions, dict):
             logger.error("Invalid decisions format: {}", type(decisions))
@@ -4361,6 +4345,8 @@ class PortfolioManager:
             indicator_cache: Technical indicator cache handler.
             batch_ctx: Shared execution context for the cycle.
 
+        Returns:
+            None.
         """
         if not isinstance(trade, dict):
             logger.warning("Invalid trade data for {}: {}", coin, type(trade))
@@ -4402,6 +4388,8 @@ class PortfolioManager:
         ----
             entry_ctx: Context for the entry attempt.
 
+        Returns:
+            None.
         """
         coin = entry_ctx["coin"]
         trade = entry_ctx["trade"]
@@ -4483,6 +4471,8 @@ class PortfolioManager:
             report: The execution report to update.
             trade: The trade decision dictionary.
 
+        Returns:
+            None.
         """
         if position:
             logger.info("HOLD: Holding {} {} position.", position.direction, coin)

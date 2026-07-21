@@ -36,6 +36,7 @@ class BinanceAPIError(Exception):
     """Exception raised when Binance returns an error response."""
 
     def __init__(self, message: str, status_code: int | None = None, error_code: int | None = None):
+        """Initialize a BinanceAPIError with message and optional HTTP/error codes."""
         super().__init__(message)
         self.status_code = status_code
         self.error_code = error_code
@@ -64,6 +65,7 @@ class BinanceFuturesClient:
         recv_window: int = 5000,
         timeout: int = 30,
     ):
+        """Initialize the Binance Futures REST client."""
         self.api_key = api_key or Config.BINANCE_API_KEY
         self.secret_key = secret_key or Config.BINANCE_SECRET_KEY
         if not self.api_key or not self.secret_key:
@@ -78,9 +80,11 @@ class BinanceFuturesClient:
 
     # --- Internal helpers -------------------------------------------------
     def _timestamp(self) -> int:
+        """Return current timestamp in milliseconds for Binance API requests."""
         return int(time.time() * 1000)
 
     def _sign(self, payload: dict[str, Any]) -> str:
+        """Generate HMAC-SHA256 signature for signed API requests."""
         query_string = urllib.parse.urlencode(payload, doseq=True)
         assert self.secret_key is not None
         return hmac.new(
@@ -96,6 +100,7 @@ class BinanceFuturesClient:
         params: dict[str, Any] | None = None,
         signed: bool = False,
     ) -> Any:
+        """Send an HTTP request to the Binance API and return the parsed response."""
         params = params.copy() if params else {}
         headers = {"X-MBX-APIKEY": self.api_key}
 
@@ -135,25 +140,31 @@ class BinanceFuturesClient:
 
     # --- Public REST wrappers ---------------------------------------------
     def get_exchange_info(self, symbols: list[str]) -> dict[str, Any]:
+        """Fetch exchange info for the specified futures symbols."""
         payload = {"symbols": json.dumps(symbols, separators=(",", ":"))}
         return self._request("GET", "/fapi/v1/exchangeInfo", params=payload, signed=False)
 
     def get_mark_price(self, symbol: str) -> dict[str, Any]:
+        """Get the current mark price and funding rate for a symbol."""
         return self._request("GET", "/fapi/v1/premiumIndex", params={"symbol": symbol})
 
     def change_leverage(self, symbol: str, leverage: int) -> dict[str, Any]:
+        """Set the leverage multiplier for a futures symbol."""
         payload = {"symbol": symbol, "leverage": leverage}
         return self._request("POST", "/fapi/v1/leverage", params=payload, signed=True)
 
     def set_margin_type(self, symbol: str, margin_type: str) -> dict[str, Any]:
+        """Set the margin mode (ISOLATED or CROSSED) for a futures symbol."""
         payload = {"symbol": symbol, "marginType": margin_type}
         return self._request("POST", "/fapi/v1/marginType", params=payload, signed=True)
 
     def place_order(self, payload: dict[str, Any], test: bool = False) -> dict[str, Any]:
+        """Submit a new order (or test order) to Binance Futures."""
         endpoint = "/fapi/v1/order/test" if test else "/fapi/v1/order"
         return self._request("POST", endpoint, params=payload, signed=True)
 
     def cancel_all_orders(self, symbol: str) -> dict[str, Any]:
+        """Cancel all open orders for a specific futures symbol."""
         return self._request(
             "DELETE",
             "/fapi/v1/allOpenOrders",
@@ -162,25 +173,51 @@ class BinanceFuturesClient:
         )
 
     def get_balance(self) -> list[dict[str, Any]]:
+        """Retrieve all asset balances for the futures account."""
         return self._request("GET", "/fapi/v2/balance", signed=True)
 
     def get_account_info(self) -> dict[str, Any]:
+        """Fetch full account information including balances and positions."""
         return self._request("GET", "/fapi/v2/account", signed=True)
 
     def get_position_risk(self) -> list[dict[str, Any]]:
+        """Get current position risk information for all open positions."""
         return self._request("GET", "/fapi/v2/positionRisk", signed=True)
 
     def get_best_price(self, symbol: str) -> dict[str, Any]:
-        """Get best bid/ask from the orderbook ticker."""
+        """Get best bid/ask from the orderbook ticker.
+
+        Args:
+            symbol: Futures symbol to query.
+
+        Returns:
+            Dictionary with bidPrice and askPrice fields.
+        """
         return self._request("GET", "/fapi/v1/ticker/bookTicker", params={"symbol": symbol})
 
     def get_order_status(self, symbol: str, order_id: int) -> dict[str, Any]:
-        """Query a specific order's status."""
+        """Query a specific order's status.
+
+        Args:
+            symbol: Futures symbol of the order.
+            order_id: Binance-assigned order ID.
+
+        Returns:
+            Order details including status, filled quantity, and average price.
+        """
         payload = {"symbol": symbol, "orderId": order_id}
         return self._request("GET", "/fapi/v1/order", params=payload, signed=True)
 
     def cancel_order(self, symbol: str, order_id: int) -> dict[str, Any]:
-        """Cancel a specific order."""
+        """Cancel a specific order.
+
+        Args:
+            symbol: Futures symbol of the order.
+            order_id: Binance-assigned order ID to cancel.
+
+        Returns:
+            Cancellation confirmation from Binance.
+        """
         payload = {"symbol": symbol, "orderId": order_id}
         return self._request("DELETE", "/fapi/v1/order", params=payload, signed=True)
 
@@ -189,6 +226,7 @@ class BinanceOrderExecutor:
     """High-level executor that handles sizing, rounding, and synchronization."""
 
     def __init__(self, coins: list[str]):
+        """Initialize the order executor for the specified coin symbols."""
         self.coins = coins
         self.symbol_map = {coin: f"{coin}USDT" for coin in coins}
         self.live = Config.TRADING_MODE == "live"
@@ -211,6 +249,7 @@ class BinanceOrderExecutor:
 
     # --- Initialization helpers ------------------------------------------
     def _initialize_client(self):
+        """Create and configure the Binance REST client from environment config."""
         try:
             self.client = BinanceFuturesClient(
                 api_key=Config.BINANCE_API_KEY,
@@ -225,6 +264,7 @@ class BinanceOrderExecutor:
             raise
 
     def _load_symbol_filters(self):
+        """Load trading filters (lot size, price, notional) for all configured symbols."""
         if not self.client:
             return
         symbols = list(self.symbol_map.values())
@@ -249,6 +289,7 @@ class BinanceOrderExecutor:
         logger.info("Loaded Binance filters for symbols: %s", ", ".join(filters.keys()))
 
     def _ensure_symbol_settings(self):
+        """Set margin type and leverage for all configured symbols on the exchange."""
         if not self.client:
             return
         for coin, symbol in self.symbol_map.items():
@@ -268,6 +309,7 @@ class BinanceOrderExecutor:
 
     # --- Utility methods --------------------------------------------------
     def _round_to_step(self, value: float, step: float) -> float:
+        """Round a value down to the nearest valid step increment."""
         if step <= 0:
             return value
         d_value = Decimal(str(value))
@@ -276,6 +318,7 @@ class BinanceOrderExecutor:
         return float(quantized)
 
     def _validate_and_format_quantity(self, symbol: str, quantity: float, price: float) -> float:
+        """Validate quantity against exchange filters and round to valid step size."""
         if quantity <= 0:
             raise BinanceAPIError(f"Quantity {quantity} invalid for {symbol}")
 
@@ -298,6 +341,7 @@ class BinanceOrderExecutor:
         return adjusted_qty
 
     def _ensure_leverage(self, symbol: str, leverage: int):
+        """Update leverage for a symbol if it differs from the current setting."""
         leverage = int(max(1, leverage))
         current = self.symbol_leverage.get(symbol)
         if current == leverage:
@@ -309,14 +353,19 @@ class BinanceOrderExecutor:
     def _determine_side(self, direction: str, action: str) -> str:
         """Determine Binance side parameter.
 
-        direction: 'long' / 'short'
-        action: 'open' / 'close'
+        Args:
+            direction: Position direction ('long' or 'short').
+            action: Trade action ('open' or 'close').
+
+        Returns:
+            Binance side string ('BUY' or 'SELL').
         """
         if action == "open":
             return "BUY" if direction == "long" else "SELL"
         return "SELL" if direction == "long" else "BUY"
 
     def _extract_fill_details(self, order: dict[str, Any]) -> tuple[float, float]:
+        """Extract executed quantity and average price from an order response."""
         executed_qty = float(order.get("executedQty", order.get("origQty", "0")))
         avg_price = float(order.get("avgPrice", 0.0))
         if executed_qty > 0 and (avg_price == 0 or math.isclose(avg_price, 0)):
@@ -327,10 +376,15 @@ class BinanceOrderExecutor:
 
     # --- Public API -------------------------------------------------------
     def is_live(self) -> bool:
+        """Check if the executor is configured for live trading."""
         return self.live and self.client is not None
 
     def get_account_overview(self) -> dict[str, float]:
-        """Get account overview including total wallet balance (equity) from Binance."""
+        """Get account overview including total wallet balance (equity) from Binance.
+
+        Returns:
+            Dictionary with availableBalance, walletBalance, and totalWalletBalance keys.
+        """
         if not self.is_live():
             return {}
         assert self.client is not None
@@ -391,6 +445,7 @@ class BinanceOrderExecutor:
         return overview
 
     def get_positions_snapshot(self) -> dict[str, dict[str, Any]]:
+        """Fetch a snapshot of all open positions with pricing and PnL details."""
         if not self.is_live():
             return {}
         assert self.client is not None
@@ -450,6 +505,7 @@ class BinanceOrderExecutor:
         price_reference: float,
         reduce_only: bool = False,
     ) -> dict[str, Any]:
+        """Execute a market order with automatic sizing and validation."""
         if not self.is_live():
             raise BinanceAPIError("Attempted to place live order while executor disabled.")
 
@@ -495,7 +551,21 @@ class BinanceOrderExecutor:
         timeout_seconds: float = 5.0,
         poll_interval: float = 0.5,
     ) -> dict[str, Any]:
-        """Place a LIMIT order at best bid/ask, wait for fill, fallback to MARKET if unfilled."""
+        """Place a LIMIT order at best bid/ask, wait for fill, fallback to MARKET if unfilled.
+
+        Args:
+            coin: Coin symbol (e.g., 'BTC').
+            direction: Position direction ('long' or 'short').
+            quantity: Order quantity in base asset.
+            leverage: Leverage multiplier to apply.
+            price_reference: Reference price for notional validation.
+            reduce_only: If True, close an existing position.
+            timeout_seconds: Maximum seconds to wait for fill before fallback.
+            poll_interval: Seconds between order status polls.
+
+        Returns:
+            Order response dict with executedQty and avgPriceComputed fields.
+        """
         if not self.is_live():
             raise BinanceAPIError("Attempted to place live order while executor disabled.")
 
@@ -675,6 +745,7 @@ class BinanceOrderExecutor:
         quantity: float,
         price_reference: float,
     ) -> dict[str, Any]:
+        """Close an existing position with a reduce-only market order."""
         return self.place_market_order(
             coin=coin,
             direction=direction,
@@ -803,7 +874,14 @@ class BinanceOrderExecutor:
         return self.client.place_order(payload)
 
     def cancel_all_orders_for_symbol(self, coin: str) -> dict[str, Any]:
-        """Cancel all open orders (including TP/SL) for a symbol."""
+        """Cancel all open orders (including TP/SL) for a symbol.
+
+        Args:
+            coin: Coin symbol (e.g., 'BTC') to cancel orders for.
+
+        Returns:
+            Cancellation confirmation from Binance.
+        """
         if not self.is_live():
             raise BinanceAPIError("Attempted to cancel orders while executor disabled.")
 

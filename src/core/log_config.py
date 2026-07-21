@@ -33,6 +33,11 @@ class _InterceptHandler(logging.Handler):
     }
 
     def emit(self, record: logging.LogRecord) -> None:
+        """Forward a stdlib logging record to loguru.
+
+        Args:
+            record: Standard library log record to intercept and re-emit.
+        """
         try:
             level = self._LEVEL_MAP.get(record.levelno, "INFO")
             logger.opt(depth=6).log(level, "{}", record.getMessage())
@@ -41,12 +46,23 @@ class _InterceptHandler(logging.Handler):
 
 
 def _ai_reasoning_filter(record) -> bool:
-    """Only let through messages bound with kind='ai_reasoning'."""
+    """Loguru filter that passes only messages bound with ``kind='ai_reasoning'``.
+
+    Args:
+        record: Loguru record dict containing an ``extra`` field.
+
+    Returns:
+        True if the record should be logged, False to suppress it.
+    """
     return record["extra"].get("kind") == "ai_reasoning"
 
 
 def setup_logging(log_level: str = "INFO", log_dir: str | None = None) -> None:
     """Configure loguru with console, file, and JSON sinks.
+
+    Sets up five sinks: human-readable console output, daily-rotating file logs,
+    AI reasoning logs, structured JSON logs, and crash reports. Also routes stdlib
+    logging from third-party libraries (litellm, httpx) through loguru.
 
     Args:
         log_level: Minimum log level (DEBUG, INFO, WARNING, ERROR, CRITICAL).

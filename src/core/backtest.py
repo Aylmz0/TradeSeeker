@@ -19,6 +19,7 @@ class BacktestEngine:
     """Backtesting engine for historical strategy testing."""
 
     def __init__(self, initial_balance: float = Config.INITIAL_BALANCE):
+        """Initialize backtest engine with starting balance."""
         self.initial_balance = initial_balance
         self.current_balance = initial_balance
         self.positions = {}
@@ -34,8 +35,15 @@ class BacktestEngine:
         interval: str = "1h",
     ) -> pl.DataFrame:
         """Load historical price data for backtesting.
-        Note: This is a simplified implementation. In production, you would use
-        a proper historical data source like Binance API, Yahoo Finance, etc.
+
+        Args:
+            symbol: Trading pair symbol (e.g., 'BTCUSDT').
+            start_date: Start date in ISO format (e.g., '2024-01-01').
+            end_date: End date in ISO format (e.g., '2024-12-31').
+            interval: Candle interval ('1m', '5m', '15m', '1h', '4h', '1d').
+
+        Returns:
+            DataFrame with OHLCV columns (timestamp, open, high, low, close, volume).
         """
         # This is a placeholder implementation
         # In a real implementation, you would fetch historical data from an API
@@ -89,7 +97,19 @@ class BacktestEngine:
         leverage: int = 1,
         timestamp: datetime | None = None,
     ) -> dict[str, Any]:
-        """Execute a trade in the backtest environment."""
+        """Execute a trade in the backtest environment.
+
+        Args:
+            symbol: Trading pair symbol.
+            signal: Trade signal type ('buy_to_enter', 'sell_to_enter', 'close_position').
+            price: Execution price for the trade.
+            quantity: Number of units to trade.
+            leverage: Leverage multiplier for the position.
+            timestamp: Trade execution time; defaults to current UTC time.
+
+        Returns:
+            Dictionary with trade result including success status and PnL for closes.
+        """
         if timestamp is None:
             timestamp = datetime.now(timezone.utc)
 
@@ -174,7 +194,15 @@ class BacktestEngine:
         return trade_result
 
     def update_portfolio_value(self, current_prices: dict[str, float], timestamp: datetime):
-        """Update portfolio value based on current prices."""
+        """Update portfolio value based on current prices.
+
+        Args:
+            current_prices: Mapping of symbol to current market price.
+            timestamp: Timestamp for the portfolio snapshot.
+
+        Returns:
+            Total portfolio value including cash and unrealized PnL.
+        """
         total_value = self.current_balance
 
         for symbol, position in self.positions.items():
@@ -197,7 +225,11 @@ class BacktestEngine:
         return total_value
 
     def calculate_metrics(self) -> dict[str, Any]:
-        """Calculate backtest performance metrics."""
+        """Calculate backtest performance metrics.
+
+        Returns:
+            Dictionary containing return, Sharpe ratio, drawdown, and trade statistics.
+        """
         if not self.portfolio_values:
             return {}
 
@@ -275,13 +307,14 @@ class BacktestEngine:
         """Run a complete backtest with the given strategy.
 
         Args:
-        ----
-            strategy_func: Function that takes (symbol, data, portfolio_state) and returns trading signals
-            symbols: List of symbols to backtest
-            start_date: Start date in 'YYYY-MM-DD' format
-            end_date: End date in 'YYYY-MM-DD' format
-            interval: Data interval ('1h', '4h', '1d', etc.)
+            strategy_func: Function that takes (symbol, data, portfolio_state) and returns trading signals.
+            symbols: List of symbols to backtest.
+            start_date: Start date in 'YYYY-MM-DD' format.
+            end_date: End date in 'YYYY-MM-DD' format.
+            interval: Data interval ('1h', '4h', '1d', etc.).
 
+        Returns:
+            Dictionary with metrics, trade history, portfolio values, and timestamps.
         """
         logging.info(f"Starting backtest from {start_date} to {end_date}")
 
@@ -351,6 +384,12 @@ class AdvancedRiskManager:
     def __init__(
         self, max_portfolio_risk: float | None = None, max_position_risk: float | None = None
     ):
+        """Initialize risk manager with portfolio and position risk limits.
+
+        Args:
+            max_portfolio_risk: Maximum portfolio risk as a decimal; overrides config default.
+            max_position_risk: Maximum single position risk as a decimal; overrides config default.
+        """
         # Set risk parameters based on configuration
         from config.config import Config
 
@@ -389,7 +428,17 @@ class AdvancedRiskManager:
         stop_loss: float,
         confidence: float = 0.5,
     ) -> float:
-        """Calculate optimal position size based on risk parameters with $50 maximum limit."""
+        """Calculate optimal position size based on risk parameters with $50 maximum limit.
+
+        Args:
+            current_balance: Available account balance in USD.
+            entry_price: Intended entry price per unit.
+            stop_loss: Stop loss price per unit.
+            confidence: Signal confidence score between 0 and 1.
+
+        Returns:
+            Number of units to trade, or 0.0 if risk parameters are invalid.
+        """
         if entry_price <= 0 or stop_loss <= 0:
             return 0.0
 
@@ -441,7 +490,16 @@ class AdvancedRiskManager:
         new_symbol: str,
         max_concentration: float | None = None,
     ) -> bool:
-        """Check if adding new position maintains portfolio diversification."""
+        """Check if adding new position maintains portfolio diversification.
+
+        Args:
+            current_positions: Dictionary of current open positions.
+            new_symbol: Symbol of the proposed new position.
+            max_concentration: Maximum allowed concentration per position; uses config default if None.
+
+        Returns:
+            True if the new position is allowed, False if position limits are reached.
+        """
         if not current_positions:
             return True
 
@@ -494,7 +552,15 @@ class AdvancedRiskManager:
         return True
 
     def calculate_portfolio_risk(self, positions: dict, current_prices: dict) -> float:
-        """Calculate current portfolio risk level."""
+        """Calculate current portfolio risk level.
+
+        Args:
+            positions: Dictionary of current open positions.
+            current_prices: Mapping of symbol to current market price.
+
+        Returns:
+            Weighted portfolio risk as a decimal between 0 and 1.
+        """
         if not positions:
             return 0.0
 
@@ -525,7 +591,20 @@ class AdvancedRiskManager:
         current_balance: float = Config.INITIAL_BALANCE,
         ai_risk_usd: float | None = None,
     ) -> dict[str, Any]:
-        """Determine if a trade should be entered based on position limits only."""
+        """Determine if a trade should be entered based on position limits only.
+
+        Args:
+            symbol: Trading pair symbol.
+            current_positions: Dictionary of current open positions.
+            current_prices: Mapping of symbol to current market price.
+            confidence: Signal confidence score between 0 and 1.
+            proposed_notional: Proposed trade notional value in USD.
+            current_balance: Available account balance in USD.
+            ai_risk_usd: AI-proposed risk in USD (logged but ignored for sizing).
+
+        Returns:
+            Dictionary with should_enter flag, reason, and adjusted notional.
+        """
         decision = {
             "should_enter": True,
             "reason": "Position limit check passed",
@@ -549,8 +628,15 @@ class AdvancedRiskManager:
 
 
 def sample_strategy(symbol: str, data: pl.DataFrame, portfolio_state: dict) -> dict | None:
-    """Sample trading strategy for backtesting.
-    This is a simple moving average crossover strategy.
+    """Sample trading strategy for backtesting using moving average crossover.
+
+    Args:
+        symbol: Trading pair symbol.
+        data: Historical OHLCV DataFrame.
+        portfolio_state: Current portfolio state with balance and positions.
+
+    Returns:
+        Dictionary with signal details, or None if no action should be taken.
     """
     if len(data) < constants.MIN_KLINE_DATA_POINTS:
         return None
@@ -582,12 +668,14 @@ class MockOrderExecutor:
     """Mock version of BinanceOrderExecutor for deterministic replays."""
 
     def __init__(self, initial_balance: float = constants.MOCK_INITIAL_BALANCE):
+        """Initialize mock order executor with starting balance."""
         self.wallet_balance = initial_balance
         self.positions = {}
         self.order_history = []
         self._order_id_counter = 1000
 
     def is_live(self) -> bool:
+        """Return whether this executor is connected to a live exchange."""
         return False
 
     def get_account_overview(self) -> dict[str, float]:
@@ -599,6 +687,11 @@ class MockOrderExecutor:
         }
 
     def get_positions_snapshot(self) -> dict[str, dict[str, Any]]:
+        """Return current positions in PortfolioManager-compatible format.
+
+        Returns:
+            Dictionary mapping symbol to position details including PnL and leverage.
+        """
         # Map internal positions to the format expected by PortfolioManager
         snapshot = {}
         for coin, pos in self.positions.items():
@@ -628,6 +721,19 @@ class MockOrderExecutor:
         price_reference: float,
         reduce_only: bool = False,
     ) -> dict[str, Any]:
+        """Place a market order in the mock environment.
+
+        Args:
+            coin: Trading pair symbol.
+            direction: Trade direction ('long' or 'short').
+            quantity: Number of units to trade.
+            leverage: Leverage multiplier.
+            price_reference: Reference price for margin calculation.
+            reduce_only: If True, close an existing position instead of opening.
+
+        Returns:
+            Dictionary with success status, order ID, and execution details.
+        """
         if reduce_only:
             return self.close_position(coin, direction, quantity, price_reference)
 
@@ -660,12 +766,23 @@ class MockOrderExecutor:
         }
 
     def place_smart_limit_order(self, *args, **kwargs) -> dict[str, Any]:
-        # Simplify to market order for replay
+        """Place a smart limit order; delegates to market order for replay."""
         return self.place_market_order(*args, **kwargs)
 
     def close_position(
         self, coin: str, direction: str, quantity: float, price_reference: float
     ) -> dict[str, Any]:
+        """Close an existing position and realize PnL.
+
+        Args:
+            coin: Trading pair symbol.
+            direction: Position direction ('long' or 'short').
+            quantity: Number of units to close.
+            price_reference: Reference price for PnL calculation.
+
+        Returns:
+            Dictionary with success status, PnL, and execution details.
+        """
         if coin not in self.positions:
             return {"success": False, "error": "No position to close"}
 
@@ -688,13 +805,19 @@ class MockOrderExecutor:
         }
 
     def place_take_profit_order(self, *args, **kwargs):
+        """Place a take profit order (no-op in mock executor)."""
         return {"success": True}
 
     def place_stop_loss_order(self, *args, **kwargs):
+        """Place a stop loss order (no-op in mock executor)."""
         return {"success": True}
 
     def update_mock_prices(self, price_map: dict[str, float]):
-        """Update unrealized PnL based on incoming prices."""
+        """Update unrealized PnL based on incoming prices.
+
+        Args:
+            price_map: Mapping of symbol to current market price.
+        """
         for coin, price in price_map.items():
             if coin in self.positions:
                 pos = self.positions[coin]

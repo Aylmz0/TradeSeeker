@@ -9,6 +9,15 @@ from src.core import constants
 
 
 def _linear_slope(x: Sequence[int | float], y: Sequence[int | float]) -> float:
+    """Calculate the slope of a linear regression line.
+
+    Args:
+        x: Independent variable values.
+        y: Dependent variable values.
+
+    Returns:
+        The slope of the best-fit line, or 0.0 if insufficient data.
+    """
     n = len(x)
     if n < 2:
         return 0.0
@@ -23,14 +32,40 @@ def _linear_slope(x: Sequence[int | float], y: Sequence[int | float]) -> float:
 
 
 def _sign(x: float) -> int:
+    """Return the sign of a number as an integer.
+
+    Args:
+        x: The number to check.
+
+    Returns:
+        1 if positive, -1 if negative, 0 if zero.
+    """
     return 1 if x > 0 else (-1 if x < 0 else 0)
 
 
 def calculate_ema_series(prices: pl.Series, period: int) -> pl.Series:
+    """Calculate Exponential Moving Average for a price series.
+
+    Args:
+        prices: Series of price values.
+        period: The lookback period for the EMA.
+
+    Returns:
+        Series containing the EMA values.
+    """
     return prices.ewm_mean(span=period, adjust=False)
 
 
 def calculate_rsi_series(prices: pl.Series, period: int = 14) -> pl.Series:
+    """Calculate Relative Strength Index (RSI) for a price series.
+
+    Args:
+        prices: Series of close prices.
+        period: The lookback period for RSI calculation.
+
+    Returns:
+        Series of RSI values between 0 and 100.
+    """
     if len(prices) < period + 1:
         return pl.Series([float("nan")] * len(prices))
 
@@ -66,6 +101,17 @@ def calculate_rsi_series(prices: pl.Series, period: int = 14) -> pl.Series:
 def calculate_macd_series(
     prices: pl.Series, fast: int = 12, slow: int = 26, signal: int = 9
 ) -> tuple[pl.Series, pl.Series, pl.Series]:
+    """Calculate MACD (Moving Average Convergence Divergence) components.
+
+    Args:
+        prices: Series of close prices.
+        fast: Fast EMA period.
+        slow: Slow EMA period.
+        signal: Signal line EMA period.
+
+    Returns:
+        Tuple of (macd_line, signal_line, histogram) series.
+    """
     if len(prices) < slow:
         nan_series = pl.Series([float("nan")] * len(prices))
         return nan_series, nan_series, nan_series
@@ -81,6 +127,17 @@ def calculate_macd_series(
 def calculate_atr_series(
     df_high: pl.Series, df_low: pl.Series, df_close: pl.Series, period: int = 14
 ) -> pl.Series:
+    """Calculate Average True Range (ATR) for price series.
+
+    Args:
+        df_high: Series of high prices.
+        df_low: Series of low prices.
+        df_close: Series of close prices.
+        period: The lookback period for ATR smoothing.
+
+    Returns:
+        Series of ATR values.
+    """
     if len(df_close) < period + 1:
         return pl.Series([float("nan")] * len(df_close))
 
@@ -97,8 +154,16 @@ def calculate_atr_series(
 def calculate_adx(
     high: pl.Series, low: pl.Series, close: pl.Series, period: int = 14
 ) -> tuple[float, float, float]:
-    """Calculate ADX (Average Directional Index) and DI values.
-    Returns: (adx, plus_di, minus_di)
+    """Calculate ADX (Average Directional Index) and directional indicators.
+
+    Args:
+        high: Series of high prices.
+        low: Series of low prices.
+        close: Series of close prices.
+        period: The lookback period for smoothing.
+
+    Returns:
+        Tuple of (adx, plus_di, minus_di) values for the latest bar.
     """
     if len(close) < period + 1:
         return 0.0, 0.0, 0.0
@@ -176,7 +241,18 @@ def calculate_adx(
 def calculate_vwap(
     high: pl.Series, low: pl.Series, close: pl.Series, volume: pl.Series, period: int = 60
 ) -> float:
-    """Calculate Rolling VWAP (Volume Weighted Average Price)."""
+    """Calculate Rolling VWAP (Volume Weighted Average Price).
+
+    Args:
+        high: Series of high prices.
+        low: Series of low prices.
+        close: Series of close prices.
+        volume: Series of volume values.
+        period: Rolling window size for VWAP calculation.
+
+    Returns:
+        The latest VWAP value.
+    """
     if len(close) < period:
         return float(close[-1]) if len(close) > 0 else 0.0
 
@@ -204,8 +280,15 @@ def calculate_vwap(
 def calculate_bollinger_bands(
     close: pl.Series, period: int = 20, std_dev: float = 2.0
 ) -> tuple[float, float, float, float, float]:
-    """Calculate Bollinger Bands.
-    Returns: (upper_band, middle_band, lower_band, bandwidth, percent_b)
+    """Calculate Bollinger Bands and related metrics.
+
+    Args:
+        close: Series of close prices.
+        period: The lookback period for the moving average.
+        std_dev: Number of standard deviations for the bands.
+
+    Returns:
+        Tuple of (upper_band, middle_band, lower_band, bandwidth, percent_b).
     """
     if len(close) < period:
         price = float(close[-1]) if len(close) > 0 else 0.0
@@ -248,8 +331,14 @@ def calculate_bollinger_bands(
 
 
 def calculate_obv(close: pl.Series, volume: pl.Series) -> tuple[float, str, str]:
-    """Calculate On Balance Volume and its trend using vectorized operations.
-    Returns: (obv, obv_trend, obv_divergence)
+    """Calculate On Balance Volume and its trend.
+
+    Args:
+        close: Series of close prices.
+        volume: Series of volume values.
+
+    Returns:
+        Tuple of (obv_value, trend_direction, divergence_type).
     """
     if len(close) < constants.INDICATOR_HISTORY_DEFAULT:
         return 0.0, "FLAT", "NONE"
@@ -282,8 +371,17 @@ def calculate_obv(close: pl.Series, volume: pl.Series) -> tuple[float, str, str]
 def calculate_supertrend(
     high: pl.Series, low: pl.Series, close: pl.Series, period: int = 10, multiplier: float = 3.0
 ) -> tuple[float, str]:
-    """Calculate SuperTrend indicator using optimized vectorization.
-    Returns: (supertrend_line, direction)
+    """Calculate SuperTrend indicator.
+
+    Args:
+        high: Series of high prices.
+        low: Series of low prices.
+        close: Series of close prices.
+        period: The lookback period for ATR calculation.
+        multiplier: ATR multiplier for band width.
+
+    Returns:
+        Tuple of (supertrend_line_value, direction).
     """
     if len(close) < period + 1:
         return float(close[-1]) if len(close) > 0 else 0.0, "UP"
@@ -329,7 +427,15 @@ def calculate_supertrend(
 
 
 def calculate_efficiency_ratio(prices: pl.Series, period: int = 10) -> float:
-    """Calculate Kaufman Efficiency Ratio (ER) to detect Choppy vs Trending markets."""
+    """Calculate Kaufman Efficiency Ratio (ER) to detect Choppy vs Trending markets.
+
+    Args:
+        prices: Series of close prices.
+        period: The lookback period for the calculation.
+
+    Returns:
+        Efficiency ratio between 0 and 1, where higher values indicate stronger trends.
+    """
     if len(prices) < period + 1:
         return 0.5
 
@@ -343,7 +449,15 @@ def calculate_efficiency_ratio(prices: pl.Series, period: int = 10) -> float:
 
 
 def extract_semantic_features(prices: pl.Series, period: int = 24) -> dict[str, Any]:
-    """Extract semantic features from price series."""
+    """Extract semantic features from price series.
+
+    Args:
+        prices: Series of close prices.
+        period: The lookback window for feature extraction.
+
+    Returns:
+        Dictionary containing slope, peaks, valleys, volatility_state, and structure.
+    """
     if len(prices) < period:
         return {}
 
@@ -397,7 +511,15 @@ def extract_semantic_features(prices: pl.Series, period: int = 24) -> dict[str, 
 
 
 def calculate_slope_label(prices: pl.Series, period: int = 20) -> str:
-    """Calculate linear regression slope and return categorical label."""
+    """Calculate linear regression slope and return categorical label.
+
+    Args:
+        prices: Series of close prices.
+        period: The lookback period for slope calculation.
+
+    Returns:
+        Categorical label indicating trend strength and direction.
+    """
     if len(prices) < period:
         return "FLAT"
     subset = prices[-period:].to_list()
@@ -417,7 +539,15 @@ def calculate_slope_label(prices: pl.Series, period: int = 20) -> str:
 
 
 def calculate_ema_stretch_label(current_price: float, ema20: float) -> str:
-    """Calculate how far price is from EMA20 and return categorical label."""
+    """Calculate how far price is from EMA20 and return categorical label.
+
+    Args:
+        current_price: The current price value.
+        ema20: The 20-period EMA value.
+
+    Returns:
+        Categorical label indicating price extension from EMA.
+    """
     if not current_price or not ema20 or ema20 == 0:
         return "NORMAL"
     diff_pct = (current_price - ema20) / ema20 * 100
@@ -432,7 +562,16 @@ def calculate_ema_stretch_label(current_price: float, ema20: float) -> str:
 
 
 def calculate_rsi_divergence_label(prices: pl.Series, rsi: pl.Series, period: int = 20) -> str:
-    """Detect RSI-Price divergence using slope comparison."""
+    """Detect RSI-Price divergence using slope comparison.
+
+    Args:
+        prices: Series of close prices.
+        rsi: Series of RSI values.
+        period: The lookback period for divergence detection.
+
+    Returns:
+        Categorical label indicating divergence type (BULLISH_DIVERGENCE, BEARISH_DIVERGENCE, or NONE).
+    """
     if len(prices) < period or len(rsi) < period:
         return "NONE"
 
@@ -452,7 +591,15 @@ def calculate_rsi_divergence_label(prices: pl.Series, rsi: pl.Series, period: in
 
 
 def calculate_volatility_pulse_label(atr_3: float, atr_14: float) -> str:
-    """Compare short-term vs long-term ATR to detect volatility expansion."""
+    """Compare short-term vs long-term ATR to detect volatility expansion.
+
+    Args:
+        atr_3: Short-term ATR value (e.g., 3-period).
+        atr_14: Long-term ATR value (e.g., 14-period).
+
+    Returns:
+        Categorical label indicating volatility state (STRETCHING, STAGNANT, or NORMAL).
+    """
     if not atr_3 or not atr_14 or atr_14 == 0:
         return "NORMAL"
     ratio = atr_3 / atr_14
@@ -465,7 +612,15 @@ def calculate_volatility_pulse_label(atr_3: float, atr_14: float) -> str:
 
 
 def generate_smart_sparkline(prices: pl.Series, period: int = 24) -> dict[str, Any]:
-    """Generate Smart Sparkline v2.1 with key level, structure, and momentum."""
+    """Generate Smart Sparkline v2.1 with key level, structure, and momentum.
+
+    Args:
+        prices: Series of close prices.
+        period: The lookback window for sparkline generation.
+
+    Returns:
+        Dictionary with key_level, structure, momentum, and price_location.
+    """
     if len(prices) < period:
         return {"key_level": None, "structure": "UNCLEAR", "momentum": "STABLE"}
 
@@ -584,7 +739,15 @@ def generate_smart_sparkline(prices: pl.Series, period: int = 24) -> dict[str, A
 
 
 def calculate_pivots(df: pl.DataFrame, periods: int = 24) -> dict[str, float]:
-    """Calculate High/Low pivots over N periods."""
+    """Calculate High/Low pivots over N periods.
+
+    Args:
+        df: DataFrame with 'high' and 'low' columns.
+        periods: The lookback window for pivot calculation.
+
+    Returns:
+        Dictionary with 'high' and 'low' pivot values, or empty dict if insufficient data.
+    """
     if len(df) < periods:
         return {}
     subset = df.tail(periods)
@@ -597,7 +760,14 @@ def calculate_pivots(df: pl.DataFrame, periods: int = 24) -> dict[str, float]:
 
 
 def generate_tags(indicators: dict[str, Any]) -> list[str]:
-    """Generate analytical tags based on indicators."""
+    """Generate analytical tags based on indicators.
+
+    Args:
+        indicators: Dictionary containing calculated indicator values.
+
+    Returns:
+        List of categorical tags describing market conditions.
+    """
     tags = []
 
     if indicators.get("volume_ratio", 0) > constants.VOLUME_RATIO_HIGH:
@@ -632,7 +802,14 @@ def generate_tags(indicators: dict[str, Any]) -> list[str]:
 
 
 def get_features_for_ml(df: pl.DataFrame) -> pl.DataFrame:
-    """Convert raw OHLCV DataFrame into an ML-ready Feature Matrix."""
+    """Convert raw OHLCV DataFrame into an ML-ready Feature Matrix.
+
+    Args:
+        df: DataFrame with columns: timestamp, open, high, low, close, volume.
+
+    Returns:
+        DataFrame with engineered features for ML model input.
+    """
     if len(df) < constants.MIN_KLINE_DATA_POINTS:
         return pl.DataFrame()
 

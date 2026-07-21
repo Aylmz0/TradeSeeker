@@ -47,7 +47,11 @@ ml_service = MLService()
 
 
 def get_python_executable() -> str:
-    """Detect and return the absolute path to the .venv python if it exists."""
+    """Detect and return the absolute path to the project's Python interpreter.
+
+    Returns:
+        Absolute path to the .venv python if it exists, otherwise the system Python.
+    """
     venv_python = PROJECT_ROOT / ".venv" / "bin" / "python"
     if venv_python.exists():
         return str(venv_python)
@@ -55,7 +59,14 @@ def get_python_executable() -> str:
 
 
 def get_log_file(name: str):
-    """Ensure data/logs directory exists and return the log file handle."""
+    """Ensure data/logs directory exists and return an opened log file handle.
+
+    Args:
+        name: Base name of the log file (without extension).
+
+    Returns:
+        Open file handle for appending to the log file.
+    """
     log_dir = PROJECT_ROOT / "data" / "logs"
     os.makedirs(log_dir, exist_ok=True)
     return open(log_dir / f"{name}.log", "a", encoding="utf-8")
@@ -66,7 +77,14 @@ def get_log_file(name: str):
 
 @app.errorhandler(Exception)
 def handle_exception(e):
-    """Global error handler to ensure all errors return JSON instead of HTML."""
+    """Global error handler to ensure all errors return JSON instead of HTML.
+
+    Args:
+        e: The exception that was raised.
+
+    Returns:
+        JSON error response with 500 status code.
+    """
     logger.error(f"Global Error Hook: {e}", exc_info=True)
     return jsonify({"status": "error", "message": str(e)}), 500
 
@@ -75,12 +93,27 @@ def handle_exception(e):
 
 
 def get_file_path(filename: str) -> str:
-    """Get absolute path for a file in the project root."""
+    """Get absolute path for a file relative to the project root.
+
+    Args:
+        filename: Relative path to the file from the project root.
+
+    Returns:
+        Absolute path as a string.
+    """
     return str(PROJECT_ROOT / filename)
 
 
 def safe_file_read(filename: str, default_data: Any = None) -> Any:
-    """Safely read data from a JSON file using file locking."""
+    """Safely read and parse data from a JSON file.
+
+    Args:
+        filename: Relative path to the JSON file from the project root.
+        default_data: Value to return if the file doesn't exist or cannot be read.
+
+    Returns:
+        Parsed JSON data, or default_data on failure.
+    """
     file_path = get_file_path(filename)
     try:
         if not os.path.exists(file_path):
@@ -94,7 +127,15 @@ def safe_file_read(filename: str, default_data: Any = None) -> Any:
 
 
 def safe_file_write(filename: str, data: Any):
-    """Safely write data to a JSON file using file locking."""
+    """Safely write data to a JSON file.
+
+    Args:
+        filename: Relative path to the JSON file from the project root.
+        data: Serializable data to write.
+
+    Raises:
+        Exception: Re-raises any write errors after logging.
+    """
     file_path = get_file_path(filename)
     try:
         with open(file_path, "w") as f:
@@ -109,26 +150,45 @@ def safe_file_write(filename: str, data: Any):
 
 @app.route("/")
 def serve_index():
-    """Serve the main admin panel interface."""
+    """Serve the main admin panel HTML page.
+
+    Returns:
+        The index.html file from the templates directory.
+    """
     return send_from_directory(str(TEMPLATE_DIR), "index.html")
 
 
 @app.route("/assets/<path:filename>")
 def serve_custom_static(filename):
-    """Serve static files from src/web/static directory."""
+    """Serve static assets (CSS, JS, images) from the web directory.
+
+    Args:
+        filename: Relative path to the static file within the static directory.
+
+    Returns:
+        The requested static file.
+    """
     return send_from_directory(str(WEB_DIR / "static"), filename)
 
 
 @app.route("/api/portfolio")
 def get_portfolio():
-    """Get current portfolio state."""
+    """Get the current portfolio state.
+
+    Returns:
+        JSON response with portfolio holdings, balances, and PnL data.
+    """
     data = safe_file_read("data/portfolio_state.json", {})
     return jsonify(data)
 
 
 @app.route("/api/trades")
 def get_trades():
-    """Get trade history (prefer full history for persistent graph)."""
+    """Get trade history, preferring the full persistent history file.
+
+    Returns:
+        JSON array of trade records with entry/exit details and PnL.
+    """
     # Try to read full history first (persistent across resets)
     data = safe_file_read("data/full_trade_history.json", None)
 
@@ -141,21 +201,33 @@ def get_trades():
 
 @app.route("/api/cycles")
 def get_cycles():
-    """Get AI cycle history."""
+    """Get the history of AI decision cycles.
+
+    Returns:
+        JSON array of cycle records with timestamps and decisions.
+    """
     data = safe_file_read("data/cycle_history.json", [])
     return jsonify(data)
 
 
 @app.route("/api/alerts")
 def get_alerts():
-    """Get system alerts."""
+    """Get the list of system alerts and warnings.
+
+    Returns:
+        JSON array of alert objects with severity and messages.
+    """
     data = safe_file_read("data/alerts.json", [])
     return jsonify(data)
 
 
 @app.route("/api/performance")
 def get_performance():
-    """Get performance analysis report."""
+    """Get the most recent performance analysis report.
+
+    Returns:
+        JSON object with performance metrics, or empty dict if unavailable.
+    """
     reports = safe_file_read("data/performance_report.json", [])
 
     if isinstance(reports, dict):
@@ -172,7 +244,11 @@ def get_performance():
 
 @app.route("/api/performance/refresh", methods=["POST"])
 def refresh_performance():
-    """Trigger a new performance analysis in the background."""
+    """Trigger a new performance analysis report generation in the background.
+
+    Returns:
+        JSON response indicating whether the refresh process was started.
+    """
     try:
         script_path = str(PROJECT_ROOT / "scripts" / "generate_performance_report.py")
         if not os.path.exists(script_path):
@@ -198,7 +274,11 @@ def refresh_performance():
 
 @app.route("/api/force-close", methods=["POST"])
 def force_close_position():
-    """Force close a specific position."""
+    """Force close a specific trading position by writing a manual override.
+
+    Returns:
+        JSON response confirming the close command was queued.
+    """
     try:
         data = request.get_json()
         if not data:
@@ -231,7 +311,11 @@ def force_close_position():
 
 @app.route("/api/bot-control", methods=["POST"])
 def set_bot_control():
-    """Set bot control status (pause/resume/stop)."""
+    """Set bot control status to pause, resume, or stop.
+
+    Returns:
+        JSON response confirming the control command was applied.
+    """
     try:
         data = request.get_json()
         if not data:
@@ -267,7 +351,11 @@ def set_bot_control():
 
 @app.route("/api/bot-control", methods=["GET"])
 def get_bot_control():
-    """Get current bot control status."""
+    """Get the current bot control status.
+
+    Returns:
+        JSON object with status, last_updated timestamp, and action.
+    """
     try:
         control = safe_file_read(
             "data/bot_control.json",
@@ -293,7 +381,11 @@ ml_training_error = ""
 
 @app.route("/api/ml/train", methods=["POST"])
 def trigger_ml_training():
-    """Trigger the global ML model training in the background."""
+    """Trigger the global ML model training process in the background.
+
+    Returns:
+        JSON response indicating whether training was started (202) or already running (400).
+    """
     global ml_training_process, ml_training_status, ml_training_error
 
     # Check if a process is already running
@@ -330,7 +422,11 @@ def trigger_ml_training():
 
 @app.route("/api/ml/status", methods=["GET"])
 def get_ml_status():
-    """Check the status of the background ML training process."""
+    """Check the status of the background ML training process.
+
+    Returns:
+        JSON object with status (idle/training/error) and a human-readable message.
+    """
     global ml_training_process, ml_training_status, ml_training_error
 
     if ml_training_process is not None:
@@ -365,7 +461,11 @@ def get_ml_status():
 
 @app.route("/api/ml/scan", methods=["POST"])
 def trigger_ml_scan():
-    """Trigger a diagnostic scan (Calculates metrics and updates logs without full train)."""
+    """Trigger a lightweight ML diagnostic scan without full retraining.
+
+    Returns:
+        JSON response indicating whether the scan completed successfully.
+    """
     # For now, we simulate a scan by forcing a recalculation
     # (In the future, this could trigger a specific validation method in ml_service)
     try:
@@ -383,7 +483,11 @@ def trigger_ml_scan():
 
 @app.route("/api/ml-predictions")
 def get_ml_predictions():
-    """Get recent ML predictions from JSONL log."""
+    """Get the most recent ML predictions from the JSONL log file.
+
+    Returns:
+        JSON array of prediction objects with probabilities and confidence.
+    """
     jsonl_path = get_file_path("data/ml_predictions.jsonl")
     predictions = []
     try:
@@ -429,7 +533,11 @@ def get_ml_predictions():
 
 @app.route("/api/ml-drift")
 def get_ml_drift():
-    """Get ML model drift status."""
+    """Get ML model drift status comparing training accuracy vs live performance.
+
+    Returns:
+        JSON object with training/live accuracy, drift percentage, and prediction stats.
+    """
     import sqlite3
 
     # Load real training metrics if they exist
@@ -515,11 +623,27 @@ def get_ml_drift():
 
 @app.errorhandler(404)
 def not_found(error):
+    """Handle 404 Not Found errors with a JSON response.
+
+    Args:
+        error: The HTTP error raised by Flask.
+
+    Returns:
+        JSON error response with 404 status code.
+    """
     return jsonify({"status": "error", "message": "Endpoint not found"}), 404
 
 
 @app.errorhandler(500)
 def internal_error(error):
+    """Handle 500 Internal Server errors with a JSON response.
+
+    Args:
+        error: The HTTP error raised by Flask.
+
+    Returns:
+        JSON error response with 500 status code.
+    """
     return jsonify({"status": "error", "message": "Internal server error"}), 500
 
 
@@ -529,7 +653,14 @@ def internal_error(error):
 
 @app.route("/<path:filename>", methods=["GET"])
 def serve_static_files(filename):
-    """Serve static files (JSON data files, etc.) from PROJECT ROOT."""
+    """Serve static files from the project root with directory traversal protection.
+
+    Args:
+        filename: Relative path to the file within the project root.
+
+    Returns:
+        The requested file with cache-control headers for JSON files, or 404 error.
+    """
     if filename.startswith("api/"):
         return jsonify({"status": "error", "message": "Endpoint not found"}), 404
 

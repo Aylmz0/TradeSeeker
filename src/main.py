@@ -69,7 +69,14 @@ class AlphaArenaDeepSeek:
         self,
         decisions: dict[str, dict],
     ) -> tuple[dict[str, dict], bool]:
-        """Convert entry signals to hold when directional capacity is full."""
+        """Convert entry signals to hold when directional capacity is full.
+
+        Args:
+            decisions: Mapping of coin symbols to trade decision dicts.
+
+        Returns:
+            Tuple of filtered decisions and whether any signals were changed.
+        """
         if not isinstance(decisions, dict):
             return decisions, False
 
@@ -129,7 +136,11 @@ class AlphaArenaDeepSeek:
         return filtered, changed
 
     def maybe_reset_history(self, cycle_number: int):
-        """Reset historical logs at configured intervals to prevent long-term bias."""
+        """Reset historical logs at configured intervals to prevent long-term bias.
+
+        Args:
+            cycle_number: Current trading cycle number.
+        """
         interval = getattr(self, "history_reset_interval", 35)
         if interval <= 0:
             return
@@ -144,9 +155,13 @@ class AlphaArenaDeepSeek:
             self.invocation_count = 0
 
     def calculate_optimal_cycle_frequency(self) -> int:
-        """Calculate optimal cycle frequency based on user configuration.
+        """Calculate cycle frequency from user configuration.
+
         Strictly uses CYCLE_INTERVAL_MINUTES from .env as requested by the user,
         disabling the previous dynamic ATR-based volatility logic.
+
+        Returns:
+            Cycle interval in seconds.
         """
         try:
             return Config.CYCLE_INTERVAL_MINUTES * 60  # Convert to seconds
@@ -155,7 +170,11 @@ class AlphaArenaDeepSeek:
             return constants.DEFAULT_CYCLE_FREQUENCY_S  # Default fallback
 
     def track_performance_metrics(self, cycle_number: int):
-        """Record basic performance metrics for each cycle"""
+        """Record basic performance metrics for each cycle.
+
+        Args:
+            cycle_number: Current trading cycle number.
+        """
         try:
             metrics = {
                 "cycle": cycle_number,
@@ -180,7 +199,14 @@ class AlphaArenaDeepSeek:
             logger.warning("Performance tracking error: {}", e)
 
     def should_run_performance_analysis(self, cycle_number: int) -> bool:
-        """Run analysis every 10 cycles or in critical situations"""
+        """Determine whether performance analysis should run this cycle.
+
+        Args:
+            cycle_number: Current trading cycle number.
+
+        Returns:
+            True if analysis should run, False otherwise.
+        """
         # Every N cycles
         if cycle_number % constants.PERFORMANCE_ANALYSIS_INTERVAL == 0:
             return True
@@ -193,7 +219,12 @@ class AlphaArenaDeepSeek:
         return len(self.portfolio.positions) >= constants.MAX_POSITIONS_ALERT_THRESHOLD
 
     def run_trading_cycle(self, cycle_number: int, cancel_event: threading.Event | None = None):
-        """Run a single trading cycle with auto TP/SL and enhanced features"""
+        """Run a single trading cycle with auto TP/SL and enhanced features.
+
+        Args:
+            cycle_number: Current trading cycle number.
+            cancel_event: Optional event to signal cancellation from watchdog thread.
+        """
         log = logger.bind(cycle=cycle_number, phase="trading_cycle")
         log.info(
             "==== CYCLE {} | {} {}",
@@ -886,7 +917,7 @@ class AlphaArenaDeepSeek:
                 logger.warning("Failed to check bot control after exception: {}", control_e)
 
     def show_status(self):
-        """Show current status in the console"""
+        """Show current status in the console."""
         logger.info("--- STATUS ---")
         with self.portfolio._lock:
             balance = self.portfolio.current_balance
@@ -928,7 +959,7 @@ class AlphaArenaDeepSeek:
                 )
 
     def start_tp_sl_monitoring(self):
-        """Start TP/SL monitoring timer that runs every 1 minute"""
+        """Start TP/SL monitoring timer that runs every 30 seconds."""
         if self.tp_sl_timer and self.tp_sl_timer.is_alive():
             logger.info("TP/SL monitoring already running")
             return
@@ -939,7 +970,7 @@ class AlphaArenaDeepSeek:
         logger.info("TP/SL monitoring started (30s interval)")
 
     def stop_tp_sl_monitoring(self):
-        """Stop TP/SL monitoring timer"""
+        """Stop TP/SL monitoring timer."""
         self.is_running = False
         if self.tp_sl_timer and self.tp_sl_timer.is_alive():
             self.tp_sl_timer.join(timeout=5)
@@ -948,7 +979,7 @@ class AlphaArenaDeepSeek:
             logger.info("TP/SL monitoring was not running")
 
     def _tp_sl_monitoring_loop(self):
-        """Background thread that checks TP/SL every 30 seconds"""
+        """Background thread that checks TP/SL every 30 seconds."""
         # TP/SL monitoring loop started silently
         while self.is_running:
             try:
@@ -1113,7 +1144,12 @@ class AlphaArenaDeepSeek:
                 time.sleep(20)
 
     def run_simulation(self, total_duration_hours: int = 168, cycle_interval_minutes: int = 2):
-        """Run the simulation with dynamic cycle frequency and TP/SL monitoring"""
+        """Run the simulation with dynamic cycle frequency and TP/SL monitoring.
+
+        Args:
+            total_duration_hours: Total simulation duration in hours.
+            cycle_interval_minutes: Minutes between trading cycles.
+        """
         logger.info("ALPHA ARENA v{}", VERSION)
         logger.info(
             "Budget: ${} | Duration: {}h | Coins: {}",
@@ -1300,18 +1336,40 @@ class AlphaArenaDeepSeek:
         indicators_htf: dict[str, Any],
         indicators_15m: dict[str, Any] | None = None,
     ) -> dict[str, Any]:
-        """Delegate trend state updates to PortfolioManager for backward compatibility."""
+        """Delegate trend state updates to PortfolioManager for backward compatibility.
+
+        Args:
+            coin: Coin symbol to update.
+            indicators_htf: High-timeframe technical indicators.
+            indicators_15m: Optional 15-minute technical indicators.
+
+        Returns:
+            Updated trend state dictionary.
+        """
         return self.portfolio.update_trend_state(coin, indicators_htf, indicators_15m)
 
     def get_recent_trend_flip_summary(self) -> list[str]:
-        """Expose portfolio trend flip summary for existing integrations."""
+        """Expose portfolio trend flip summary for existing integrations.
+
+        Returns:
+            List of human-readable trend flip summary strings.
+        """
         return self.portfolio.get_recent_trend_flip_summary()
 
     def count_positions_by_direction(self) -> dict[str, int]:
+        """Count open positions grouped by direction.
+
+        Returns:
+            Dictionary with 'long' and 'short' position counts.
+        """
         return self.portfolio.count_positions_by_direction()
 
     def _read_bot_control(self) -> dict[str, Any]:
-        """Read bot control file to check for pause/stop commands using memcache."""
+        """Read bot control file to check for pause/stop commands using memcache.
+
+        Returns:
+            Dictionary with bot control state including 'status' key.
+        """
         try:
             return safe_file_read_cached(
                 "data/bot_control.json",
@@ -1323,7 +1381,11 @@ class AlphaArenaDeepSeek:
             return {"status": "running", "last_updated": datetime.now(timezone.utc).isoformat()}
 
     def _write_bot_control(self, data: dict[str, Any]):
-        """Write bot control file."""
+        """Write bot control file.
+
+        Args:
+            data: Control state dictionary to persist.
+        """
         safe_file_write("data/bot_control.json", data)
 
     def apply_directional_bias(
@@ -1333,6 +1395,17 @@ class AlphaArenaDeepSeek:
         bias_metrics: dict[str, dict[str, Any]],
         current_trend: str,
     ) -> float:
+        """Apply directional bias to a trade signal's confidence.
+
+        Args:
+            signal: Trade signal type (e.g., 'buy_to_enter', 'sell_to_enter').
+            confidence: AI-assigned confidence score for the signal.
+            bias_metrics: Directional bias metrics from portfolio.
+            current_trend: Current market trend direction.
+
+        Returns:
+            Adjusted confidence score after bias application.
+        """
         return self.portfolio.apply_directional_bias(
             {
                 "signal": signal,
@@ -1343,7 +1416,11 @@ class AlphaArenaDeepSeek:
         )
 
     def get_directional_bias_metrics(self) -> dict[str, dict[str, Any]]:
-        """Proxy to portfolio directional bias metrics."""
+        """Proxy to portfolio directional bias metrics.
+
+        Returns:
+            Dictionary of directional bias metrics keyed by direction.
+        """
         return self.portfolio.get_directional_bias_metrics()
 
     def add_to_cycle_history(
@@ -1355,6 +1432,16 @@ class AlphaArenaDeepSeek:
         status: str = "ai_decision",
         metadata: dict[str, Any] | None = None,
     ):
+        """Add a trading cycle record to portfolio history.
+
+        Args:
+            cycle_number: Trading cycle number.
+            prompt: The prompt sent to the AI.
+            thoughts: AI chain-of-thought reasoning.
+            decisions: AI-generated trade decisions.
+            status: Cycle status (e.g., 'ai_decision', 'manual_override').
+            metadata: Optional additional cycle metadata.
+        """
         return self.portfolio.add_to_cycle_history(
             {
                 "cycle_number": cycle_number,
@@ -1372,7 +1459,7 @@ VERSION = "9 - Auto TP/SL, Dynamic Size, Prompt Eng"
 
 
 def main():
-    """Main application entry point"""
+    """Main application entry point."""
     setup_logging(log_level=Config.LOG_LEVEL, log_dir=Config.LOG_DIR)
     try:
         cleanup_stale_temp_files()

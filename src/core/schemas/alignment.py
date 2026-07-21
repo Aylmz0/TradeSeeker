@@ -20,6 +20,12 @@ class AlignmentResult:
     error_message: str | None = None
 
     def to_dict(self) -> dict[str, Any]:
+        """Serialize the alignment result to a plain dictionary.
+
+        Returns:
+            Dictionary with aligned, max_delta_seconds, mismatches,
+            error_type, and error_message fields.
+        """
         return {
             "aligned": self.aligned,
             "max_delta_seconds": self.max_delta_seconds,

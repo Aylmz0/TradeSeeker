@@ -23,12 +23,17 @@ class MLService:
     _instance = None
 
     def __new__(cls):
+        """Create or return the singleton instance of MLService.
+
+        Ensures only one instance exists throughout the application lifecycle.
+        """
         if cls._instance is None:
             cls._instance = super().__new__(cls)
             cls._instance._initialized = False
         return cls._instance
 
     def __init__(self):
+        """Initialize the ML inference service and load model artifacts."""
         if self._initialized:
             return
 
@@ -47,7 +52,11 @@ class MLService:
         self._initialized = True
 
     def _load_artifacts(self) -> None:
-        """Safely attempt to load ML artifacts. Fail gracefully if missing."""
+        """Load XGBoost model, scaler, and feature columns from disk.
+
+        Attempts to load all required artifacts and sets is_ready flag.
+        Logs warnings if artifacts are missing and continues in degraded mode.
+        """
         try:
             if not all(
                 os.path.exists(p) for p in [self.model_path, self.scaler_path, self.features_path]
@@ -78,9 +87,19 @@ class MLService:
             self.is_ready = False
 
     def predict(self, df_raw: pl.DataFrame, coin: str) -> dict[str, Any] | None:
-        """Takes raw OHLCV from Binance, extracts features, scales the latest row,
-        and computes the directional multi-class probability.
-        Includes automatic HOT-RELOAD if model file on disk is newer.
+        """Generate BUY/HOLD/SELL prediction for a given cryptocurrency.
+
+        Extracts features from raw OHLCV data, scales them, and runs inference
+        through the XGBoost model to produce directional probabilities.
+
+        Args:
+            df_raw: Raw OHLCV DataFrame containing price and volume data.
+            coin: Cryptocurrency symbol (e.g., 'BTC', 'ETH') for logging.
+
+        Returns:
+            Dictionary with SELL/HOLD/BUY probabilities, dominant signal,
+            and confidence score. Returns None if service is not ready or
+            data is insufficient.
         """
         # --- HOT-RELOAD CHECK ---
         if os.path.exists(self.model_path):
@@ -149,8 +168,15 @@ class MLService:
             return None
 
     def get_model_health(self) -> dict[str, Any]:
-        """Audit live predictions against ground truth from DataEngine.
-        Requires at least 5 periods (lookahead) to pass to determine truth.
+        """Audit live predictions against historical ground truth labels.
+
+        Compares logged predictions with actual outcomes from DataEngine to
+        calculate live accuracy metrics. Groups predictions by coin to
+        minimize database calls.
+
+        Returns:
+            Dictionary containing status, live_accuracy (0-1),
+            evaluated_count, and total_logged predictions.
         """
         try:
             if not os.path.exists(self.prediction_log_path):
@@ -250,10 +276,15 @@ class MLService:
             return {"status": "error", "message": str(e)}
 
     def _log_prediction(self, result: dict[str, Any], coin: str, interval: str = "15m") -> None:
-        """Append prediction to JSONL log file (one JSON object per line).
+        """Append a prediction record to the JSONL log file.
 
-        Automatically rotates the file when it exceeds ML_PREDICTION_LOG_MAX_BYTES,
-        retaining the latest ML_PREDICTION_LOG_KEEP_LINES lines.
+        Logs timestamp, coin, interval, probabilities, and dominant signal.
+        Automatically rotates the log when it exceeds the configured size limit.
+
+        Args:
+            result: Prediction result containing probabilities and dominant signal.
+            coin: Cryptocurrency symbol for the prediction.
+            interval: Candle interval used for the prediction (default: '15m').
         """
         try:
             os.makedirs(os.path.dirname(self.prediction_log_path), exist_ok=True)
@@ -280,9 +311,10 @@ class MLService:
             logger.warning("MLService: Failed to log prediction: {}", e)
 
     def _rotate_prediction_log(self) -> None:
-        """Retain the latest ML_PREDICTION_LOG_KEEP_LINES lines, discard the rest.
+        """Rotate the prediction log file to prevent unbounded growth.
 
-        Uses a temp-file + atomic os.replace so there is no window of data loss.
+        Keeps only the most recent ML_PREDICTION_LOG_KEEP_LINES lines.
+        Uses atomic file replacement to avoid data loss during rotation.
         """
         try:
             with open(self.prediction_log_path, encoding="utf-8") as f:

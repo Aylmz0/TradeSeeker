@@ -31,6 +31,11 @@ class AccountService:
     _warned_missing_exit_plan: set[str] = set()
 
     def __init__(self, portfolio_manager):
+        """Initialize AccountService and configure live trading if enabled.
+
+        Args:
+            portfolio_manager: PortfolioManager instance for position and balance management.
+        """
         self.pm = portfolio_manager
         self.is_live_trading = getattr(Config, "TRADING_MODE", "simulation") == "live"
         self.order_executor = None
@@ -48,7 +53,11 @@ class AccountService:
         self.pm.order_executor = self.order_executor
 
     def _initialize_live_trading(self):
-        """Configure Binance executor when live trading mode is enabled."""
+        """Configure Binance executor when live trading mode is enabled.
+
+        Falls back to simulation mode if the executor is unavailable or
+        fails to connect.
+        """
         if BinanceOrderExecutor is None:
             logger.error("Live trading requested but Binance executor is unavailable.")
             self.is_live_trading = False
@@ -81,7 +90,15 @@ class AccountService:
         self.pm.order_executor = self.order_executor
 
     def _build_default_exit_plan(self, direction: str, entry_price: float) -> dict[str, float]:
-        """Generate a sensible default exit plan when AI data is unavailable."""
+        """Generate a default exit plan with stop loss and profit target.
+
+        Args:
+            direction: Trade direction, either "long" or "short".
+            entry_price: Entry price of the position.
+
+        Returns:
+            Dictionary with "stop_loss" and "profit_target" values.
+        """
         try:
             entry = float(entry_price or 0.0)
         except (TypeError, ValueError):
@@ -108,7 +125,17 @@ class AccountService:
         symbol: str,
         *candidate_plans: dict[str, Any] | None,
     ) -> dict[str, Any]:
-        """Ensure a position carries a valid exit plan, supplementing with defaults if needed."""
+        """Ensure a position carries a valid exit plan, supplementing with defaults if needed.
+
+        Args:
+            direction: Trade direction, either "long" or "short".
+            entry_price: Entry price used to calculate default offsets.
+            symbol: Coin symbol for warning messages.
+            *candidate_plans: Optional exit plans to merge, in priority order.
+
+        Returns:
+            Merged exit plan with at least "stop_loss" and "profit_target" keys.
+        """
         default_plan = self._build_default_exit_plan(direction, entry_price)
         final_plan = default_plan.copy()
         provided_keys = set()
@@ -143,7 +170,17 @@ class AccountService:
         self,
         snapshot: dict[str, dict[str, Any]],
     ) -> dict[str, Position]:
-        """Merge Binance snapshot with local runtime metadata (exit plans, confidence, etc.)."""
+        """Merge Binance snapshot with local runtime metadata.
+
+        Combines exchange position data with locally maintained state such as
+        exit plans, confidence scores, and trailing stop information.
+
+        Args:
+            snapshot: Position data from Binance keyed by coin symbol.
+
+        Returns:
+            Dictionary of merged Position objects keyed by coin symbol.
+        """
         merged: dict[str, Position] = {}
         existing_positions = self.pm.positions
         for coin, snap_pos in snapshot.items():
@@ -196,7 +233,11 @@ class AccountService:
         return merged
 
     def sync_live_account(self):
-        """Refresh balances and open positions from Binance when in live mode."""
+        """Refresh balances and open positions from Binance when in live mode.
+
+        Updates current_balance, total_value, and positions from the exchange.
+        Only operates when live trading is active and the executor is available.
+        """
         if not self.is_live_trading or not self.order_executor or not self.order_executor.is_live():
             return
 
@@ -347,9 +388,17 @@ class AccountService:
         direction: str,
         include_commission: bool = True,
     ) -> float:
-        """Calculate realized PnL with optional commission deduction for simulation realism.
+        """Calculate realized PnL with optional commission deduction.
 
-        Commission is applied as round-trip (entry + exit) = 2 * SIMULATION_COMMISSION_RATE
+        Args:
+            entry_price: Price at which the position was opened.
+            exit_price: Price at which the position was closed.
+            quantity: Number of units traded.
+            direction: Trade direction, either "long" or "short".
+            include_commission: Whether to deduct round-trip simulation commission.
+
+        Returns:
+            Realized profit or loss in USD.
         """
         if quantity <= 0 or entry_price <= 0 or exit_price <= 0:
             return 0.0
@@ -377,6 +426,18 @@ class AccountService:
         current_price: float,
         reason: str | None = None,
     ) -> dict[str, Any]:
+        """Close a position on Binance in live trading mode.
+
+        Args:
+            coin: Coin symbol to close.
+            position: Position object with entry details.
+            current_price: Current market price for order reference.
+            reason: Optional reason for closing the position.
+
+        Returns:
+            Dictionary with success status, order details, executed quantity,
+            average price, PnL, and history entry.
+        """
         if not self.is_live_trading or not self.order_executor:
             return {"success": False, "error": "live_trading_disabled"}
         if not position:
@@ -453,6 +514,19 @@ class AccountService:
         current_price: float,
         reason: str | None = None,
     ) -> dict[str, Any]:
+        """Partially close a position on Binance in live trading mode.
+
+        Args:
+            coin: Coin symbol to partially close.
+            position: Position object with entry details.
+            close_percent: Fraction of the position to close (0.0 to 1.0).
+            current_price: Current market price for order reference.
+            reason: Optional reason for the partial close.
+
+        Returns:
+            Dictionary with success status, order details, executed quantity,
+            average price, PnL, and history entry.
+        """
         if not self.is_live_trading or not self.order_executor:
             return {"success": False, "error": "live_trading_disabled"}
         if not position:
@@ -600,12 +674,17 @@ class AccountService:
         return {"success": True, "pnl": profit, "commission": commission}
 
     def check_and_execute_tp_sl(self, current_prices: dict[str, float]):
-        """Checks if any open position hit TP or SL and closes them automatically with enhanced exit strategies.
+        """Check all open positions for TP/SL triggers and execute closes.
 
-        This function is called every 30 seconds by the monitoring loop:
-        - All TP/SL decisions are made by this monitoring (like simulation mode)
-        - No Binance TP/SL orders - all managed by this loop
-        - Kademeli margin-based stop loss is checked and positions are closed accordingly
+        Runs every 30 seconds via the monitoring loop. Evaluates enhanced exit
+        strategies, traditional TP/SL levels, and graduated margin-based stop
+        losses. Closes positions in both simulation and live modes.
+
+        Args:
+            current_prices: Current market prices keyed by coin symbol.
+
+        Returns:
+            True if any positions were closed, False otherwise.
         """
         # Enhanced exit strategy control - check if enabled
         if hasattr(self, "bot") and not self.pm.bot.enhanced_exit_enabled:
@@ -1005,7 +1084,17 @@ class AccountService:
         return len(closed_positions) > 0  # Indicate if any positions were closed
 
     def get_dynamic_exit_tiers(self, notional_usd: float) -> dict[str, float]:
-        """Get dynamic exit tiers (profit/loss) based on notional size"""
+        """Get dynamic exit tiers based on position notional size.
+
+        Smaller positions use more aggressive thresholds, while larger
+        positions use more conservative ones.
+
+        Args:
+            notional_usd: Total notional value of the position in USD.
+
+        Returns:
+            Dictionary with level1-3 thresholds and take1-3 percentages.
+        """
         if notional_usd < constants.NOTIONAL_TIER_1:
             # Small positions: aggressive
             return {
@@ -1076,7 +1165,20 @@ class AccountService:
     def _process_partial_exit_logic(
         self, position: Position, pnl_pct: float, tiers: dict
     ) -> tuple[dict[str, Any], Position] | None:
-        """Unified processor for partial profit and partial loss exits."""
+        """Process partial exit logic for profit taking or loss mitigation.
+
+        Evaluates exit tiers from highest to lowest and triggers a partial
+        close or full close if a hard limit is reached.
+
+        Args:
+            position: Current position state.
+            pnl_pct: Unrealized PnL as a decimal fraction (e.g. 0.05 for 5%).
+            tiers: Exit tier thresholds and take percentages.
+
+        Returns:
+            Tuple of (exit decision dict, updated position) or None if no
+            tier was triggered.
+        """
         abs_pnl = abs(pnl_pct)
         is_profit = pnl_pct > 0
 
@@ -1124,7 +1226,19 @@ class AccountService:
     def enhanced_exit_strategy(
         self, position: Position, current_price: float, coin: str
     ) -> tuple[dict[str, Any], Position]:
-        """Enhanced exit strategy with dynamic profit taking and KADEMELİ loss cutting"""
+        """Evaluate enhanced exit strategy with dynamic profit taking and loss cutting.
+
+        Combines extended cycle exits, hard stop loss, partial exit tiers,
+        graduated loss cutting, and trailing stop logic.
+
+        Args:
+            position: Current position state.
+            current_price: Current market price.
+            coin: Coin symbol.
+
+        Returns:
+            Tuple of (exit decision dict, updated position).
+        """
         entry_price = position.entry_price
         if entry_price == 0:
             entry_price = position.current_price or 0
@@ -1252,7 +1366,24 @@ class AccountService:
         profit_levels: dict[str, float],
         coin: str,
     ) -> tuple[dict[str, Any] | None, Position]:
-        """Evaluate advanced trailing stop conditions based on progress, time, volume and ATR."""
+        """Evaluate advanced trailing stop conditions.
+
+        Considers progress toward profit target, time in trade, volume drops,
+        ATR-based buffers, and overbought protection to tighten the stop loss.
+
+        Args:
+            position: Current position state.
+            current_price: Current market price.
+            profit_target: Target profit price from exit plan, or None.
+            direction: Trade direction, either "long" or "short".
+            entry_price: Entry price of the position.
+            unrealized_pnl_percent: Unrealized PnL as a decimal fraction.
+            profit_levels: Exit tier thresholds and take percentages.
+            coin: Coin symbol.
+
+        Returns:
+            Tuple of (trailing stop update dict or None, updated position).
+        """
         if (
             unrealized_pnl_percent <= 0
             or not isinstance(current_price, (int, float))
@@ -1525,7 +1656,17 @@ class AccountService:
         cycle_number: int,
         indicator_cache: dict[str, dict[str, Any]] | None = None,
     ):
-        """Execute only new position entries after AI close_position signal"""
+        """Execute only new position entries after an AI close_position signal.
+
+        Filters decisions to entry signals only and respects the graduated
+        position limit for the current cycle.
+
+        Args:
+            decisions: Trade decisions from the AI engine keyed by coin.
+            valid_prices: Current valid prices keyed by coin.
+            cycle_number: Current trading cycle number.
+            indicator_cache: Optional pre-fetched indicator data.
+        """
         logger.info("Executing new positions only (after close_position signal)")
 
         # KADEMELİ POZİSYON SİSTEMİ: Cycle bazlı pozisyon limiti

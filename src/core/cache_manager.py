@@ -18,20 +18,41 @@ class CacheManager:
     """Manages caching for API responses and calculations."""
 
     def __init__(self, default_ttl: int = 300):  # 5 minutes default TTL
+        """Initialize the cache manager with a default TTL.
+
+        Args:
+            default_ttl: Default time-to-live in seconds for cache entries.
+        """
         self.cache: dict[str, dict[str, Any]] = {}
         self.default_ttl = default_ttl
         self.hit_count = 0
         self.miss_count = 0
 
     def _generate_key(self, func_name: str, *args, **kwargs) -> str:
-        """Generate a unique cache key based on function name and arguments."""
+        """Generate a unique cache key from function name and arguments.
+
+        Args:
+            func_name: Name of the function being cached.
+            *args: Positional arguments passed to the function.
+            **kwargs: Keyword arguments passed to the function.
+
+        Returns:
+            MD5 hex digest string used as cache key.
+        """
         key_data = (
             f"{func_name}:{json.dumps(args, sort_keys=True)}:{json.dumps(kwargs, sort_keys=True)}"
         )
         return hashlib.md5(key_data.encode()).hexdigest()
 
     def get(self, key: str) -> Any | None:
-        """Get value from cache if not expired."""
+        """Retrieve a value from cache if it has not expired.
+
+        Args:
+            key: Cache key to look up.
+
+        Returns:
+            Cached value if found and not expired, otherwise None.
+        """
         if key in self.cache:
             cache_entry = self.cache[key]
             if time.time() < cache_entry["expires_at"]:
@@ -44,7 +65,13 @@ class CacheManager:
         return None
 
     def set(self, key: str, value: Any, ttl: int | None = None) -> None:
-        """Set value in cache with TTL."""
+        """Store a value in cache with an optional TTL.
+
+        Args:
+            key: Cache key to store the value under.
+            value: Value to cache.
+            ttl: Time-to-live in seconds. Uses default_ttl if None.
+        """
         if ttl is None:
             ttl = self.default_ttl
 
@@ -55,7 +82,14 @@ class CacheManager:
         }
 
     def cached(self, ttl: int | None = None):
-        """Decorator for caching function results."""
+        """Decorator that caches function results with automatic key generation.
+
+        Args:
+            ttl: Time-to-live in seconds for cached results. Uses default_ttl if None.
+
+        Returns:
+            Decorated function that checks cache before executing.
+        """
 
         def decorator(func):
             def wrapper(*args, **kwargs):
@@ -79,7 +113,11 @@ class CacheManager:
         return decorator
 
     def clear_expired(self) -> int:
-        """Clear expired cache entries and return number cleared."""
+        """Remove all expired entries from the cache.
+
+        Returns:
+            Number of expired entries that were removed.
+        """
         current_time = time.time()
         expired_keys = [
             key for key, entry in self.cache.items() if current_time >= entry["expires_at"]
@@ -91,7 +129,12 @@ class CacheManager:
         return len(expired_keys)
 
     def get_stats(self) -> dict[str, Any]:
-        """Get cache statistics."""
+        """Return current cache performance statistics.
+
+        Returns:
+            Dict with total_entries, hit_count, miss_count, hit_rate_percent,
+            and memory_usage_mb.
+        """
         total_requests: int = self.hit_count + self.miss_count
         hit_rate = (self.hit_count / max(total_requests, 1) * 100) if total_requests > 0 else 0
 
@@ -104,11 +147,15 @@ class CacheManager:
         }
 
     def _estimate_memory_usage(self) -> int:
-        """Estimate memory usage of cache in bytes."""
+        """Estimate total memory usage of all cached entries.
+
+        Returns:
+            Approximate memory usage in bytes.
+        """
         return sum(len(json.dumps(entry).encode("utf-8")) for entry in self.cache.values())
 
     def clear_all(self) -> None:
-        """Clear all cache entries."""
+        """Remove all entries from cache and reset hit/miss counters."""
         self.cache.clear()
         self.hit_count = 0
         self.miss_count = 0
@@ -118,11 +165,20 @@ class PerformanceOptimizer:
     """Performance optimization utilities."""
 
     def __init__(self):
+        """Initialize the performance optimizer with a cache manager."""
         self.cache_manager = CacheManager()
 
     @staticmethod
     def batch_api_calls(api_calls: list, batch_size: int = 10) -> list:
-        """Batch API calls to reduce overhead."""
+        """Execute API calls in batches to reduce overhead.
+
+        Args:
+            api_calls: List of callables that make API requests.
+            batch_size: Maximum number of calls per batch.
+
+        Returns:
+            Flattened list of results from all batched calls.
+        """
         results = []
         for i in range(0, len(api_calls), batch_size):
             batch = api_calls[i : i + batch_size]
@@ -133,7 +189,16 @@ class PerformanceOptimizer:
 
     @staticmethod
     def optimize_dataframe_operations(df, operations: list) -> Any:
-        """Optimize pandas DataFrame operations."""
+        """Apply multiple DataFrame operations in a single pass.
+
+        Args:
+            df: Pandas DataFrame to operate on.
+            operations: List of operation dicts with 'type' key (filter, transform,
+                or aggregate) and corresponding parameters.
+
+        Returns:
+            Transformed DataFrame after all operations are applied.
+        """
         # Apply multiple operations in a single pass when possible
         result = df.copy()
         for operation in operations:
@@ -154,7 +219,16 @@ class PerformanceOptimizer:
         interval: str,
         calculation_func: Callable[..., Any],
     ) -> Any:
-        """Memoize technical indicator calculations."""
+        """Cache technical indicator calculations with a short TTL.
+
+        Args:
+            symbol: Trading pair symbol (e.g., 'BTC').
+            interval: Candle interval (e.g., '15m', '1h').
+            calculation_func: Callable that computes the indicators.
+
+        Returns:
+            Cached or freshly computed indicator result.
+        """
         cache_key = f"indicators_{symbol}_{interval}"
         cached_result = self.cache_manager.get(cache_key)
 
@@ -173,7 +247,15 @@ performance_optimizer = PerformanceOptimizer()
 
 
 def async_retry(max_retries: int = 3, delay: float = 1.0):
-    """Decorator for async functions with retry logic."""
+    """Decorator that retries async functions with exponential backoff.
+
+    Args:
+        max_retries: Maximum number of retry attempts.
+        delay: Base delay in seconds between retries (doubled each attempt).
+
+    Returns:
+        Decorated async function with retry logic.
+    """
     import asyncio
     from functools import wraps
 
@@ -199,7 +281,14 @@ def async_retry(max_retries: int = 3, delay: float = 1.0):
 
 
 def time_execution(func):
-    """Decorator to measure function execution time."""
+    """Decorator that logs a warning when function execution exceeds 1 second.
+
+    Args:
+        func: Function to time.
+
+    Returns:
+        Decorated function that measures and logs execution time.
+    """
     import time
     from functools import wraps
 
@@ -250,7 +339,14 @@ def fetch_all_indicators_parallel(
     all_sentiment = {}  # {coin: sentiment}
 
     def fetch_indicators_for_coin(coin: str) -> tuple:
-        """Fetch all indicators and sentiment for a single coin"""
+        """Fetch all indicators and sentiment for a single coin.
+
+        Args:
+            coin: Coin symbol to fetch data for.
+
+        Returns:
+            Tuple of (coin, indicators_dict, sentiment_dict).
+        """
         try:
             indicators_3m = market_data_instance.get_technical_indicators(coin, "3m")
             indicators_15m = market_data_instance.get_technical_indicators(coin, "15m")
@@ -307,6 +403,11 @@ class SmartIndicatorCache:
     """
 
     def __init__(self, htf_interval: str = "1h"):
+        """Initialize the smart indicator cache.
+
+        Args:
+            htf_interval: Higher timeframe interval for cacheable candles.
+        """
         self.cache: dict[str, dict[str, Any]] = {}
         self.htf_interval = htf_interval
 
@@ -376,14 +477,15 @@ class SmartIndicatorCache:
         return fresh_data
 
     def _calculate_smart_ttl(self, interval: str) -> int:
-        """Calculate TTL based on time until next candle close.
+        """Calculate TTL based on time until the next candle close.
 
-        Formula: TTL = (time_to_next_candle) * 0.85 (safety margin)
+        Uses an 85% safety margin so cache refreshes before the candle closes.
 
-        Example:
-        -------
-            15m candle at 00:07 → next close at 00:15 → 8min remaining → TTL=408s
+        Args:
+            interval: Candle interval (e.g., '15m', '1h').
 
+        Returns:
+            TTL in seconds with a minimum of 30 seconds.
         """
         # Interval to seconds
         interval_map = {
@@ -413,11 +515,26 @@ class SmartIndicatorCache:
         return max(ttl, 30)
 
     def _generate_key(self, coin: str, interval: str) -> str:
-        """Generate cache key: coin_interval"""
+        """Generate cache key from coin symbol and interval.
+
+        Args:
+            coin: Coin symbol (e.g., 'BTC').
+            interval: Candle interval (e.g., '15m', '1h').
+
+        Returns:
+            Cache key string in the format 'coin_interval'.
+        """
         return f"{coin}_{interval}"
 
     def _get_from_cache(self, key: str) -> dict[str, Any] | None:
-        """Get from cache if not expired"""
+        """Retrieve data from cache if the entry has not expired.
+
+        Args:
+            key: Cache key to look up.
+
+        Returns:
+            Cached data dict if found and valid, otherwise None.
+        """
         if key not in self.cache:
             return None
 
@@ -432,7 +549,14 @@ class SmartIndicatorCache:
         return entry["data"]
 
     def _set_to_cache(self, coin: str, interval: str, data: dict[str, Any], ttl: int):
-        """Set data to cache with TTL"""
+        """Store data in cache with an expiration time.
+
+        Args:
+            coin: Coin symbol (e.g., 'BTC').
+            interval: Candle interval (e.g., '15m', '1h').
+            data: Indicator data to cache.
+            ttl: Time-to-live in seconds.
+        """
         key = self._generate_key(coin, interval)
 
         self.cache[key] = {
@@ -443,7 +567,11 @@ class SmartIndicatorCache:
         }
 
     def clear_expired(self) -> int:
-        """Clear expired cache entries, return count of cleared entries"""
+        """Remove all expired entries from the cache.
+
+        Returns:
+            Number of expired entries that were removed.
+        """
         current_time = time.time()
         expired_keys = [
             key for key, entry in self.cache.items() if current_time > entry["expires_at"]
@@ -458,7 +586,12 @@ class SmartIndicatorCache:
         return len(expired_keys)
 
     def get_stats(self) -> dict[str, Any]:
-        """Get cache statistics"""
+        """Return current cache performance statistics.
+
+        Returns:
+            Dict with total_entries, hits, misses, hit_rate_pct,
+            api_calls_saved, and memory_usage_kb.
+        """
         total_requests: int = self.hits + self.misses
         hit_rate = (self.hits / max(total_requests, 1) * 100) if total_requests > 0 else 0
 
@@ -472,11 +605,15 @@ class SmartIndicatorCache:
         }
 
     def _estimate_memory_usage(self) -> int:
-        """Estimate memory usage in bytes"""
+        """Estimate total memory usage of all cached entries.
+
+        Returns:
+            Approximate memory usage in bytes.
+        """
         return sum(len(json.dumps(entry).encode("utf-8")) for entry in self.cache.values())
 
     def print_stats(self):
-        """Log cache statistics"""
+        """Log current cache statistics at info level."""
         stats = self.get_stats()
         logger.info(
             "SMART CACHE: entries={} hits={} misses={} rate={}% saved={} mem={:.2f}KB",
@@ -489,13 +626,13 @@ class SmartIndicatorCache:
         )
 
     def reset_stats(self):
-        """Reset statistics counters"""
+        """Reset all hit, miss, and saved call counters to zero."""
         self.hits = 0
         self.misses = 0
         self.api_calls_saved = 0
 
     def clear_all(self):
-        """Clear all cache and reset stats"""
+        """Remove all cache entries and reset all statistics."""
         self.cache.clear()
         self.reset_stats()
         logger.info("Cache cleared completely")
@@ -506,7 +643,14 @@ _global_cache_instance = None
 
 
 def get_smart_cache(htf_interval: str = "1h") -> SmartIndicatorCache:
-    """Get or create global cache instance"""
+    """Get or create the global SmartIndicatorCache singleton.
+
+    Args:
+        htf_interval: Higher timeframe interval. Recreates cache if it changes.
+
+    Returns:
+        The global SmartIndicatorCache instance.
+    """
     global _global_cache_instance
     if _global_cache_instance is None or _global_cache_instance.htf_interval != htf_interval:
         _global_cache_instance = SmartIndicatorCache(htf_interval)
@@ -564,7 +708,14 @@ def fetch_all_indicators_with_cache(
     all_sentiment = {}
 
     def fetch_indicators_for_coin_cached(coin: str) -> tuple:
-        """Fetch indicators with cache support"""
+        """Fetch indicators for a single coin using the smart cache.
+
+        Args:
+            coin: Coin symbol to fetch data for.
+
+        Returns:
+            Tuple of (coin, indicators_dict, sentiment_dict).
+        """
         try:
             # 3m: Always fresh (not cached)
             indicators_3m = market_data_instance.get_technical_indicators(coin, "3m")

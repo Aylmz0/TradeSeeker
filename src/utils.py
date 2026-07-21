@@ -24,7 +24,15 @@ _file_lock = threading.RLock()  # RLock for re-entrant safety
 
 
 def safe_file_read_cached(file_path: str, default_data=None):
-    """Read a JSON file using a mem-cache based on filesystem mtime to O(1) avoid disk lookups."""
+    """Read a JSON file using an in-memory cache keyed by filesystem mtime.
+
+    Args:
+        file_path: Absolute or relative path to the JSON file.
+        default_data: Value returned when the file is missing, empty, or invalid.
+
+    Returns:
+        Deep copy of cached or freshly-read JSON data, or the default value.
+    """
     try:
         with _file_lock:
             if not os.path.exists(file_path):
@@ -61,7 +69,15 @@ def safe_file_read_cached(file_path: str, default_data=None):
 
 
 def safe_file_read(file_path: str, default_data=None):
-    """Safely read JSON file with error handling - handles empty files gracefully"""
+    """Read a JSON file with error handling for missing, empty, or malformed files.
+
+    Args:
+        file_path: Path to the JSON file to read.
+        default_data: Value returned when the file cannot be read or is empty.
+
+    Returns:
+        Parsed JSON content, or the default value on failure.
+    """
     try:
         with _file_lock:
             if os.path.exists(file_path):
@@ -86,7 +102,15 @@ def safe_file_read(file_path: str, default_data=None):
 
 
 def safe_file_write(file_path: str, data):
-    """Safely write JSON file with error handling and atomicity (Thread-Safe)"""
+    """Write data to a JSON file atomically using a temporary file and rename.
+
+    Args:
+        file_path: Destination path for the JSON file.
+        data: JSON-serializable object to write.
+
+    Returns:
+        True if the write succeeded, False otherwise.
+    """
     temp_file_path = None
     try:
         # Mutex to prevent internal thread-race on the same file operation
@@ -130,9 +154,11 @@ def safe_file_write(file_path: str, data):
 def cleanup_stale_temp_files() -> int:
     """Remove orphaned .tmp files left behind by crashed safe_file_write calls.
 
-    Temp files follow the pattern: {filename}.{pid}.{tid}.tmp
-    Called once on startup before the main loop begins.
-    Returns the number of files cleaned up.
+    Scans the data directory and current working directory for temp files matching
+    the pattern ``{filename}.{pid}.{tid}.tmp`` and deletes them.
+
+    Returns:
+        Number of temp files successfully removed.
     """
     cleaned = 0
     data_dir = os.path.join(os.getcwd(), "data")
@@ -155,14 +181,30 @@ def cleanup_stale_temp_files() -> int:
 
 
 def format_num(num: float, precision: int = 2) -> str:
-    """Format number with specific precision, handling None/NaN"""
+    """Format a number to a fixed number of decimal places.
+
+    Args:
+        num: Numeric value to format. None and NaN are replaced with "N/A".
+        precision: Number of decimal places to display.
+
+    Returns:
+        Formatted string representation of the number.
+    """
     if num is None or (isinstance(num, float) and math.isnan(num)):
         return "N/A"
     return f"{num:.{precision}f}"
 
 
 def rate_limiter(calls: int, period: int):
-    """Decorator for rate limiting"""
+    """Decorator that limits function calls to a fixed rate per time period.
+
+    Args:
+        calls: Maximum number of calls allowed within the period.
+        period: Time window in seconds.
+
+    Returns:
+        Decorated function that enforces the rate limit.
+    """
 
     def decorator(func):
         last_reset = [time.time()]
@@ -200,6 +242,17 @@ class RetryManager:
         status_forcelist: tuple = (500, 502, 504),
         session: requests.Session | None = None,
     ) -> requests.Session:
+        """Create or configure a requests session with automatic retry logic.
+
+        Args:
+            retries: Maximum number of retries for failed requests.
+            backoff_factor: Delay multiplier between consecutive retries.
+            status_forcelist: HTTP status codes that trigger a retry.
+            session: Existing session to configure. A new one is created if None.
+
+        Returns:
+            Session with retry adapter mounted for HTTP and HTTPS.
+        """
         session = session or requests.Session()
         retry = Retry(
             total=retries,
@@ -219,6 +272,15 @@ class DataValidator:
 
     @staticmethod
     def validate_dataframe(df: pl.DataFrame, required_columns: list[str] | None = None) -> bool:
+        """Check that a DataFrame is non-empty and contains required columns.
+
+        Args:
+            df: Polars DataFrame to validate.
+            required_columns: Column names that must be present in the DataFrame.
+
+        Returns:
+            True if the DataFrame passes all checks, False otherwise.
+        """
         if df is None or df.is_empty():
             return False
 
