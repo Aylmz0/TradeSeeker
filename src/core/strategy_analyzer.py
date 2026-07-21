@@ -12,7 +12,14 @@ HTF_LABEL = HTF_INTERVAL
 
 
 class StrategyAnalyzer:
+    """Analyze market strategy using technical indicators and multi-timeframe data."""
+
     def __init__(self, market_data):
+        """Initialize StrategyAnalyzer.
+
+        Args:
+            market_data: RealMarketData instance for fetching indicators.
+        """
         self.market_data = market_data
 
     # NOTE: Legacy get_counter_trade_information function REMOVED
@@ -23,7 +30,18 @@ class StrategyAnalyzer:
         coin: str,
         indicators_3m: dict[str, Any] | None = None,
     ) -> float:
-        """Calculate volume quality score (0-100) based on Config thresholds"""
+        """Calculate volume quality score (0-100) based on Config thresholds.
+
+        Compares current volume to average volume and returns a score
+        based on Config.VOLUME_QUALITY_THRESHOLDS.
+
+        Args:
+            coin: Coin symbol (e.g. "XRP").
+            indicators_3m: Pre-fetched 3m indicators (optional).
+
+        Returns:
+            Volume quality score between 0.0 and 100.0.
+        """
         try:
             if indicators_3m is None or not isinstance(indicators_3m, dict):
                 indicators_3m = self.market_data.get_technical_indicators(coin, "3m")
@@ -62,9 +80,19 @@ class StrategyAnalyzer:
     ) -> str:
         """Detect market condition based on multi-timeframe indicators.
 
-        Rule: For a coin to be BULLISH, 1h must be bullish AND (3m OR 15m must be bullish).
-        For a coin to be BEARISH, 1h must be bearish AND (3m OR 15m must be bearish).
-        Otherwise, return NEUTRAL.
+        Uses layered trend detection: HTF (1h) determines primary direction,
+        15m confirms stability, 3m shows short-term momentum.
+
+        Args:
+            coin: Coin symbol (e.g. "XRP").
+            indicators_htf: HTF indicators (optional, fetched if None).
+            indicators_3m: 3m indicators (optional, fetched if None).
+            indicators_15m: 15m indicators (optional, fetched if None).
+
+        Returns:
+            Market regime string: "TF_STRONG_BULLISH", "TF_STABLE_BULLISH",
+            "TF_WEAK_BULLISH", "TF_STRONG_BEARISH", "TF_STABLE_BEARISH",
+            "TF_WEAK_BEARISH", "TF_NEUTRAL", "CHOPPY", "NEUTRAL", or "UNCLEAR".
         """
         try:
             if indicators_htf is None:

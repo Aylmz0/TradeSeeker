@@ -16,13 +16,22 @@ class PerformanceMonitor:
     """Performance monitoring system for Alpha Arena DeepSeek"""
 
     def __init__(self):
+        """Initialize PerformanceMonitor with data file paths."""
         self.cycle_history_file = "data/cycle_history.json"
         self.trade_history_file = "data/trade_history.json"
         self.portfolio_state_file = "data/portfolio_state.json"
         self.performance_file = "data/performance_report.json"
 
     def analyze_performance(self, last_n_cycles: int = 10) -> dict[str, Any]:
-        """Analyze performance for the last N cycles"""
+        """Analyze performance for the last N cycles.
+
+        Args:
+            last_n_cycles: Number of recent cycles to analyze (default: 10).
+
+        Returns:
+            Dictionary with trading_activity, trade_performance,
+            portfolio_performance, coin_performance, and recommendations.
+        """
         try:
             # Load data
             cycles = safe_file_read(self.cycle_history_file, [])
@@ -246,7 +255,14 @@ class PerformanceMonitor:
             return {"error": f"Performance analysis failed: {e!s}"}
 
     def _calculate_max_drawdown(self, value_history: list[float]) -> float:
-        """Calculate Maximum Drawdown from value history"""
+        """Calculate Maximum Drawdown from value history.
+
+        Args:
+            value_history: List of portfolio values over time.
+
+        Returns:
+            Maximum drawdown as a negative percentage (e.g. -5.0 for 5% drawdown).
+        """
         if not value_history or len(value_history) < constants.MIN_HISTORY_FOR_ANALYSIS:
             return 0.0
 
@@ -265,7 +281,15 @@ class PerformanceMonitor:
         value_history: list[float],
         risk_free_rate: float = 0.0,
     ) -> float:
-        """Calculate Sortino Ratio (downside risk only)"""
+        """Calculate Sortino Ratio (downside risk only).
+
+        Args:
+            value_history: List of portfolio values over time.
+            risk_free_rate: Risk-free rate for calculation (default: 0.0).
+
+        Returns:
+            Sortino ratio, or 0.0 if insufficient data, inf if no downside risk.
+        """
         if not value_history or len(value_history) < constants.SORTINO_MIN_RETURNS:
             return 0.0
 
@@ -301,7 +325,17 @@ class PerformanceMonitor:
         coin_performance: dict,
         open_positions: int,
     ) -> list[str]:
-        """Generate honest performance-based recommendations in English"""
+        """Generate honest performance-based recommendations.
+
+        Args:
+            profitability_index: Profitability index percentage.
+            profit_factor: Profit factor ratio.
+            coin_performance: Per-coin performance statistics.
+            open_positions: Number of currently open positions.
+
+        Returns:
+            List of recommendation strings.
+        """
         recommendations = []
 
         # Get current portfolio data for dynamic values
@@ -347,7 +381,11 @@ class PerformanceMonitor:
         return recommendations
 
     def print_performance_summary(self, report: dict):
-        """Log a formatted performance summary"""
+        """Log a formatted performance summary to console.
+
+        Args:
+            report: Performance report dictionary from analyze_performance().
+        """
         if "error" in report:
             logger.error("Performance analysis failed: {}", report["error"])
             return
@@ -412,7 +450,14 @@ class PerformanceMonitor:
         logger.info("Full report saved to: {}", self.performance_file)
 
     def _generate_adaptive_suggestions(self, report: dict) -> list[str]:
-        """Generate adaptive strategy suggestions based on performance patterns"""
+        """Generate adaptive strategy suggestions based on performance patterns.
+
+        Args:
+            report: Performance report dictionary from analyze_performance().
+
+        Returns:
+            List of adaptive suggestion strings.
+        """
         suggestions = []
 
         # Get performance metrics
@@ -529,7 +574,15 @@ class PerformanceMonitor:
         coins: list[str],
         indicators_cache: dict[str, dict[str, dict[str, Any]]] | None = None,
     ) -> dict[str, Any]:
-        """Detect trend break signals for all specified coins (Loss Risk Information Only)"""
+        """Detect trend break signals for all specified coins.
+
+        Args:
+            coins: List of coin symbols to analyze.
+            indicators_cache: Pre-fetched indicators cache (optional).
+
+        Returns:
+            Dictionary mapping coin symbols to their reversal signal results.
+        """
         try:
             from config.config import Config
             from src.core.market_data import RealMarketData
@@ -637,7 +690,15 @@ class PerformanceMonitor:
         summary: dict,
         reversal_results: dict,
     ) -> list[str]:
-        """Generate recommendations based on trend reversal analysis"""
+        """Generate recommendations based on trend reversal analysis.
+
+        Args:
+            summary: Summary dictionary with risk coin counts and percentages.
+            reversal_results: Per-coin reversal signal results.
+
+        Returns:
+            List of recommendation strings.
+        """
         recommendations = []
 
         strong_count = len(summary.get("high_loss_risk_coins", []))
@@ -684,13 +745,25 @@ class PerformanceMonitor:
         return recommendations
 
     def aggregate_all_history(self) -> dict[str, Any]:
-        """Aggregate data from all history backups and active data files."""
+        """Aggregate data from all history backups and active data files.
+
+        Scans both data/backups and history_backups directories,
+        de-duplicates trades/cycles/performance by key fields.
+
+        Returns:
+            Dictionary with trades, cycles, and performance lists.
+        """
         all_trades = []
         all_cycles = []
         all_performance = []
 
         # Helper to scan a backup directory
         def scan_backup_dir(backup_dir: str) -> None:
+            """Scan a backup directory and aggregate trades, cycles, performance.
+
+            Args:
+                backup_dir: Path to backup directory to scan.
+            """
             if os.path.exists(backup_dir):
                 subdirs = sorted(glob.glob(os.path.join(backup_dir, "*_cycle_*")))
                 for subdir in subdirs:
@@ -757,7 +830,7 @@ class PerformanceMonitor:
 
 # Main function for standalone usage
 def main():
-    """Standalone performance analysis"""
+    """Run standalone performance analysis."""
     monitor = PerformanceMonitor()
     logger.info("Analyzing trading performance...")
     report = monitor.analyze_performance(last_n_cycles=10)

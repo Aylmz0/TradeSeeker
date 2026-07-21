@@ -58,6 +58,7 @@ class RealMarketData:
     """Real market data from Binance Spot and Futures"""
 
     def __init__(self):
+        """Initialize RealMarketData with Binance API endpoints and caching."""
         self.spot_url = "https://api.binance.com/api/v3"
         self.futures_url = "https://fapi.binance.com/fapi/v1"
         self.available_coins = ["XRP", "DOGE", "ASTER", "TRX", "ETH", "SOL"]
@@ -77,19 +78,41 @@ class RealMarketData:
         self._price_cache_lock = threading.RLock()
 
     def clear_preloaded_indicators(self):
+        """Clear all preloaded indicators and raw DataFrames from memory."""
         self.preloaded_indicators = {}
         self._raw_dataframes = {}
 
     def get_cached_raw_dataframe(self, coin: str, interval: str):
+        """Get cached raw DataFrame for a coin and interval.
+
+        Args:
+            coin: Coin symbol (e.g. "XRP").
+            interval: Candle interval (e.g. "3m", "15m").
+
+        Returns:
+            Cached DataFrame if available, None otherwise.
+        """
         return self._raw_dataframes.get(coin, {}).get(interval)
 
     def store_preloaded_indicator(self, coin: str, interval: str, indicators: dict[str, Any]):
+        """Store preloaded indicators for a coin and interval.
+
+        Args:
+            coin: Coin symbol (e.g. "XRP").
+            interval: Candle interval (e.g. "3m", "15m").
+            indicators: Dictionary of indicator values to cache.
+        """
         if not isinstance(indicators, dict):
             return
         coin_store = self.preloaded_indicators.setdefault(coin, {})
         coin_store[interval] = copy.deepcopy(indicators)
 
     def _build_empty_df(self) -> pl.DataFrame:
+        """Build an empty DataFrame with KLINE_COLUMNS schema.
+
+        Returns:
+            Empty DataFrame with predefined kline columns.
+        """
         return pl.DataFrame(schema=KLINE_COLUMNS)
 
     def get_real_time_data(
@@ -98,6 +121,17 @@ class RealMarketData:
         interval: str = "3m",
         limit: int = 100,
     ) -> pl.DataFrame:
+        """Fetch real-time kline data from Binance Spot API.
+
+        Args:
+            symbol: Trading pair symbol without USDT suffix (e.g. "XRP").
+            interval: Candle interval (default: "3m").
+            limit: Number of candles to fetch (default: 100).
+
+        Returns:
+            DataFrame with kline data (open, high, low, close, volume, etc.).
+            Returns empty DataFrame on failure or circuit breaker open.
+        """
         import time as _time_module
 
         current_time = _time_module.time()
@@ -245,6 +279,16 @@ class RealMarketData:
         return self._build_empty_df()
 
     def _validate_kline_data(self, df: pl.DataFrame, symbol: str, interval: str) -> bool:
+        """Validate kline DataFrame for data quality issues.
+
+        Args:
+            df: DataFrame containing kline data.
+            symbol: Trading pair symbol for logging.
+            interval: Candle interval for logging.
+
+        Returns:
+            True if data is valid, False otherwise.
+        """
         if df.is_empty():
             logger.warning("Empty DataFrame for {} ({})", symbol, interval)
             return False
@@ -282,6 +326,14 @@ class RealMarketData:
         return True
 
     def get_open_interest(self, symbol: str) -> float:
+        """Get open interest for a symbol from Binance Futures.
+
+        Args:
+            symbol: Trading pair symbol without USDT suffix (e.g. "XRP").
+
+        Returns:
+            Open interest value, or 0.0 on error.
+        """
         try:
             params = {"symbol": f"{symbol}USDT"}
             response = self.session.get(
@@ -302,6 +354,14 @@ class RealMarketData:
             return 0.0
 
     def _calculate_max_drawdown(self, value_history: list[float]) -> float:
+        """Calculate maximum drawdown from a value history.
+
+        Args:
+            value_history: List of portfolio values over time.
+
+        Returns:
+            Maximum drawdown as a fraction (0.0 to 1.0).
+        """
         if not value_history or len(value_history) < constants.MIN_HISTORY_FOR_ANALYSIS:
             return 0.0
         peak = value_history[0]
@@ -313,6 +373,14 @@ class RealMarketData:
         return max_drawdown
 
     def get_funding_rate(self, symbol: str) -> float:
+        """Get funding rate for a symbol from Binance Futures.
+
+        Args:
+            symbol: Trading pair symbol without USDT suffix (e.g. "XRP").
+
+        Returns:
+            Funding rate as a float, or 0.0 on error.
+        """
         try:
             params = {"symbol": f"{symbol}USDT"}
             response = self.session.get(
@@ -339,6 +407,19 @@ class RealMarketData:
             return 0.0
 
     def get_technical_indicators(self, coin: str, interval: str) -> dict[str, Any]:
+        """Calculate all technical indicators for a coin and interval.
+
+        Computes EMA, RSI, MACD, ATR, ADX, VWAP, Bollinger Bands, OBV,
+        Supertrend, and smart sparkline. Results are cached in preloaded_indicators.
+
+        Args:
+            coin: Coin symbol (e.g. "XRP").
+            interval: Candle interval (e.g. "3m", "15m").
+
+        Returns:
+            Dictionary containing all computed indicators. Returns dict with
+            "error" key on failure.
+        """
         cached = self.preloaded_indicators.get(coin, {}).get(interval)
         if isinstance(cached, dict):
             return copy.deepcopy(cached)
@@ -514,8 +595,17 @@ class RealMarketData:
         self, coin: str, timeframes: list[str] | None = None, period: int = 10
     ) -> float:
         """Calculate averaged Efficiency Ratio across multiple timeframes.
-        Default: 3m + 15m, each with 10-candle period.
-        Returns averaged ER or 1.0 (no-error fallback) if both fail.
+
+        Fetches ER from each timeframe and returns the arithmetic mean.
+        Used for choppy market detection.
+
+        Args:
+            coin: Coin symbol (e.g. "XRP").
+            timeframes: List of intervals to average (default: ["3m", "15m"]).
+            period: ER calculation period (default: 10).
+
+        Returns:
+            Averaged ER value (0.0 to 1.0), or 1.0 as fallback on error.
         """
         if timeframes is None:
             timeframes = ["3m", "15m"]
@@ -542,6 +632,14 @@ class RealMarketData:
         return avg_er
 
     def get_all_real_prices(self) -> dict[str, float]:
+        """Fetch current prices for all available coins from Binance Spot.
+
+        Uses bulk ticker endpoint first, falls back to individual requests.
+        Results are cached for PRICE_CACHE_TTL_S seconds.
+
+        Returns:
+            Dictionary mapping coin symbols to their current USDT prices.
+        """
         with self._price_cache_lock:
             current_time = time.time()
             if (
@@ -554,6 +652,12 @@ class RealMarketData:
             symbols = [f"{coin}USDT" for coin in self.available_coins]
 
             def _assign_price(symbol: str, raw_price: Any):
+                """Assign price from bulk ticker response to prices dict.
+
+                Args:
+                    symbol: Full trading pair symbol (e.g. "XRPUSDT").
+                    raw_price: Raw price value from API response.
+                """
                 coin = symbol.replace("USDT", "")
                 try:
                     price_val = round(float(raw_price), 8)
@@ -628,6 +732,16 @@ class RealMarketData:
             return prices
 
     def _get_fallback_price(self, coin: str) -> float:
+        """Get fallback price using alternative data sources.
+
+        Tries 1m kline, then 3m kline, then cached portfolio state.
+
+        Args:
+            coin: Coin symbol (e.g. "XRP").
+
+        Returns:
+            Fallback price as float, or 0.0 if all sources fail.
+        """
         try:
             df = self.get_real_time_data(coin, interval="1m", limit=1)
             if not df.is_empty() and len(df["close"]) > 0:
@@ -668,6 +782,18 @@ class RealMarketData:
     def verify_sync_alignment(
         self, coin: str, intervals: list[str] | None = None
     ) -> AlignmentResult:
+        """Verify timestamp alignment across multiple candle intervals.
+
+        Checks if latest candle timestamps across intervals are within
+        acceptable delta (MAX_ALIGNMENT_DELTA_S).
+
+        Args:
+            coin: Coin symbol (e.g. "XRP").
+            intervals: List of intervals to check (default: ["3m", "15m", "1h"]).
+
+        Returns:
+            AlignmentResult with alignment status and mismatch details.
+        """
         if intervals is None:
             intervals = ["3m", "15m", "1h"]
         timestamps = {}
@@ -725,6 +851,14 @@ class RealMarketData:
             )
 
     def get_market_sentiment(self, coin: str) -> dict[str, Any]:
+        """Get market sentiment data for a coin.
+
+        Args:
+            coin: Coin symbol (e.g. "XRP").
+
+        Returns:
+            Dictionary with open_interest, open_interest_avg, and funding_rate.
+        """
         open_interest = self.get_open_interest(coin)
         funding_rate = self.get_funding_rate(coin)
         avg_oi = open_interest
@@ -742,6 +876,21 @@ class RealMarketData:
         indicators_15m: dict[str, Any] | None = None,
         position_direction: str | None = None,
     ) -> dict[str, Any]:
+        """Detect trend reversal signals across multiple timeframes.
+
+        Scores reversal signals based on HTF trend, 15m structure,
+        3m trend, RSI extremes, MACD crossover, and ML consensus.
+
+        Args:
+            coin: Coin symbol (e.g. "XRP").
+            indicators_3m: Technical indicators from 3m timeframe.
+            indicators_htf: Technical indicators from HTF timeframe.
+            indicators_15m: Technical indicators from 15m timeframe (optional).
+            position_direction: Current position direction ("long" or "short").
+
+        Returns:
+            Dictionary with signals list, score, strength, and trend values.
+        """
         score = 0
         signals = []
 
@@ -775,6 +924,15 @@ class RealMarketData:
             }
 
         def _determine_trend(price: float, ema20: float) -> str:
+            """Determine trend direction based on price vs EMA20 distance.
+
+            Args:
+                price: Current price.
+                ema20: 20-period EMA value.
+
+            Returns:
+                "BULLISH", "BEARISH", "NEUTRAL", or "UNKNOWN".
+            """
             if ema20 == 0:
                 return "UNKNOWN"
             delta = (price - ema20) / ema20

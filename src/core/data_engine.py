@@ -32,17 +32,28 @@ class DataEngine:
     """Core Database Engine for TradeSeeker's ML Pipeline."""
 
     def __init__(self, db_path: str = "data/market_data.db"):
+        """Initialize DataEngine with SQLite database path.
+
+        Args:
+            db_path: Path to SQLite database file (default: "data/market_data.db").
+        """
         self.db_path = db_path
         self._ensure_dir()
         self._init_db()
 
     def _ensure_dir(self):
+        """Create database directory if it doesn't exist."""
         db_dir = os.path.dirname(self.db_path)
         if db_dir and not os.path.exists(db_dir):
             os.makedirs(db_dir, exist_ok=True)
             logger.info("DataEngine: Created directory: {}", db_dir)
 
     def _get_connection(self) -> sqlite3.Connection:
+        """Get a new SQLite connection with WAL mode and busy timeout.
+
+        Returns:
+            SQLite connection with row_factory set to sqlite3.Row.
+        """
         conn = sqlite3.connect(self.db_path, check_same_thread=False, timeout=10)
         conn.row_factory = sqlite3.Row
         try:
@@ -53,6 +64,7 @@ class DataEngine:
         return conn
 
     def _init_db(self):
+        """Initialize database schema with market_data, decisions, and features tables."""
         conn = self._get_connection()
         try:
             cursor = conn.cursor()
@@ -112,9 +124,23 @@ class DataEngine:
             conn.close()
 
     def log_market_data(self, df: pl.DataFrame, coin: str, interval: str):
+        """Log market data DataFrame to database.
+
+        Args:
+            df: DataFrame containing kline data.
+            coin: Coin symbol (e.g. "XRP").
+            interval: Candle interval (e.g. "3m").
+        """
         self._insert_klines_bulk(df, coin, interval)
 
     def log_cycle_features(self, coin: str, interval: str, indicators: dict[str, Any]):
+        """Log cycle features (indicators) to database.
+
+        Args:
+            coin: Coin symbol (e.g. "XRP").
+            interval: Candle interval (e.g. "3m").
+            indicators: Dictionary of indicator values to store.
+        """
         if not isinstance(indicators, dict):
             return
 
@@ -143,6 +169,13 @@ class DataEngine:
             conn.close()
 
     def _insert_klines_bulk(self, df: pl.DataFrame, coin: str, interval: str):
+        """Bulk insert kline data into market_data table.
+
+        Args:
+            df: DataFrame containing kline data with standard columns.
+            coin: Coin symbol (e.g. "XRP").
+            interval: Candle interval (e.g. "3m").
+        """
         if df.is_empty():
             return
 
@@ -198,6 +231,15 @@ class DataEngine:
             conn.close()
 
     def _query_to_df(self, query: str, params: list | None = None) -> pl.DataFrame:
+        """Execute SQL query and return results as Polars DataFrame.
+
+        Args:
+            query: SQL query string.
+            params: Query parameters (optional).
+
+        Returns:
+            DataFrame with query results, or empty DataFrame if no rows.
+        """
         conn = self._get_connection()
         try:
             cursor = conn.execute(query, params or [])
@@ -212,6 +254,16 @@ class DataEngine:
     def get_raw_market_data(
         self, coin: str, interval: str, limit: int | None = None
     ) -> pl.DataFrame:
+        """Get raw market data from database.
+
+        Args:
+            coin: Coin symbol (e.g. "XRP").
+            interval: Candle interval (e.g. "3m").
+            limit: Maximum number of rows to return (optional).
+
+        Returns:
+            DataFrame with kline data ordered by timestamp ASC.
+        """
         query = "SELECT * FROM market_data WHERE coin = ? AND interval = ? ORDER BY timestamp ASC"
         params: list = [coin, interval]
         if limit:
@@ -233,6 +285,12 @@ class DataEngine:
         return df
 
     def wipe_market_data(self, coin: str | None = None, interval: str | None = None):
+        """Wipe market data and features from database.
+
+        Args:
+            coin: Coin symbol to wipe (optional). If None, wipes all coins.
+            interval: Interval to wipe (optional). If None, wipes all intervals.
+        """
         conn = self._get_connection()
         try:
             cursor = conn.cursor()
@@ -256,6 +314,16 @@ class DataEngine:
             conn.close()
 
     def sync_bulk_history(self, coin: str, interval: str, target_count: int = 5000):
+        """Sync historical kline data from Binance in batches of 1000.
+
+        Args:
+            coin: Coin symbol (e.g. "XRP").
+            interval: Candle interval (e.g. "3m").
+            target_count: Target number of candles to fetch (default: 5000).
+
+        Returns:
+            Total number of candles ingested.
+        """
         import time as _time_module
 
         logger.info(
@@ -320,6 +388,22 @@ class DataEngine:
         else -0.003,
         limit: int | None = None,
     ) -> pl.DataFrame:
+        """Get labeled data for ML training.
+
+        Creates target labels based on future returns vs dynamic thresholds
+        derived from ATR.
+
+        Args:
+            coin: Coin symbol (e.g. "XRP").
+            interval: Candle interval (e.g. "3m").
+            lookahead_periods: Number of periods to look ahead for labeling.
+            profit_threshold: Minimum return for BUY label (default: 0.003).
+            loss_threshold: Maximum return for SELL label (default: -0.003).
+            limit: Maximum number of rows to fetch (optional).
+
+        Returns:
+            DataFrame with labeled data including target_label column.
+        """
         df = self.get_raw_market_data(coin, interval, limit=limit)
         if df.is_empty():
             return df
@@ -368,6 +452,16 @@ class DataEngine:
         return df
 
     def fetch_and_store_klines(self, coin: str, interval: str, limit: int = 1000):
+        """Fetch klines from Binance and store in database.
+
+        Args:
+            coin: Coin symbol (e.g. "XRP").
+            interval: Candle interval (e.g. "3m").
+            limit: Number of candles to fetch (default: 1000).
+
+        Returns:
+            True if successful, False otherwise.
+        """
         try:
             url = "https://api.binance.com/api/v3/klines"
             params = {"symbol": f"{coin}USDT", "interval": interval, "limit": limit}
@@ -407,6 +501,18 @@ class DataEngine:
         ml_probability: float,
         entry_price: float,
     ) -> int | None:
+        """Log an open trade decision to database.
+
+        Args:
+            coin: Coin symbol (e.g. "XRP").
+            direction: Trade direction ("LONG" or "SHORT").
+            ai_confidence: AI model confidence score.
+            ml_probability: ML model probability score.
+            entry_price: Entry price for the trade.
+
+        Returns:
+            Row ID of the inserted decision, or None on failure.
+        """
         conn = self._get_connection()
         try:
             cursor = conn.cursor()
@@ -443,6 +549,18 @@ class DataEngine:
         exit_price: float,
         pnl_result: float,
     ) -> bool:
+        """Log a close trade decision to database.
+
+        Updates the most recent OPEN decision for the coin with exit details.
+
+        Args:
+            coin: Coin symbol (e.g. "XRP").
+            exit_price: Exit price for the trade.
+            pnl_result: Profit/loss result in USDT.
+
+        Returns:
+            True if decision was closed, False if no OPEN decision found.
+        """
         conn = self._get_connection()
         try:
             cursor = conn.cursor()

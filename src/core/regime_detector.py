@@ -18,14 +18,17 @@ class RegimeDetector:
 
     @staticmethod
     def classify_coin_regime(indicators: dict[str, Any], averaged_er: float | None = None) -> str:
-        """Classifies the regime for a single coin.
-        Returns: BULLISH, BEARISH, NEUTRAL, VOLATILE, CHOPPY
+        """Classify the regime for a single coin.
 
-        Parameters
-        ----------
-        averaged_er : float, optional
-            Pre-computed averaged ER from 3m+15m. If provided, used instead of
-            single-timeframe ER from indicators dict.
+        Uses ER (choppy check), ADX (trending vs neutral), and price vs EMA20
+        (direction) to determine regime.
+
+        Args:
+            indicators: Technical indicators dictionary for the coin.
+            averaged_er: Pre-computed averaged ER from 3m+15m (optional).
+
+        Returns:
+            Regime string: "BULLISH", "BEARISH", "NEUTRAL", "VOLATILE", or "CHOPPY".
         """
         try:
             adx = indicators.get("adx_14", 0)
@@ -57,13 +60,16 @@ class RegimeDetector:
         coin_indicators: dict[str, dict[str, Any]],
         averaged_ers: dict[str, float] | None = None,
     ) -> str:
-        """Detects the global market regime by aggregating coin-level regimes.
+        """Detect global market regime by aggregating coin-level regimes.
 
-        Parameters
-        ----------
-        averaged_ers : dict, optional
-            Pre-computed averaged ER per coin (3m+15m). If provided, used for
-            CHOPPY classification instead of single-timeframe ER.
+        Uses priority logic: CHOPPY > BULLISH/BEARISH > NEUTRAL.
+
+        Args:
+            coin_indicators: Dictionary mapping coin symbols to their indicators.
+            averaged_ers: Pre-computed averaged ER per coin (optional).
+
+        Returns:
+            Overall regime string.
         """
         regimes = [
             cls.classify_coin_regime(ind, averaged_er=(averaged_ers or {}).get(coin))
@@ -87,8 +93,15 @@ class RegimeDetector:
 
     @classmethod
     def calculate_regime_strength(cls, coin_indicators: dict[str, dict[str, Any]]) -> float:
-        """Calculates market regime strength (0.0 to 1.0) based on coin alignment.
-        Replaces the legacy get_market_regime_strength in PortfolioManager.
+        """Calculate market regime strength based on coin alignment.
+
+        Strength = max(bullish_count, bearish_count) / total_valid.
+
+        Args:
+            coin_indicators: Dictionary mapping coin symbols to their indicators.
+
+        Returns:
+            Regime strength between 0.0 (no alignment) and 1.0 (full alignment).
         """
         try:
             bullish_count = 0
