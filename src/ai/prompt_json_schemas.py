@@ -10,7 +10,12 @@ JSON_PROMPT_VERSION = "1.0"
 
 
 def get_cooldown_status_schema() -> dict[str, Any]:
-    """Schema for cooldown status per coin."""
+    """Return JSON Schema for per-coin cooldown status validation.
+
+    Returns:
+        JSON Schema dict with cooldown status per coin, including
+        is_cooldown flag and remaining_minutes.
+    """
     return {
         "type": "object",
         "additionalProperties": {
@@ -24,7 +29,11 @@ def get_cooldown_status_schema() -> dict[str, Any]:
 
 
 def get_position_slot_schema() -> dict[str, Any]:
-    """Schema for position slot occupancy."""
+    """Return JSON Schema for position slot occupancy tracking.
+
+    Returns:
+        JSON Schema dict with max_slots, used_slots, and available_slots.
+    """
     return {
         "type": "object",
         "properties": {
@@ -36,7 +45,12 @@ def get_position_slot_schema() -> dict[str, Any]:
 
 
 def get_counter_trade_schema() -> dict[str, Any]:
-    """Schema for counter-trade risk (compact dict per coin)."""
+    """Return JSON Schema for counter-trade risk assessment per coin.
+
+    Returns:
+        JSON Schema dict with risk_level, alignment_strength, and
+        conditions_met for each coin.
+    """
     return {
         "type": "object",
         "additionalProperties": {
@@ -73,7 +87,12 @@ def get_counter_trade_schema() -> dict[str, Any]:
 
 
 def get_trend_reversal_schema() -> dict[str, Any]:
-    """Schema for trend reversal threats (compact dict per coin)."""
+    """Return JSON Schema for trend reversal threat levels per coin.
+
+    Returns:
+        JSON Schema dict with strength field indicating reversal threat
+        severity.
+    """
     return {
         "type": "object",
         "additionalProperties": {
@@ -101,7 +120,13 @@ def get_trend_reversal_schema() -> dict[str, Any]:
 
 
 def get_state_vector_schema() -> dict[str, Any]:
-    """Schema for coin State Vector."""
+    """Return JSON Schema for coin state vector data.
+
+    Returns:
+        JSON Schema dict containing ML consensus, market context,
+        technical summary, key levels, risk profile, sentiment,
+        and position data.
+    """
     return {
         "type": "object",
         "properties": {
@@ -186,7 +211,12 @@ def get_state_vector_schema() -> dict[str, Any]:
 
 
 def get_portfolio_schema() -> dict[str, Any]:
-    """Schema for portfolio JSON."""
+    """Return JSON Schema for portfolio summary data.
+
+    Returns:
+        JSON Schema dict with total_return_pct, available_cash,
+        account_value, sharpe_ratio, and positions array.
+    """
     return {
         "type": "object",
         "properties": {
@@ -216,7 +246,12 @@ def get_portfolio_schema() -> dict[str, Any]:
 
 
 def get_risk_status_schema() -> dict[str, Any]:
-    """Schema for risk status JSON."""
+    """Return JSON Schema for portfolio risk status data.
+
+    Returns:
+        JSON Schema dict with current_positions_count, total_margin_used,
+        available_cash, and trading_limits.
+    """
     return {
         "type": "object",
         "properties": {
@@ -238,7 +273,12 @@ def get_risk_status_schema() -> dict[str, Any]:
 
 
 def get_historical_context_schema() -> dict[str, Any]:
-    """Schema for historical context JSON."""
+    """Return JSON Schema for historical trading context data.
+
+    Returns:
+        JSON Schema dict with total_cycles_analyzed, market_behavior,
+        and recent_decisions array.
+    """
     return {
         "type": "object",
         "properties": {
@@ -256,7 +296,13 @@ def get_historical_context_schema() -> dict[str, Any]:
 
 
 def get_full_prompt_schema() -> dict[str, Any]:
-    """Schema for the complete JSON prompt structure."""
+    """Return JSON Schema for the complete AI prompt structure.
+
+    Returns:
+        JSON Schema dict combining version, metadata, cooldown_status,
+        position_slot_status, market_data, portfolio, risk_status,
+        and historical_context.
+    """
     return {
         "type": "object",
         "properties": {
@@ -285,9 +331,18 @@ def validate_json_against_schema(
     data: dict[str, Any],
     schema: dict[str, Any],
 ) -> tuple[bool, str | None]:
-    """Simple JSON schema validation.
-    Returns (is_valid, error_message).
-    Note: This is a basic implementation. For production, consider using jsonschema library.
+    """Validate JSON data against a schema definition.
+
+    Performs basic type checking, required field validation, and
+    property type verification.
+
+    Args:
+        data: The JSON data to validate.
+        schema: The JSON Schema definition to validate against.
+
+    Returns:
+        Tuple of (is_valid, error_message) where error_message is
+        None if validation passes.
     """
     try:
         # Basic type checking

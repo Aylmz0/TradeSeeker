@@ -15,18 +15,28 @@ HTF_LABEL = HTF_INTERVAL
 
 
 class EnhancedContextProvider:
-    """Provides enhanced context to help AI make better decisions
-    NO manipulation - only better data and suggestions
+    """Provides enhanced context to help AI make better decisions.
+
+    NO manipulation - only better data and suggestions.
     """
 
     def __init__(self):
+        """Initialize EnhancedContextProvider with data file paths."""
         self.cycle_history_file = "data/cycle_history.json"
         self.trade_history_file = "data/trade_history.json"
         self.portfolio_state_file = "data/portfolio_state.json"
         self.performance_file = "data/performance_report.json"
 
     def safe_file_read(self, file_path: str, default_data=None):
-        """Safely read JSON file with error handling"""
+        """Safely read JSON file with error handling.
+
+        Args:
+            file_path: Path to JSON file.
+            default_data: Default value if file doesn't exist or is invalid.
+
+        Returns:
+            Parsed JSON content, or default_data on error.
+        """
         try:
             if os.path.exists(file_path):
                 if os.path.getsize(file_path) == 0:
@@ -43,7 +53,17 @@ class EnhancedContextProvider:
         return default_data if default_data is not None else []
 
     def get_enhanced_position_context(self, portfolio_state: dict) -> dict[str, Any]:
-        """Provides enhanced context for current positions"""
+        """Get enhanced context for current positions.
+
+        Calculates profit target progress, time in trade, distance to stop,
+        and risk/reward ratio for each open position.
+
+        Args:
+            portfolio_state: Current portfolio state dictionary.
+
+        Returns:
+            Dictionary mapping coin symbols to enhanced position data.
+        """
         positions = portfolio_state.get("positions", {})
         enhanced_context = {}
 
@@ -121,7 +141,11 @@ class EnhancedContextProvider:
         return enhanced_context
 
     def get_market_regime_context(self) -> dict[str, Any]:
-        """Market regime detection based on objective price/EMA relationships"""
+        """Get market regime context based on objective price/EMA relationships.
+
+        Returns:
+            Dictionary with current_regime, regime_strength, and per-coin regimes.
+        """
         try:
             from src.core.market_data import RealMarketData
         except ImportError:
@@ -214,7 +238,15 @@ class EnhancedContextProvider:
         trade_history: list,
         portfolio_state: dict,
     ) -> dict[str, Any]:
-        """Performance-based insights for better decision making"""
+        """Get performance-based insights for better decision making.
+
+        Args:
+            trade_history: List of historical trade records.
+            portfolio_state: Current portfolio state dictionary.
+
+        Returns:
+            Dictionary with insights list and per-coin performance stats.
+        """
         if not trade_history:
             return {"insights": ["No trading history available"]}
 
@@ -263,7 +295,15 @@ class EnhancedContextProvider:
         return {"insights": insights, "coin_performance": coin_performance}
 
     def get_directional_feedback(self, trade_history: list, lookback: int = 20) -> dict[str, Any]:
-        """Provide neutral feedback for long vs short performance"""
+        """Provide neutral feedback for long vs short performance.
+
+        Args:
+            trade_history: List of historical trade records.
+            lookback: Number of recent trades to analyze (default: 20).
+
+        Returns:
+            Dictionary with long/short performance statistics.
+        """
         feedback = {
             "long": {"trades": 0, "wins": 0, "losses": 0, "total_pnl": 0.0},
             "short": {"trades": 0, "wins": 0, "losses": 0, "total_pnl": 0.0},
@@ -316,7 +356,15 @@ class EnhancedContextProvider:
         return feedback
 
     def get_risk_context(self, portfolio_state: dict) -> dict[str, Any]:
-        """Enhanced risk management context"""
+        """Get enhanced risk management context.
+
+        Args:
+            portfolio_state: Current portfolio state dictionary.
+
+        Returns:
+            Dictionary with risk metrics including total_risk_usd,
+            position_count, and diversification_score.
+        """
         positions = portfolio_state.get("positions", {})
         portfolio_state.get("current_balance", 0)
         portfolio_state.get("total_value", 0)
@@ -348,7 +396,12 @@ class EnhancedContextProvider:
         }
 
     def generate_enhanced_context(self) -> dict[str, Any]:
-        """Main enhanced context generation function"""
+        """Generate complete enhanced context for AI decision making.
+
+        Returns:
+            Dictionary with position_context, market_regime, performance_insights,
+            directional_feedback, risk_context, and suggestions.
+        """
         try:
             # Load data
             portfolio_state = self.safe_file_read(self.portfolio_state_file, {})
@@ -373,7 +426,15 @@ class EnhancedContextProvider:
             return {"error": f"Context generation failed: {e!s}"}
 
     def generate_suggestions(self, portfolio_state: dict, market_regime: dict) -> list[str]:
-        """Non-manipulative suggestions for AI"""
+        """Generate non-manipulative suggestions for AI.
+
+        Args:
+            portfolio_state: Current portfolio state dictionary.
+            market_regime: Market regime context dictionary.
+
+        Returns:
+            List of suggestion strings.
+        """
         suggestions = []
         positions = portfolio_state.get("positions", {})
 
@@ -394,7 +455,11 @@ class EnhancedContextProvider:
         return suggestions
 
     def print_enhanced_context(self, context: dict):
-        """Logs enhanced context in structured way"""
+        """Log enhanced context in structured format.
+
+        Args:
+            context: Enhanced context dictionary from generate_enhanced_context().
+        """
         if "error" in context:
             logger.error("Enhanced context error: {}", context["error"])
             return
@@ -442,7 +507,7 @@ class EnhancedContextProvider:
 
 # Main function for testing
 def main():
-    """Test enhanced context provider"""
+    """Test enhanced context provider."""
     provider = EnhancedContextProvider()
     logger.info("Generating enhanced context for AI decision making...")
     context = provider.generate_enhanced_context()

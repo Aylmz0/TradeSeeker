@@ -33,7 +33,12 @@ class AIService:
     def _fetch_all_indicators_parallel(
         self,
     ) -> tuple[dict[str, dict[str, dict[str, Any]]], dict[str, Any]]:
-        """Fetch all indicators for all coins in parallel with smart caching."""
+        """Fetch all indicators for all coins in parallel with smart caching.
+
+        Returns:
+            Tuple of indicators dict keyed by coin and timeframe, and sentiment
+            dict keyed by coin symbol.
+        """
         if Config.USE_SMART_CACHE:
             return fetch_all_indicators_with_cache(
                 self.market_data,
@@ -48,7 +53,12 @@ class AIService:
         )
 
     def get_enhanced_context(self) -> dict[str, Any]:
-        """Get enhanced context for AI decision making"""
+        """Get enhanced context for AI decision making.
+
+        Returns:
+            Dictionary containing enhanced context data, or an error message
+            if context generation fails.
+        """
         try:
             provider = EnhancedContextProvider()
             return provider.generate_enhanced_context()
@@ -57,11 +67,21 @@ class AIService:
             return {"error": f"Enhanced context failed: {e!s}"}
 
     def get_directional_bias_metrics(self) -> dict[str, dict[str, Any]]:
-        """Get directional bias metrics from portfolio"""
+        """Get directional bias metrics from portfolio.
+
+        Returns:
+            Dictionary mapping direction ('long', 'short') to metrics including
+            net_pnl, trades, win_rate, rolling_avg, and consecutive_losses.
+        """
         return self.portfolio.get_directional_bias_metrics()
 
     def get_trading_context(self) -> dict[str, Any]:
-        """Get historical context from recent cycles - Enhanced with 5 cycle analysis"""
+        """Get historical context from recent cycles with enhanced 5-cycle analysis.
+
+        Returns:
+            Dictionary containing recent_decisions, market_behavior description,
+            performance_trend, total_cycles_analyzed, and analysis_period.
+        """
         try:
             if len(self.portfolio.cycle_history) < constants.MIN_HISTORY_FOR_ANALYSIS:
                 return {
@@ -114,7 +134,15 @@ class AIService:
             }
 
     def _analyze_market_behavior(self, recent_cycles: list[dict]) -> str:
-        """Analyze market behavior based on recent trading decisions"""
+        """Analyze market behavior based on recent trading decisions.
+
+        Args:
+            recent_cycles: List of recent cycle dictionaries containing decisions.
+
+        Returns:
+            String describing the current market behavior pattern, such as
+            'Strong Bullish bias', 'Balanced market', or 'Consolidating'.
+        """
         if not recent_cycles:
             return "No recent activity"
 
@@ -153,7 +181,15 @@ class AIService:
         return "Balanced market"
 
     def _analyze_performance_trend(self, recent_cycles: list[dict]) -> str:
-        """Analyze performance trend based on recent cycles"""
+        """Analyze performance trend based on recent cycles.
+
+        Args:
+            recent_cycles: List of recent cycle dictionaries.
+
+        Returns:
+            String describing the current performance phase, such as
+            'Aggressive accumulation phase' or 'Consolidation phase'.
+        """
         if len(recent_cycles) < constants.REVERSAL_SCORE_WEAK:
             return "Insufficient data for trend analysis"
 
@@ -194,20 +230,25 @@ class AIService:
         return "Balanced trading"
 
     def get_max_positions_for_cycle(self, cycle_number: int) -> int:
-        """Delegate to portfolio manager"""
+        """Delegate to portfolio manager for max position count.
+
+        Args:
+            cycle_number: Current cycle number for position limits.
+
+        Returns:
+            Maximum number of positions allowed for the given cycle.
+        """
         return self.portfolio.get_max_positions_for_cycle(cycle_number)
 
     def generate_alpha_arena_prompt(self) -> str:
-        """Generate prompt with enhanced data, indicator history and AI decision context
+        """Generate prompt with enhanced data, indicator history, and AI decision context.
 
         .. deprecated:: 1.0
             Use :meth:`generate_alpha_arena_prompt_json` instead.
             This function is kept for backward compatibility and fallback scenarios.
 
-        Returns
-        -------
-            str: Text-formatted prompt (legacy format)
-
+        Returns:
+            Text-formatted prompt string in legacy format.
         """
         warnings.warn(
             "generate_alpha_arena_prompt() is deprecated. "
@@ -824,14 +865,11 @@ Current live positions & performance:"""
         This is the recommended method for prompt generation.
 
         Returns:
-        -------
-            str: Hybrid prompt with JSON sections and text instructions
+            Hybrid prompt string with JSON sections and text instructions.
 
         Note:
-        ----
             Falls back to text format if JSON serialization fails.
             See :meth:`generate_alpha_arena_prompt` for text-only format (deprecated).
-
         """
         from loguru import logger
 
@@ -1102,12 +1140,16 @@ Each coin below contains a State Vector with:
         return prompt
 
     def parse_ai_response(self, response: Any) -> tuple[dict[str, Any], None] | tuple[None, str]:
-        """Robustly parse AI response - separates reasoning, text analysis and JSON decisions.
+        """Robustly parse AI response, separating reasoning and JSON decisions.
+
+        Args:
+            response: AI response as a dict with 'content' and 'reasoning' keys,
+                or a legacy string.
 
         Returns:
-            tuple[dict, None] on success: {"chain_of_thoughts": str, "decisions": dict}
-            tuple[None, str] on fatal error: (None, error_message)
-
+            Tuple of (result_dict, None) on success, or (None, error_message) on
+            failure. Success dict contains 'chain_of_thoughts' (str) and
+            'decisions' (dict).
         """
         if not response:
             return None, "No response received."
@@ -1190,6 +1232,13 @@ Each coin below contains a State Vector with:
         Fixes two known Ring LLM output patterns:
         1. signal/confidence buried inside ml_consensus instead of top-level.
         2. confidence given as percentage (0-100) instead of float (0.0-1.0).
+
+        Args:
+            coin: Coin symbol for logging.
+            trade: Raw AI decision dictionary to normalize.
+
+        Returns:
+            Normalized copy of the trade dictionary.
         """
         trade = dict(trade)  # always work on a copy
 
@@ -1220,7 +1269,14 @@ Each coin below contains a State Vector with:
         return trade
 
     def _clean_ai_decisions(self, decisions: dict) -> dict:
-        """Clean up AI decisions - normalize schema deviations and preserve position data."""
+        """Clean up AI decisions, normalizing schema deviations and validating inputs.
+
+        Args:
+            decisions: Raw AI decision dictionary keyed by coin symbol.
+
+        Returns:
+            Cleaned and validated decision dictionary with ML consensus injected.
+        """
         cleaned_decisions = {}
         for coin, trade in decisions.items():
             if not isinstance(trade, dict):
@@ -1320,7 +1376,15 @@ Each coin below contains a State Vector with:
 
     # --- Formatting Methods (v1.2 Restoration) ---
     def format_list(self, items: list, precision: int = 5) -> str:
-        """Formats a list of numbers into a readable string."""
+        """Format a list of numbers into a readable string.
+
+        Args:
+            items: List of numeric values to format.
+            precision: Number of decimal places for float formatting.
+
+        Returns:
+            Formatted string representation of the list, e.g. '[1.00000, 2.00000]'.
+        """
         if not items:
             return "[]"
         formatted = []
@@ -1332,7 +1396,15 @@ Each coin below contains a State Vector with:
         return "[" + ", ".join(formatted) + "]"
 
     def format_volume_ratio(self, current: float, avg: float) -> str:
-        """Calculates and formats volume ratio."""
+        """Calculate and format the volume ratio between current and average.
+
+        Args:
+            current: Current volume value.
+            avg: Average volume value.
+
+        Returns:
+            Formatted volume ratio string, e.g. '1.50x'. Returns '1.00x' on error.
+        """
         try:
             if not avg or avg == 0:
                 return "1.00x"
@@ -1341,7 +1413,16 @@ Each coin below contains a State Vector with:
             return "1.00x"
 
     def format_trend_reversal_analysis(self, analysis: dict) -> str:
-        """Formats trend reversal analysis for AI prompt."""
+        """Format trend reversal analysis for AI prompt.
+
+        Args:
+            analysis: Dictionary mapping coins to reversal analysis data with
+                strength_score and reason_summary fields.
+
+        Returns:
+            Formatted multi-line string of reversal threats, or a status message
+            if no significant threats are found.
+        """
         if not analysis:
             return "No active reversal threats identified."
         lines = []
@@ -1354,7 +1435,15 @@ Each coin below contains a State Vector with:
         return "\n".join(lines) if lines else "No significant reversal threats identified."
 
     def format_position_context(self, context: dict) -> str:
-        """Formats enhanced position context."""
+        """Format enhanced position context for display.
+
+        Args:
+            context: Dictionary mapping coins to position context data with
+                unrealized_pnl, profit_target_progress, and time_in_trade_minutes.
+
+        Returns:
+            Formatted multi-line string with position details.
+        """
         if not context:
             return "No enhanced position data available."
         lines = []
@@ -1365,20 +1454,42 @@ Each coin below contains a State Vector with:
         return "\n".join(lines)
 
     def format_market_regime_context(self, context: dict) -> str:
-        """Formats market regime context."""
+        """Format market regime context for display.
+
+        Args:
+            context: Dictionary with 'current_regime' and 'regime_strength' keys.
+
+        Returns:
+            Formatted string showing current market regime and strength.
+        """
         if not context:
             return "Market regime data unavailable."
         return f"  Overall Regime: {context.get('current_regime', 'unknown').upper()} (Strength: {context.get('regime_strength', 0):.2f})"
 
     def format_performance_insights(self, context: dict) -> str:
-        """Formats performance insights."""
+        """Format performance insights for display.
+
+        Args:
+            context: Dictionary containing an 'insights' list of strings.
+
+        Returns:
+            Formatted multi-line string of performance insights.
+        """
         insights = context.get("insights", [])
         if not insights:
             return "No specific performance insights for this cycle."
         return "\n".join(f"  - {i}" for i in insights)
 
     def format_directional_feedback(self, context: dict) -> str:
-        """Formats directional bias feedback."""
+        """Format directional bias feedback for display.
+
+        Args:
+            context: Dictionary with 'long' and 'short' keys containing
+                profitability_index and trades data.
+
+        Returns:
+            Formatted multi-line string with directional feedback metrics.
+        """
         if not context:
             return "No directional bias feedback available."
         lines = []
@@ -1390,13 +1501,29 @@ Each coin below contains a State Vector with:
         return "\n".join(lines)
 
     def format_risk_context(self, context: dict) -> str:
-        """Formats risk management context."""
+        """Format risk management context for display.
+
+        Args:
+            context: Dictionary with total_risk_usd, position_count, and
+                diversification_score fields.
+
+        Returns:
+            Formatted string showing risk status across positions.
+        """
         if not context:
             return "Risk context unavailable."
         return f"  Total Risk: ${context.get('total_risk_usd', 0):.2f} across {context.get('position_count', 0)} positions. Div-score: {context.get('diversification_score', 0):.1f}"
 
     def format_suggestions(self, suggestions: list) -> str:
-        """Formats suggestions list."""
+        """Format suggestions list for display.
+
+        Args:
+            suggestions: List of suggestion strings.
+
+        Returns:
+            Formatted multi-line string of suggestions, or a default message
+            if the list is empty.
+        """
         if not suggestions:
             return "Continue executing core logic."
         return "\n".join(f"  - {s}" for s in suggestions)

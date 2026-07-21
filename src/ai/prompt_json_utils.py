@@ -13,11 +13,28 @@ class SafeJSONEncoder(json.JSONEncoder):
     """
 
     def encode(self, o: Any) -> str:
-        """Encode object to JSON string, handling special cases."""
+        """Encode object to JSON string after cleaning special values.
+
+        Args:
+            o: Object to serialize.
+
+        Returns:
+            JSON string with NaN/None converted to null.
+
+        """
         return super().encode(self._clean_value(o))
 
     def _clean_value(self, value: Any) -> Any:
-        """Recursively clean values, converting NaN/None to null."""
+        """Recursively clean values, converting NaN/None to null.
+
+        Args:
+            value: Input value to clean.
+
+        Returns:
+            Cleaned value with NaN/Inf converted to None, dicts and lists
+            cleaned recursively.
+
+        """
         if value is None:
             return None
         if isinstance(value, float):

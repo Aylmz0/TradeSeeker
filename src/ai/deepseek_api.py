@@ -23,9 +23,17 @@ litellm.verbose = False
 
 
 class DeepSeekAPI:
-    """AI API integration natively powered by LiteLLM Router"""
+    """AI API integration natively powered by LiteLLM Router."""
 
     def __init__(self, api_key: str | None = None):
+        """Initialize DeepSeekAPI with LiteLLM Router configuration.
+
+        Configures primary model (OpenRouter), fallback models (Groq, MiMo),
+        and simulation mode if no API key is available.
+
+        Args:
+            api_key: API key (optional, falls back to Config values).
+        """
         model_list = []
         self.primary_model = None
 
@@ -147,8 +155,13 @@ class DeepSeekAPI:
             self.invocation_count = 0
 
     def _build_system_prompt(self) -> str:
-        """Constructs the system prompt as a structured JSON object.
-        Preserves 100% of the logic from the original text prompt.
+        """Construct the system prompt as a structured JSON object.
+
+        Defines agent profile, constraints, strategy, and output format
+        for the AI trading decision maker.
+
+        Returns:
+            JSON string containing the complete system prompt.
         """
         system_structure = {
             "agent_profile": {
@@ -439,7 +452,15 @@ class DeepSeekAPI:
         return json.dumps(system_structure)
 
     def get_ai_decision(self, prompt: str) -> dict[str, Any] | str:
-        """Get trading decision from AI API natively via LiteLLM Router"""
+        """Get trading decision from AI API via LiteLLM Router.
+
+        Args:
+            prompt: Market data JSON prompt to send to the AI model.
+
+        Returns:
+            Dictionary with "content" and optional "reasoning" keys on success,
+            or JSON string fallback on error.
+        """
         if not hasattr(self, "router"):
             return self._get_simulation_response(prompt)
 
@@ -534,7 +555,14 @@ class DeepSeekAPI:
             return self._get_error_response(f"{error_type}: {e}")
 
     def _get_simulation_response(self, prompt: str) -> str:
-        """Simulation response without API - Returns valid JSON string"""
+        """Generate simulation response without API call.
+
+        Args:
+            prompt: Market data prompt (unused in simulation).
+
+        Returns:
+            JSON string with simulated trading decisions.
+        """
         logger.warning("Using simulation mode...")
         simulation_data = {
             "CHAIN_OF_THOUGHTS": f"Simulation Mode: Assuming market pullback. Shorting SOL based on simulated {HTF_LABEL} resistance. Aiming for 1:1.5 R/R using simulated ATR. Holding others.",
@@ -555,7 +583,15 @@ class DeepSeekAPI:
         return json.dumps(simulation_data, indent=2)
 
     def get_cached_decisions(self) -> str:
-        """Get cached decisions from recent successful cycles - Returns valid JSON string"""
+        """Get cached decisions from recent successful cycles.
+
+        Loads last 5 cycles and returns entry signals, neutralizing
+        signals for coins that already have open positions.
+
+        Returns:
+            JSON string with cached decisions, or safe hold decisions
+            if no valid cache found.
+        """
         try:
             cached_cycles = safe_file_read("data/cycle_history.json", default_data=[])
             if not cached_cycles:
@@ -612,7 +648,11 @@ class DeepSeekAPI:
             return self.get_safe_hold_decisions()
 
     def get_safe_hold_decisions(self) -> str:
-        """Generate safe hold decisions for all coins - Returns valid JSON string"""
+        """Generate safe hold decisions for all coins.
+
+        Returns:
+            JSON string with hold signals for all available coins.
+        """
         logger.info("Generating safe hold decisions")
         hold_decisions = {}
         for coin in ["XRP", "DOGE", "ASTER", "TRX", "ETH", "SOL"]:
@@ -628,7 +668,15 @@ class DeepSeekAPI:
         return json.dumps(safe_response, indent=2)
 
     def _get_error_response(self, error_message: str) -> str:
-        """Enhanced error response with intelligent recovery"""
+        """Generate intelligent error response with recovery logic.
+
+        Args:
+            error_message: Error message or exception to handle.
+
+        Returns:
+            JSON string with cached decisions for connection/timeout errors,
+            or safe hold decisions for other errors.
+        """
         logger.error("Enhanced error handling for: {}", error_message)
 
         error_type = (

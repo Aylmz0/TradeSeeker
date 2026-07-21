@@ -16,13 +16,27 @@ from src.ai.prompt_json_utils import format_number_for_json
 
 
 def _sv_fmt(value) -> float | int | None:
-    """Shorthand for format_number_for_json in state vector context."""
+    """Format a number for JSON output in the state vector context.
+
+    Args:
+        value: Numeric value to format.
+
+    Returns:
+        Formatted number or None if input is invalid.
+
+    """
     return format_number_for_json(value)
 
 
 def _sv_momentum(indicators_15m: dict[str, Any]) -> str:
-    """Extract momentum from 15m smart_sparkline.
-    Returns: STRENGTHENING | STABLE | WEAKENING | UNKNOWN
+    """Extract momentum label from 15-minute smart sparkline data.
+
+    Args:
+        indicators_15m: 15-minute timeframe indicator data.
+
+    Returns:
+        Momentum label: STRENGTHENING, STABLE, WEAKENING, or UNKNOWN.
+
     """
     if not indicators_15m or "error" in indicators_15m:
         return "UNKNOWN"
@@ -33,8 +47,14 @@ def _sv_momentum(indicators_15m: dict[str, Any]) -> str:
 
 
 def _sv_price_location(indicators_15m: dict[str, Any]) -> str:
-    """Extract price location zone from 15m smart_sparkline.
-    Returns: UPPER_10 | LOWER_10 | MIDDLE
+    """Extract price location zone from 15-minute smart sparkline data.
+
+    Args:
+        indicators_15m: 15-minute timeframe indicator data.
+
+    Returns:
+        Price location zone: UPPER_10, LOWER_10, or MIDDLE.
+
     """
     if not indicators_15m or "error" in indicators_15m:
         return "MIDDLE"
@@ -49,8 +69,14 @@ def _sv_price_location(indicators_15m: dict[str, Any]) -> str:
 
 
 def _sv_structure(indicators_15m: dict[str, Any]) -> str:
-    """Extract market structure from 15m smart_sparkline.
-    Returns: HH_HL | LH_LL | RANGE | UNCLEAR
+    """Extract market structure label from 15-minute smart sparkline data.
+
+    Args:
+        indicators_15m: 15-minute timeframe indicator data.
+
+    Returns:
+        Market structure: HH_HL, LH_LL, RANGE, or UNCLEAR.
+
     """
     if not indicators_15m or "error" in indicators_15m:
         return "UNCLEAR"
@@ -61,8 +87,14 @@ def _sv_structure(indicators_15m: dict[str, Any]) -> str:
 
 
 def _sv_volatility_state(indicators_htf: dict[str, Any]) -> str:
-    """Determine volatility state from BB squeeze.
-    Returns: SQUEEZE | EXPANDING | NORMAL
+    """Determine volatility state from Bollinger Band data.
+
+    Args:
+        indicators_htf: Higher timeframe indicator data.
+
+    Returns:
+        Volatility state: SQUEEZE, EXPANDING, or NORMAL.
+
     """
     if not indicators_htf or "error" in indicators_htf:
         return "NORMAL"
@@ -79,8 +111,14 @@ def _sv_volatility_state(indicators_htf: dict[str, Any]) -> str:
 
 
 def _sv_volume_label_from_ratio(ratio: float) -> str:
-    """Convert volume ratio to linguistic label with revised calibration (v3.1).
-    Returns: EXCELLENT | GOOD | FAIR | NORMAL | POOR | LOW
+    """Convert a volume ratio to a linguistic quality label.
+
+    Args:
+        ratio: Volume ratio relative to average volume.
+
+    Returns:
+        Volume quality label: EXCELLENT, GOOD, FAIR, NORMAL, POOR, or LOW.
+
     """
     if ratio is None or ratio <= 0:
         return "LOW"
@@ -99,7 +137,15 @@ def _sv_volume_label_from_ratio(ratio: float) -> str:
 
 
 def _sv_build_position(position: Any) -> dict[str, Any]:
-    """Build compact position data for state vector."""
+    """Build a compact position dictionary for the state vector.
+
+    Args:
+        position: Position object with attributes like direction, entry_price, etc.
+
+    Returns:
+        Compact position dict with key fields for state vector.
+
+    """
     pos = {
         "direction": getattr(position, "direction", "long"),
         "entry_price": _sv_fmt(getattr(position, "entry_price", 0)),
@@ -138,28 +184,27 @@ def build_coin_state_vector(
     counter_trade_result: dict[str, Any] | None = None,
     reversal_result: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
-    """Build a refined State Vector for a single coin.
+    """Build a refined state vector for a single coin.
 
-    Combines pre-processed labels (for fast AI orientation) with key numerical
-    anchors (for independent AI reasoning). This replaces the old
+    Combines pre-processed labels for fast AI orientation with key numerical
+    anchors for independent AI reasoning. Replaces the old
     build_market_data_json which dumped 51 raw indicator fields per coin.
 
     Args:
-    ----
-        coin: Coin symbol
-        market_regime: Market regime (BULLISH/BEARISH/NEUTRAL)
-        sentiment: Sentiment data (OI, funding rate)
-        indicators_3m: 3-minute timeframe indicators
-        indicators_15m: 15-minute timeframe indicators
-        indicators_htf: Higher timeframe indicators
-        position: Current position dict (or None)
-        ml_consensus: XGBoost prediction dict (or None)
-        counter_trade_result: Output from build_counter_trade_risk() for this coin
-        reversal_result: Output from build_reversal_threat() for this coin
+        coin: Coin symbol.
+        market_regime: Market regime (BULLISH/BEARISH/NEUTRAL).
+        sentiment: Sentiment data (OI, funding rate).
+        indicators_3m: 3-minute timeframe indicators.
+        indicators_15m: 15-minute timeframe indicators.
+        indicators_htf: Higher timeframe indicators.
+        position: Current position object, or None if no position.
+        ml_consensus: XGBoost prediction dict, or None.
+        ml_bias_label: Machine learning bias label.
+        counter_trade_result: Output from build_counter_trade_risk() for this coin.
+        reversal_result: Output from build_reversal_threat() for this coin.
 
     Returns:
-    -------
-        State vector dict with labels + numerical anchors
+        State vector dict with labels and numerical anchors.
 
     """
     # Efficiency ratio for choppy detection.
@@ -280,7 +325,17 @@ def build_metadata_json(
     current_time: datetime,
     invocation_count: int,
 ) -> dict[str, Any]:
-    """Build metadata JSON section."""
+    """Build metadata JSON section for the AI prompt.
+
+    Args:
+        minutes_running: Minutes the bot has been running.
+        current_time: Current timestamp.
+        invocation_count: Number of times the AI prompt has been invoked.
+
+    Returns:
+        Metadata dict with runtime information.
+
+    """
     return {
         "minutes_running": minutes_running,
         "current_time": current_time.isoformat()
@@ -298,19 +353,21 @@ def build_counter_trade_json(
     market_data=None,  # NEW: market_data parameter for Funding Rate
     ml_consensus_dict: dict[str, dict[str, Any]] | None = None,  # Inject ML consensus dict
 ) -> dict[str, dict[str, Any]]:
-    """Build counter-trade analysis JSON from text analysis or indicators.
+    """Build counter-trade analysis JSON from indicators.
+
+    Evaluates 12 conditions across multiple timeframes to determine
+    counter-trend trading risk levels for each coin.
 
     Args:
-    ----
-        counter_trade_analysis: Text analysis (legacy format)
-        all_indicators: Pre-fetched indicators dict
-        available_coins: List of coins to analyze
-        htf_interval: Higher timeframe interval (e.g., '1h')
-        market_data: RealMarketData instance for funding rate (optional)
+        counter_trade_analysis: Text analysis (legacy format).
+        all_indicators: Pre-fetched indicators dict keyed by coin then timeframe.
+        available_coins: List of coins to analyze.
+        htf_interval: Higher timeframe interval (e.g., '1h').
+        market_data: RealMarketData instance for funding rate, or None.
+        ml_consensus_dict: Machine learning consensus dict keyed by coin, or None.
 
     Returns:
-    -------
-        Dict keyed by coin: {risk_level, alignment_strength, conditions_met}
+        Dict keyed by coin with risk_level, alignment_strength, and conditions_met.
 
     """
     analysis_list = {}
@@ -607,13 +664,11 @@ def build_trend_reversal_json(
     """Build trend reversal detection data from performance_monitor output.
 
     Args:
-    ----
-        trend_reversal_analysis: Output from detect_trend_reversal_for_all_coins()
-        portfolio_positions: Current portfolio positions
+        trend_reversal_analysis: Output from detect_trend_reversal_for_all_coins().
+        portfolio_positions: Current portfolio positions.
 
     Returns:
-    -------
-        Dict keyed by coin: {strength} for State Vector integration
+        Dict keyed by coin with strength field for state vector integration.
 
     """
     reversal_dict = {}
@@ -637,7 +692,18 @@ def build_cooldown_status_json(
     counter_trend_cooldown: int,
     relaxed_countertrend_cycles: int,
 ) -> dict[str, Any]:
-    """Build cooldown status JSON."""
+    """Build cooldown status JSON for the AI prompt.
+
+    Args:
+        directional_cooldowns: Cooldown timers per direction (long/short).
+        coin_cooldowns: Cooldown timers per coin symbol.
+        counter_trend_cooldown: Remaining cycles for counter-trend cooldown.
+        relaxed_countertrend_cycles: Number of relaxed counter-trend cycles remaining.
+
+    Returns:
+        Cooldown status dict with all cooldown timers.
+
+    """
     return {
         "directional_cooldowns": dict(directional_cooldowns.items()),
         "coin_cooldowns": dict(coin_cooldowns.items()),
@@ -651,7 +717,17 @@ def build_position_slot_json(
     max_positions: int,
     same_direction_limit: int | None = None,
 ) -> dict[str, Any]:
-    """Build position slot status JSON."""
+    """Build position slot status JSON for the AI prompt.
+
+    Args:
+        portfolio_positions: Dict of current position objects keyed by coin.
+        max_positions: Maximum total positions allowed.
+        same_direction_limit: Maximum positions in the same direction, or None for config default.
+
+    Returns:
+        Position slot status dict with availability and constraint information.
+
+    """
     from config.config import Config
 
     total_open = len(portfolio_positions)
@@ -712,15 +788,13 @@ def build_position_slot_json(
 
 
 def build_portfolio_json(portfolio: Any) -> dict[str, Any]:
-    """Build portfolio JSON.
+    """Build portfolio JSON for the AI prompt.
 
     Args:
-    ----
         portfolio: Portfolio object with attributes like total_return, current_balance, etc.
 
     Returns:
-    -------
-        Portfolio JSON object
+        Portfolio summary dict with performance metrics and positions.
 
     """
     positions_list = []
@@ -757,7 +831,16 @@ def build_portfolio_json(portfolio: Any) -> dict[str, Any]:
 
 
 def build_risk_status_json(portfolio: Any, max_positions: int = 5) -> dict[str, Any]:
-    """Build risk status JSON."""
+    """Build risk status JSON for the AI prompt.
+
+    Args:
+        portfolio: Portfolio object with positions and balance attributes.
+        max_positions: Maximum number of positions allowed.
+
+    Returns:
+        Risk status dict with margin usage and trading limits.
+
+    """
     current_positions_count = len(portfolio.positions) if hasattr(portfolio, "positions") else 0
     total_margin_used = sum(
         p.margin_usd
@@ -778,7 +861,15 @@ def build_risk_status_json(portfolio: Any, max_positions: int = 5) -> dict[str, 
 
 
 def build_historical_context_json(trading_context: dict[str, Any]) -> dict[str, Any]:
-    """Build historical context JSON."""
+    """Build historical context JSON for the AI prompt.
+
+    Args:
+        trading_context: Trading context dict with cycle analysis and performance data.
+
+    Returns:
+        Historical context dict with cycle count, market behavior, and recent decisions.
+
+    """
     return {
         "total_cycles_analyzed": trading_context.get("total_cycles_analyzed", 0),
         "market_behavior": trading_context.get("market_behavior", "Unknown"),
@@ -788,15 +879,13 @@ def build_historical_context_json(trading_context: dict[str, Any]) -> dict[str, 
 
 
 def build_directional_bias_json(bias_metrics: dict[str, dict[str, Any]]) -> dict[str, Any]:
-    """Build directional bias metrics JSON (Last 20 trades snapshot).
+    """Build directional bias metrics JSON from last 20 trades snapshot.
 
     Args:
-    ----
-        bias_metrics: Output from get_directional_bias_metrics()
+        bias_metrics: Output from get_directional_bias_metrics() with per-side stats.
 
     Returns:
-    -------
-        Directional bias JSON object
+        Directional bias dict with PnL, win/loss counts, and caution flags per side.
 
     """
     result = {}
