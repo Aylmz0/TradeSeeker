@@ -198,3 +198,23 @@ possibly-missing-attribute = "ignore"
 include = ["src/main.py"]
 [tool.ty.overrides.rules]
 possibly-unresolved-reference = "ignore"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+python_files = ["test_*.py"]
+python_classes = ["Test*"]
+python_functions = ["test_*"]
+addopts = "-v --tb=short --strict-markers"
+markers = [
+    "unit: Unit tests (no external dependencies)",
+    "integration: Integration tests (may use temp DB)",
+    "slow: Tests that take >1s",
+]
+
+[tool.coverage.run]
+source = ["src"]
+omit = ["tests/*", "src/web/*"]
+
+[tool.coverage.report]
+show_missing = true
+fail_under = 20

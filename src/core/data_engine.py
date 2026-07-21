@@ -564,15 +564,22 @@ class DataEngine:
         conn = self._get_connection()
         try:
             cursor = conn.cursor()
+            row = cursor.execute(
+                """SELECT id FROM decisions WHERE coin = ? AND status = 'OPEN'
+                   ORDER BY timestamp DESC LIMIT 1""",
+                (coin,),
+            ).fetchone()
+            if not row:
+                logger.warning("DataEngine: No OPEN decision found for {} to close.", coin)
+                return False
             cursor.execute(
                 """UPDATE decisions
                    SET exit_price = ?, pnl_result = ?, status = 'CLOSED'
-                   WHERE coin = ? AND status = 'OPEN'
-                   ORDER BY timestamp DESC LIMIT 1""",
+                   WHERE id = ?""",
                 (
                     round(float(exit_price), 8),
                     round(float(pnl_result), 4),
-                    coin,
+                    row["id"],
                 ),
             )
             conn.commit()
