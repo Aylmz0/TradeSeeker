@@ -1870,50 +1870,19 @@ class PortfolioManager:
                 indicator_cache=indicator_cache,
             )
 
-    def _calculate_maximum_limit(self) -> float:
-        """Calculate the maximum margin limit for partial sales.
-
-        Returns
-        -------
-            The calculated maximum limit in USD.
-
-        """
-        max_from_percentage: float = self.current_balance * Config.MAXIMUM_LIMIT_BALANCE_PCT
-        min_limit: float = Config.MIN_PARTIAL_PROFIT_MARGIN_REMAINING_USD
-        max_limit: float = max(min_limit, max_from_percentage)
-        logger.info(
-            "Maximum limit: ${:.2f} (${} fixed vs ${:.2f} {:.1f}% of ${:.2f} available cash)",
-            max_limit,
-            min_limit,
-            max_from_percentage,
-            Config.MAXIMUM_LIMIT_BALANCE_PCT * 100,
-            self.current_balance,
-        )
-        return max_limit
-
-    def _calculate_dynamic_minimum_limit(self) -> float:
-        """Calculate the dynamic minimum margin limit for partial sales.
-
-        Returns
-        -------
-            The calculated minimum limit in USD.
-
-        """
-        # Note: 10% is used for 'minimum' to be more conservative after partial sales
-        min_from_percentage: float = self.current_balance * 0.10
-        min_limit: float = Config.MIN_PARTIAL_PROFIT_MARGIN_REMAINING_USD
-        return max(min_limit, min_from_percentage)
-
-    def _adjust_partial_sale_for_max_limit(
+    def _adjust_partial_sale(
         self,
         position: Position,
         proposed_percent: float,
     ) -> tuple[float, bool, str | None]:
-        """Adjust partial sale percentage to respect the maximum limit.
+        """Adjust partial sale percentage to respect the minimum remaining margin floor.
+
+        Unified for both profit taking and loss mitigation. Uses a single floor
+        to ensure consistent behavior regardless of direction.
 
         Args:
         ----
-            position: The position dictionary to evaluate.
+            position: The position to evaluate.
             proposed_percent: The original proposed sale percentage (0.0 to 1.0).
 
         Returns:
@@ -1923,7 +1892,6 @@ class PortfolioManager:
         """
         current_margin = position.margin_usd
         if current_margin <= 0:
-            # Fallback: Calculate from notional/leverage if margin_usd is missing/zero
             notional = position.notional_usd
             leverage = position.leverage
             if notional > 0 and leverage > 0:
@@ -1933,101 +1901,47 @@ class PortfolioManager:
                     position.leverage if position.leverage else 10
                 )
 
-        # Calculate maximum limit: $10 fixed OR 15% of available cash, whichever is larger (from Config)
-        max_limit = self._calculate_maximum_limit()
+        # Single floor for both profit and loss
+        floor = self._calculate_partial_sale_floor()
 
-        if current_margin <= max_limit:
-            # Position already at or below maximum limit, don't sell - close completely
+        if current_margin <= floor:
             logger.info(
-                "Partial sale blocked: Position margin ${:.2f} <= maximum limit ${:.2f}. Position will be closed.",
+                "Partial sale blocked: Position margin ${:.2f} <= floor ${:.2f}. Closing entirely.",
                 current_margin,
-                max_limit,
+                floor,
             )
             return (
                 0.0,
                 True,
-                f"Position margin ${current_margin:.2f} <= maximum limit ${max_limit:.2f}",
+                f"Position margin ${current_margin:.2f} <= floor ${floor:.2f}",
             )
 
-        # Calculate remaining margin after proposed sale
         remaining_after_proposed = current_margin * (1 - proposed_percent)
 
-        if remaining_after_proposed >= max_limit:
-            # Proposed sale keeps us above maximum limit, use as-is
+        if remaining_after_proposed >= floor:
             return proposed_percent, False, None
-        # Adjust sale to leave exactly max_limit margin
-        adjusted_sale_amount = current_margin - max_limit
-        # FIX: Division by zero protection
+
+        adjusted_sale_amount = current_margin - floor
         adjusted_percent = adjusted_sale_amount / current_margin if current_margin > 0 else 0.0
 
         logger.info(
-            "Adjusted partial sale: {:.0f}% → {:.0f}% to maintain ${:.2f} maximum limit",
+            "Adjusted partial sale: {:.0f}% -> {:.0f}% to maintain ${:.2f} floor",
             proposed_percent * 100,
             adjusted_percent * 100,
-            max_limit,
+            floor,
         )
         return adjusted_percent, False, None
 
-    def _adjust_partial_sale_for_min_limit(
-        self,
-        position: Position,
-        proposed_percent: float,
-    ) -> tuple[float, bool, str | None]:
-        """Adjust partial sale percentage to respect the minimum margin limit.
+    def _calculate_partial_sale_floor(self) -> float:
+        """Calculate the minimum margin floor for partial sales.
 
-        Args:
-        ----
-            position: The position dictionary.
-            proposed_percent: The original proposed sale percentage.
-
-        Returns:
+        Returns
         -------
-            A tuple of (adjusted_percent, should_close_entirely, reason).
+            The floor amount in USD that must remain after any partial sale.
 
         """
-        current_margin = position.margin_usd
-        if current_margin <= 0:
-            notional = position.notional_usd
-            leverage = position.leverage
-            if notional > 0 and leverage > 0:
-                current_margin = notional / leverage
-
-        # Calculate dynamic minimum limit
-        min_remaining = self._calculate_dynamic_minimum_limit()
-
-        # If current margin is already very close to or below minimum, force close
-        # This prevents leaving "dust" during loss mitigation
-        if current_margin < (min_remaining * 1.1):
-            return (
-                0.0,
-                True,
-                f"Position margin ${current_margin:.2f} near or below minimum ${min_remaining:.2f}",
-            )
-
-        # Calculate remaining margin after proposed sale
-        remaining_after_proposed = current_margin * (1 - proposed_percent)
-
-        if remaining_after_proposed >= min_remaining:
-            # Proposed sale keeps us above minimum, use as-is
-            return proposed_percent, False, None
-
-        # Adjust sale to leave exactly min_remaining margin
-        adjusted_sale_amount = current_margin - min_remaining
-        adjusted_percent = adjusted_sale_amount / current_margin if current_margin > 0 else 0.0
-
-        # If the adjustment makes the sale tiny (e.g., < 5%), just don't do partial sale
-        if adjusted_percent < 0.05:
-            return 0.0, False, "Adjusted sale percentage too small"
-
-        return adjusted_percent, False, f"Adjusted to maintain minimum margin ${min_remaining:.2f}"
-
-        logger.info(
-            "Adjusted partial sale: {:.0f}% → {:.0f}% to maintain ${:.2f} minimum limit",
-            proposed_percent * 100,
-            adjusted_percent * 100,
-            min_remaining,
-        )
-        return adjusted_percent
+        from_balance = self.current_balance * Config.MAXIMUM_LIMIT_BALANCE_PCT
+        return max(Config.MIN_PARTIAL_PROFIT_MARGIN_REMAINING_USD, from_balance)
 
     def _is_counter_trend_trade(
         self,

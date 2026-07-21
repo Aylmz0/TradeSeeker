@@ -1080,14 +1080,8 @@ class AccountService:
         abs_pnl = abs(pnl_pct)
         is_profit = pnl_pct > 0
 
-        # Determine labels and limit adjustment methods
+        # Determine labels
         type_label = "Profit taking" if is_profit else "Loss mitigation"
-        # For profit, we respect Max Limit. For loss, we check Min Limit (remaining margin).
-        adj_func = (
-            self.pm._adjust_partial_sale_for_max_limit
-            if is_profit
-            else self.pm._adjust_partial_sale_for_min_limit
-        )
 
         # Check tiers from highest (Level 3) to lowest (Level 1)
         for i in range(3, 0, -1):
@@ -1101,7 +1095,9 @@ class AccountService:
                     continue
 
                 take_percent = tiers[take_key]
-                adjusted_percent, force_close, reason = adj_func(position, take_percent)
+                adjusted_percent, force_close, reason = self.pm._adjust_partial_sale(
+                    position, take_percent
+                )
 
                 if force_close:
                     return {

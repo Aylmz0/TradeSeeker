@@ -1294,42 +1294,6 @@ class AlphaArenaDeepSeek:
         logger.info("=" * 60)
         self.show_status()
 
-    def _adjust_partial_sale_for_min_limit(
-        self, position: Position, proposed_percent: float
-    ) -> float:
-        """Adjust partial sale percentage to ensure minimum limit remains after sale"""
-        current_margin = position.margin_usd
-
-        # Calculate dynamic minimum limit: $15 fixed OR 10% of available cash, whichever is larger
-        min_remaining = self.portfolio._calculate_dynamic_minimum_limit()
-
-        if current_margin <= min_remaining:
-            # Position already at or below minimum, don't sell
-            logger.info(
-                "Partial sale blocked: Position margin ${:.2f} <= minimum limit ${:.2f}",
-                current_margin,
-                min_remaining,
-            )
-            return 0.0
-
-        # Calculate remaining margin after proposed sale
-        remaining_after_proposed = current_margin * (1 - proposed_percent)
-
-        if remaining_after_proposed >= min_remaining:
-            # Proposed sale keeps us above minimum, use as-is
-            return proposed_percent
-        # Adjust sale to leave exactly min_remaining margin
-        adjusted_sale_amount = current_margin - min_remaining
-        adjusted_percent = adjusted_sale_amount / current_margin
-
-        logger.info(
-            "Adjusted partial sale: {:.0f}% -> {:.0f}% to maintain ${:.2f} minimum limit",
-            proposed_percent * 100,
-            adjusted_percent * 100,
-            min_remaining,
-        )
-        return adjusted_percent
-
     def update_trend_state(
         self,
         coin: str,
