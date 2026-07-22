@@ -348,7 +348,7 @@ class DataEngine:
                 if not data:
                     break
 
-                df = pl.DataFrame(data, schema=KLINE_COLUMNS)
+                df = pl.DataFrame(data, schema=KLINE_COLUMNS, orient="row")
 
                 if df.is_empty():
                     break
@@ -473,7 +473,7 @@ class DataEngine:
                 logger.warning("DataEngine: Received empty data for {} ({}).", coin, interval)
                 return False
 
-            df = pl.DataFrame(data, schema=KLINE_COLUMNS)
+            df = pl.DataFrame(data, schema=KLINE_COLUMNS, orient="row")
 
             for col in ["open", "high", "low", "close", "volume"]:
                 df = df.with_columns(pl.col(col).cast(pl.Float64).round(8))

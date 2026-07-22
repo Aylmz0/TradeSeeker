@@ -53,12 +53,10 @@ def calculate_rsi(
 ```
 
 ### Docstring Coverage
-- **452 total functions**
-- **87 with full Google docstrings** (Args: + Returns:)
-- **~100 with partial docstrings**
-- **~265 without docstrings**
+- **546 total functions** — all with full Google docstrings (Args: + Returns:)
+- **0 without docstrings**
 
-pdoc generates API docs from existing docstrings. Improve coverage incrementally as you touch files.
+pdoc generates API docs from existing docstrings. Maintain coverage when adding new functions.
 
 ## How to Document New Functions
 
