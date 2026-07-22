@@ -6,7 +6,6 @@ from config.config import Config
 from src.core import constants
 from src.utils import format_num
 
-
 HTF_INTERVAL = getattr(Config, "HTF_INTERVAL", "1h") or "1h"
 HTF_LABEL = HTF_INTERVAL
 

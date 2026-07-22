@@ -11,6 +11,9 @@ from config.config import Config
 from src.core import constants
 from src.utils import safe_file_read, safe_file_write
 
+HTF_INTERVAL = getattr(Config, "HTF_INTERVAL", "1h") or "1h"
+HTF_LABEL = HTF_INTERVAL
+
 
 class PerformanceMonitor:
     """Performance monitoring system for Alpha Arena DeepSeek"""
@@ -589,7 +592,6 @@ class PerformanceMonitor:
 
             # Instantiate market data to access centralized logic
             market_data = RealMarketData()
-            HTF_INTERVAL = getattr(Config, "HTF_INTERVAL", "1h") or "1h"
 
             reversal_results = {}
             high_risk_coins = []

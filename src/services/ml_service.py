@@ -37,7 +37,7 @@ class MLService:
         if self._initialized:
             return
 
-        self.model_path = "models/seeker_v1.xgb"
+        self.model_path = "models/seeker_v1.ubj"
         self.scaler_path = "models/scaler.joblib"
         self.features_path = "models/feature_cols.joblib"
 

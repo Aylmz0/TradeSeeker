@@ -36,8 +36,6 @@ from src.utils import (
     safe_file_write,
 )
 
-
-# Define constants
 HTF_INTERVAL = getattr(Config, "HTF_INTERVAL", "1h") or "1h"
 HTF_LABEL = HTF_INTERVAL
 
@@ -51,6 +49,7 @@ class AlphaArenaDeepSeek:
         self.portfolio = PortfolioManager()
         self.ai_service = AIService(self.portfolio, self.market_data, self.strategy_analyzer)
         self.account_service = AccountService(self.portfolio)
+        self.portfolio.set_account_service(self.account_service)  # Link for delegated live closes
         self.deepseek = DeepSeekAPI(api_key)
         self.risk_manager = AdvancedRiskManager()
         self.data_engine = DataEngine()

@@ -16,7 +16,6 @@ from src.schemas.ai import AIDecision
 from src.services.ml_service import MLService
 from src.utils import format_num
 
-
 HTF_INTERVAL = getattr(Config, "HTF_INTERVAL", "1h") or "1h"
 HTF_LABEL = HTF_INTERVAL
 
@@ -1409,7 +1408,7 @@ Each coin below contains a State Vector with:
             if not avg or avg == 0:
                 return "1.00x"
             return f"{(current / avg):.2f}x"
-        except:
+        except (TypeError, ZeroDivisionError):
             return "1.00x"
 
     def format_trend_reversal_analysis(self, analysis: dict) -> str:

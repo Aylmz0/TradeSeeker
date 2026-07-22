@@ -27,6 +27,7 @@ from src.core.indicators import (
     calculate_rsi_divergence_label,
     calculate_rsi_series,
     calculate_slope_label,
+    determine_trend,
     calculate_supertrend,
     calculate_volatility_pulse_label,
     calculate_vwap,
@@ -923,25 +924,8 @@ class RealMarketData:
                 "trend_3m": None,
             }
 
-        def _determine_trend(price: float, ema20: float) -> str:
-            """Determine trend direction based on price vs EMA20 distance.
-
-            Args:
-                price: Current price.
-                ema20: 20-period EMA value.
-
-            Returns:
-                "BULLISH", "BEARISH", "NEUTRAL", or "UNKNOWN".
-            """
-            if ema20 == 0:
-                return "UNKNOWN"
-            delta = (price - ema20) / ema20
-            if abs(delta) <= Config.EMA_NEUTRAL_BAND_PCT:
-                return "NEUTRAL"
-            return "BULLISH" if delta > 0 else "BEARISH"
-
-        trend_3m = _determine_trend(price_3m, ema20_3m)
-        trend_htf = _determine_trend(price_htf, ema20_htf)
+        trend_3m = determine_trend(price_3m, ema20_3m)
+        trend_htf = determine_trend(price_htf, ema20_htf)
         trend_15m = None
         structure_15m = None
 
@@ -955,7 +939,7 @@ class RealMarketData:
                 else "UNCLEAR"
             )
             if price_15m and ema20_15m:
-                trend_15m = _determine_trend(price_15m, ema20_15m)
+                trend_15m = determine_trend(price_15m, ema20_15m)
 
         if not position_direction:
             return {

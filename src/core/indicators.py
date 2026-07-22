@@ -5,7 +5,26 @@ import polars as pl
 
 from loguru import logger
 
+from config.config import Config
 from src.core import constants
+
+
+def determine_trend(price: float, ema20: float) -> str:
+    """Determine trend direction relative to EMA with a neutral band.
+
+    Args:
+        price: Current asset price.
+        ema20: The EMA 20 value.
+
+    Returns:
+        String representing the trend direction ('BULLISH', 'BEARISH', or 'NEUTRAL').
+    """
+    if not isinstance(price, (int, float)) or not isinstance(ema20, (int, float)) or ema20 == 0:
+        return "NEUTRAL"
+    delta = (price - ema20) / ema20
+    if abs(delta) <= Config.EMA_NEUTRAL_BAND_PCT:
+        return "NEUTRAL"
+    return "BULLISH" if delta > 0 else "BEARISH"
 
 
 def _linear_slope(x: Sequence[int | float], y: Sequence[int | float]) -> float:
@@ -801,73 +820,27 @@ def generate_tags(indicators: dict[str, Any]) -> list[str]:
     return tags
 
 
-def get_features_for_ml(df: pl.DataFrame) -> pl.DataFrame:
-    """Convert raw OHLCV DataFrame into an ML-ready Feature Matrix.
+def _compute_adx_series(
+    df: pl.DataFrame, period: int = 14
+) -> tuple[pl.Series, pl.Series, pl.Series]:
+    """Compute full ADX/DI series (not just last bar) for ML feature extraction.
 
     Args:
-        df: DataFrame with columns: timestamp, open, high, low, close, volume.
+        df: DataFrame with 'high', 'low', 'close' columns.
+        period: EMA smoothing period for ADX calculation.
 
     Returns:
-        DataFrame with engineered features for ML model input.
+        Tuple of (adx_series, plus_di_series, minus_di_series).
     """
-    if len(df) < constants.MIN_KLINE_DATA_POINTS:
-        return pl.DataFrame()
+    if len(df) < period + 1:
+        nan = pl.Series([float("nan")] * len(df))
+        return nan, nan, nan
 
-    features = pl.DataFrame({"timestamp": df["timestamp"]})
-
-    features = features.with_columns(
-        [
-            df["close"].pct_change().alias("return_1p"),
-            df["volume"].pct_change().alias("return_vol"),
-        ]
-    )
-
-    features = features.with_columns(
-        [
-            calculate_rsi_series(df["close"], constants.ATR_PERIOD_DEFAULT).alias("rsi_14"),
-            calculate_rsi_series(df["close"], constants.FIB_8).alias("rsi_7"),
-        ]
-    )
-
-    macd_line, _macd_signal, macd_hist = calculate_macd_series(df["close"])
-    features = features.with_columns(
-        [
-            macd_hist.alias("macd_hist"),
-            macd_line.alias("macd_line"),
-        ]
-    )
-
-    features = features.with_columns(
-        [
-            calculate_atr_series(
-                df["high"], df["low"], df["close"], constants.ATR_PERIOD_DEFAULT
-            ).alias("atr_14"),
-        ]
-    )
-    features = features.with_columns((pl.col("atr_14") / df["close"]).alias("atr_ratio"))
-
-    features = features.with_columns(
-        [
-            calculate_ema_series(df["close"], constants.EMA_FAST).alias("ema_20"),
-            calculate_ema_series(df["close"], constants.EMA_MEDIUM).alias("ema_50"),
-        ]
-    )
-    features = features.with_columns(
-        ((df["close"] - pl.col("ema_20")) / pl.col("ema_20")).alias("ema_20_dist")
-    )
-
-    adx_df = pl.DataFrame(
-        {
-            "high": df["high"],
-            "low": df["low"],
-            "close": df["close"],
-        }
-    )
+    adx_df = df.select(["high", "low", "close"])
 
     tr1 = pl.col("high") - pl.col("low")
     tr2 = (pl.col("high") - pl.col("close").shift(1)).abs()
     tr3 = (pl.col("low") - pl.col("close").shift(1)).abs()
-
     adx_df = adx_df.with_columns(pl.max_horizontal(tr1, tr2, tr3).alias("tr"))
 
     adx_df = adx_df.with_columns(
@@ -890,20 +863,18 @@ def get_features_for_ml(df: pl.DataFrame) -> pl.DataFrame:
         ]
     )
 
-    adx_df = adx_df.with_columns(pl.col("tr").ewm_mean(span=14, adjust=False).alias("atr_14_ewm"))
-    adx_df = adx_df.with_columns(
-        pl.col("atr_14_ewm").replace(0, float("nan")).alias("atr_14_ewm_safe")
-    )
+    adx_df = adx_df.with_columns(pl.col("tr").ewm_mean(span=period, adjust=False).alias("atr_ewm"))
+    adx_df = adx_df.with_columns(pl.col("atr_ewm").replace(0, float("nan")).alias("atr_ewm_safe"))
 
     adx_df = adx_df.with_columns(
         [
             (
                 100
-                * (pl.col("plus_dm").ewm_mean(span=14, adjust=False) / pl.col("atr_14_ewm_safe"))
+                * (pl.col("plus_dm").ewm_mean(span=period, adjust=False) / pl.col("atr_ewm_safe"))
             ).alias("plus_di"),
             (
                 100
-                * (pl.col("minus_dm").ewm_mean(span=14, adjust=False) / pl.col("atr_14_ewm_safe"))
+                * (pl.col("minus_dm").ewm_mean(span=period, adjust=False) / pl.col("atr_ewm_safe"))
             ).alias("minus_di"),
         ]
     )
@@ -911,25 +882,147 @@ def get_features_for_ml(df: pl.DataFrame) -> pl.DataFrame:
     adx_df = adx_df.with_columns(
         [
             (pl.col("plus_di") + pl.col("minus_di")).alias("di_sum"),
-            (pl.col("plus_di") - pl.col("minus_di")).abs().alias("di_diff_safe"),
+            (pl.col("plus_di") - pl.col("minus_di")).abs().alias("di_diff"),
         ]
     )
 
     adx_df = adx_df.with_columns(
-        (100 * (pl.col("di_diff_safe") / pl.col("di_sum").replace(0, float("nan")))).alias("dx")
+        (100 * (pl.col("di_diff") / pl.col("di_sum").replace(0, float("nan")))).alias("dx")
     )
 
-    adx_series = adx_df["dx"].fill_nan(0).ewm_mean(span=constants.ATR_PERIOD_DEFAULT, adjust=False)
+    adx_series = adx_df["dx"].fill_nan(0).ewm_mean(span=period, adjust=False)
     plus_di_series = adx_df["plus_di"].fill_nan(0)
     minus_di_series = adx_df["minus_di"].fill_nan(0)
 
+    return adx_series, plus_di_series, minus_di_series
+
+
+def _compute_momentum_features(df: pl.DataFrame, features: pl.DataFrame) -> pl.DataFrame:
+    """Compute momentum indicators: RSI, MACD, and their slopes.
+
+    Args:
+        df: Raw OHLCV DataFrame.
+        features: Partial features DataFrame.
+
+    Returns:
+        Features DataFrame with momentum columns added.
+    """
     features = features.with_columns(
         [
-            adx_series.alias("adx_14"),
-            plus_di_series.alias("plus_di"),
-            minus_di_series.alias("minus_di"),
+            calculate_rsi_series(df["close"], constants.ATR_PERIOD_DEFAULT).alias("rsi_14"),
+            calculate_rsi_series(df["close"], constants.FIB_8).alias("rsi_7"),
         ]
     )
+
+    macd_line, _macd_signal, macd_hist = calculate_macd_series(df["close"])
+    features = features.with_columns(
+        [
+            macd_hist.alias("macd_hist"),
+            macd_line.alias("macd_line"),
+        ]
+    )
+
+    features = features.with_columns(
+        [
+            (pl.col("rsi_14") - pl.col("rsi_14").shift(1)).alias("rsi_14_slope"),
+            (pl.col("rsi_7") - pl.col("rsi_7").shift(1)).alias("rsi_7_slope"),
+        ]
+    )
+
+    features = features.with_columns(
+        [
+            pl.col("macd_hist").shift(1).alias("macd_hist_lag1"),
+            pl.col("macd_hist").shift(2).alias("macd_hist_lag2"),
+        ]
+    )
+    features = features.with_columns(
+        (pl.col("macd_hist") - pl.col("macd_hist_lag1")).alias("macd_slope")
+    )
+
+    return features
+
+
+def _compute_trend_features(df: pl.DataFrame, features: pl.DataFrame) -> pl.DataFrame:
+    """Compute trend indicators: EMA, ADX, DI cross, alignment.
+
+    Args:
+        df: Raw OHLCV DataFrame.
+        features: Partial features DataFrame.
+
+    Returns:
+        Features DataFrame with trend columns added.
+    """
+    features = features.with_columns(
+        [
+            calculate_ema_series(df["close"], constants.EMA_FAST).alias("ema_20"),
+            calculate_ema_series(df["close"], constants.EMA_MEDIUM).alias("ema_50"),
+        ]
+    )
+    features = features.with_columns(
+        ((df["close"] - pl.col("ema_20")) / pl.col("ema_20")).alias("ema_20_dist")
+    )
+    features = features.with_columns(
+        ((df["close"] - pl.col("ema_50")) / pl.col("ema_50")).alias("ema_50_dist")
+    )
+    features = features.with_columns(
+        (pl.col("ema_20_dist") - pl.col("ema_50_dist")).alias("ema_alignment")
+    )
+    features = features.with_columns(
+        [
+            ((pl.col("ema_20") - pl.col("ema_20").shift(1)) / pl.col("ema_20").shift(1)).alias(
+                "ema_20_slope"
+            ),
+            ((pl.col("ema_50") - pl.col("ema_50").shift(1)) / pl.col("ema_50").shift(1)).alias(
+                "ema_50_slope"
+            ),
+        ]
+    )
+
+    adx_s, plus_di_s, minus_di_s = _compute_adx_series(df)
+    features = features.with_columns(
+        [
+            adx_s.alias("adx_14"),
+            plus_di_s.alias("plus_di"),
+            minus_di_s.alias("minus_di"),
+        ]
+    )
+
+    features = features.with_columns(
+        [
+            pl.col("plus_di").shift(1).alias("plus_di_lag1"),
+            pl.col("minus_di").shift(1).alias("minus_di_lag1"),
+        ]
+    )
+    features = features.with_columns((pl.col("plus_di") - pl.col("minus_di")).alias("di_cross"))
+    features = features.with_columns(
+        [
+            pl.col("di_cross").shift(1).alias("di_cross_lag1"),
+            pl.col("adx_14").shift(1).alias("adx_14_lag1"),
+        ]
+    )
+    features = features.with_columns((pl.col("adx_14") - pl.col("adx_14_lag1")).alias("adx_growth"))
+
+    return features
+
+
+def _compute_volatility_features(df: pl.DataFrame, features: pl.DataFrame) -> pl.DataFrame:
+    """Compute volatility indicators: ATR and Bollinger Bands.
+
+    Args:
+        df: Raw OHLCV DataFrame.
+        features: Partial features DataFrame.
+
+    Returns:
+        Features DataFrame with volatility columns added.
+    """
+    features = features.with_columns(
+        [
+            calculate_atr_series(
+                df["high"], df["low"], df["close"], constants.ATR_PERIOD_DEFAULT
+            ).alias("atr_14"),
+        ]
+    )
+    features = features.with_columns((pl.col("atr_14") / df["close"]).alias("atr_ratio"))
 
     bb_df = pl.DataFrame({"close": df["close"]})
     bb_df = bb_df.with_columns(
@@ -960,51 +1053,24 @@ def get_features_for_ml(df: pl.DataFrame) -> pl.DataFrame:
         ]
     )
 
-    features = features.with_columns(
-        [
-            pl.col("plus_di").shift(1).alias("plus_di_lag1"),
-            pl.col("minus_di").shift(1).alias("minus_di_lag1"),
-        ]
-    )
-    features = features.with_columns((pl.col("plus_di") - pl.col("minus_di")).alias("di_cross"))
-    features = features.with_columns(
-        [
-            pl.col("di_cross").shift(1).alias("di_cross_lag1"),
-            pl.col("adx_14").shift(1).alias("adx_14_lag1"),
-        ]
-    )
-    features = features.with_columns((pl.col("adx_14") - pl.col("adx_14_lag1")).alias("adx_growth"))
+    return features
 
-    features = features.with_columns(
-        [
-            (pl.col("rsi_14") - pl.col("rsi_14").shift(1)).alias("rsi_14_slope"),
-            (pl.col("rsi_7") - pl.col("rsi_7").shift(1)).alias("rsi_7_slope"),
-        ]
-    )
 
-    features = features.with_columns(
-        [
-            ((df["close"] - pl.col("ema_50")) / pl.col("ema_50")).alias("ema_50_dist"),
-        ]
-    )
-    features = features.with_columns(
-        (pl.col("ema_20_dist") - pl.col("ema_50_dist")).alias("ema_alignment")
-    )
+def _compute_derived_features(df: pl.DataFrame, features: pl.DataFrame) -> pl.DataFrame:
+    """Compute derived features: returns, ROC, and lag columns.
 
+    Args:
+        df: Raw OHLCV DataFrame.
+        features: Partial features DataFrame with base indicators.
+
+    Returns:
+        Features DataFrame with derived columns added.
+    """
     features = features.with_columns(
         [
-            ((pl.col("ema_20") - pl.col("ema_20").shift(1)) / pl.col("ema_20").shift(1)).alias(
-                "ema_20_slope"
-            ),
-            ((pl.col("ema_50") - pl.col("ema_50").shift(1)) / pl.col("ema_50").shift(1)).alias(
-                "ema_50_slope"
-            ),
-            pl.col("macd_hist").shift(1).alias("macd_hist_lag1"),
-            pl.col("macd_hist").shift(2).alias("macd_hist_lag2"),
+            df["close"].pct_change().alias("return_1p"),
+            df["volume"].pct_change().alias("return_vol"),
         ]
-    )
-    features = features.with_columns(
-        (pl.col("macd_hist") - pl.col("macd_hist_lag1")).alias("macd_slope")
     )
 
     features = features.with_columns(
@@ -1033,6 +1099,28 @@ def get_features_for_ml(df: pl.DataFrame) -> pl.DataFrame:
     features = features.fill_null(strategy="forward")
     features = features.fill_nan(None)
     features = features.drop_nulls()
+
+    return features
+
+
+def get_features_for_ml(df: pl.DataFrame) -> pl.DataFrame:
+    """Convert raw OHLCV DataFrame into an ML-ready Feature Matrix.
+
+    Args:
+        df: DataFrame with columns: timestamp, open, high, low, close, volume.
+
+    Returns:
+        DataFrame with engineered features for ML model input.
+    """
+    if len(df) < constants.MIN_KLINE_DATA_POINTS:
+        return pl.DataFrame()
+
+    features = pl.DataFrame({"timestamp": df["timestamp"]})
+
+    features = _compute_momentum_features(df, features)
+    features = _compute_trend_features(df, features)
+    features = _compute_volatility_features(df, features)
+    features = _compute_derived_features(df, features)
 
     return features
 

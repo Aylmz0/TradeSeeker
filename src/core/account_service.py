@@ -7,8 +7,10 @@ from config.config import Config
 from src.core import constants
 from src.core.data_engine import DataEngine
 from src.schemas.position import Position
-from src.schemas.trade import TradeHistoryEntry
 from src.utils import format_num
+
+HTF_INTERVAL = getattr(Config, "HTF_INTERVAL", "1h") or "1h"
+HTF_LABEL = HTF_INTERVAL
 
 
 try:
@@ -21,10 +23,6 @@ except Exception as e:
 
     class BinanceAPIError(Exception):
         pass
-
-
-HTF_INTERVAL = getattr(Config, "HTF_INTERVAL", "1h") or "1h"
-HTF_LABEL = HTF_INTERVAL
 
 
 class AccountService:
@@ -673,6 +671,347 @@ class AccountService:
 
         return {"success": True, "pnl": profit, "commission": commission}
 
+    def _calculate_margin_used(
+        self, position: Position, entry_price: float, quantity: float
+    ) -> float:
+        """Calculate margin used with multiple fallback methods.
+
+        Tries position.margin_usd first, then derives from notional/leverage,
+        and finally from entry_price * quantity / leverage.
+
+        Args:
+            position: Current position.
+            entry_price: Entry price of the position.
+            quantity: Position quantity.
+
+        Returns:
+            Calculated margin in USD, or 0.0 if undeterminable.
+        """
+        margin_used = position.margin_usd
+        if margin_used is not None and margin_used > 0:
+            return margin_used
+
+        notional = position.notional_usd
+        leverage = position.leverage
+        if notional > 0 and leverage > 0:
+            return notional / leverage
+
+        if entry_price > 0 and quantity > 0:
+            notional = entry_price * quantity
+            if leverage and leverage > 0:
+                return notional / leverage
+
+        return 0.0
+
+    def _check_enhanced_exit(
+        self,
+        coin: str,
+        position: Position,
+        current_price: float,
+        entry_price: float,
+        direction: str,
+        margin_used: float,
+    ) -> tuple[str | None, Position, bool, list[str]]:
+        """Run enhanced exit strategy and handle its signals.
+
+        Returns:
+            Tuple of (close_reason or None, updated position, state_changed, updated_stops).
+        """
+        close_reason = None
+        state_changed = False
+        updated_stops: list[str] = []
+
+        exit_decision, position = self.enhanced_exit_strategy(position, current_price, coin)
+
+        if exit_decision["action"] == "close_position":
+            close_reason = exit_decision["reason"]
+            logger.warning(
+                "ENHANCED EXIT CLOSE {} ({}): {} at price ${}",
+                coin,
+                direction,
+                close_reason,
+                format_num(current_price, 4),
+            )
+            state_changed = True
+
+        elif exit_decision["action"] == "partial_close":
+            close_percent = exit_decision["percent"]
+            if self.is_live_trading:
+                live_result = self.execute_live_partial_close(
+                    coin=coin,
+                    position=position,
+                    close_percent=close_percent,
+                    current_price=current_price,
+                    reason=exit_decision["reason"],
+                )
+                if not live_result.get("success"):
+                    logger.error(
+                        "Live partial close failed for {}: {}",
+                        coin,
+                        live_result.get("error", "unknown_error"),
+                    )
+                    return None, position, False, []
+                history_entry = live_result.get("history_entry")
+                if history_entry:
+                    self.pm.add_to_history(history_entry)
+                logger.warning(
+                    "PARTIAL CLOSE {} ({}) [LIVE]: {} ({:.0f}% / PnL ${})",
+                    coin,
+                    direction,
+                    exit_decision["reason"],
+                    close_percent * 100,
+                    format_num(live_result.get("pnl", 0), 2),
+                )
+                if position.peak_pnl > 0:
+                    old_peak = position.peak_pnl
+                    position = position.model_copy(
+                        update={"peak_pnl": position.peak_pnl * (1 - close_percent)}
+                    )
+                    self.pm.positions[coin] = position
+                    logger.debug(
+                        "peak_pnl adjusted: ${} → ${} (after {:.0f}% close)",
+                        format_num(old_peak, 2),
+                        format_num(position.peak_pnl, 2),
+                        close_percent * 100,
+                    )
+                try:
+                    self.sync_live_account()
+                except Exception as sync_exc:
+                    logger.warning("Failed to sync account after partial close: {}", sync_exc)
+                return None, position, True, []
+
+            # Simulation partial close under lock
+            with self.pm._lock:
+                current_qty = float(position.quantity)
+                current_margin = float(position.margin_usd)
+                current_notional = float(position.notional_usd)
+                close_quantity = current_qty * close_percent
+
+                if direction == "long":
+                    profit = (current_price - entry_price) * close_quantity
+                else:
+                    profit = (entry_price - current_price) * close_quantity
+
+                notional_portion_cost = entry_price * close_quantity
+                notional_portion_exit = current_price * close_quantity
+                avg_notional = (notional_portion_cost + notional_portion_exit) / 2
+                commission = avg_notional * Config.SIMULATION_COMMISSION_RATE * 2
+                profit -= commission
+
+                history_entry = {
+                    "symbol": coin,
+                    "direction": direction,
+                    "entry_price": entry_price,
+                    "exit_price": current_price,
+                    "quantity": close_quantity,
+                    "notional_usd": notional_portion_cost,
+                    "pnl": profit,
+                    "entry_time": position.entry_time,
+                    "exit_time": datetime.now(timezone.utc).isoformat(),
+                    "leverage": position.leverage,
+                    "close_reason": exit_decision["reason"],
+                }
+
+                new_quantity = current_qty - close_quantity
+                new_margin = current_margin * (1 - close_percent)
+                new_notional = current_notional * (1 - close_percent)
+
+                peak_update: dict[str, Any] = {}
+                if position.peak_pnl > 0:
+                    old_peak = position.peak_pnl
+                    new_peak = position.peak_pnl * (1 - close_percent)
+                    peak_update = {"peak_pnl": new_peak}
+                    logger.debug(
+                        "peak_pnl adjusted: ${} → ${}",
+                        format_num(old_peak, 2),
+                        format_num(new_peak, 2),
+                    )
+
+                position = position.model_copy(
+                    update={
+                        "quantity": new_quantity,
+                        "margin_usd": new_margin,
+                        "notional_usd": new_notional,
+                        **peak_update,
+                    }
+                )
+                self.pm.positions[coin] = position
+                self.pm.current_balance += (current_margin * close_percent) + profit
+
+            self.pm.add_to_history(history_entry)
+            logger.warning(
+                "PARTIAL CLOSE {} ({}): {} - Closed {:.0f}% at ${}, PnL: ${}",
+                coin,
+                direction,
+                exit_decision["reason"],
+                close_percent * 100,
+                format_num(current_price, 4),
+                format_num(profit, 2),
+            )
+            return None, position, True, []
+
+        elif exit_decision["action"] == "update_stop":
+            updated_stops.append(coin)
+            new_stop = exit_decision["new_stop"]
+            position = position.model_copy(
+                update={"exit_plan": position.exit_plan.model_copy(update={"stop_loss": new_stop})}
+            )
+            self.pm.positions[coin] = position
+            logger.info("TRAILING STOP UPDATE {}: New stop at ${}", coin, format_num(new_stop, 4))
+            return None, position, True, updated_stops
+
+        return close_reason, position, state_changed, updated_stops
+
+    def _check_traditional_tp_sl(
+        self,
+        direction: str,
+        tp: float | None,
+        sl: float | None,
+        current_price: float,
+        entry_price: float,
+        quantity: float,
+        margin_used: float,
+    ) -> str | None:
+        """Check traditional TP/SL levels and graduated margin-based stop loss.
+
+        Returns:
+            Close reason string if triggered, None otherwise.
+        """
+        try:
+            tp = float(tp) if tp is not None else None
+        except (ValueError, TypeError):
+            tp = None
+        try:
+            sl = float(sl) if sl is not None else None
+        except (ValueError, TypeError):
+            sl = None
+
+        if tp is not None:
+            if (direction == "long" and current_price >= tp) or (
+                direction == "short" and current_price <= tp
+            ):
+                return f"Profit Target ({tp}) hit"
+
+        if sl is not None:
+            if (direction == "long" and current_price <= sl) or (
+                direction == "short" and current_price >= sl
+            ):
+                return f"Stop Loss ({sl}) hit"
+
+        if quantity > 0 and margin_used > 0:
+            loss_multiplier = self.pm.get_graduated_loss_multiplier(margin_used)
+            loss_threshold_usd = margin_used * loss_multiplier
+            if loss_threshold_usd > 0:
+                if direction == "long":
+                    margin_based_stop_loss = entry_price - (loss_threshold_usd / quantity)
+                else:
+                    margin_based_stop_loss = entry_price + (loss_threshold_usd / quantity)
+
+                if (direction == "long" and current_price <= margin_based_stop_loss) or (
+                    direction == "short" and current_price >= margin_based_stop_loss
+                ):
+                    return (
+                        f"Margin-based Stop Loss ({format_num(margin_based_stop_loss, 4)}) hit "
+                        f"(${loss_threshold_usd:.2f} loss limit, "
+                        f"{loss_multiplier * 100:.1f}% of ${margin_used:.2f} margin)"
+                    )
+
+        return None
+
+    def _execute_position_close(
+        self,
+        coin: str,
+        position: Position,
+        current_price: float,
+        direction: str,
+        entry_price: float,
+        quantity: float,
+        margin_used: float,
+        close_reason: str,
+    ) -> bool:
+        """Execute a full position close in live or simulation mode.
+
+        Returns:
+            True if the close was successful, False otherwise.
+        """
+        logger.warning(
+            "AUTO-CLOSE {} ({}): {} at price ${}",
+            coin,
+            direction,
+            close_reason,
+            format_num(current_price, 4),
+        )
+
+        if self.is_live_trading:
+            logger.info("Executing LIVE close on Binance for {}...", coin)
+            live_result = self.execute_live_close(
+                coin=coin,
+                position=position,
+                current_price=current_price,
+                reason=close_reason,
+            )
+            if not live_result.get("success"):
+                logger.error(
+                    "Live auto-close failed for {}: {}",
+                    coin,
+                    live_result.get("error", "unknown_error"),
+                )
+                return False
+
+            order_id = live_result.get("order", {}).get("orderId")
+            executed_qty = live_result.get("executed_qty", 0)
+            avg_price = live_result.get("avg_price", 0)
+            logger.success(
+                "Binance CLOSE order executed for {}: orderId={}, qty={}, avgPrice=${}",
+                coin,
+                order_id,
+                format_num(executed_qty, 4),
+                format_num(avg_price, 4),
+            )
+
+            history_entry = live_result.get("history_entry")
+            if history_entry:
+                self.pm.add_to_history(history_entry)
+            logger.info("Live Closed PnL: ${}", format_num(live_result.get("pnl", 0), 2))
+            try:
+                self.sync_live_account()
+            except Exception as sync_exc:
+                logger.warning("Failed to sync account after close: {}", sync_exc)
+            return True
+
+        # Simulation close under lock
+        with self.pm._lock:
+            if direction == "long":
+                profit = (current_price - entry_price) * quantity
+            else:
+                profit = (entry_price - current_price) * quantity
+
+            notional_closed = ((entry_price + current_price) / 2) * quantity
+            commission = notional_closed * Config.SIMULATION_COMMISSION_RATE * 2
+            profit -= commission
+
+            self.pm.current_balance += margin_used + profit
+            logger.info("Closed PnL: ${}", format_num(profit, 2))
+
+            history_entry = {
+                "symbol": coin,
+                "direction": direction,
+                "entry_price": entry_price,
+                "exit_price": current_price,
+                "quantity": quantity,
+                "notional_usd": position.notional_usd,
+                "pnl": profit,
+                "entry_time": position.entry_time,
+                "exit_time": datetime.now(timezone.utc).isoformat(),
+                "leverage": position.leverage,
+                "close_reason": close_reason,
+            }
+            if coin in self.pm.positions:
+                del self.pm.positions[coin]
+
+        self.pm.add_to_history(history_entry)
+        return True
+
     def check_and_execute_tp_sl(self, current_prices: dict[str, float]):
         """Check all open positions for TP/SL triggers and execute closes.
 
@@ -686,26 +1025,21 @@ class AccountService:
         Returns:
             True if any positions were closed, False otherwise.
         """
-        # Enhanced exit strategy control - check if enabled
         if hasattr(self, "bot") and not self.pm.bot.enhanced_exit_enabled:
             logger.info("Enhanced exit strategy paused during cycle")
             return False
 
-        # All TP/SL decisions made by 30-second monitoring (like simulation mode)
-        # No Binance TP/SL orders - all managed by monitoring loop
         if self.pm.positions:
             logger.debug("TP/SL check: {} positions", len(self.pm.positions))
 
-        closed_positions = []  # Keep track of positions closed in this check
-        updated_stops = []  # Track positions with updated trailing stops
+        closed_positions: list[str] = []
+        all_updated_stops: list[str] = []
         state_changed = False
 
-        # FIX: Thread-safe position iteration with lock
         with self.pm._lock:
             positions_snapshot = list(self.pm.positions.items())
 
         for coin, position in positions_snapshot:
-            # Check if position still exists (might have been closed by another thread)
             if coin not in self.pm.positions:
                 continue
             if (
@@ -713,39 +1047,16 @@ class AccountService:
                 or not isinstance(current_prices[coin], (int, float))
                 or current_prices[coin] <= 0
             ):
-                continue  # Skip if price is invalid
+                continue
 
             current_price = current_prices[coin]
-
-            # Update erosion tracking (captures intraday peaks)
             self.pm._update_peak_pnl_tracking(coin, position)
 
-            exit_plan = position.exit_plan
-            tp = exit_plan.profit_target
-            sl = exit_plan.stop_loss
             direction = position.direction
-            # FIX: KeyError protection - use .get() with fallback to current_price
             entry_price = position.entry_price or position.current_price or 0.0
             quantity = position.quantity
+            margin_used = self._calculate_margin_used(position, entry_price, quantity)
 
-            # Calculate margin_used properly - try multiple fallback methods
-            margin_used = position.margin_usd
-            if margin_used is None or margin_used <= 0:
-                # Fallback 1: Calculate from notional and leverage
-                notional = position.notional_usd
-                leverage = position.leverage
-                if notional > 0 and leverage > 0:
-                    margin_used = notional / leverage
-                # Fallback 2: Calculate from entry_price and quantity
-                elif entry_price > 0 and quantity > 0:
-                    notional = entry_price * quantity
-                    leverage = position.leverage
-                    # FIX: Leverage zero protection
-                    margin_used = notional / leverage if leverage and leverage > 0 else 0
-                else:
-                    margin_used = 0
-
-            # Debug log if margin_used is still 0
             if margin_used <= 0:
                 logger.warning(
                     "margin_used is 0 for {}. Position data: margin_usd={}, notional={}, leverage={}, entry={}, qty={}",
@@ -757,331 +1068,67 @@ class AccountService:
                     quantity,
                 )
 
-            close_reason = None
+            close_reason, position, changed, stops = self._check_enhanced_exit(
+                coin,
+                position,
+                current_price,
+                entry_price,
+                direction,
+                margin_used,
+            )
+            if changed:
+                state_changed = True
+            all_updated_stops.extend(stops)
 
-            # Check TP
-            # Convert tp/sl to float for safe comparison, handle potential errors
-            try:
-                tp = float(tp) if tp is not None else None
-            except (ValueError, TypeError):
-                tp = None
-            try:
-                sl = float(sl) if sl is not None else None
-            except (ValueError, TypeError):
-                sl = None
-
-            # Enhanced exit strategy check - REAL-TIME ENTEGRASYON
-            exit_decision, position = self.enhanced_exit_strategy(position, current_price, coin)
-
-            # Handle enhanced exit strategy signals - ANINDA İŞLEME
-            if exit_decision["action"] == "close_position":
-                # Enhanced exit strategy wants to close the position completely
-                close_reason = exit_decision["reason"]
-                logger.warning(
-                    "ENHANCED EXIT CLOSE {} ({}): {} at price ${}",
+            if close_reason is not None:
+                if self._execute_position_close(
                     coin,
+                    position,
+                    current_price,
                     direction,
+                    entry_price,
+                    quantity,
+                    margin_used,
                     close_reason,
-                    format_num(current_price, 4),
-                )
-                state_changed = True
-            elif exit_decision["action"] == "partial_close":
-                # Partial profit taking - ANINDA İŞLEME
-                close_percent = exit_decision["percent"]
-                if self.is_live_trading:
-                    live_result = self.execute_live_partial_close(
-                        coin=coin,
-                        position=position,
-                        close_percent=close_percent,
-                        current_price=current_price,
-                        reason=exit_decision["reason"],
-                    )
-                    if not live_result.get("success"):
-                        logger.error(
-                            "Live partial close failed for {}: {}",
-                            coin,
-                            live_result.get("error", "unknown_error"),
-                        )
-                        continue
-                    history_entry = live_result.get("history_entry")
-                    if history_entry:
-                        self.pm.add_to_history(history_entry)
-                    logger.warning(
-                        "PARTIAL CLOSE {} ({}) [LIVE]: {} ({:.0f}% / PnL ${})",
-                        coin,
-                        direction,
-                        exit_decision["reason"],
-                        close_percent * 100,
-                        format_num(live_result.get("pnl", 0), 2),
-                    )
-                    # BUG FIX: Adjust peak_pnl proportionally after partial close
-                    # Without this, erosion tracking would falsely alarm (peak $3 -> current $1.5 = 50% erosion)
-                    if position.peak_pnl > 0:
-                        old_peak = position.peak_pnl
-                        position = position.model_copy(
-                            update={"peak_pnl": position.peak_pnl * (1 - close_percent)}
-                        )
-                        self.pm.positions[coin] = position
-                        logger.debug(
-                            "peak_pnl adjusted: ${} → ${} (after {:.0f}% close)",
-                            format_num(old_peak, 2),
-                            format_num(position.peak_pnl, 2),
-                            close_percent * 100,
-                        )
+                ):
+                    closed_positions.append(coin)
                     state_changed = True
-                    # Sync account balance after partial close in live mode
-                    try:
-                        self.sync_live_account()
-                        logger.debug("Account balance synced after partial close of {}", coin)
-                    except Exception as sync_exc:
-                        logger.warning("Failed to sync account after partial close: {}", sync_exc)
-                    continue
-
-                # FIX: Hold lock for position mutation + balance update to prevent
-                # concurrent reads from seeing partially updated position data.
-                with self.pm._lock:
-                    # 1. Capture current state BEFORE mutation
-                    current_qty = float(position.quantity)
-                    current_margin = float(position.margin_usd)
-                    current_notional = float(position.notional_usd)
-                    close_quantity = current_qty * close_percent
-
-                    # 2. Calculate PnL and Commission
-                    if direction == "long":
-                        profit = (current_price - entry_price) * close_quantity
-                    else:
-                        profit = (entry_price - current_price) * close_quantity
-
-                    # Round-trip commission for this portion
-                    notional_portion_cost = entry_price * close_quantity
-                    notional_portion_exit = current_price * close_quantity
-                    avg_notional = (notional_portion_cost + notional_portion_exit) / 2
-                    commission = avg_notional * Config.SIMULATION_COMMISSION_RATE * 2
-                    profit -= commission
-
-                    # 3. Prepare History Entry BEFORE updating position (using original notional)
-                    history_entry = {
-                        "symbol": coin,
-                        "direction": direction,
-                        "entry_price": entry_price,
-                        "exit_price": current_price,
-                        "quantity": close_quantity,
-                        "notional_usd": notional_portion_cost,  # Use cost-based notional for accuracy
-                        "pnl": profit,
-                        "entry_time": position.entry_time,
-                        "exit_time": datetime.now(timezone.utc).isoformat(),
-                        "leverage": position.leverage,
-                        "close_reason": exit_decision["reason"],
-                    }
-
-                    # 4. Update position state (MUTATION) — under lock
-                    new_quantity = current_qty - close_quantity
-                    new_margin = current_margin * (1 - close_percent)
-                    new_notional = current_notional * (1 - close_percent)
-
-                    # Adjust peak_pnl proportionally
-                    peak_update: dict[str, Any] = {}
-                    if position.peak_pnl > 0:
-                        old_peak = position.peak_pnl
-                        new_peak = position.peak_pnl * (1 - close_percent)
-                        peak_update = {"peak_pnl": new_peak}
-                        logger.debug(
-                            "peak_pnl adjusted: ${} → ${}",
-                            format_num(old_peak, 2),
-                            format_num(new_peak, 2),
-                        )
-
-                    position = position.model_copy(
-                        update={
-                            "quantity": new_quantity,
-                            "margin_usd": new_margin,
-                            "notional_usd": new_notional,
-                            **peak_update,
-                        }
-                    )
-                    self.pm.positions[coin] = position
-
-                    # 5. Update global balance — under lock
-                    self.pm.current_balance += (current_margin * close_percent) + profit
-
-                self.pm.add_to_history(history_entry)
-
-                logger.warning(
-                    "PARTIAL CLOSE {} ({}): {} - Closed {:.0f}% at ${}, PnL: ${}",
-                    coin,
-                    direction,
-                    exit_decision["reason"],
-                    close_percent * 100,
-                    format_num(current_price, 4),
-                    format_num(profit, 2),
-                )
-                state_changed = True
-                continue  # Continue with remaining position
-
-            elif exit_decision["action"] == "update_stop":
-                # Update trailing stop - ANINDA GÜNCELLEME
-                updated_stops.append(coin)
-                new_stop = exit_decision["new_stop"]
-                position = position.model_copy(
-                    update={
-                        "exit_plan": position.exit_plan.model_copy(update={"stop_loss": new_stop})
-                    }
-                )
-                self.pm.positions[coin] = position
-                logger.info(
-                    "TRAILING STOP UPDATE {}: New stop at ${}", coin, format_num(new_stop, 4)
-                )
-
-                # No Binance orders - stop loss updated in exit_plan, will be monitored by 30-second loop
-
-                state_changed = True
                 continue
 
-            # Traditional TP/SL checks (only if no enhanced exit triggered)
-            if close_reason is None and tp is not None:
-                if (direction == "long" and current_price >= tp) or (
-                    direction == "short" and current_price <= tp
-                ):
-                    close_reason = f"Profit Target ({tp}) hit"
-
-            # Check SL (only if TP not hit)
-            # First check exit_plan stop_loss, then fallback to margin-based kademeli stop loss
             if close_reason is None:
-                # Check exit_plan stop_loss first
-                if sl is not None:
-                    if (direction == "long" and current_price <= sl) or (
-                        direction == "short" and current_price >= sl
-                    ):
-                        close_reason = f"Stop Loss ({sl}) hit"
-
-                # If no exit_plan stop_loss or it didn't trigger, check margin-based kademeli stop loss
-                # Only check if margin_used is valid (> 0)
-                if close_reason is None and quantity > 0 and margin_used > 0:
-                    # Calculate margin-based stop loss using graduated loss cutting (same as entry)
-                    loss_multiplier = self.pm.get_graduated_loss_multiplier(margin_used)
-
-                    loss_threshold_usd = margin_used * loss_multiplier
-
-                    # Only proceed if loss_threshold_usd is valid
-                    if loss_threshold_usd > 0:
-                        # Calculate stop loss price from loss threshold
-                        if direction == "long":
-                            margin_based_stop_loss = entry_price - (loss_threshold_usd / quantity)
-                        else:  # short
-                            margin_based_stop_loss = entry_price + (loss_threshold_usd / quantity)
-
-                        # Kademeli stop loss is calculated correctly based on margin and loss_multiplier
-                        # No minimum distance adjustment needed
-
-                        # Check if current price hit margin-based stop loss
-                        if (direction == "long" and current_price <= margin_based_stop_loss) or (
-                            direction == "short" and current_price >= margin_based_stop_loss
-                        ):
-                            close_reason = f"Margin-based Stop Loss ({format_num(margin_based_stop_loss, 4)}) hit (${loss_threshold_usd:.2f} loss limit, {loss_multiplier * 100:.1f}% of ${margin_used:.2f} margin)"
-
-            # Execute Close if triggered
-            if close_reason:
-                logger.warning(
-                    "AUTO-CLOSE {} ({}): {} at price ${}",
-                    coin,
+                close_reason = self._check_traditional_tp_sl(
                     direction,
-                    close_reason,
-                    format_num(current_price, 4),
+                    position.exit_plan.profit_target,
+                    position.exit_plan.stop_loss,
+                    current_price,
+                    entry_price,
+                    quantity,
+                    margin_used,
                 )
 
-                if self.is_live_trading:
-                    logger.info("Executing LIVE close on Binance for {}...", coin)
-                    live_result = self.execute_live_close(
-                        coin=coin,
-                        position=position,
-                        current_price=current_price,
-                        reason=close_reason,
-                    )
-                    if not live_result.get("success"):
-                        logger.error(
-                            "Live auto-close failed for {}: {}",
-                            coin,
-                            live_result.get("error", "unknown_error"),
-                        )
-                        continue
-
-                    # Log Binance order details
-                    order_id = live_result.get("order", {}).get("orderId")
-                    executed_qty = live_result.get("executed_qty", 0)
-                    avg_price = live_result.get("avg_price", 0)
-                    logger.success(
-                        "Binance CLOSE order executed for {}: orderId={}, qty={}, avgPrice=${}",
-                        coin,
-                        order_id,
-                        format_num(executed_qty, 4),
-                        format_num(avg_price, 4),
-                    )
-
-                    history_entry = live_result.get("history_entry")
-                    if history_entry:
-                        self.pm.add_to_history(history_entry)
-                    logger.info("Live Closed PnL: ${}", format_num(live_result.get("pnl", 0), 2))
+            if close_reason:
+                if self._execute_position_close(
+                    coin,
+                    position,
+                    current_price,
+                    direction,
+                    entry_price,
+                    quantity,
+                    margin_used,
+                    close_reason,
+                ):
                     closed_positions.append(coin)
                     state_changed = True
-                    # Sync account balance after closing position in live mode
-                    try:
-                        self.sync_live_account()
-                        logger.debug("Account balance synced after closing {}", coin)
-                    except Exception as sync_exc:
-                        logger.warning("Failed to sync account after close: {}", sync_exc)
-                    continue
-
-                # FIX: Hold lock for balance update + position deletion to prevent
-                # double-close from concurrent TP/SL checks.
-                with self.pm._lock:
-                    if direction == "long":
-                        profit = (current_price - entry_price) * quantity
-                    else:
-                        profit = (entry_price - current_price) * quantity
-
-                    # Deduct commission for simulation realism (round-trip)
-                    notional_closed = ((entry_price + current_price) / 2) * quantity
-                    commission = (
-                        notional_closed * Config.SIMULATION_COMMISSION_RATE * 2
-                    )  # Round-trip
-                    profit -= commission
-
-                    self.pm.current_balance += (
-                        margin_used + profit
-                    )  # Return margin + PnL (commission already deducted)
-
-                    logger.info("Closed PnL: ${}", format_num(profit, 2))
-
-                    history_entry = {
-                        "symbol": coin,
-                        "direction": direction,
-                        "entry_price": entry_price,
-                        "exit_price": current_price,
-                        "quantity": quantity,
-                        "notional_usd": position.notional_usd,
-                        "pnl": profit,
-                        "entry_time": position.entry_time,
-                        "exit_time": datetime.now(timezone.utc).isoformat(),
-                        "leverage": position.leverage,
-                        "close_reason": close_reason,  # Add reason
-                    }
-                    # Remove from active positions while lock is held
-                    if coin in self.pm.positions:
-                        del self.pm.positions[coin]  # Remove from active positions
-                    closed_positions.append(coin)
-                    state_changed = True
-
-                self.pm.add_to_history(history_entry)  # This increments trade_count
 
         if closed_positions:
             logger.success("Auto-closed positions: {}", ", ".join(closed_positions))
-        if updated_stops:
-            logger.success("Updated trailing stops: {}", ", ".join(updated_stops))
+        if all_updated_stops:
+            logger.success("Updated trailing stops: {}", ", ".join(all_updated_stops))
 
         if state_changed:
             self.pm.save_state()
 
-        return len(closed_positions) > 0  # Indicate if any positions were closed
+        return len(closed_positions) > 0
 
     def get_dynamic_exit_tiers(self, notional_usd: float) -> dict[str, float]:
         """Get dynamic exit tiers based on position notional size.
@@ -1355,6 +1402,237 @@ class AccountService:
 
         return exit_decision, position
 
+    def _get_trailing_indicators(
+        self, coin: str, position: Position, current_price: float
+    ) -> dict[str, Any]:
+        """Fetch all indicators needed for trailing stop evaluation.
+
+        Gathers HTF zone data (for extreme zone detection and overbought
+        protection), 3m ATR and volume data, and computes derived values
+        such as volume drop trigger, ATR buffer, and overbought protection.
+
+        Args:
+            coin: Coin symbol.
+            position: Current position for fallback ATR and entry volume.
+
+        Returns:
+            Dictionary with keys: extreme_zone_active, effective_progress_trigger,
+            current_volume_ratio, atr_buffer, min_improvement_abs,
+            overbought_protect_active, volume_drop_triggered.
+        """
+        symbol = position.symbol
+        result: dict[str, Any] = {
+            "extreme_zone_active": False,
+            "effective_progress_trigger": Config.TRAILING_PROGRESS_TRIGGER,
+            "current_volume_ratio": None,
+            "atr_buffer": 0.0,
+            "min_improvement_abs": 0.0,
+            "overbought_protect_active": False,
+            "volume_drop_triggered": False,
+        }
+
+        # HTF indicators for zone detection and overbought protection
+        indicators_htf: dict = {}
+        try:
+            indicators_htf = (
+                self.pm.market_data.get_technical_indicators(symbol, HTF_INTERVAL)
+                if self.pm.market_data
+                else {}
+            )
+        except Exception as e:
+            logger.warning("Trailing stop HTF indicator fetch failed for {}: {}", coin, e)
+
+        # Extreme zone detection (LOWER_10 / UPPER_10)
+        if isinstance(indicators_htf, dict) and "error" not in indicators_htf:
+            sparkline_early = indicators_htf.get("smart_sparkline", {})
+            price_loc_early = (
+                sparkline_early.get("price_location", {})
+                if isinstance(sparkline_early, dict)
+                else {}
+            )
+            zone_early = price_loc_early.get("zone", "MIDDLE")
+            if zone_early in ["LOWER_10", "UPPER_10"]:
+                result["effective_progress_trigger"] = Config.TRAILING_PROGRESS_TRIGGER_EXTREME
+                result["extreme_zone_active"] = True
+
+        # 3m indicators for ATR & volume context
+        current_volume_ratio = None
+        atr_value = None
+        try:
+            indicators_3m = (
+                self.pm.market_data.get_technical_indicators(symbol, "3m")
+                if self.pm.market_data
+                else {}
+            )
+        except Exception as exc:
+            logger.warning("Trailing stop indicator fetch failed for {}: {}", symbol, exc)
+            indicators_3m = {}
+
+        if isinstance(indicators_3m, dict):
+            volume_now = indicators_3m.get("volume")
+            avg_volume_now = indicators_3m.get("avg_volume")
+            if (
+                isinstance(volume_now, (int, float))
+                and isinstance(avg_volume_now, (int, float))
+                and avg_volume_now > 0
+            ):
+                current_volume_ratio = volume_now / avg_volume_now
+            atr_value = indicators_3m.get("atr_14")
+
+        # ATR fallback chain: live -> entry -> price-based
+        if not isinstance(atr_value, (int, float)) or atr_value <= 0:
+            atr_value = position.entry_atr_14
+        if not isinstance(atr_value, (int, float)) or atr_value <= 0:
+            atr_value = current_price * Config.TRAILING_FALLBACK_BUFFER_PCT
+
+        # Volume drop detection
+        entry_volume_ratio = position.entry_volume_ratio
+        volume_drop_triggered = False
+        if isinstance(current_volume_ratio, (int, float)):
+            if current_volume_ratio <= Config.TRAILING_VOLUME_ABSOLUTE_THRESHOLD:
+                volume_drop_triggered = True
+            elif isinstance(entry_volume_ratio, (int, float)) and entry_volume_ratio > 0:
+                if current_volume_ratio <= entry_volume_ratio * Config.TRAILING_VOLUME_DROP_RATIO:
+                    volume_drop_triggered = True
+
+        min_improvement_abs = max(
+            current_price * Config.TRAILING_MIN_IMPROVEMENT_PCT,
+            Config.MIN_EXIT_PLAN_OFFSET,
+            1e-07,
+        )
+        atr_buffer = max(atr_value * Config.TRAILING_ATR_MULTIPLIER, min_improvement_abs)
+
+        # Overbought protection: halve buffer in UPPER_10 + RSI > 70
+        overbought_protect_active = False
+        if isinstance(indicators_htf, dict) and "error" not in indicators_htf:
+            rsi_htf = indicators_htf.get("rsi_13", 50)
+            sparkline = indicators_htf.get("smart_sparkline", {})
+            price_loc = sparkline.get("price_location", {}) if isinstance(sparkline, dict) else {}
+            zone = price_loc.get("zone", "MIDDLE")
+            if (
+                zone == "UPPER_10"
+                and isinstance(rsi_htf, (int, float))
+                and rsi_htf > constants.RSI_HTF_OVERBOUGHT
+            ):
+                atr_buffer = atr_buffer * 0.5
+                overbought_protect_active = True
+                logger.info(
+                    "OVERBOUGHT PROTECT: {} zone={} RSI={:.1f} -> Buffer halved",
+                    symbol,
+                    zone,
+                    rsi_htf,
+                )
+
+        result["current_volume_ratio"] = current_volume_ratio
+        result["atr_buffer"] = atr_buffer
+        result["min_improvement_abs"] = min_improvement_abs
+        result["overbought_protect_active"] = overbought_protect_active
+        result["volume_drop_triggered"] = volume_drop_triggered
+        return result
+
+    def _evaluate_long_trailing_stop(
+        self,
+        position: Position,
+        current_price: float,
+        entry_price: float,
+        existing_stop: float | None,
+        atr_buffer: float,
+        min_improvement_abs: float,
+        progress_triggered: bool,
+        time_triggered: bool,
+    ) -> float | None:
+        """Calculate the new trailing stop level for a long position.
+
+        Applies ATR-based floor, entry-price floor, and existing-stop ratchet
+        logic to produce a stop that only moves upward.
+
+        Args:
+            position: Current position.
+            current_price: Current market price.
+            entry_price: Entry price.
+            existing_stop: Current stop loss level, or None.
+            atr_buffer: ATR-derived buffer distance.
+            min_improvement_abs: Minimum absolute improvement over existing stop.
+            progress_triggered: Whether profit-progress trigger fired.
+            time_triggered: Whether time-in-trade trigger fired.
+
+        Returns:
+            New stop price, or None if no improvement is possible.
+        """
+        baseline_stop = current_price - atr_buffer
+        baseline_stop = min(baseline_stop, current_price - min_improvement_abs)
+        if progress_triggered:
+            baseline_stop = max(baseline_stop, entry_price + min_improvement_abs)
+        elif time_triggered:
+            baseline_stop = max(baseline_stop, entry_price + Config.MIN_EXIT_PLAN_OFFSET)
+
+        if existing_stop is not None:
+            baseline_stop = max(baseline_stop, existing_stop + min_improvement_abs)
+
+        if baseline_stop >= current_price:
+            baseline_stop = current_price - min_improvement_abs
+
+        if existing_stop is not None and baseline_stop <= existing_stop + min_improvement_abs:
+            return None
+
+        if baseline_stop <= 0:
+            return None
+
+        return baseline_stop
+
+    def _evaluate_short_trailing_stop(
+        self,
+        position: Position,
+        current_price: float,
+        entry_price: float,
+        existing_stop: float | None,
+        atr_buffer: float,
+        min_improvement_abs: float,
+        progress_triggered: bool,
+        time_triggered: bool,
+    ) -> float | None:
+        """Calculate the new trailing stop level for a short position.
+
+        Applies ATR-based ceiling, entry-price ceiling, and existing-stop
+        ratchet logic to produce a stop that only moves downward.
+
+        Args:
+            position: Current position.
+            current_price: Current market price.
+            entry_price: Entry price.
+            existing_stop: Current stop loss level, or None.
+            atr_buffer: ATR-derived buffer distance.
+            min_improvement_abs: Minimum absolute improvement over existing stop.
+            progress_triggered: Whether profit-progress trigger fired.
+            time_triggered: Whether time-in-trade trigger fired.
+
+        Returns:
+            New stop price, or None if no improvement is possible.
+        """
+        baseline_stop = current_price + atr_buffer
+        baseline_stop = max(baseline_stop, current_price + min_improvement_abs)
+        if progress_triggered:
+            baseline_stop = min(baseline_stop, entry_price - min_improvement_abs)
+        elif time_triggered:
+            baseline_stop = min(baseline_stop, entry_price - Config.MIN_EXIT_PLAN_OFFSET)
+
+        if existing_stop is not None:
+            baseline_stop = min(baseline_stop, existing_stop - min_improvement_abs)
+
+        if baseline_stop <= current_price:
+            baseline_stop = current_price + min_improvement_abs
+
+        if progress_triggered and baseline_stop > entry_price - min_improvement_abs:
+            baseline_stop = entry_price - min_improvement_abs
+
+        if baseline_stop <= current_price:
+            return None
+
+        if existing_stop is not None and (existing_stop - baseline_stop) <= min_improvement_abs:
+            return None
+
+        return baseline_stop
+
     def _evaluate_trailing_stop(
         self,
         position: Position,
@@ -1444,32 +1722,10 @@ class AccountService:
             except Exception:
                 time_in_trade = 0.0
 
-        # Dynamic trailing trigger based on price location
-        # In extreme zones (LOWER_10/UPPER_10), use lower threshold for earlier trailing stop activation
-        effective_progress_trigger = Config.TRAILING_PROGRESS_TRIGGER
-        extreme_zone_active = False
-        try:
-            indicators_htf_early = (
-                self.pm.market_data.get_technical_indicators(symbol, HTF_INTERVAL)
-                if self.pm.market_data
-                else {}
-            )
-            if isinstance(indicators_htf_early, dict) and "error" not in indicators_htf_early:
-                sparkline_early = indicators_htf_early.get("smart_sparkline", {})
-                price_loc_early = (
-                    sparkline_early.get("price_location", {})
-                    if isinstance(sparkline_early, dict)
-                    else {}
-                )
-                zone_early = price_loc_early.get("zone", "MIDDLE")
-                if zone_early in ["LOWER_10", "UPPER_10"]:
-                    effective_progress_trigger = Config.TRAILING_PROGRESS_TRIGGER_EXTREME
-                    extreme_zone_active = True
-        except Exception as e:
-            # FIX: Log the error instead of silently swallowing
-            logger.warning("Trailing stop progress calculation failed: {}", e)
+        # Fetch all trailing indicators (zones, ATR, volume, overbought)
+        indicators = self._get_trailing_indicators(coin, position, current_price)
 
-        progress_triggered = progress_score >= effective_progress_trigger
+        progress_triggered = progress_score >= indicators["effective_progress_trigger"]
         time_triggered = (
             time_in_trade >= Config.TRAILING_TIME_MINUTES
             and progress_score >= Config.TRAILING_TIME_PROGRESS_FLOOR
@@ -1477,145 +1733,51 @@ class AccountService:
         if not (progress_triggered or time_triggered):
             return None, position
 
-        # Fetch current 3m indicators for ATR & volume context
-        current_volume_ratio = None
-        atr_value = None
-        try:
-            indicators_3m = (
-                self.pm.market_data.get_technical_indicators(symbol, "3m")
-                if self.pm.market_data
-                else {}
-            )
-        except Exception as exc:
-            logger.warning("Trailing stop indicator fetch failed for {}: {}", symbol, exc)
-            indicators_3m = {}
+        min_improvement_abs = indicators["min_improvement_abs"]
+        atr_buffer = indicators["atr_buffer"]
+        current_volume_ratio = indicators["current_volume_ratio"]
 
-        if isinstance(indicators_3m, dict):
-            volume_now = indicators_3m.get("volume")
-            avg_volume_now = indicators_3m.get("avg_volume")
-            if (
-                isinstance(volume_now, (int, float))
-                and isinstance(avg_volume_now, (int, float))
-                and avg_volume_now > 0
-            ):
-                current_volume_ratio = volume_now / avg_volume_now
-            atr_value = indicators_3m.get("atr_14")
-
-        if not isinstance(atr_value, (int, float)) or atr_value <= 0:
-            atr_value = position.entry_atr_14
-        if not isinstance(atr_value, (int, float)) or atr_value <= 0:
-            atr_value = current_price * Config.TRAILING_FALLBACK_BUFFER_PCT
-
-        entry_volume_ratio = position.entry_volume_ratio
-        volume_drop_triggered = False
-        if isinstance(current_volume_ratio, (int, float)):
-            if current_volume_ratio <= Config.TRAILING_VOLUME_ABSOLUTE_THRESHOLD:
-                volume_drop_triggered = True
-            elif isinstance(entry_volume_ratio, (int, float)) and entry_volume_ratio > 0:
-                if current_volume_ratio <= entry_volume_ratio * Config.TRAILING_VOLUME_DROP_RATIO:
-                    volume_drop_triggered = True
-
-        min_improvement_abs = max(
-            current_price * Config.TRAILING_MIN_IMPROVEMENT_PCT, Config.MIN_EXIT_PLAN_OFFSET, 1e-07
-        )
-        atr_buffer = max(atr_value * Config.TRAILING_ATR_MULTIPLIER, min_improvement_abs)
-
-        # UPPER_10 + Overbought Profit Protection
-        # Tighten trailing stop if price is in the top 10% zone AND RSI > 70
-        overbought_protect_active = False
-        try:
-            indicators_htf = (
-                self.pm.market_data.get_technical_indicators(symbol, HTF_INTERVAL)
-                if self.pm.market_data
-                else {}
-            )
-            if isinstance(indicators_htf, dict) and "error" not in indicators_htf:
-                rsi_htf = indicators_htf.get("rsi_13", 50)
-                sparkline = indicators_htf.get("smart_sparkline", {})
-                price_loc = (
-                    sparkline.get("price_location", {}) if isinstance(sparkline, dict) else {}
-                )
-                zone = price_loc.get("zone", "MIDDLE")
-
-                # Halve buffer in UPPER_10 + RSI > 70 condition
-                if (
-                    zone == "UPPER_10"
-                    and isinstance(rsi_htf, (int, float))
-                    and rsi_htf > constants.RSI_HTF_OVERBOUGHT
-                ):
-                    atr_buffer = atr_buffer * 0.5
-                    overbought_protect_active = True
-                    logger.info(
-                        "OVERBOUGHT PROTECT: {} zone={} RSI={:.1f} -> Buffer halved",
-                        symbol,
-                        zone,
-                        rsi_htf,
-                    )
-        except Exception as e:
-            # FIX: Log the error instead of silently swallowing
-            logger.warning("Overbought protection calculation failed: {}", e)
-
+        # Build reason tokens
         reason_tokens: list[str] = []
         if progress_triggered:
             reason_tokens.append(f"progress {progress_score:.1f}%")
-        if extreme_zone_active:
-            reason_tokens.append(f"extreme_zone (trigger {effective_progress_trigger:.0f}%)")
+        if indicators["extreme_zone_active"]:
+            reason_tokens.append(
+                f"extreme_zone (trigger {indicators['effective_progress_trigger']:.0f}%)"
+            )
         if time_triggered:
             reason_tokens.append(f"time {time_in_trade:.1f}m")
-        if volume_drop_triggered and isinstance(current_volume_ratio, (int, float)):
+        if indicators["volume_drop_triggered"] and isinstance(current_volume_ratio, (int, float)):
             reason_tokens.append(f"volume {current_volume_ratio:.2f}x")
-        if overbought_protect_active:
+        if indicators["overbought_protect_active"]:
             reason_tokens.append("overbought_protect")
 
         if not reason_tokens:
             reason_tokens.append("trailing criteria met")
 
-        new_stop: float | None = None
+        # Calculate new stop based on direction
         if direction == "long":
-            baseline_stop = current_price - atr_buffer
-            baseline_stop = min(baseline_stop, current_price - min_improvement_abs)
-            if progress_triggered:
-                baseline_stop = max(baseline_stop, entry_price + min_improvement_abs)
-            elif time_triggered:
-                baseline_stop = max(baseline_stop, entry_price + Config.MIN_EXIT_PLAN_OFFSET)
-
-            if existing_stop is not None:
-                baseline_stop = max(baseline_stop, existing_stop + min_improvement_abs)
-
-            if baseline_stop >= current_price:
-                baseline_stop = current_price - min_improvement_abs
-
-            if existing_stop is not None and baseline_stop <= existing_stop + min_improvement_abs:
-                return None, position
-
-            if baseline_stop <= 0:
-                return None, position
-
-            new_stop = baseline_stop
-        else:  # short
-            baseline_stop = current_price + atr_buffer
-            baseline_stop = max(baseline_stop, current_price + min_improvement_abs)
-            if progress_triggered:
-                baseline_stop = min(baseline_stop, entry_price - min_improvement_abs)
-            elif time_triggered:
-                baseline_stop = min(baseline_stop, entry_price - Config.MIN_EXIT_PLAN_OFFSET)
-
-            if existing_stop is not None:
-                baseline_stop = min(baseline_stop, existing_stop - min_improvement_abs)
-
-            if baseline_stop <= current_price:
-                baseline_stop = current_price + min_improvement_abs
-
-            if progress_triggered and baseline_stop > entry_price - min_improvement_abs:
-                baseline_stop = entry_price - min_improvement_abs
-
-            if baseline_stop <= current_price:
-                return None, position
-
-            if existing_stop is not None and (existing_stop - baseline_stop) <= min_improvement_abs:
-                return None, position
-
-            new_stop = baseline_stop
+            new_stop = self._evaluate_long_trailing_stop(
+                position,
+                current_price,
+                entry_price,
+                existing_stop,
+                atr_buffer,
+                min_improvement_abs,
+                progress_triggered,
+                time_triggered,
+            )
+        else:
+            new_stop = self._evaluate_short_trailing_stop(
+                position,
+                current_price,
+                entry_price,
+                existing_stop,
+                atr_buffer,
+                min_improvement_abs,
+                progress_triggered,
+                time_triggered,
+            )
 
         if new_stop is None:
             return None, position

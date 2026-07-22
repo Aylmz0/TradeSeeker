@@ -7,13 +7,11 @@ position management, trade history, and directional bias logic.
 from __future__ import annotations
 
 import copy
-import os
 import threading
-import time
 from collections import deque
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, Literal
+from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
     from collections.abc import Callable
@@ -27,17 +25,22 @@ from loguru import logger
 
 from config.config import Config
 from src.core import constants
+from src.core.cooldown_manager import CooldownManager
+from src.core.directional_bias_manager import DirectionalBiasManager
+from src.core.strategy_analyzer import StrategyAnalyzer
+from src.core.trend_state_manager import TrendStateManager
 from src.schemas.position import Position
 from src.schemas.trade import TradeHistoryEntry
 from src.core.backtest import AdvancedRiskManager
 from src.core.market_data import RealMarketData
+from src.core.portfolio_state_manager import PortfolioStateManager
 from src.core.regime_detector import RegimeDetector
+from src.core.trade_executor import TradeExecutor
 from src.utils import format_num, safe_file_read, safe_file_read_cached, safe_file_write
 
-
-# Define HTF constants
 HTF_INTERVAL = getattr(Config, "HTF_INTERVAL", "1h") or "1h"
 HTF_LABEL = HTF_INTERVAL
+
 
 try:
     from src.services.binance import BinanceOrderExecutor
@@ -123,24 +126,26 @@ class PortfolioManager:
         self.positions = {}
         self._lock = threading.RLock()  # RLock for re-entrant safety
         self._cancel_event = threading.Event()  # Watchdog cancellation flag
-        self.directional_bias = self._init_directional_bias()
-        self.trend_state = {}
-        self.trend_flip_cooldown = constants.TREND_FLIP_COOLDOWN_DEFAULT
-        self.trend_flip_history_window = constants.TREND_FLIP_HISTORY_WINDOW
-        # Trend flip cooldown management is kept on the PortfolioManager side.
+        self.cooldown_manager = CooldownManager()
+        self._bias_manager = DirectionalBiasManager(cooldown_manager=self.cooldown_manager)
+        self.trend_state_manager = TrendStateManager()
+        # Delegate directional bias state via properties for backward compatibility
         self.indicator_cache = {}
         self.last_execution_report = {}
         self.history_reset_interval = getattr(Config, "HISTORY_RESET_INTERVAL", 35)
         self.last_history_reset_cycle = 0
         self.cycles_since_history_reset = 0
 
-        self.directional_cooldowns = {"long": 0, "short": 0}
-        self.relaxed_countertrend_cycles = 0
-        self.counter_trend_cooldown = 0
-        self.counter_trend_consecutive_losses = 0
-        self.coin_cooldowns = {}  # Coin-based cooldown: {coin: cycles_remaining}
-
         self.current_cycle_number = 0
+
+        self._state_manager = PortfolioStateManager(
+            state_file=self.state_file,
+            history_file=self.history_file,
+            full_history_file=self.full_history_file,
+            cycle_history_file=self.cycle_history_file,
+            initial_balance=self.initial_balance,
+            max_cycle_history=self.max_cycle_history,
+        )
 
         self.trade_history: list[dict[str, Any]] = self.load_trade_history()  # Load first
         self._ensure_full_history_exists()  # Migrate existing history if needed
@@ -148,10 +153,15 @@ class PortfolioManager:
         self.cycle_history: list[dict[str, Any]] = self.load_cycle_history()
         self.risk_manager = AdvancedRiskManager()  # Initialize risk manager
         self.market_data = RealMarketData()  # Initialize market data for counter-trend detection
+        self.strategy_analyzer = StrategyAnalyzer(self.market_data)  # Initialize strategy analyzer
 
         # Fixed: Initialize live trading attributes used in update_prices()
         self.is_live_trading = False
         self.order_executor = None
+        self.trade_executor = TradeExecutor(
+            order_executor=self.order_executor,
+            is_live_trading=self.is_live_trading,
+        )
 
         # Initialize total_value before _initialize_live_trading (which calls sync_live_account)
         self.total_value = self.current_balance
@@ -167,15 +177,113 @@ class PortfolioManager:
             increment_loss_counters=False,
         )  # Calculate initial value with loaded positions
 
+    def set_account_service(self, account_service) -> None:
+        """Set the AccountService reference for delegated live order execution.
+
+        Args:
+            account_service: The AccountService instance to delegate live closes to.
+        """
+        self.account_service = account_service
+
     def _ensure_full_history_exists(self) -> None:
         """Ensure full trade history exists, copying from active history if needed.
 
         Returns:
             None.
         """
-        if not Path(self.full_history_file).exists():
-            logger.info("Creating {} from existing trade history...", self.full_history_file)
-            safe_file_write(self.full_history_file, self.trade_history)
+        self._state_manager.ensure_full_history_exists(self.trade_history)
+
+    # --- Backward-compatible properties delegating to _bias_manager ---
+    @property
+    def directional_bias(self) -> dict[str, dict[str, Any]]:
+        """Return directional bias metrics (delegated to DirectionalBiasManager)."""
+        return self._bias_manager.directional_bias
+
+    @directional_bias.setter
+    def directional_bias(self, value: dict[str, dict[str, Any]]) -> None:
+        """Set directional bias metrics (delegated to DirectionalBiasManager)."""
+        self._bias_manager.directional_bias = value
+
+    @property
+    def directional_cooldowns(self) -> dict[str, int]:
+        """Return directional cooldowns (delegated to CooldownManager)."""
+        return self.cooldown_manager.directional_cooldowns
+
+    @directional_cooldowns.setter
+    def directional_cooldowns(self, value: dict[str, int]) -> None:
+        """Set directional cooldowns (delegated to CooldownManager)."""
+        self.cooldown_manager.directional_cooldowns = value
+
+    @property
+    def relaxed_countertrend_cycles(self) -> int:
+        """Return relaxed counter-trend cycles (delegated to CooldownManager)."""
+        return self.cooldown_manager.relaxed_countertrend_cycles
+
+    @relaxed_countertrend_cycles.setter
+    def relaxed_countertrend_cycles(self, value: int) -> None:
+        """Set relaxed counter-trend cycles (delegated to CooldownManager)."""
+        self.cooldown_manager.relaxed_countertrend_cycles = value
+
+    @property
+    def counter_trend_cooldown(self) -> int:
+        """Return counter-trend cooldown (delegated to CooldownManager)."""
+        return self.cooldown_manager.counter_trend_cooldown
+
+    @counter_trend_cooldown.setter
+    def counter_trend_cooldown(self, value: int) -> None:
+        """Set counter-trend cooldown (delegated to CooldownManager)."""
+        self.cooldown_manager.counter_trend_cooldown = value
+
+    @property
+    def counter_trend_consecutive_losses(self) -> int:
+        """Return counter-trend consecutive losses (delegated to DirectionalBiasManager)."""
+        return self._bias_manager.counter_trend_consecutive_losses
+
+    @counter_trend_consecutive_losses.setter
+    def counter_trend_consecutive_losses(self, value: int) -> None:
+        """Set counter-trend consecutive losses (delegated to DirectionalBiasManager)."""
+        self._bias_manager.counter_trend_consecutive_losses = value
+
+    @property
+    def coin_cooldowns(self) -> dict[str, int]:
+        """Return coin cooldowns (delegated to CooldownManager)."""
+        return self.cooldown_manager.coin_cooldowns
+
+    @coin_cooldowns.setter
+    def coin_cooldowns(self, value: dict[str, int]) -> None:
+        """Set coin cooldowns (delegated to CooldownManager)."""
+        self.cooldown_manager.coin_cooldowns = value
+
+    # --- Backward-compatible properties delegating to trend_state_manager ---
+    @property
+    def trend_state(self) -> dict[str, dict[str, Any]]:
+        """Return trend state (delegated to TrendStateManager)."""
+        return self.trend_state_manager.trend_state
+
+    @trend_state.setter
+    def trend_state(self, value: dict[str, dict[str, Any]]) -> None:
+        """Set trend state (delegated to TrendStateManager)."""
+        self.trend_state_manager.trend_state = value
+
+    @property
+    def trend_flip_cooldown(self) -> int:
+        """Return trend flip cooldown (delegated to TrendStateManager)."""
+        return self.trend_state_manager.trend_flip_cooldown
+
+    @trend_flip_cooldown.setter
+    def trend_flip_cooldown(self, value: int) -> None:
+        """Set trend flip cooldown (delegated to TrendStateManager)."""
+        self.trend_state_manager.trend_flip_cooldown = value
+
+    @property
+    def trend_flip_history_window(self) -> int:
+        """Return trend flip history window (delegated to TrendStateManager)."""
+        return self.trend_state_manager.trend_flip_history_window
+
+    @trend_flip_history_window.setter
+    def trend_flip_history_window(self, value: int) -> None:
+        """Set trend flip history window (delegated to TrendStateManager)."""
+        self.trend_state_manager.trend_flip_history_window = value
 
     def _init_directional_bias(self) -> dict[str, dict[str, Any]]:
         """Initialize directional bias metrics for long and short trade tracking.
@@ -218,7 +326,7 @@ class PortfolioManager:
         Returns:
             None.
         """
-        data: dict[str, Any] = safe_file_read_cached(self.state_file, default_data={})
+        data: dict[str, Any] = self._state_manager.load_state()
         self.current_balance = data.get("current_balance", self.initial_balance)
         raw_positions = data.get("positions", {})
         validated_positions: dict[str, Position] = {}
@@ -233,28 +341,8 @@ class PortfolioManager:
             "trade_count",
             len(self.trade_history),
         )  # Initialize from history if not in state
-        logger.info(
-            "Loaded state ({} positions, {} closed trades)" if data else "No state file found.",
-            len(self.positions),
-            self.trade_count,
-        )
 
-        bias_state = data.get("directional_bias")
-        if bias_state:
-            self.directional_bias = self._init_directional_bias()
-            for side in ("long", "short"):
-                stored = bias_state.get(side, {})
-                stats = self.directional_bias[side]
-                stats["rolling"].extend(stored.get("rolling", []))
-                stats["net_pnl"] = stored.get("net_pnl", 0.0)
-                stats["trades"] = stored.get("trades", 0)
-                stats["wins"] = stored.get("wins", 0)
-                stats["losses"] = stored.get("losses", 0)
-                stats["consecutive_losses"] = stored.get("consecutive_losses", 0)
-                stats["consecutive_wins"] = stored.get("consecutive_wins", 0)
-                stats["caution_active"] = stored.get("caution_active", False)
-                stats["caution_win_progress"] = stored.get("caution_win_progress", 0)
-                stats["loss_streak_loss_usd"] = stored.get("loss_streak_loss_usd", 0.0)
+        self._bias_manager.load_state(data)
         self.last_history_reset_cycle = data.get(
             "last_history_reset_cycle",
             self.last_history_reset_cycle,
@@ -263,11 +351,6 @@ class PortfolioManager:
             "cycles_since_history_reset",
             self.cycles_since_history_reset,
         )
-        self.directional_cooldowns = data.get("directional_cooldowns", {"long": 0, "short": 0})
-        self.relaxed_countertrend_cycles = data.get("relaxed_countertrend_cycles", 0)
-        self.counter_trend_cooldown = data.get("counter_trend_cooldown", 0)
-        self.counter_trend_consecutive_losses = data.get("counter_trend_consecutive_losses", 0)
-        self.coin_cooldowns = data.get("coin_cooldowns", {})
 
     def save_state(self) -> None:
         """Save current portfolio state to local JSON file.
@@ -278,6 +361,7 @@ class PortfolioManager:
             None.
         """
         with self._lock:
+            bias_state = self._bias_manager.get_bias_state_dict()
             data: dict[str, Any] = {
                 "current_balance": self.current_balance,
                 "positions": {sym: pos.model_dump() for sym, pos in self.positions.items()},
@@ -285,19 +369,12 @@ class PortfolioManager:
                 "total_return": self.total_return,
                 "initial_balance": self.initial_balance,
                 "trade_count": self.trade_count,
-                "last_updated": datetime.now(timezone.utc).isoformat(),
                 "sharpe_ratio": self.sharpe_ratio,
-                "directional_bias": self._serialize_directional_bias(),
                 "last_history_reset_cycle": self.last_history_reset_cycle,
                 "cycles_since_history_reset": self.cycles_since_history_reset,
-                "directional_cooldowns": self.directional_cooldowns,
-                "relaxed_countertrend_cycles": self.relaxed_countertrend_cycles,
-                "counter_trend_cooldown": self.counter_trend_cooldown,
-                "counter_trend_consecutive_losses": self.counter_trend_consecutive_losses,
-                "coin_cooldowns": self.coin_cooldowns,
+                **bias_state,
             }
-            safe_file_write(self.state_file, data)
-            # print("[OK]    Saved state.") # Silenced for less console noise
+            self._state_manager.save_state(data)
 
     # --- Live trading helpers -------------------------------------------------
     def _backup_historical_files(self, cycle_number: int) -> str | None:
@@ -309,49 +386,7 @@ class PortfolioManager:
         Returns:
             Path to the backup directory if successful, None otherwise.
         """
-        timestamp = datetime.now(timezone.utc).strftime("%Y%m%d_%H%M%S")
-        backup_dir = Path("data/backups") / f"{timestamp}_cycle_{cycle_number}"
-        files_to_backup = [
-            (self.history_file, []),
-            (self.full_history_file, []),
-            (self.cycle_history_file, []),
-            ("data/performance_history.json", []),
-            ("data/performance_report.json", []),
-            ("data/reset_log.json", []),
-        ]
-
-        try:
-            backup_dir.mkdir(parents=True, exist_ok=True)
-            backed_up = []
-
-            for file_path, default in files_to_backup:
-                path_obj = Path(file_path)
-                data = safe_file_read(str(path_obj), default)
-                # Skip writing files that never existed and match the empty default
-                if data == default and not path_obj.exists():
-                    continue
-
-                target_path = backup_dir / path_obj.name
-                safe_file_write(str(target_path), data)
-
-                # Calculate items count for metadata
-                items_count = None
-                if isinstance(data, (list, dict)):
-                    items_count = len(data)
-
-                backed_up.append({"file": file_path, "items": items_count})
-
-            metadata = {
-                "cycle_number": cycle_number,
-                "backed_up_at": datetime.now(timezone.utc).isoformat(),
-                "files": backed_up,
-            }
-            safe_file_write(str(backup_dir / "metadata.json"), metadata)
-            logger.info("History backup created at {}", backup_dir)
-            return str(backup_dir)
-        except Exception as e:
-            logger.warning("History backup failed: {}", e)
-            return None
+        return self._state_manager.backup_historical_files(cycle_number)
 
     def reset_historical_data(self, cycle_number: int) -> None:
         """Clear historical logs to prevent long-term bias while keeping live positions.
@@ -369,7 +404,7 @@ class PortfolioManager:
             logger.info("HISTORY RESET: Clearing logs at cycle {}", cycle_number)
             self.trade_history = []
             self.trade_count = 0
-            self.directional_bias = self._init_directional_bias()
+            self._bias_manager.reset()
             self.trend_state = {}
             self.cycle_history = []
 
@@ -399,11 +434,6 @@ class PortfolioManager:
                 )
             self.last_history_reset_cycle = cycle_number
             self.cycles_since_history_reset = 0
-            self.directional_cooldowns = {"long": 0, "short": 0}
-            self.coin_cooldowns = {}
-            self.counter_trend_cooldown = 0
-            self.counter_trend_consecutive_losses = 0
-            self.relaxed_countertrend_cycles = 0
             self.save_state()
         logger.info("History reset complete.")
 
@@ -413,21 +443,7 @@ class PortfolioManager:
         Returns:
             Dictionary containing bias stats simplified for JSON serialization.
         """
-        serialized: dict[str, dict[str, Any]] = {}
-        for side, stats in self.directional_bias.items():
-            serialized[side] = {
-                "rolling": list(stats["rolling"]),
-                "net_pnl": stats["net_pnl"],
-                "trades": stats["trades"],
-                "wins": stats["wins"],
-                "losses": stats["losses"],
-                "consecutive_losses": stats["consecutive_losses"],
-                "consecutive_wins": stats.get("consecutive_wins", 0),
-                "caution_active": stats.get("caution_active", False),
-                "caution_win_progress": stats.get("caution_win_progress", 0),
-                "loss_streak_loss_usd": stats.get("loss_streak_loss_usd", 0.0),
-            }
-        return serialized
+        return self._bias_manager.serialize()
 
     def load_trade_history(self) -> list[dict[str, Any]]:
         """Load trade history from the local JSON file.
@@ -435,9 +451,7 @@ class PortfolioManager:
         Returns:
             List of trade records.
         """
-        history: list[dict[str, Any]] = safe_file_read(self.history_file, default_data=[])
-        logger.info("Loaded {} trades.", len(history))
-        return history
+        return self._state_manager.load_trade_history()
 
     def save_trade_history(self) -> None:
         """Save the most recent trade history to the active history file.
@@ -445,12 +459,7 @@ class PortfolioManager:
         Returns:
             None.
         """
-        with self._lock:
-            history_to_save: list[dict[str, Any]] = self.trade_history[
-                -constants.MAX_TRADE_HISTORY_DISPLAY :
-            ]
-            safe_file_write(self.history_file, history_to_save)
-            logger.info("Saved {} trades.", len(history_to_save))
+        self._state_manager.save_trade_history(self.trade_history)
 
     def add_to_history(self, trade: dict[str, Any]) -> None:
         """Add a completed trade to both active and full history files.
@@ -461,31 +470,15 @@ class PortfolioManager:
         Returns:
             None.
         """
-        # CRITICAL: Keep lock for ALL updates (History + Bias + State) to ensure atomicity
-        with self._lock:
-            # 1. Update memory state & active history
-            self.trade_history.append(trade)
+
+        def _on_trade_added(t: dict[str, Any]) -> None:
             self.trade_count = len(self.trade_history)
-            self.save_trade_history()  # Internal logic uses _lock if we add it
+            self.update_directional_bias(t)
+            self.save_state()
 
-            # 2. Update full history file
-            full_history = safe_file_read(self.full_history_file, [])
-
-            # Robustness: If read failed but file is not empty, retry once
-            if not full_history:
-                path_obj = Path(self.full_history_file)
-                if path_obj.exists() and path_obj.stat().st_size > 0:
-                    time.sleep(0.1)
-                    full_history = safe_file_read(self.full_history_file, [])
-
-            full_history.append(trade)
-
-            if not safe_file_write(self.full_history_file, full_history):
-                logger.error("Failed to save full history for {}", trade.get("symbol"))
-
-            # 3. Update directional bias & persistence (Must be INSIDE lock)
-            self.update_directional_bias(trade)
-            self.save_state()  # This also uses _lock (RLock handles it)
+        self.trade_history = self._state_manager.add_to_history(
+            trade, self.trade_history, on_trade_added=_on_trade_added
+        )
 
     def update_directional_bias(self, trade: dict[str, Any]) -> None:
         """Update directional bias statistics based on a completed trade's outcome.
@@ -496,28 +489,9 @@ class PortfolioManager:
         Returns:
             None.
         """
-        direction = trade.get("direction")
-        if direction not in ("long", "short"):
-            return
-        stats = self.directional_bias[direction]
-        pnl = float(trade.get("pnl", 0.0) or 0.0)
-        logger.info("update_directional_bias called: {} trade, PnL=${:.2f}", direction.upper(), pnl)
-        stats["rolling"].append(pnl)
-        stats["net_pnl"] += pnl
-        stats["trades"] += 1
-
-        if pnl > 0:
-            self._handle_win_bias(direction, stats, pnl, trade)
-        elif pnl < 0:
-            self._handle_loss_bias(direction, stats, pnl, trade)
-        else:
-            # pnl == 0 case (breakeven)
-            stats["consecutive_losses"] = 0
-            stats["consecutive_wins"] = 0
-            stats["caution_win_progress"] = 0
-            stats["loss_streak_loss_usd"] = 0.0
-            if trade.get("trend_alignment") == "counter_trend":
-                self.counter_trend_consecutive_losses = 0
+        self.counter_trend_consecutive_losses = self._bias_manager.update_directional_bias(
+            trade, self.counter_trend_consecutive_losses
+        )
 
     def _handle_win_bias(
         self, direction: str, stats: dict[str, Any], pnl: float, trade: dict[str, Any]
@@ -533,38 +507,7 @@ class PortfolioManager:
         Returns:
             None.
         """
-        from config.config import Config
-
-        stats["wins"] += 1
-        stats["consecutive_losses"] = 0
-        stats["consecutive_wins"] = stats.get("consecutive_wins", 0) + 1
-
-        # Win Streak Cooldown
-        if stats["consecutive_wins"] >= Config.WIN_STREAK_COOLDOWN_THRESHOLD:
-            self._activate_directional_cooldown(direction, Config.WIN_STREAK_COOLDOWN_CYCLES)
-            logger.warning(
-                "Win streak cooldown for {}: {} wins", direction.upper(), stats["consecutive_wins"]
-            )
-
-        # Smart Cooldown (WIN)
-        coin_symbol = trade.get("symbol", "").upper()
-        if coin_symbol:
-            self.coin_cooldowns[coin_symbol] = Config.SMART_COOLDOWN_WIN
-            logger.warning(
-                "Smart Cooldown (WIN) ACTIVATED for {}: {} cycles",
-                coin_symbol,
-                Config.SMART_COOLDOWN_WIN,
-            )
-
-        if stats.get("caution_active"):
-            stats["caution_win_progress"] = stats.get("caution_win_progress", 0) + 1
-            if stats["caution_win_progress"] >= constants.CAUTION_WIN_PROGRESS_THRESHOLD:
-                stats["caution_active"] = False
-                stats["caution_win_progress"] = 0
-
-        # Reset counter-trend consecutive losses on win
-        if trade.get("trend_alignment") == "counter_trend":
-            self.counter_trend_consecutive_losses = 0
+        self._bias_manager._handle_win_bias(direction, stats, pnl, trade)
 
     def _handle_loss_bias(
         self, direction: str, stats: dict[str, Any], pnl: float, trade: dict[str, Any]
@@ -580,55 +523,7 @@ class PortfolioManager:
         Returns:
             None.
         """
-        from config.config import Config
-
-        stats["losses"] += 1
-        stats["consecutive_losses"] += 1
-        stats["consecutive_wins"] = 0
-        stats["caution_win_progress"] = 0
-
-        # Track loss streak USD
-        current_loss_streak = stats.get("loss_streak_loss_usd", 0.0)
-        new_streak = current_loss_streak + abs(pnl)
-        stats["loss_streak_loss_usd"] = min(new_streak, constants.LOSS_STREAK_MAX_CAP_USD)
-
-        # Smart Cooldown (LOSS)
-        coin_symbol = trade.get("symbol", "").upper()
-        if coin_symbol:
-            self.coin_cooldowns[coin_symbol] = Config.SMART_COOLDOWN_LOSS
-            logger.warning(
-                "Smart Cooldown (LOSS) ACTIVATED for {}: {} cycles",
-                coin_symbol,
-                Config.SMART_COOLDOWN_LOSS,
-            )
-
-        if stats["consecutive_losses"] >= constants.REVERSAL_SCORE_WEAK:
-            stats["caution_active"] = True
-            stats["caution_win_progress"] = 0
-
-        # Cooldown: consecutive losses OR total loss -> default cooldown
-        loss_streak_usd = stats.get("loss_streak_loss_usd", 0.0)
-        consecutive = stats["consecutive_losses"]
-        should_activate = (
-            consecutive >= constants.REVERSAL_SCORE_STRONG
-            or loss_streak_usd >= constants.LOSS_STREAK_USD_THRESHOLD
-        )
-
-        if should_activate:
-            self._activate_directional_cooldown(direction, constants.DEFAULT_COOLDOWN_CYCLES)
-            logger.warning(
-                "Directional cooldown ACTIVATED for {}: consecutive_losses={}, loss_streak_usd=${:.2f}",
-                direction.upper(),
-                consecutive,
-                loss_streak_usd,
-            )
-
-        # Counter-trend cooldown: consecutive counter-trend losses
-        if trade.get("trend_alignment") == "counter_trend":
-            self.counter_trend_consecutive_losses += 1
-            if self.counter_trend_consecutive_losses >= constants.COUNTER_TREND_LOSS_THRESHOLD:
-                self.counter_trend_cooldown = constants.DEFAULT_COOLDOWN_CYCLES
-                self.counter_trend_consecutive_losses = 0
+        self._bias_manager._handle_loss_bias(direction, stats, pnl, trade)
 
     def count_positions_by_direction(self) -> dict[str, int]:
         """Count currently open positions categorized by trade direction.
@@ -636,12 +531,7 @@ class PortfolioManager:
         Returns:
             Dictionary containing counts for 'long' and 'short' positions.
         """
-        counts = {"long": 0, "short": 0}
-        for pos in self.positions.values():
-            direction = pos.direction
-            if direction in counts:
-                counts[direction] += 1
-        return counts
+        return self._bias_manager.count_positions_by_direction(self.positions)
 
     def _activate_directional_cooldown(self, direction: str, cycles: int = 3) -> None:
         """Activate a cooldown for a specific trade direction.
@@ -653,25 +543,19 @@ class PortfolioManager:
         Returns:
             None.
         """
-        if direction not in ("long", "short"):
-            return
-        current = self.directional_cooldowns.get(direction, 0)
-        # If there is a longer duration than currently exists, use it
-        new_cooldown = max(current, cycles)
-        # FIX: Cooldown overflow protection - cap at MAX_DIRECTIONAL_COOLDOWN cycles
-        self.directional_cooldowns[direction] = min(
-            new_cooldown, constants.MAX_DIRECTIONAL_COOLDOWN
-        )
-        self.relaxed_countertrend_cycles = max(
-            self.relaxed_countertrend_cycles,
-            constants.MIN_RELAXED_CYCLES,
-        )
-        logger.warning(
-            "Directional cooldown activated for {} trades ({} cycles). Counter-trend restrictions relaxed for {} cycles.",
-            direction.upper(),
-            constants.MIN_RELAXED_CYCLES,
-            constants.MIN_RELAXED_CYCLES,
-        )
+        self.cooldown_manager.activate_directional_cooldown(direction, cycles)
+
+    def _activate_coin_cooldown(self, coin_symbol: str, cycles: int) -> None:
+        """Activate a cooldown for a specific coin.
+
+        Args:
+            coin_symbol: The coin symbol (e.g., 'BTCUSDT') to cool down.
+            cycles: Number of cycles the cooldown should remain active.
+
+        Returns:
+            None.
+        """
+        self.cooldown_manager.activate_coin_cooldown(coin_symbol, cycles)
 
     def tick_cooldowns(self) -> None:
         """Decrement all active cooldown timers by one cycle.
@@ -679,23 +563,7 @@ class PortfolioManager:
         Returns:
             None.
         """
-        logger.debug(
-            "tick_cooldowns called. Current cooldowns: {}, Coin cooldowns: {}",
-            self.directional_cooldowns,
-            self.coin_cooldowns,
-        )
-
-        # 1. Directional Cooldowns
-        self._tick_directional_cooldowns()
-
-        # 2. Coin-based Cooldowns
-        self._tick_coin_cooldowns()
-
-        # 3. Relaxed Mode Cooldown
-        if self.relaxed_countertrend_cycles > 0:
-            self.relaxed_countertrend_cycles -= 1
-            if self.relaxed_countertrend_cycles == 0:
-                logger.info("Relaxed counter-trend validation mode EXPIRED.")
+        self.cooldown_manager.tick_cooldowns()
 
     def _tick_directional_cooldowns(self) -> None:
         """Decrement directional cooldown counters and reset loss streaks on expiry.
@@ -703,24 +571,7 @@ class PortfolioManager:
         Returns:
             None.
         """
-        for direction in ("long", "short"):
-            cycles = self.directional_cooldowns.get(direction, 0)
-            if cycles > 0:
-                self.directional_cooldowns[direction] = cycles - 1
-                logger.debug(
-                    "{} cooldown: {} -> {} cycles remaining",
-                    direction.upper(),
-                    cycles,
-                    self.directional_cooldowns[direction],
-                )
-                if self.directional_cooldowns[direction] == 0:
-                    if direction in self.directional_bias:
-                        self.directional_bias[direction]["loss_streak_loss_usd"] = 0.0
-                        self.directional_bias[direction]["consecutive_losses"] = 0
-                    logger.info(
-                        "Directional cooldown cleared for {} trades. Loss streak reset.",
-                        direction.upper(),
-                    )
+        self.cooldown_manager._tick_directional_cooldowns()
 
     def _tick_coin_cooldowns(self) -> None:
         """Decrement per-coin cooldown counters and remove expired entries.
@@ -728,26 +579,7 @@ class PortfolioManager:
         Returns:
             None.
         """
-        to_remove = []
-        for coin, cycles in self.coin_cooldowns.items():
-            if cycles > 0:
-                self.coin_cooldowns[coin] = cycles - 1
-                logger.debug(
-                    "{} coin cooldown: {} -> {} cycles remaining",
-                    coin,
-                    cycles,
-                    self.coin_cooldowns[coin],
-                )
-                if self.coin_cooldowns[coin] == 0:
-                    to_remove.append(coin)
-                    logger.info("Coin cooldown cleared for {}.", coin)
-
-        for coin in to_remove:
-            del self.coin_cooldowns[coin]
-        if self.counter_trend_cooldown > 0:
-            self.counter_trend_cooldown -= 1
-            if self.counter_trend_cooldown == 0:
-                logger.info("Counter-trend cooldown cleared.")
+        self.cooldown_manager._tick_coin_cooldowns()
 
     def get_trend_following_strength(self, coin: str, signal: str) -> dict[str, Any] | None:
         """Determine trend-following strength including 1h, 15m, and 3m alignment.
@@ -825,32 +657,7 @@ class PortfolioManager:
             The adjusted confidence value.
 
         """
-        signal = bias_ctx["signal"]
-        confidence = bias_ctx["confidence"]
-        bias_metrics = bias_ctx["bias_metrics"]
-        current_trend = bias_ctx["current_trend"]
-
-        side = "long" if signal == "buy_to_enter" else "short"
-        stats = bias_metrics.get(side, {})
-        if not stats:
-            return confidence
-
-        original_confidence = confidence
-
-        # 1. Base Penalty (Caution & Rolling Avg)
-        confidence = self._apply_bias_penalty(confidence, stats)
-
-        # 2. Trend & Side Multipliers
-        confidence = self._apply_trend_bias_multipliers(confidence, side, current_trend)
-
-        # 3. ML Consensus Boost/Penalty
-        ml_consensus = bias_ctx.get("ml_consensus")
-        if ml_consensus:
-            confidence = self._apply_ml_consensus_boost(confidence, side, ml_consensus)
-
-        # Minimum confidence floor
-        min_floor = original_confidence * constants.CONFIDENCE_FLOOR_MULTIPLIER
-        return max(confidence, min_floor, Config.MIN_CONFIDENCE)
+        return self._bias_manager.apply_directional_bias(bias_ctx)
 
     def _apply_bias_penalty(self, confidence: float, stats: dict[str, Any]) -> float:
         """Apply caution and negative rolling average penalties.
@@ -865,19 +672,7 @@ class PortfolioManager:
             The penalized confidence value.
 
         """
-        if stats.get("caution_active"):
-            confidence = max(
-                confidence * constants.CAUTION_PENALTY_MULTIPLIER,
-                confidence - constants.CAUTION_ABSOLUTE_REDUCTION,
-            )
-
-        rolling_avg = stats.get("rolling_avg", 0.0)
-        if rolling_avg < 0:
-            confidence = max(
-                confidence * constants.NEGATIVE_ROLLING_AVG_PENALTY_MULTIPLIER,
-                confidence - constants.NEGATIVE_ROLLING_AVG_REDUCTION,
-            )
-        return confidence
+        return self._bias_manager._apply_bias_penalty(confidence, stats)
 
     def _apply_trend_bias_multipliers(
         self, confidence: float, side: str, current_trend: str
@@ -895,41 +690,7 @@ class PortfolioManager:
             The trend-adjusted confidence value.
 
         """
-        from config.config import Config
-
-        trend_lower = current_trend.lower() if isinstance(current_trend, str) else "unknown"
-
-        # 1. Trend Following (TF) Strength Selection
-        # Logic: We reward confirmed trends (STRONG) and penalize unconfirmed noise (WEAK).
-        strength_multiplier = 1.0
-        if "tf_strong" in trend_lower:
-            strength_multiplier = 1.10
-        elif "tf_stable" in trend_lower:
-            strength_multiplier = 1.00
-        elif "tf_weak" in trend_lower:
-            strength_multiplier = 0.90  # Heavy penalty for unconfirmed noise (15m not aligned)
-        elif "choppy" in trend_lower:
-            strength_multiplier = 0.70  # Aggressive but fair penalty for choppy/noise markets
-
-        # 2. Directional Alignment Multipliers
-        if "neutral" in trend_lower:
-            confidence *= Config.DIRECTIONAL_NEUTRAL_MULTIPLIER
-        elif "bullish" in trend_lower:
-            if side == "long":
-                confidence *= Config.DIRECTIONAL_BULLISH_LONG_MULTIPLIER * strength_multiplier
-            elif side == "short":
-                # Counter-trend short in bullish regime is riskier if trend is strong
-                confidence *= Config.DIRECTIONAL_BULLISH_SHORT_MULTIPLIER * (
-                    1 / strength_multiplier
-                )
-        elif "bearish" in trend_lower:
-            if side == "long":
-                # Counter-trend long in bearish regime is riskier if trend is strong
-                confidence *= Config.DIRECTIONAL_BEARISH_LONG_MULTIPLIER * (1 / strength_multiplier)
-            elif side == "short":
-                confidence *= Config.DIRECTIONAL_BEARISH_SHORT_MULTIPLIER * strength_multiplier
-
-        return confidence
+        return self._bias_manager._apply_trend_bias_multipliers(confidence, side, current_trend)
 
     def _apply_ml_consensus_boost(
         self, confidence: float, side: str, ml_consensus: dict[str, float]
@@ -944,69 +705,15 @@ class PortfolioManager:
         Returns:
             The adjusted confidence value after ML consensus multipliers.
         """
-        ml_buy = ml_consensus.get("BUY", 0.0)
-        ml_sell = ml_consensus.get("SELL", 0.0)
-        ml_hold = ml_consensus.get("HOLD", 0.0)
-
-        # 1. HOLD Priority: If ML is indecisive (>50% HOLD), apply penalty regardless of side
-        if ml_hold > 0.50:
-            confidence *= 0.95
-            return confidence
-
-        # 2. Directional Alignment
-        if ml_buy > 0.50:
-            if side == "long":
-                confidence *= 1.10  # ML supports Long
-            else:
-                confidence *= 0.90  # ML contradicts Short
-        elif ml_sell > 0.50:
-            if side == "short":
-                confidence *= 1.10  # ML supports Short
-            else:
-                confidence *= 0.90  # ML contradicts Long
-
-        return confidence
+        return self._bias_manager._apply_ml_consensus_boost(confidence, side, ml_consensus)
 
     def get_directional_bias_metrics(self) -> dict[str, dict[str, Any]]:
-        """Calculate and retrieve holistic directional bias metrics.
+        """Get directional bias metrics for AI prompts and reporting.
 
         Returns:
-            Dictionary with 'long' and 'short' performance metrics.
-
+            Dictionary of directional bias metrics keyed by direction.
         """
-        metrics = {}
-        for side, stats in self.directional_bias.items():
-            rolling_list = list(stats["rolling"])
-            rolling_sum = sum(rolling_list)
-            # FIX: Zero division protection
-            rolling_avg = (
-                (rolling_sum / len(rolling_list)) if rolling_list and len(rolling_list) > 0 else 0.0
-            )
-
-            # Calculate profitability index based on profit/loss amounts (not trade counts)
-            # Profitability Index = Total Profit / (|Total Profit| + |Total Loss|) * 100
-            total_profit = sum(pnl for pnl in rolling_list if pnl > 0)
-            total_loss = abs(sum(pnl for pnl in rolling_list if pnl < 0))
-
-            if total_profit + total_loss > 0:
-                profitability_index = (total_profit / (total_profit + total_loss)) * 100
-            else:
-                profitability_index = 0.0
-
-            metrics[side] = {
-                "net_pnl": stats["net_pnl"],
-                "trades": stats["trades"],
-                "wins": stats["wins"],
-                "losses": stats["losses"],
-                "profitability_index": profitability_index,  # Added profitability_index based on profit/loss amounts
-                "rolling_sum": rolling_sum,
-                "rolling_avg": rolling_avg,
-                "consecutive_losses": stats["consecutive_losses"],
-                "consecutive_wins": stats.get("consecutive_wins", 0),
-                "caution_active": stats.get("caution_active", False),
-                "caution_win_progress": stats.get("caution_win_progress", 0),
-            }
-        return metrics
+        return self._bias_manager.get_directional_bias_metrics()
 
     def update_trend_state(
         self,
@@ -1027,28 +734,8 @@ class PortfolioManager:
             Dictionary containing the updated trend record.
 
         """
-        from config.config import Config
-
-        price_htf = indicators_htf.get("current_price")
-        ema20_htf = indicators_htf.get("ema_20")
-
-        if (
-            not isinstance(price_htf, (int, float))
-            or not isinstance(ema20_htf, (int, float))
-            or ema20_htf == 0
-        ):
-            return {"trend": "unknown", "recent_flip": False, "last_flip_cycle": None}
-
-        delta = (price_htf - ema20_htf) / ema20_htf
-        is_neutral = abs(delta) <= Config.EMA_NEUTRAL_BAND_PCT
-        current_trend = "neutral" if is_neutral else ("bullish" if delta > 0 else "bearish")
-
-        # Intraday adjustment (15m RSI — primary for 1h target)
-        current_trend = self._calculate_trend_with_intraday(
-            price_htf, ema20_htf, current_trend, indicators_15m
-        )
-
-        return self._update_trend_record(coin, current_trend)
+        self.trend_state_manager.set_cycle(self.current_cycle_number)
+        return self.trend_state_manager.update_trend_state(coin, indicators_htf, indicators_15m)
 
     def _calculate_trend_with_intraday(
         self,
@@ -1073,41 +760,9 @@ class PortfolioManager:
             The adjusted trend direction as a string.
 
         """
-        from config.config import Config
-
-        if not (
-            indicators_15m and isinstance(indicators_15m, dict) and "error" not in indicators_15m
-        ):
-            return current_trend
-
-        p15m = indicators_15m.get("current_price")
-        e15m = indicators_15m.get("ema_20", p15m)
-        r15m = indicators_15m.get("rsi_13", 50)
-
-        if not all(isinstance(x, (int, float)) for x in [p15m, e15m, r15m]):
-            return current_trend
-
-        # Neutralization logic (15m)
-        intra_bull = p15m >= e15m
-        if (
-            current_trend == "bearish" and intra_bull and r15m >= Config.INTRADAY_NEUTRAL_RSI_HIGH
-        ) or (
-            current_trend == "bullish"
-            and not intra_bull
-            and r15m <= Config.INTRADAY_NEUTRAL_RSI_LOW
-        ):
-            current_trend = "neutral"
-
-        # Strong trend recovery logic (15m)
-        if current_trend == "neutral":
-            if price_htf <= ema20_htf and p15m <= e15m and r15m <= Config.TREND_SHORT_RSI_THRESHOLD:
-                current_trend = "bearish"
-            elif (
-                price_htf >= ema20_htf and p15m >= e15m and r15m >= Config.TREND_LONG_RSI_THRESHOLD
-            ):
-                current_trend = "bullish"
-
-        return current_trend
+        return self.trend_state_manager.calculate_trend_with_intraday(
+            price_htf, ema20_htf, current_trend, indicators_15m
+        )
 
     def _update_trend_record(self, coin: str, current_trend: str) -> dict[str, Any]:
         """Update the trend state record and detect trend flips.
@@ -1122,39 +777,8 @@ class PortfolioManager:
             The updated trend record dictionary for the coin.
 
         """
-        record = self.trend_state.get(
-            coin,
-            {
-                "trend": current_trend,
-                "last_flip_cycle": self.current_cycle_number,
-                "last_flip_direction": current_trend,
-            },
-        )
-        prev_trend = record.get("trend", current_trend)
-        recent_flip = False
-
-        if prev_trend != current_trend:
-            record["trend"] = current_trend
-            if current_trend != "neutral":
-                record["last_flip_cycle"] = self.current_cycle_number
-                record["last_flip_direction"] = current_trend
-                recent_flip = True
-        else:
-            last = record.get("last_flip_cycle", self.current_cycle_number)
-            if (
-                current_trend != "neutral"
-                and (self.current_cycle_number - last) <= constants.TREND_FLIP_COOLDOWN_DEFAULT
-            ):
-                recent_flip = True
-
-        record["last_seen_cycle"] = self.current_cycle_number
-        self.trend_state[coin] = record
-        return {
-            "trend": current_trend,
-            "recent_flip": recent_flip,
-            "last_flip_cycle": record.get("last_flip_cycle"),
-            "last_flip_direction": record.get("last_flip_direction"),
-        }
+        self.trend_state_manager.set_cycle(self.current_cycle_number)
+        return self.trend_state_manager.update_trend_record(coin, current_trend)
 
     def get_recent_trend_flip_summary(self) -> list[str]:
         """Get a summary of recent trend flips within the guard and history windows.
@@ -1163,36 +787,8 @@ class PortfolioManager:
             List of summary strings describing recent trend changes.
 
         """
-        guard_window: int = self.trend_flip_cooldown
-        history_window: int = max(
-            guard_window, getattr(self, "trend_flip_history_window", guard_window)
-        )
-        entries: list[tuple[int, str]] = []
-        for coin, record in self.trend_state.items():
-            last_flip_cycle: int | None = record.get("last_flip_cycle")
-            if last_flip_cycle is None:
-                continue
-            cycles_ago: int = self.current_cycle_number - last_flip_cycle
-            if cycles_ago < 0 or cycles_ago > history_window:
-                continue
-            trend_label: str = record.get("trend", "unknown").upper()
-            status: str = "GUARD" if cycles_ago <= guard_window else "RECENT"
-            cycles_text: str
-            if cycles_ago == 0:
-                cycles_text = "current cycle"
-            elif cycles_ago == 1:
-                cycles_text = "1 cycle ago"
-            else:
-                cycles_text = f"{cycles_ago} cycles ago"
-            direction_note: str = record.get("last_flip_direction", trend_label)
-            entries.append(
-                (
-                    cycles_ago,
-                    f"{coin}: {direction_note} since cycle {last_flip_cycle} ({status}, {cycles_text})",
-                ),
-            )
-        entries.sort(key=lambda x: x[0])
-        return [text for _, text in entries]
+        self.trend_state_manager.set_cycle(self.current_cycle_number)
+        return self.trend_state_manager.get_recent_trend_flip_summary()
 
     def load_cycle_history(self) -> list[dict[str, Any]]:
         """Load cycle history records from the local JSON file.
@@ -1201,9 +797,7 @@ class PortfolioManager:
             List of cycle history records.
 
         """
-        history = safe_file_read(self.cycle_history_file, default_data=[])
-        logger.info("Loaded {} cycles.", len(history))
-        return history
+        return self._state_manager.load_cycle_history()
 
     def add_to_cycle_history(self, history_ctx: dict[str, Any]) -> None:
         """Add the current state and AI decisions to the cycle history log.
@@ -1286,12 +880,9 @@ class PortfolioManager:
         }
         if metadata:
             cycle_data["metadata"] = metadata
-        with self._lock:
-            self.cycle_history.append(cycle_data)
-            self.cycle_history = self.cycle_history[-constants.MAX_CYCLE_HISTORY :]
-        # safe_file_write is internally thread-safe (uses its own global lock + atomic replace)
-        safe_file_write(self.cycle_history_file, self.cycle_history)
-        logger.info("Saved cycle {} (Total: {})", cycle_number, len(self.cycle_history))
+        self.cycle_history = self._state_manager.add_to_cycle_history(
+            cycle_data, self.cycle_history
+        )
 
     def _update_peak_pnl_tracking(self, coin: str, pos: Position) -> Position:
         """Track peak PnL and calculate profit erosion for a single position.
@@ -1353,7 +944,6 @@ class PortfolioManager:
         try:
             symbol = pos.symbol
             coin_name = symbol.replace("USDT", "") if symbol else coin
-            from config.config import Config
 
             htf_interval = getattr(Config, "HTF_INTERVAL", "1h")
             indicators_htf = None
@@ -1391,8 +981,6 @@ class PortfolioManager:
             The erosion status string.
 
         """
-        from config.config import Config
-
         erosion_rate = (
             Config.EROSION_RATE_EXTREME
             if zone in ("UPPER_10", "LOWER_10")
@@ -1574,7 +1162,10 @@ class PortfolioManager:
         current_price: float,
         reason: str | None = None,
     ) -> dict[str, Any]:
-        """Execute a live position close order via the order executor.
+        """Execute a live position close order via AccountService.
+
+        Delegates to AccountService.execute_live_close for mature, complete
+        order execution with proper PnL calculation and sync.
 
         Args:
             coin: The cryptocurrency symbol.
@@ -1587,38 +1178,14 @@ class PortfolioManager:
         """
         if not self.is_live_trading or not self.order_executor:
             return {"success": False, "error": "live_trading_disabled"}
-        direction = position.direction
-        quantity = float(position.quantity or 0.0)
-        if quantity <= 0:
-            return {"success": False, "error": "invalid_quantity"}
-        try:
-            order = self.order_executor.close_position(
-                coin=coin,
-                direction=direction,
-                quantity=quantity,
-                price_reference=current_price,
-            )
-            executed_qty = float(order.get("executedQty", 0.0))
-            avg_price = float(order.get("avgPriceComputed", order.get("avgPrice", 0.0)))
-            pnl = (avg_price - float(position.entry_price)) * executed_qty
-            if direction == "short":
-                pnl = -pnl
-            return {
-                "success": True,
-                "order": order,
-                "pnl": pnl,
-                "history_entry": {
-                    "symbol": coin,
-                    "direction": direction,
-                    "entry_price": float(position.entry_price),
-                    "exit_price": avg_price,
-                    "quantity": executed_qty,
-                    "pnl": pnl,
-                    "reason": reason or "live_close",
-                },
-            }
-        except Exception as e:
-            return {"success": False, "error": str(e)}
+        if not hasattr(self, "account_service") or self.account_service is None:
+            return {"success": False, "error": "account_service_not_initialized"}
+        return self.account_service.execute_live_close(
+            coin=coin,
+            position=position,
+            current_price=current_price,
+            reason=reason,
+        )
 
     def execute_live_entry(
         self,
@@ -1646,28 +1213,16 @@ class PortfolioManager:
         Returns:
             Dictionary with 'success' status, order details, executed quantity, and average price.
         """
-        if not self.is_live_trading or not self.order_executor:
-            return {"success": False, "error": "live_trading_disabled"}
-        try:
-            order = self.order_executor.place_smart_limit_order(
-                coin=coin,
-                direction=direction,
-                quantity=quantity,
-                leverage=leverage,
-                price_reference=current_price,
-                reduce_only=False,
-                timeout_seconds=5.0,
-            )
-            executed_qty = float(order.get("executedQty", 0.0))
-            avg_price = float(order.get("avgPriceComputed", order.get("avgPrice", 0.0)))
-            return {
-                "success": True,
-                "order": order,
-                "executed_qty": executed_qty,
-                "avg_price": avg_price,
-            }
-        except Exception as e:
-            return {"success": False, "error": str(e)}
+        return self.trade_executor.execute_live_entry(
+            coin=coin,
+            direction=direction,
+            quantity=quantity,
+            leverage=leverage,
+            current_price=current_price,
+            notional_usd=notional_usd,
+            confidence=confidence,
+            margin_usd=margin_usd,
+        )
 
     def _calculate_empty_portfolio_value(self) -> None:
         """Calculate total value when no positions are active.
@@ -1800,20 +1355,7 @@ class PortfolioManager:
         Returns:
             The estimated liquidation price.
         """
-        if leverage <= 1 or entry_price <= 0:
-            return 0.0
-        imr = 1.0 / leverage
-        mmr = self.maintenance_margin_rate
-        margin_diff = imr - mmr
-        if margin_diff <= 0:
-            logger.warning("Liq est. failed: margin diff <= 0 ({}).", margin_diff)
-            return 0.0
-        liq_price = (
-            entry_price * (1 - margin_diff)
-            if direction == "long"
-            else entry_price * (1 + margin_diff)
-        )
-        return max(0.0, liq_price)
+        return self.trade_executor._estimate_liquidation_price(entry_price, leverage, direction)
 
     # --- NEW: Enhanced Auto TP/SL Check with Advanced Exit Strategies ---
     def get_max_positions_for_cycle(self, cycle_number: int) -> int:
@@ -1825,8 +1367,6 @@ class PortfolioManager:
         Returns:
             The maximum number of allowed concurrent positions.
         """
-        from config.config import Config
-
         max_allowed = Config.MAX_POSITIONS
 
         if cycle_number == constants.ALIGNMENT_STRENGTH_L1:
@@ -2056,14 +1596,7 @@ class PortfolioManager:
         Returns:
             String representing the trend direction ('BULLISH', 'BEARISH', or 'NEUTRAL').
         """
-        from config.config import Config
-
-        if not isinstance(price, (int, float)) or not isinstance(ema20, (int, float)) or ema20 == 0:
-            return "NEUTRAL"
-        delta = (price - ema20) / ema20
-        if abs(delta) <= Config.EMA_NEUTRAL_BAND_PCT:
-            return "NEUTRAL"
-        return "BULLISH" if delta > 0 else "BEARISH"
+        return self.trend_state_manager.calculate_trend_direction(price, ema20)
 
     def _evaluate_counter_trend_alignment(
         self,
@@ -2085,22 +1618,9 @@ class PortfolioManager:
         Returns:
             True if alignment is sufficient for entry, False otherwise.
         """
-        is_ct = False
-        if t_htf == "NEUTRAL":
-            is_ct = False
-        elif (signal == "buy_to_enter" and t_htf == "BEARISH") or (
-            signal == "sell_to_enter" and t_htf == "BULLISH"
-        ):
-            is_ct = True
-
-        if is_ct:
-            # Counter-trend STRONG: 15m + 3m both align with signal direction (against 1h)
-            if t_15m and t_15m == t_3m == sig_dir:
-                return True
-            # For counter-trend, we return True if it's CT at all (as per original logic)
-            return True
-
-        return False
+        return self.trend_state_manager.evaluate_counter_trend_alignment(
+            signal, sig_dir, t_htf, t_15m, t_3m
+        )
 
     def calculate_confidence_based_margin(
         self,
@@ -2114,74 +1634,9 @@ class PortfolioManager:
         Returns:
             The calculated target margin in USD.
         """
-        confidence = margin_ctx["confidence"]
-        available_cash = margin_ctx["balance"]
-        entry_price = margin_ctx.get("entry_price")
-        stop_loss = margin_ctx.get("stop_loss")
-        leverage = margin_ctx.get("leverage", 10)
-        log_func = margin_ctx.get("log_func")
-        # 1. Default fallback (Old method) if data is missing
-        if entry_price is None or stop_loss is None or entry_price <= 0:
-            margin = available_cash * 0.40 * confidence
-            margin = max(margin, Config.MIN_POSITION_MARGIN_USD)
-            logger.info(
-                "Standard Sizing (Missing Data): ${:.2f} (conf: {:.2f})", margin, confidence
-            )
-            return margin
-
-        # 2. Calculate Stop Distance %
-        dist_pct = abs(entry_price - stop_loss) / entry_price
-
-        # Safety: Avoid division by zero or extremely small stops (<0.2%)
-        dist_pct = max(dist_pct, 0.002)  # Min 0.2% stop distance assumption
-
-        # 3. Calculate Base Position Size (Notional) for Fixed Risk
-        # Risk = Notional * Dist_Pct  =>  Notional = Risk / Dist_Pct
-        risk_amount = Config.RISK_PER_TRADE_USD
-        base_notional = risk_amount / dist_pct
-
-        # 4. Apply Confidence Scaling
-        target_notional = base_notional * confidence
-
-        # 5. Convert to Margin
-        target_margin = target_notional / leverage
-
-        # 6. Apply Limits
-        # Cap margin at 40% of available cash (Safety ceiling)
-        max_margin_cash = available_cash * 0.40
-        if target_margin > max_margin_cash:
-            if log_func:
-                log_func(
-                    "sizing",
-                    f"[WARN]  Volatility sizing capped by cash limit: ${target_margin:.2f} -> ${max_margin_cash:.2f}",
-                    {
-                        "coin": self.market_data.available_coins[0]
-                        if hasattr(self, "market_data")
-                        else "unknown",
-                        "target_margin": target_margin,
-                        "max_margin": max_margin_cash,
-                    },
-                )
-            else:
-                logger.warning(
-                    "Volatility sizing capped by cash limit: ${:.2f} -> ${:.2f}",
-                    target_margin,
-                    max_margin_cash,
-                )
-            target_margin = max_margin_cash
-
-        # Note: Scout Sizing multipliers are now handled centrally in the main loop
-        # via Config.MARKET_REGIME_MULTIPLIERS to avoid double multiplication.
-
-        # Apply minimum margin ($10)
-        target_margin = max(target_margin, Config.MIN_POSITION_MARGIN_USD)
-
-        msg = f"[INFO]  Volatility Sizing: Risk ${risk_amount} | Stop {dist_pct * 100:.2f}% | Base Notional ${base_notional:.1f} | Conf {confidence:.2f} -> Margin ${target_margin:.2f}"
-        if log_func:
-            log_func("sizing", msg)
-        else:
-            logger.info("{}", msg)
-        return target_margin
+        return self.trade_executor.calculate_confidence_based_margin(
+            margin_ctx, market_data=self.market_data
+        )
 
     def get_graduated_loss_multiplier(self, margin_usd: float) -> float:
         """Calculate the loss multiplier based on position margin size.
@@ -2192,8 +1647,6 @@ class PortfolioManager:
         Returns:
             The graduated loss multiplier percentage.
         """
-        from config.config import Config
-
         if margin_usd < constants.MARGIN_TIER_20:
             return Config.LOSS_MULT_L1  # %20 for margin < 20 (Allows tight stops)
         if margin_usd < constants.MARGIN_TIER_30:
@@ -2203,45 +1656,6 @@ class PortfolioManager:
         if margin_usd < constants.MARGIN_TIER_50:
             return Config.LOSS_MULT_L4  # %10 for margin 40-50
         return Config.LOSS_MULT_BASE  # %8 for margin >= 50
-
-    def calculate_volume_quality_score(
-        self,
-        coin: str,
-        indicators_3m: dict[str, Any] | None = None,
-    ) -> float:
-        """Calculate volume quality score based on current vs average volume.
-
-        Args:
-            coin: The cryptocurrency symbol.
-            indicators_3m: Optional technical indicators for 3m timeframe.
-
-        Returns:
-            A score from 0.0 to 100.0 representing volume quality.
-        """
-        score = 0.0
-        try:
-            if indicators_3m is None or not isinstance(indicators_3m, dict):
-                indicators_3m = self.market_data.get_technical_indicators(coin, "3m")
-            if "error" not in indicators_3m:
-                v_rat = indicators_3m.get("volume_ratio")
-                if v_rat is None:
-                    curr, avg = indicators_3m.get("volume", 0), indicators_3m.get("avg_volume", 0)
-                    v_rat = curr / avg if avg > 0 else 0.0
-                # Check thresholds
-                t = Config.VOLUME_QUALITY_THRESHOLDS
-                if v_rat >= t["excellent"]:
-                    score = 90.0
-                elif v_rat >= t["good"]:
-                    score = 75.0
-                elif v_rat >= t["fair"]:
-                    score = 60.0
-                elif v_rat >= t["poor"]:
-                    score = 40.0
-                else:
-                    score = 20.0
-        except Exception as e:
-            logger.warning("Volume quality score calculation error for {}: {}", coin, e)
-        return score
 
     def check_flash_exit_conditions(self, coin: str, position: Position) -> bool:
         """Check for flash exit conditions including price, RSI, and volume surge.
@@ -2574,8 +1988,6 @@ class PortfolioManager:
         Returns:
             True if basic preconditions are met, False otherwise.
         """
-        from config.config import Config
-
         coin = signal_ctx["coin"]
         signal = signal_ctx["signal"]
         position = signal_ctx.get("position")
@@ -2672,8 +2084,6 @@ class PortfolioManager:
         """
         from src.core import constants
 
-        from config.config import Config
-
         coin = signal_ctx["coin"]
         signal = signal_ctx["signal"]
         direction = signal_ctx["direction"]
@@ -2725,8 +2135,6 @@ class PortfolioManager:
             Dictionary with 'proceed', 'confidence', and 'leverage'.
         """
         from src.core import constants
-
-        from config.config import Config
 
         coin = signal_ctx["coin"]
         trade = signal_ctx["trade"]
@@ -2805,8 +2213,6 @@ class PortfolioManager:
         log_func = signal_ctx["log_func"]
         current_price = signal_ctx["current_price"]
         # Import Config and constants inside to avoid scoping issues
-        from config.config import Config
-
         # 1. Commission Guard (v1.2)
         try:
             atr_val = indicators_htf.get("atr_14", 0)
@@ -2977,25 +2383,25 @@ class PortfolioManager:
         zone = mom_ctx["zone"]
         rsi = mom_ctx["rsi"]
         if mom == "WEAKENING":
-            confidence *= 0.90
+            confidence *= constants.CONFIDENCE_MOMENTUM_WEAKENING
             adjustments.append("momentum_weak(-10%)")
         elif mom == "STRENGTHENING":
-            confidence *= 1.10
+            confidence *= constants.CONFIDENCE_MOMENTUM_STRENGTHENING
             adjustments.append("momentum_strong(+10%)")
 
         if zone == "LOWER_10" and rsi < constants.RSI_OVERSOLD and direction == "short":
-            confidence *= 0.90
+            confidence *= constants.CONFIDENCE_RSI_EXTREME_PENALTY
             adjustments.append(f"lower10_rsi{rsi:.0f}(-10%)")
         elif zone == "UPPER_10" and rsi > constants.RSI_OVERBOUGHT and direction == "long":
-            confidence *= 0.90
+            confidence *= constants.CONFIDENCE_RSI_EXTREME_PENALTY
             adjustments.append(f"upper10_rsi{rsi:.0f}(-10%)")
 
         if mom == "WEAKENING":
             if zone == "UPPER_10" and direction == "long":
-                confidence *= 0.90
+                confidence *= constants.CONFIDENCE_RSI_EXTREME_PENALTY
                 adjustments.append("upper10_weak(-10%)")
             elif zone == "LOWER_10" and direction == "short":
-                confidence *= 0.90
+                confidence *= constants.CONFIDENCE_RSI_EXTREME_PENALTY
                 adjustments.append("lower10_weak(-10%)")
         return confidence, adjustments
 
@@ -3019,17 +2425,17 @@ class PortfolioManager:
         """
         if direction == "long":
             if vwap_rel == "BELOW":
-                confidence *= 0.95
+                confidence *= constants.CONFIDENCE_VWAP_PENALTY
                 adjustments.append("vwap_below_long(-5%)")
             elif vwap_rel == "ABOVE":
-                confidence *= 1.05
+                confidence *= constants.CONFIDENCE_VWAP_BOOST
                 adjustments.append("vwap_above_long(+5%)")
         elif direction == "short":
             if vwap_rel == "ABOVE":
-                confidence *= 0.95
+                confidence *= constants.CONFIDENCE_VWAP_PENALTY
                 adjustments.append("vwap_above_short(-5%)")
             elif vwap_rel == "BELOW":
-                confidence *= 1.05
+                confidence *= constants.CONFIDENCE_VWAP_BOOST
                 adjustments.append("vwap_below_short(+5%)")
         return confidence, adjustments
 
@@ -3084,10 +2490,10 @@ class PortfolioManager:
         # Volume (3m)
         v_rat = indicators_3m.get("volume_ratio", 1.0) if indicators_3m else 1.0
         if v_rat < constants.VOL_RATIO_WEAK:
-            confidence *= 0.95
+            confidence *= constants.CONFIDENCE_VOLUME_WEAK_PENALTY
             adjustments.append(f"volume_weak({v_rat:.2f})(-5%)")
         elif v_rat > constants.VOL_CONF_CRITICAL:
-            confidence *= 1.05
+            confidence *= constants.CONFIDENCE_VOLUME_STRONG_BOOST
             adjustments.append(f"volume_strong({v_rat:.2f})(+5%)")
 
         # ADX (15m)
@@ -3095,13 +2501,13 @@ class PortfolioManager:
         adx_v = indicators_15m.get("adx", 25)
         match t_str:
             case "NO_TREND":
-                confidence *= 0.80
+                confidence *= constants.CONFIDENCE_ADX_NO_TREND_PENALTY
                 adjustments.append(f"adx_no_trend({adx_v:.0f})(-20%)")
             case "WEAK":
-                confidence *= 0.90
+                confidence *= constants.CONFIDENCE_ADX_WEAK_PENALTY
                 adjustments.append(f"adx_weak({adx_v:.0f})(-10%)")
             case "STRONG":
-                confidence *= 1.05
+                confidence *= constants.CONFIDENCE_ADX_STRONG_BOOST
                 adjustments.append(f"adx_strong({adx_v:.0f})(+5%)")
 
         return confidence, adjustments
@@ -3128,22 +2534,22 @@ class PortfolioManager:
         bb_sig = indicators_15m.get("bb_signal", "NORMAL")
         bb_sqz = indicators_15m.get("bb_squeeze", False)
         if bb_sig == "OVERBOUGHT" and direction == "long":
-            confidence *= 0.90
+            confidence *= constants.CONFIDENCE_BB_OVERBOUGHT_PENALTY
             adjustments.append("bb_overbought_long(-10%)")
         elif bb_sig == "OVERSOLD" and direction == "short":
-            confidence *= 0.90
+            confidence *= constants.CONFIDENCE_BB_OVERSOLD_PENALTY
             adjustments.append("bb_oversold_short(-10%)")
         if bb_sqz:
-            confidence *= 0.95
+            confidence *= constants.CONFIDENCE_BB_SQUEEZE_PENALTY
             adjustments.append("bb_squeeze(-5%)")
 
         # OBV Divergence
         obv_div = indicators_15m.get("obv_divergence", "NONE")
         if obv_div == "BEARISH" and direction == "long":
-            confidence *= 0.85
+            confidence *= constants.CONFIDENCE_OBV_DIVERGENCE_PENALTY
             adjustments.append("obv_bearish_div(-15%)")
         elif obv_div == "BULLISH" and direction == "short":
-            confidence *= 0.85
+            confidence *= constants.CONFIDENCE_OBV_DIVERGENCE_PENALTY
             adjustments.append("obv_bullish_div(-15%)")
 
         # SuperTrend
@@ -3155,20 +2561,20 @@ class PortfolioManager:
             direction == "short" and st_dir == "UP"
         )
         if conf_st:
-            confidence *= 1.05
+            confidence *= constants.CONFIDENCE_SUPERTREND_CONFIRM_BOOST
             adjustments.append("st_confirms(+5%)")
         elif against_st:
-            confidence *= 0.95
+            confidence *= constants.CONFIDENCE_SUPERTREND_AGAINST_PENALTY
             adjustments.append("st_against(-5%)")
 
         # Zone Alignment Reward
         price_loc = indicators_15m.get("smart_sparkline", {}).get("price_location", {})
         zone = price_loc.get("zone", "MIDDLE")
         if direction == "long" and zone == "LOWER_10":
-            confidence *= 1.05
+            confidence *= constants.CONFIDENCE_ZONE_ALIGNED_BOOST
             adjustments.append("zone_aligned_long(+5%)")
         elif direction == "short" and zone == "UPPER_10":
-            confidence *= 1.05
+            confidence *= constants.CONFIDENCE_ZONE_ALIGNED_BOOST
             adjustments.append("zone_aligned_short(+5%)")
 
         return confidence, adjustments
@@ -3227,10 +2633,10 @@ class PortfolioManager:
         # Trend-following entries (LOW_RISK) get a small reward for alignment quality.
         pre_ct_conf = signal_ctx["confidence"]
         if is_ct:
-            ct_multiplier = 0.90
+            ct_multiplier = constants.CONFIDENCE_CT_HIGH_RISK
             ct_label = "CT_HIGH_RISK"
         else:
-            ct_multiplier = 1.10
+            ct_multiplier = constants.CONFIDENCE_CT_LOW_RISK
             ct_label = "CT_LOW_RISK"
 
         signal_ctx["confidence"] = min(1.0, pre_ct_conf * ct_multiplier)
@@ -3272,6 +2678,7 @@ class PortfolioManager:
             else None,
             "last_flip_direction": trend_info.get("last_flip_direction"),
             "relax_mode_active": getattr(self, "relaxed_countertrend_cycles", 0) > 0,
+            "counter_trend_cooldown": self.counter_trend_cooldown,
             "report": execution_report,
             "trade": trade,
             "log_func": signal_ctx["log_func"],
@@ -3339,8 +2746,6 @@ class PortfolioManager:
         Returns:
             A tuple of (proceed_boolean, final_confidence_float).
         """
-        from config.config import Config
-
         coin = signal_ctx["coin"]
         confidence = signal_ctx["confidence"]
         execution_report = signal_ctx["report"]
@@ -3348,7 +2753,7 @@ class PortfolioManager:
         log_func = signal_ctx["log_func"]
 
         # Volume quality scoring
-        volume_quality_score = self.calculate_volume_quality_score(
+        volume_quality_score = self.strategy_analyzer.calculate_volume_quality_score(
             coin, indicators_3m=indicators_3m_snap
         )
         confidence = min(1.0, confidence + (volume_quality_score / 1000))
@@ -3400,7 +2805,11 @@ class PortfolioManager:
 
         # Low Volume Penalty (Applies only if BOTH are below threshold)
         relax_mode_active = getattr(self, "relaxed_countertrend_cycles", 0) > 0
-        low_vol_threshold = 0.20 if not relax_mode_active else 0.15
+        low_vol_threshold = (
+            constants.LOW_VOLUME_THRESHOLD_RELAXED
+            if not relax_mode_active
+            else constants.LOW_VOLUME_THRESHOLD_RELAX_MODE
+        )
 
         if (
             volume_ratio_3m < low_vol_threshold
@@ -3408,8 +2817,11 @@ class PortfolioManager:
             and not relax_mode_active
         ):
             original_conf = confidence
-            confidence = max(confidence * 0.92, confidence - 0.05)
-            min_floor = original_conf * 0.85
+            confidence = max(
+                confidence * constants.CONFIDENCE_LOW_VOLUME_PENALTY,
+                confidence - constants.CONFIDENCE_LOW_VOLUME_REDUCTION,
+            )
+            min_floor = original_conf * constants.CONFIDENCE_LOW_VOLUME_FLOOR
             confidence = max(
                 confidence, min_floor
             )  # Removed Config.MIN_CONFIDENCE floor to allow blocking low-vol trades
@@ -3471,7 +2883,7 @@ class PortfolioManager:
             trade["forced_min_margin"] = True
             trade["forced_min_margin_reason"] = "ai_runtime_trend_clash"
             original_conf = confidence
-            confidence *= 0.85
+            confidence *= constants.CONFIDENCE_TREND_CLASH_PENALTY
             log_func(
                 "sizing",
                 f"[WARN] AI/Runtime TREND CLASH: {coin} {direction.upper()} vs {current_trend} trend → MIN_MARGIN penalty",
@@ -3607,211 +3019,7 @@ class PortfolioManager:
             A tuple of (proceed_boolean, confidence, partial_margin_factor).
 
         """
-        is_counter_trend = guard_ctx["is_counter_trend"]
-        if is_counter_trend:
-            return self._apply_counter_trend_flip_logic(guard_ctx)
-        confidence, partial_margin_factor = self._apply_trend_following_flip_logic(guard_ctx)
-        return True, confidence, partial_margin_factor
-
-    def _apply_counter_trend_flip_logic(
-        self,
-        guard_ctx: dict[str, Any],
-    ) -> tuple[bool, float, float]:
-        """Apply specialized guard logic for counter-trend trades.
-
-        Args:
-        ----
-            guard_ctx: Context containing trend flip and trade data.
-
-        Returns:
-        -------
-            A tuple of (proceed_boolean, confidence, partial_margin_factor).
-
-        """
-        coin = guard_ctx["coin"]
-        signal = guard_ctx["signal"]
-        confidence = guard_ctx["confidence"]
-        partial_margin_factor = guard_ctx["partial_margin_factor"]
-        relax_mode_active = guard_ctx["relax_mode_active"]
-        execution_report = guard_ctx["report"]
-        trade = guard_ctx["trade"]
-        classification = "counter_trend"
-
-        counter_trend_cooldown = self.counter_trend_cooldown
-        if counter_trend_cooldown > 0:
-            logger.info(
-                "Counter-trend cooldown active: Blocking {} {} ({} cycles remaining).",
-                coin,
-                signal,
-                counter_trend_cooldown,
-            )
-            execution_report["blocked"].append(
-                {"coin": coin, "reason": "counter_trend_cooldown", "classification": classification}
-            )
-            trade["runtime_decision"] = "blocked_counter_trend_cooldown"
-            return False, confidence, partial_margin_factor
-
-        if not relax_mode_active:
-            proceed, confidence, partial_margin_factor = self._check_flip_guard_confidence(
-                guard_ctx, confidence, partial_margin_factor
-            )
-            if not proceed:
-                return False, confidence, partial_margin_factor
-
-        return True, confidence, partial_margin_factor
-
-    def _check_flip_guard_confidence(
-        self,
-        guard_ctx: dict[str, Any],
-        confidence: float,
-        partial_margin_factor: float,
-    ) -> tuple[bool, float, float]:
-        """Check confidence floor and cap sizing after a trend flip.
-
-        Args:
-        ----
-            guard_ctx: Context for the flip guard.
-            confidence: Current confidence level.
-            partial_margin_factor: Current margin scaling factor.
-
-        Returns:
-        -------
-            A tuple of (proceed_boolean, updated_confidence, updated_factor).
-
-        """
-        coin = guard_ctx["coin"]
-        signal = guard_ctx["signal"]
-        guard_cycles_since_flip = guard_ctx["guard_cycles_since_flip"]
-        execution_report = guard_ctx["report"]
-        trade = guard_ctx["trade"]
-        log_func = guard_ctx["log_func"]
-        classification = "counter_trend"
-        guard_window = self.trend_flip_cooldown
-
-        if not (guard_cycles_since_flip is not None and guard_cycles_since_flip <= guard_window):
-            return True, confidence, partial_margin_factor
-
-        # Cycle-specific thresholds
-        thresholds = {
-            0: (0.60, 0.8, "same cycle"),
-            1: (0.55, 0.9, "one cycle"),
-            constants.TREND_FLIP_COOLDOWN_DEFAULT: (
-                0.50,
-                1.0,
-                f"{constants.TREND_FLIP_COOLDOWN_DEFAULT} cycles",
-            ),
-        }
-
-        if guard_cycles_since_flip in thresholds:
-            min_c, cap, desc = thresholds[guard_cycles_since_flip]
-            if confidence < min_c:
-                log_func(
-                    "flip_guard",
-                    f"[BLOCK] Flip guard confidence floor: {coin} {signal} confidence {confidence:.2f} < {min_c:.2f} {desc} after flip.",
-                    {
-                        "coin": coin,
-                        "signal": signal,
-                        "confidence": confidence,
-                        "min_required": min_c,
-                        "cycles_since_flip": guard_cycles_since_flip,
-                    },
-                )
-                execution_report["blocked"].append(
-                    {
-                        "coin": coin,
-                        "reason": "trend_flip_guard_confidence",
-                        "classification": classification,
-                    }
-                )
-                trade["runtime_decision"] = "blocked_trend_flip_confidence"
-                return False, confidence, partial_margin_factor
-            partial_margin_factor = min(partial_margin_factor, cap)
-            if cap < 1.0:
-                log_func(
-                    "sizing",
-                    f"[WATCH] Trend flip guard ({classification}): {coin} sizing capped at {cap * 100:.0f}% {desc} after flip.",
-                )
-
-        return True, confidence, partial_margin_factor
-
-    def _apply_trend_following_flip_logic(
-        self,
-        guard_ctx: dict[str, Any],
-    ) -> tuple[float, float]:
-        """Apply specialized guard logic for trend-following flip scenarios.
-
-        Args:
-        ----
-            guard_ctx: Context containing trend flip and trade data.
-
-        Returns:
-        -------
-            A tuple of (adjusted_confidence, adjusted_margin_factor).
-
-        """
-        coin = guard_ctx["coin"]
-        direction = guard_ctx["direction"]
-        confidence = guard_ctx["confidence"]
-        partial_margin_factor = guard_ctx["partial_margin_factor"]
-        guard_cycles_since_flip = guard_ctx.get("guard_cycles_since_flip")
-        last_flip_direction = guard_ctx.get("last_flip_direction")
-        trade = guard_ctx["trade"]
-        log_func = guard_ctx["log_func"]
-        guard_window = self.trend_flip_cooldown
-        if (
-            guard_cycles_since_flip is not None
-            and guard_cycles_since_flip <= guard_window
-            and last_flip_direction
-        ):
-            is_trend_direction = (last_flip_direction == "bullish" and direction == "long") or (
-                last_flip_direction == "bearish" and direction == "short"
-            )
-            if is_trend_direction:
-                orig_conf = confidence
-                if guard_cycles_since_flip == 0:
-                    confidence = max(orig_conf * 0.97, orig_conf - 0.02, orig_conf * 0.95)
-                    partial_margin_factor = min(partial_margin_factor, 0.7)
-                    note = f"flip_guard_cycle_0({orig_conf:.2f}->{confidence:.2f})"
-                    log_func(
-                        "sizing",
-                        f"[WATCH] Trend flip guard (trend-following): {coin} confidence {orig_conf:.2f} → {confidence:.2f} & sizing 50% immediately after flip.",
-                    )
-                elif guard_cycles_since_flip == 1:
-                    confidence = max(orig_conf * 0.98, orig_conf - 0.01, orig_conf * 0.97)
-                    partial_margin_factor = min(partial_margin_factor, 0.8)
-                    note = f"flip_guard_cycle_1({orig_conf:.2f}->{confidence:.2f})"
-                    log_func(
-                        "sizing",
-                        f"[WATCH] Trend flip guard (trend-following): {coin} confidence {orig_conf:.2f} → {confidence:.2f} & sizing 70% {constants.ALIGNMENT_STRENGTH_L1} cycle after flip.",
-                    )
-                elif guard_cycles_since_flip == constants.TREND_FLIP_COOLDOWN_DEFAULT:
-                    confidence = max(orig_conf * 0.99, orig_conf * 0.98)
-                    partial_margin_factor = min(partial_margin_factor, 0.90)
-                    note = f"flip_guard_cycle_{constants.TREND_FLIP_COOLDOWN_DEFAULT}({orig_conf:.2f}->{confidence:.2f})"
-                    log_func(
-                        "sizing",
-                        f"[WATCH] Trend flip guard (trend-following): {coin} confidence {orig_conf:.2f} → {confidence:.2f} & sizing 85% {constants.TREND_FLIP_COOLDOWN_DEFAULT} cycles after flip.",
-                    )
-                else:
-                    note = None
-
-                if note:
-                    execution_report = guard_ctx.get("report", {})
-                    if execution_report is not None:
-                        if "debug_logs" not in execution_report:
-                            execution_report["debug_logs"] = []
-                        execution_report["debug_logs"].append(
-                            {
-                                "coin": coin,
-                                "type": "flip_guard_adjustment",
-                                "before": orig_conf,
-                                "after": confidence,
-                                "note": note,
-                            }
-                        )
-
-        trade["confidence"] = confidence
-        return confidence, partial_margin_factor
+        return self.trend_state_manager.evaluate_trend_flip_guard(guard_ctx)
 
     def _finalize_entry_sizing_and_execution(
         self,
@@ -3889,8 +3097,6 @@ class PortfolioManager:
             The calculated stop loss price.
 
         """
-        from config.config import Config
-
         try:
             atr_value = indicators_htf.get("atr_14") if isinstance(indicators_htf, dict) else None
             if atr_value and atr_value > 0:
@@ -3908,7 +3114,7 @@ class PortfolioManager:
                     atr_stop_loss,
                 )
                 return atr_stop_loss
-            fallback_dist = current_price * 0.02
+            fallback_dist = current_price * constants.FALLBACK_SL_PCT
             atr_stop_loss = (
                 (current_price - fallback_dist)
                 if signal == "buy_to_enter"
@@ -3920,7 +3126,7 @@ class PortfolioManager:
             return atr_stop_loss
         except Exception as e:
             logger.warning("ATR SL calculation failed for {}: {}", coin, e)
-            fallback_dist = current_price * 0.02
+            fallback_dist = current_price * constants.FALLBACK_SL_PCT
             return (
                 (current_price - fallback_dist)
                 if signal == "buy_to_enter"
@@ -3940,8 +3146,6 @@ class PortfolioManager:
             The final margin amount in USD.
 
         """
-        from config.config import Config
-
         confidence = signal_ctx["confidence"]
         current_price = signal_ctx["current_price"]
         leverage = signal_ctx["leverage"]
@@ -4019,8 +3223,6 @@ class PortfolioManager:
             True if the trade passes risk calibration, False otherwise.
 
         """
-        from config.config import Config
-
         coin = signal_ctx["coin"]
         current_price = signal_ctx["current_price"]
         leverage = signal_ctx["leverage"]
@@ -4028,7 +3230,7 @@ class PortfolioManager:
         trade = signal_ctx["trade"]
         execution_report = signal_ctx["report"]
 
-        min_cash_guard = self.current_balance * 0.10
+        min_cash_guard = self.current_balance * constants.MIN_CASH_GUARD_RATIO
         if (self.current_balance - calculated_margin) < min_cash_guard:
             logger.warning(
                 "Trade would reduce available cash below minimum ${:.2f}. Trade blocked.",
@@ -4084,144 +3286,22 @@ class PortfolioManager:
             True if the order execution was successful.
 
         """
-        coin = signal_ctx["coin"]
-        signal = signal_ctx["signal"]
-        current_price = signal_ctx["current_price"]
-        leverage = signal_ctx["leverage"]
-        confidence = signal_ctx["confidence"]
-        trade = signal_ctx["trade"]
-        execution_report = signal_ctx["report"]
-        direction = signal_ctx["direction"]
-        classification = signal_ctx.get("classification", "unknown")
-        indicators_3m = signal_ctx.get("indicators_3m", {})
-
-        notional_usd = calculated_margin * leverage
-        margin_usd = notional_usd / leverage
-        if margin_usd <= 0:
-            logger.warning(
-                "{} {}: Calculated margin is zero/negative. Skipping.", signal.upper(), coin
-            )
-            return False
-        if margin_usd > self.current_balance:
-            logger.warning(
-                "{} {}: Not enough cash for margin (${:.2f} > ${:.2f})",
-                signal.upper(),
-                coin,
-                margin_usd,
-                self.current_balance,
-            )
-            return False
-
-        quantity_coin = notional_usd / current_price
-
-        # Fixed percentage-based profit target (avoids N/A in UI)
-        tp_pct = getattr(Config, "DEFAULT_PROFIT_TARGET_PCT", 0.015)
-        default_profit_target = (
-            current_price * (1 + tp_pct) if direction == "long" else current_price * (1 - tp_pct)
+        result = self.trade_executor._execute_order_payload(
+            signal_ctx=signal_ctx,
+            calculated_margin=calculated_margin,
+            atr_stop_loss=atr_stop_loss,
+            current_balance=self.current_balance,
+            lock=self._lock,
+            current_cycle_number=self.current_cycle_number,
+            market_data=self.market_data,
         )
-
-        # Live or Simulated
-        if self.is_live_trading:
-            live_result = self.execute_live_entry(
-                coin=coin,
-                direction=direction,
-                quantity=quantity_coin,
-                leverage=leverage,
-                current_price=current_price,
-                notional_usd=notional_usd,
-                confidence=confidence,
-                margin_usd=margin_usd,
-            )
-            if not live_result.get("success"):
-                err_msg = live_result.get("error", "unknown_error")
-                logger.warning("LIVE ORDER FAILED: {} {} ({})", coin, signal, err_msg)
-                execution_report["blocked"].append(
-                    {"coin": coin, "reason": "live_order_failed", "error": err_msg},
-                )
-                trade["runtime_decision"] = "blocked_live_order"
-                return False
-
-            execution_report["executed"].append(
-                {
-                    "coin": coin,
-                    "signal": signal,
-                    "confidence": confidence,
-                    "classification": classification,
-                    "margin_usd": live_result.get("margin_usd"),
-                    "mode": "live",
-                    "order_id": live_result.get("order", {}).get("orderId"),
-                },
-            )
-            trade["runtime_decision"] = "executed_live"
-            return True
-
-        # Simulated — atomically deduct balance and create position under lock
-        with self._lock:
+        if isinstance(result, Position):
+            # Simulated execution: deduct balance and store position
+            margin_usd = result.margin_usd
             self.current_balance -= margin_usd
-            est_liq = self._estimate_liquidation_price(current_price, leverage, direction)
-            position_data = {
-                "symbol": coin,
-                "direction": direction,
-                "quantity": quantity_coin,
-                "entry_price": current_price,
-                "entry_time": datetime.now(timezone.utc).isoformat(),
-                "current_price": current_price,
-                "unrealized_pnl": 0.0,
-                "notional_usd": notional_usd,
-                "margin_usd": margin_usd,
-                "leverage": leverage,
-                "liquidation_price": est_liq,
-                "confidence": confidence,
-                "exit_plan": {
-                    "profit_target": default_profit_target,
-                    "stop_loss": atr_stop_loss,
-                    "invalidation_condition": trade.get("invalidation_condition"),
-                },
-                "risk_usd": notional_usd * (abs(current_price - atr_stop_loss) / current_price)
-                if current_price
-                else 0,
-                "loss_cycle_count": 0,
-                "entry_volume": indicators_3m.get("volume"),
-                "entry_avg_volume": indicators_3m.get("avg_volume"),
-                "entry_volume_ratio": indicators_3m.get("volume_ratio"),
-                "entry_atr_14": indicators_3m.get("atr_14"),
-                "trend_alignment": classification,
-                "trend_context": {
-                    "trend_at_entry": trade.get("trend_runtime", "unknown"),
-                    "alignment": classification,
-                    "cycle": self.current_cycle_number,
-                },
-                "trailing": {},
-                "sl_oid": -1,
-                "tp_oid": -1,
-                "entry_oid": -1,
-                "wait_for_fill": False,
-            }
-            self.positions[coin] = Position.model_validate(position_data)
-        logger.info(
-            "{}: Opened {} {} ({} @ ${} / Notional ${} / Margin ${})",
-            signal.upper(),
-            direction,
-            coin,
-            format_num(quantity_coin, 4),
-            format_num(current_price, 4),
-            format_num(notional_usd, 2),
-            format_num(margin_usd, 2),
-        )
-        execution_report["executed"].append(
-            {
-                "coin": coin,
-                "signal": signal,
-                "confidence": confidence,
-                "classification": classification,
-                "volume_ratio": indicators_3m.get("volume_ratio")
-                if isinstance(indicators_3m, dict)
-                else None,
-                "margin_usd": margin_usd,
-            },
-        )
-        trade["runtime_decision"] = "executed"
-        return True
+            self.positions[result.symbol] = result
+            return True
+        return result
 
     def cancel_cycle(self) -> None:
         """Signal the current cycle to abort (called by watchdog on timeout).
@@ -4281,8 +3361,6 @@ class PortfolioManager:
             Dictionary containing sorted decisions, report, and metrics.
 
         """
-        from config.config import Config
-
         bias_metrics = getattr(self, "latest_bias_metrics", self.get_directional_bias_metrics())
         context = self._prepare_execution_context()
         report = context["report"]

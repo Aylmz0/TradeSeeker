@@ -10,7 +10,6 @@ from litellm import Router
 from config.config import Config
 from src.utils import safe_file_read
 
-# HTF_INTERVAL used in prompt, we can get it from Config
 HTF_INTERVAL = getattr(Config, "HTF_INTERVAL", "1h") or "1h"
 HTF_LABEL = HTF_INTERVAL
 

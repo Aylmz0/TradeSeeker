@@ -226,7 +226,7 @@ def train_global_model():
 
     # Model Persistence
     os.makedirs("models", exist_ok=True)
-    model.save_model("models/seeker_v1.xgb")
+    model.save_model("models/seeker_v1.ubj")
     joblib.dump(scaler, "models/scaler.joblib")
     joblib.dump(feature_cols, "models/feature_cols.joblib")
 
