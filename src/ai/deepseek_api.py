@@ -146,10 +146,10 @@ class DeepSeekAPI:
             logger.info("Initializing LiteLLM Router with {} fallback models.", len(model_list))
             self.router = Router(
                 model_list=model_list,
-                routing_strategy="latency-based-routing",
+                routing_strategy="simple-shuffle",
                 allowed_fails=1,
-                num_retries=0,  # FORCE 0 RETRIES: Instantly drop to Groq/MiMo on error
-                timeout=120.0,  # 2.0 minutes timeout to allow deep reasoning models to finish
+                num_retries=0,
+                timeout=120.0,
             )
             self.invocation_count = 0
 
